@@ -18,8 +18,8 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { clearingHouseAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
-import { DEFAULTS, buildLadder, inventoryRatio, quoteBps, realizedSigmaBpsPerSqrtSec } from "./as.js";
-import { type Resting, planRequote } from "./plan.js";
+import { DEFAULTS, buildLadder, inventoryRatio, quoteBps, sigmaForQuoting } from "./as.js";
+import { type Resting, needsRequote, planRequote } from "./plan.js";
 
 const env = (k: string): string | undefined => {
   const v = process.env[k];
@@ -40,11 +40,14 @@ const LEVELS = Number(env("LEVELS") ?? "3");
 const LOTS_PER_LEVEL = BigInt(env("LOTS_PER_LEVEL") ?? "20");
 const LEVEL_SPACING_BPS = Number(env("LEVEL_SPACING_BPS") ?? "2");
 const MAX_INVENTORY_LOTS = BigInt(env("MAX_INVENTORY_LOTS") ?? "200"); // 20,000 MON (< the 25,000 MON position cap)
-const REQUOTE_MOVE_BPS = 2n; // MATH_SPEC §4
 const SIGMA_WINDOW_SEC = 600; // σ from the last 10 min of index
+const SIGMA_MIN_COVERAGE_SEC = Number(env("SIGMA_MIN_COVERAGE_SEC") ?? "120");
+const SIGMA_MAX = Number(env("SIGMA_MAX") ?? String(5 * DEFAULTS.sigma)); // ≈ 500% annual vol
 const GAMMA = Number(env("GAMMA") ?? String(DEFAULTS.gamma));
 const K = Number(env("K") ?? String(DEFAULTS.k));
 const HORIZON_SEC = Number(env("HORIZON_SEC") ?? String(DEFAULTS.horizonSec));
+const RECOVER_LOOKBACK_BLOCKS = BigInt(env("RECOVER_LOOKBACK_BLOCKS") ?? "5000");
+const LOG_SPAN = BigInt(env("LOG_SPAN") ?? "100"); // public RPC eth_getLogs cap (ARCHITECTURE R2)
 
 interface Deployments {
   chainId: number;
@@ -153,12 +156,8 @@ async function tick(block: bigint): Promise<void> {
 
     await refreshResting();
     const q = inventoryRatio(acct.size, MAX_INVENTORY_LOTS * lotSize);
-    const moved = lastQuotedIndex === 0n ? true : abs(index - lastQuotedIndex) * 10_000n > REQUOTE_MOVE_BPS * lastQuotedIndex;
-    const complete = resting.length === (q >= 1 || q <= -1 ? LEVELS : 2 * LEVELS) && resting.every((r) => r.lots === LOTS_PER_LEVEL);
-    if (!moved && complete && Math.abs(q - lastQ) < 0.05) return;
-
-    const sigma = realizedSigmaBpsPerSqrtSec(samples, DEFAULTS.sigma);
-    const quote = quoteBps({ sigma: sigma > 0 ? sigma : DEFAULTS.sigma, gamma: GAMMA, k: K, horizonSec: HORIZON_SEC, q });
+    const sigma = sigmaForQuoting(samples, { fallback: DEFAULTS.sigma, minCoverageSec: SIGMA_MIN_COVERAGE_SEC, max: SIGMA_MAX });
+    const quote = quoteBps({ sigma, gamma: GAMMA, k: K, horizonSec: HORIZON_SEC, q });
     const ladder = buildLadder({
       midWad: index,
       tickSize,
@@ -169,6 +168,15 @@ async function tick(block: bigint): Promise<void> {
       lotsPerLevel: LOTS_PER_LEVEL,
       q,
     });
+    const movedBps = lastQuotedIndex === 0n ? 10_000n : (abs(index - lastQuotedIndex) * 10_000n) / lastQuotedIndex;
+    const requote = needsRequote({
+      movedBps,
+      restingCount: resting.length,
+      targetCount: ladder.bids.length + ladder.asks.length,
+      allFull: resting.every((r) => r.lots === LOTS_PER_LEVEL),
+      dq: Number.isNaN(lastQ) ? 1 : Math.abs(q - lastQ),
+    });
+    if (!requote) return;
     const plan = planRequote(resting, ladder);
     for (const id of plan.cancel) {
       await send("cancel", encodeFunctionData({ abi: orderBookAbi, functionName: "cancelOrder", args: [id] }));
@@ -208,8 +216,24 @@ function abs(x: bigint): bigint {
   return x < 0n ? -x : x;
 }
 
+/** Adopt our orders that are still resting from a previous run (restart safety): scan our OrderPlaced logs. */
+async function recoverResting(): Promise<void> {
+  const head = await pub.getBlockNumber();
+  const from = head > RECOVER_LOOKBACK_BLOCKS ? head - RECOVER_LOOKBACK_BLOCKS : 0n;
+  const found: Resting[] = [];
+  for (let s = from; s <= head; s += LOG_SPAN) {
+    const e = s + LOG_SPAN - 1n < head ? s + LOG_SPAN - 1n : head;
+    const logs = await pub.getContractEvents({ address: OB, abi: orderBookAbi, eventName: "OrderPlaced", args: { maker: account.address }, fromBlock: s, toBlock: e, strict: true });
+    for (const l of logs) found.push({ id: l.args.orderId, isBid: l.args.isBid, tick: l.args.tick, lots: l.args.lots });
+  }
+  resting = found;
+  await refreshResting();
+  log("recovered resting orders", { count: resting.length, lookbackBlocks: RECOVER_LOOKBACK_BLOCKS });
+}
+
 tickSize = await pub.readContract({ address: OB, abi: orderBookAbi, functionName: "tickSize" });
 lotSize = await pub.readContract({ address: OB, abi: orderBookAbi, functionName: "lotSize" });
+await recoverResting();
 log("mm start", { chainId: CHAIN_ID, orderBook: OB, maker: account.address, levels: LEVELS, lotsPerLevel: LOTS_PER_LEVEL, killFile: KILL_FILE });
 process.on("SIGINT", () => {
   log("SIGINT: cancelling all");

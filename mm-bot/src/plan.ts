@@ -48,3 +48,20 @@ export function planRequote(resting: readonly Resting[], target: { bids: readonl
     cancel: [...b.cancel, ...a.cancel],
   };
 }
+
+export interface RequoteInput {
+  /** |index − last quoted index| in whole bps (floor) */
+  movedBps: bigint;
+  restingCount: number;
+  /** size of the ladder we would build now (may be one-sided or shorter than 2·levels) */
+  targetCount: number;
+  /** every resting order still has its full size */
+  allFull: boolean;
+  /** |q − q at the last quote| */
+  dq: number;
+}
+
+/** Requote only on a > 2 bps index move (MATH_SPEC §4), a missing/partially filled level, or a ≥ 0.05 inventory move. */
+export function needsRequote(i: RequoteInput): boolean {
+  return i.movedBps > 2n || i.restingCount < i.targetCount || !i.allFull || i.dq >= 0.05;
+}

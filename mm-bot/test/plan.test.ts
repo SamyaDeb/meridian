@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planRequote, type Resting } from "../src/plan.js";
+import { needsRequote, planRequote, type Resting } from "../src/plan.js";
 
 const L = (tick: number, lots = 50n) => ({ tick, lots });
 
@@ -70,5 +70,22 @@ describe("planRequote: minimal replace/place/cancel set to reach the target ladd
     const p = planRequote(resting, { bids: [L(13)], asks: [L(15)] });
     expect(p.replace[0]).toEqual({ id: 2n, isBid: false, tick: 15, lots: 50n });
     expect(p.replace[1]).toEqual({ id: 1n, isBid: true, tick: 13, lots: 50n });
+  });
+});
+
+describe("needsRequote: gas discipline (no tx storm when the ladder is legitimately short)", () => {
+  const r = (n: number): Resting[] => Array.from({ length: n }, (_, i) => ({ id: BigInt(i + 1), isBid: i % 2 === 0, tick: 10 + i, lots: 20n }));
+  it("requotes on an index move > 2 bps", () => {
+    expect(needsRequote({ movedBps: 3n, restingCount: 6, targetCount: 6, allFull: true, dq: 0 })).toBe(true);
+    expect(needsRequote({ movedBps: 2n, restingCount: 6, targetCount: 6, allFull: true, dq: 0 })).toBe(false);
+  });
+  it("requotes when a target level is missing or partially filled, or inventory moved ≥ 0.05", () => {
+    expect(needsRequote({ movedBps: 0n, restingCount: 5, targetCount: 6, allFull: true, dq: 0 })).toBe(true);
+    expect(needsRequote({ movedBps: 0n, restingCount: 6, targetCount: 6, allFull: false, dq: 0 })).toBe(true);
+    expect(needsRequote({ movedBps: 0n, restingCount: 6, targetCount: 6, allFull: true, dq: 0.05 })).toBe(true);
+  });
+  it("does not requote every block when the built ladder is one-sided (3 of 6)", () => {
+    expect(needsRequote({ movedBps: 0n, restingCount: 3, targetCount: 3, allFull: true, dq: 0 })).toBe(false);
+    expect(r(3).length).toBe(3);
   });
 });

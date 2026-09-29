@@ -113,3 +113,21 @@ export function buildLadder(p: LadderParams): { bids: Level[]; asks: Level[] } {
   const dedupe = (xs: Level[]) => xs.filter((x, i) => xs.findIndex((y) => y.tick === x.tick) === i);
   return { bids: dedupe(bids), asks: dedupe(asks) };
 }
+
+export interface SigmaGuards {
+  /** σ to use until the samples cover `minCoverageSec`, or when realized σ is 0 */
+  fallback: number;
+  minCoverageSec: number;
+  /** cap (bps/√s): one gap must not blow the spread up (a −40% jump would otherwise quote ~400%) */
+  max: number;
+}
+
+/** Realized σ for quoting: fallback on thin/flat history, capped at `max`. */
+export function sigmaForQuoting(samples: readonly { t: number; price: bigint }[], g: SigmaGuards): number {
+  if (samples.length < 3) return g.fallback;
+  const coverage = samples[samples.length - 1]!.t - samples[0]!.t;
+  if (coverage < g.minCoverageSec) return g.fallback;
+  const s = realizedSigmaBpsPerSqrtSec(samples, g.fallback);
+  if (!(s > 0)) return g.fallback;
+  return Math.min(s, g.max);
+}

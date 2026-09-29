@@ -5,6 +5,7 @@ import {
   inventoryRatio,
   quoteBps,
   realizedSigmaBpsPerSqrtSec,
+  sigmaForQuoting,
   sigmaFromAnnualVol,
   type LadderParams,
 } from "../src/as.js";
@@ -46,6 +47,24 @@ describe("inventoryRatio", () => {
     expect(inventoryRatio(5_000n * WAD, 10_000n * WAD)).toBe(0.5);
     expect(inventoryRatio(-20_000n * WAD, 10_000n * WAD)).toBe(-1);
     expect(inventoryRatio(0n, 10_000n * WAD)).toBe(0);
+  });
+});
+
+describe("sigmaForQuoting: realized σ guarded against short windows and jumps", () => {
+  const p0 = 29n * 10n ** 15n;
+  it("uses the fallback until the samples cover minCoverageSec", () => {
+    const short = [0, 10, 20, 30].map((t, i) => ({ t, price: i === 3 ? (p0 * 101n) / 100n : p0 })); // 1% jump in 30 s
+    expect(sigmaForQuoting(short, { fallback: DEFAULTS.sigma, minCoverageSec: 120, max: 5 * DEFAULTS.sigma })).toBe(DEFAULTS.sigma);
+  });
+  it("caps σ at `max` (a −40% gap must not quote a 400% spread)", () => {
+    const crash = [0, 60, 120, 180].map((t, i) => ({ t, price: i === 3 ? (p0 * 60n) / 100n : p0 }));
+    const s = sigmaForQuoting(crash, { fallback: DEFAULTS.sigma, minCoverageSec: 120, max: 5 * DEFAULTS.sigma });
+    expect(s).toBeCloseTo(5 * DEFAULTS.sigma, 10);
+    expect(quoteBps({ ...DEFAULTS, sigma: s, q: 0 }).spread).toBeLessThan(60); // ≈ 51.5 bps at the cap
+  });
+  it("passes realized σ through inside the guards", () => {
+    const calm = [0, 60, 120, 180].map((t) => ({ t, price: p0 }));
+    expect(sigmaForQuoting(calm, { fallback: DEFAULTS.sigma, minCoverageSec: 120, max: 10 })).toBe(DEFAULTS.sigma); // 0 ⇒ fallback
   });
 });
 
