@@ -13,8 +13,7 @@ import {PythChainlinkOracleAdapter} from "../src/oracle/PythChainlinkOracleAdapt
 import {TestnetKeeperOracle} from "../src/oracle/TestnetKeeperOracle.sol";
 import {IPythMinimal} from "../src/interfaces/external/IPythMinimal.sol";
 import {AggregatorV3Interface} from "../src/interfaces/external/AggregatorV3Interface.sol";
-import {IInsuranceFund} from "../src/interfaces/IInsuranceFund.sol";
-import {IFundingSwapMarket} from "../src/interfaces/IFundingSwapMarket.sol";
+import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
 
 /// @notice Pulse deployment for Monad testnet (10143) and mainnet (143), ARCHITECTURE §7 order.
 ///   Dry-run:  forge script script/DeployPulse.s.sol --fork-url $MONAD_TESTNET_RPC_URL --code-size-limit 131072
@@ -155,20 +154,20 @@ contract DeployPulse is DeployBase {
         );
     }
 
-    /// @dev Steps 10–13, Phase 4. TODO(WS-05): constructor args once FundingSwapMarket merges.
+    /// @dev Steps 10–13 (Phase 4). Maturity: `params.swap.maturity` (unix s), or now + `SWAP_MATURITY_IN_SEC` for a
+    ///      test maturity (e.g. 3600 on testnet, PHASES Phase 4). Tick 1e14 = 1 bp APR, lot 1,000 MON (WS-05).
     function _deploySwaps() internal {
-        uint256 maturity = cfg.readUintOr(".params.swap.maturity", 0);
-        require(maturity > block.timestamp, "VERIFY: set params.swap.maturity");
-        d.swapMarket = deployCode(
-            "FundingSwapMarket.sol:FundingSwapMarket",
-            abi.encode(d.perp.clearingHouse, d.ausd, d.insuranceFund, uint64(maturity), _swapParams(), deployer)
+        uint256 inSec = vm.envOr("SWAP_MATURITY_IN_SEC", uint256(0));
+        uint256 maturity = inSec != 0 ? block.timestamp + inSec : cfg.readUintOr(".params.swap.maturity", 0);
+        require(maturity > block.timestamp, "VERIFY: set params.swap.maturity or SWAP_MATURITY_IN_SEC");
+        FundingSwapMarket swap = new FundingSwapMarket(
+            d.perp.clearingHouse, d.ausd, d.insuranceFund, uint64(maturity), _swapParams(), deployer
         );
-        d.swapOrderBook = deployCode(
-            "OrderBook.sol:OrderBook",
-            abi.encode(d.swapMarket, _u(".params.swap.tickSizeWad"), _u(".params.swap.lotSizeWad"))
-        );
-        IFundingSwapMarket(d.swapMarket).setOrderBook(d.swapOrderBook);
-        IInsuranceFund(d.insuranceFund).setMarketAuthorized(d.swapMarket, true);
+        OrderBook sob = new OrderBook(address(swap), _u(".params.swap.tickSizeWad"), _u(".params.swap.lotSizeWad"));
+        swap.setOrderBook(address(sob));
+        InsuranceFund(d.insuranceFund).setMarketAuthorized(address(swap), true);
+        d.swapMarket = address(swap);
+        d.swapOrderBook = address(sob);
         if (vm.envOr("DEPLOY_CRE_RECEIVER", false)) {
             d.keeperReceiver = deployCode(
                 "PulseKeeperReceiver.sol:PulseKeeperReceiver", abi.encode(cfg.readAddress(".cre.keystoneForwarder"))
