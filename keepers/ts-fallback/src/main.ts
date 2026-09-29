@@ -1,7 +1,9 @@
 // Thin RPC wiring for the Pulse TS fallback keeper. All decisions live in decide.ts (pure, unit-tested).
-// Per block: (a) Pyth push (only with PYTH_API_KEY), (b) funding poke, (c) perp liquidations.
+// Per block: (a) oracle push — Pyth Hermes (only with PYTH_API_KEY) or, on testnet without a key, the keeper-fed
+// TestnetKeeperOracle from a keyless source (pricesource.ts) — (b) funding poke, (c) perp liquidations.
+// MARKET=demo runs the same loop against the clearly labelled MON-PERP-DEMO test market (deployments.demoMarket).
 // Next (LANE_B §4): swap-market liquidations, settleMaturity, vault rebalanceWithRoute.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import {
@@ -29,6 +31,7 @@ import {
   shouldPushPyth,
 } from "./decide.js";
 import { DEFAULT_HERMES_URL, fetchHermesLatest } from "./hermes.js";
+import { applyFactor, decimalToWad, encodeTestOracleUpdate, latestKeylessPrice } from "./pricesource.js";
 import { LiquidationLatency } from "./latency.js";
 
 // ───────────────────────────── config ─────────────────────────────
@@ -53,6 +56,12 @@ const PYTH_API_KEY = env("PYTH_API_KEY");
 const HERMES_URL = env("HERMES_URL") ?? DEFAULT_HERMES_URL;
 const PYTH_FEED_ID = env("PYTH_MON_USD_FEED_ID") as Hex | undefined;
 
+// Keeper-fed test oracle (Phase 3 step 2b): heartbeat 10 s against the oracle's maxStaleness 60 s (R24 fallback value).
+const MAINNET_RPC_URL = env("MONAD_RPC_URL"); // mainnet Pyth read-only; unset ⇒ Hyperliquid fallback only
+const FEED_HEARTBEAT_SEC = BigInt(env("FEED_HEARTBEAT_SEC") ?? "10");
+const FEED_MAX_SOURCE_AGE_SEC = BigInt(env("FEED_MAX_SOURCE_AGE_SEC") ?? "60");
+const PRICE_FACTOR_FILE = env("PRICE_FACTOR_FILE"); // demo market only: "0.85" in this file ⇒ push 85% of the source
+
 const MAX_FUNDING_GAP_BLOCKS = BigInt(env("MAX_FUNDING_GAP_BLOCKS") ?? "20"); // WS-03 acceptance
 const INCLUSION_LAG_BLOCKS = 1n;
 const PYTH_MAX_AGE_SEC = 3n; // LANE_B §4
@@ -64,15 +73,28 @@ const LOOKBACK_BLOCKS = BigInt(env("LOOKBACK_BLOCKS") ?? "10000"); // initial Po
 const MIN_KEEPER_BALANCE = 5n * 10n ** 18n; // alert < 5 MON (TEAM_PLAN §7)
 const HEALTH_MAX_SILENCE_MS = 30_000;
 
+type OracleKind = "pyth" | "keeper-fed" | "mock";
+interface MarketDeployment {
+  ClearingHouse: Address;
+  OracleAdapter: Address;
+  oracleKind?: OracleKind;
+}
 interface Deployments {
   chainId: number;
   startBlock: number;
-  contracts: { ClearingHouse: Address; OracleAdapter: Address };
+  contracts: MarketDeployment;
+  /** MON-PERP-DEMO: separate OB + CH with a keeper-fed test oracle, used only for the crash/liquidation demo. */
+  demoMarket?: MarketDeployment & { symbol: string; testMarket: true };
 }
 const dep = JSON.parse(readFileSync(DEPLOYMENTS, "utf8")) as Deployments;
 if (dep.chainId !== CHAIN_ID) throw new Error(`deployments chainId ${dep.chainId} != CHAIN_ID ${CHAIN_ID}`);
-const CH = dep.contracts.ClearingHouse;
-const ORACLE = dep.contracts.OracleAdapter;
+const MARKET = env("MARKET") ?? "main";
+const market = MARKET === "demo" ? dep.demoMarket : dep.contracts;
+if (market === undefined) throw new Error(`MARKET=${MARKET}: no demoMarket in ${DEPLOYMENTS}`);
+const CH = market.ClearingHouse;
+const ORACLE = market.OracleAdapter;
+const ORACLE_KIND: OracleKind = (env("ORACLE_KIND") as OracleKind | undefined) ?? market.oracleKind ?? "pyth";
+if (PRICE_FACTOR_FILE !== undefined && MARKET !== "demo") throw new Error("PRICE_FACTOR_FILE is only allowed with MARKET=demo");
 
 // ───────────────────────────── clients ─────────────────────────────
 
@@ -85,6 +107,7 @@ const chain = defineChain({
 const account = privateKeyToAccount(KEEPER_PK, { nonceManager });
 const pub = createPublicClient({ chain, transport: http(RPC_URL), pollingInterval: 250 });
 const wallet = createWalletClient({ chain, account, transport: http(RPC_URL) });
+const mainnet = MAINNET_RPC_URL === undefined ? null : createPublicClient({ transport: http(MAINNET_RPC_URL) });
 
 // ───────────────────────────── state ─────────────────────────────
 
@@ -96,6 +119,8 @@ const health = {
   fundingPokes: 0,
   liquidations: 0,
   pythPushes: 0,
+  feedPushes: 0,
+  lastFeedSource: "",
   openPositions: 0,
   liquidationLatency: new LiquidationLatency().summary(),
   errors: 0,
@@ -123,6 +148,50 @@ async function send(label: string, to: Address, data: Hex, value = 0n): Promise<
   const rcpt = await pub.waitForTransactionReceipt({ hash, timeout: 10_000 });
   log(label, { hash, block: rcpt.blockNumber, status: rcpt.status, gasUsed: rcpt.gasUsed, gasLimit: gas });
   return rcpt.status === "success" ? rcpt.blockNumber : null;
+}
+
+/** Demo crash lever: the factor file's decimal (e.g. "0.85"), 1.0 when absent. */
+function priceFactor(): bigint {
+  if (PRICE_FACTOR_FILE === undefined || !existsSync(PRICE_FACTOR_FILE)) return WAD_ONE;
+  const f = decimalToWad(readFileSync(PRICE_FACTOR_FILE, "utf8"));
+  if (f === null) throw new Error(`bad factor in ${PRICE_FACTOR_FILE}`);
+  return f;
+}
+const WAD_ONE = 10n ** 18n;
+
+/** Keeper-fed TestnetKeeperOracle: same push rule as Pyth (older than the heartbeat, or moved > 5 bps). */
+async function feedStep(): Promise<void> {
+  if (PYTH_FEED_ID === undefined) throw new Error("missing env PYTH_MON_USD_FEED_ID (mainnet Pyth source)");
+  const block = await pub.getBlock({ blockTag: "latest" });
+  const [src, onchain] = await Promise.all([
+    latestKeylessPrice(mainnet, PYTH_FEED_ID, block.timestamp, FEED_MAX_SOURCE_AGE_SEC),
+    pub.readContract({ address: ORACLE, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" }),
+  ]);
+  if (src === null) {
+    alert("no usable price source: the test oracle will go stale");
+    return;
+  }
+  const point = { priceWad: applyFactor(src.priceWad, priceFactor()), publishTime: src.publishTime };
+  const [, priceWad, updatedAt] = onchain;
+  const reason = shouldPushPyth({
+    nowSec: block.timestamp,
+    onchain: { priceWad, publishTime: updatedAt },
+    offchain: point,
+    maxAgeSec: FEED_HEARTBEAT_SEC,
+    maxMoveBps: PYTH_MAX_MOVE_BPS,
+  });
+  if (reason === null) return;
+  const data = encodeFunctionData({ abi: oracleAdapterAbi, functionName: "updatePrice", args: [encodeTestOracleUpdate(point)] });
+  if ((await send(`feed push (${reason}, ${src.source})`, ORACLE, data)) !== null) {
+    health.feedPushes++;
+    health.lastFeedSource = src.source;
+  }
+}
+
+async function oracleStep(): Promise<void> {
+  if (ORACLE_KIND === "keeper-fed") return feedStep();
+  if (ORACLE_KIND === "pyth") return pythStep();
+  // "mock" (anvil): the smoke scripts move the price
 }
 
 async function pythStep(): Promise<void> {
@@ -233,7 +302,7 @@ async function tick(block: bigint): Promise<void> {
     // Independent steps: one failing must not starve the others. Order: fresh price first (the CH needs it),
     // then liquidations (latency-critical, ≤ 3 blocks), then the funding poke (any liquidation already touched F).
     const steps: Array<[string, () => Promise<void>]> = [
-      ["pyth", pythStep],
+      ["oracle", oracleStep],
       ["liquidation", () => liquidationStep(block)],
       ["funding", () => fundingStep(block)],
     ];
@@ -257,7 +326,17 @@ createServer((req, res) => {
   res.end(JSON.stringify({ ok, keeper: account.address, ...health }, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
 }).listen(HEALTH_PORT);
 
-log("keeper start", { chainId: CHAIN_ID, clearingHouse: CH, oracle: ORACLE, keeper: account.address, pyth: PYTH_API_KEY !== undefined, health: HEALTH_PORT });
+log("keeper start", {
+  chainId: CHAIN_ID,
+  market: MARKET,
+  clearingHouse: CH,
+  oracle: ORACLE,
+  oracleKind: ORACLE_KIND,
+  keeper: account.address,
+  pyth: PYTH_API_KEY !== undefined,
+  mainnetSource: MAINNET_RPC_URL !== undefined,
+  health: HEALTH_PORT,
+});
 await balanceStep().catch((e: unknown) => fail("balance", e));
 pub.watchBlockNumber({
   emitOnBegin: true,
