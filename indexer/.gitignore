@@ -1,0 +1,9 @@
+node_modules/
+generated/
+.envio/cache/
+build/
+logs/
+.env
+*.res.js
+*.res.mjs
+config.test.yaml

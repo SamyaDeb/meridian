@@ -1,0 +1,446 @@
+# Pulse indexer schema (WS-06). Consumers: WS-07 app (see SCHEMA.md), keeper, benchmarks.
+# Units (MATH_SPEC §0): *Wad = 1e18 fixed point (BigInt); *Token = AUSD 6 dp; rates = per-second WAD;
+# *AprWad = APR as WAD (0.1e18 = 10%). Addresses are checksummed strings. Ids are per chain
+# (disable_default_cross_chain), so the same id on 10143 and 143 is two rows.
+
+enum BookKind {
+  Perp
+  Swap
+}
+
+enum OrderStatus {
+  Open
+  PartiallyFilled
+  Filled
+  Cancelled
+  Evicted
+}
+
+enum OracleSource {
+  Primary
+  Secondary
+}
+
+enum RebalanceReason {
+  None
+  Deploy
+  DeltaDrift
+  MarginLow
+  ExitHedge
+  EnterHedge
+  Withdraw
+  SkewCap
+}
+
+# ─── Perp market ────────────────────────────────────────────────────────────────
+
+# One per perp ClearingHouse (id = ClearingHouse address).
+type Market {
+  id: ID!
+  marketId: String # bytes32 from MarketFactory.MarketRegistered (undefined until registered)
+  symbol: String!
+  clearingHouse: String!
+  orderBook: String
+  oracle: String
+  active: Boolean!
+  paused: Boolean!
+  # latest FundingUpdated
+  lastFundingBlock: BigInt!
+  lastRate: BigInt! # per-second WAD
+  lastRateAprWad: BigInt! # rate * 365 d
+  lastPremium: BigInt!
+  lastEmaPremium: BigInt!
+  lastCumFunding: BigInt! # F
+  lastCumIndexTime: BigInt! # G
+  lastIndexPrice: BigInt!
+  lastMarkPrice: BigInt!
+  fundingTickCount: Int!
+  # realized funding APR (oracle), ΔF/ΔG·YEAR against the checkpoint 1 h / 8 h / 24 h back (MATH_SPEC §1.8)
+  realizedApr1hWad: BigInt
+  realizedApr8hWad: BigInt
+  realizedApr24hWad: BigInt
+  # trading
+  lastTradePrice: BigInt!
+  volumeBaseWad: BigInt!
+  volumeQuoteWad: BigInt!
+  tradeCount: Int!
+  feesWad: BigInt! # Σ PositionChanged.fee (rebates negative)
+  feesCollectedToken: BigInt! # Σ FeesCollected.amountToken
+  openInterestLongWad: BigInt! # Σ positive sizes (base WAD)
+  openInterestShortWad: BigInt! # Σ |negative sizes|
+  blockTimeMs: BigInt! # from FundingParamsUpdated; 300 until the first event (MATH_SPEC §1.3)
+  riskParams: Json
+  fundingParams: Json
+  ticks: [FundingTick!]! @derivedFrom(field: "market")
+  checkpoints: [FundingCheckpoint!]! @derivedFrom(field: "market")
+  trades: [Trade!]! @derivedFrom(field: "market")
+  positions: [AccountMarket!]! @derivedFrom(field: "market")
+}
+
+# One per block in which FundingUpdated fired (id = "<market>-<block>").
+type FundingTick @index(fields: ["market", ["block", "DESC"]]) {
+  id: ID!
+  market: Market!
+  block: BigInt!
+  timestamp: BigInt!
+  rate: BigInt!
+  rateAprWad: BigInt!
+  premium: BigInt!
+  emaPremium: BigInt!
+  cumFunding: BigInt! # F
+  cumIndexTime: BigInt! # G
+  index: BigInt! # index price WAD
+  mark: BigInt! # mark price WAD
+}
+
+# IFundingRateOracle ring-buffer checkpoint (1 per 200-block bucket). id = "<market>-<bucket>", bucket = block / 200.
+type FundingCheckpoint @index(fields: ["market", ["blockNumber", "DESC"]]) {
+  id: ID!
+  market: Market!
+  slot: Int!
+  bucket: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  cumFunding: BigInt!
+  cumIndexTime: BigInt!
+  realizedApr1hWad: BigInt
+  realizedApr8hWad: BigInt
+  realizedApr24hWad: BigInt
+}
+
+# ─── Order books (perp and swap share IOrderBook) ───────────────────────────────
+
+type Order @index(fields: ["maker", "status"]) {
+  id: ID! # "<book>-<orderId>"
+  book: String!
+  kind: BookKind!
+  market: String! # ClearingHouse (perp) or FundingSwapMarket (swap) address
+  orderId: BigInt!
+  maker: String!
+  isBid: Boolean!
+  tick: BigInt!
+  lots: BigInt!
+  remainingLots: BigInt!
+  filledLots: BigInt!
+  flags: Int!
+  status: OrderStatus!
+  placedBlock: BigInt!
+  updatedBlock: BigInt!
+}
+
+# One per maker fill (IOrderBook.Trade). For kind = Swap, priceWad = 1 + fixed APR and aprWad = price - 1.
+type Trade @index(fields: ["market", ["block", "DESC"]]) {
+  id: ID! # "<block>-<logIndex>"
+  kind: BookKind!
+  book: String!
+  market: Market # set for perp trades
+  swapMarket: String # set for swap trades
+  makerOrderId: BigInt!
+  maker: String! @index
+  taker: String! @index
+  takerIsBid: Boolean!
+  tick: BigInt!
+  lots: BigInt!
+  priceWad: BigInt!
+  sizeWad: BigInt!
+  notionalWad: BigInt! # size * price / 1e18, rounds down (display only)
+  aprWad: BigInt # swap only
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+# OHLCV per perp market (id = "<market>-<bucketStart>", bucketStart in unix seconds).
+type Candle1m @index(fields: ["market", ["bucketStart", "DESC"]]) {
+  id: ID!
+  market: String!
+  bucketStart: BigInt!
+  open: BigInt!
+  high: BigInt!
+  low: BigInt!
+  close: BigInt!
+  volumeBaseWad: BigInt!
+  volumeQuoteWad: BigInt!
+  trades: Int!
+}
+
+type Candle1h @index(fields: ["market", ["bucketStart", "DESC"]]) {
+  id: ID!
+  market: String!
+  bucketStart: BigInt!
+  open: BigInt!
+  high: BigInt!
+  low: BigInt!
+  close: BigInt!
+  volumeBaseWad: BigInt!
+  volumeQuoteWad: BigInt!
+  trades: Int!
+}
+
+# ─── Accounts ──────────────────────────────────────────────────────────────────
+
+type Account {
+  id: ID! # address
+  firstSeenBlock: BigInt!
+  firstSeenTimestamp: BigInt!
+  tradeCount: Int!
+  volumeQuoteWad: BigInt!
+  markets: [AccountMarket!]! @derivedFrom(field: "account")
+  swapPositions: [SwapPosition!]! @derivedFrom(field: "account")
+}
+
+# Event-derived mirror of one account's isolated position in one perp market (id = "<market>-<account>").
+# Exact values (with pending funding at mark) come from ClearingHouse.getAccount(); this powers lists and history.
+type AccountMarket @index(fields: ["market", "account"]) {
+  id: ID!
+  account: Account!
+  market: Market!
+  collateralWad: BigInt! # Σ deposits − withdrawals − funding paid + realized pnl − fees − liquidation penalties
+  size: BigInt! # base WAD, +long / −short (PositionChanged.newSize)
+  openNotional: BigInt! # signed quote WAD, MATH_SPEC §3.1 (released rounds toward +∞)
+  entryPrice: BigInt! # |openNotional| * 1e18 / |size|, 0 if flat
+  lastCumFunding: BigInt! # F at last FundingSettled
+  fundingPaid: BigInt! # Σ FundingSettled.payment (+ = paid)
+  realizedPnl: BigInt!
+  feesPaid: BigInt! # Σ fee (rebates negative)
+  reservedOrderMargin: BigInt!
+  depositedToken: BigInt!
+  withdrawnToken: BigInt!
+  liquidationCount: Int!
+  updatedBlock: BigInt!
+}
+
+type Liquidation @index(fields: ["account", ["block", "DESC"]]) {
+  id: ID! # "<block>-<logIndex>"
+  kind: BookKind!
+  market: String!
+  account: String!
+  liquidator: String!
+  sizeTransferred: BigInt!
+  markPriceWad: BigInt # perp
+  markAprWad: BigInt # swap
+  penalty: BigInt!
+  keeperReward: BigInt!
+  toInsurance: BigInt!
+  badDebt: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+type BadDebtEvent {
+  id: ID!
+  source: String! # emitting contract (ClearingHouse or InsuranceFund)
+  requested: BigInt!
+  covered: BigInt!
+  uncovered: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+}
+
+# ─── Oracle adapter & insurance ────────────────────────────────────────────────
+
+type OraclePrice @index(fields: ["oracle", ["block", "DESC"]]) {
+  id: ID!
+  oracle: String!
+  priceWad: BigInt!
+  publishTime: BigInt!
+  source: OracleSource!
+  block: BigInt!
+}
+
+type OracleGuardTrip {
+  id: ID!
+  oracle: String!
+  primaryWad: BigInt!
+  secondaryWad: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+}
+
+type InsuranceFund {
+  id: ID!
+  fundedToken: BigInt! # Σ Funded
+  coveredToken: BigInt! # Σ BadDebtCovered.covered
+  authorizedMarkets: [String!]!
+}
+
+# ─── Vault ─────────────────────────────────────────────────────────────────────
+
+type Vault {
+  id: ID! # PulseVault address
+  navToken: BigInt! # AUSD 6 dp
+  totalShares: BigInt! # 18 dp
+  sharePriceWad: BigInt!
+  fundingAccruedWad: BigInt!
+  hedged: Boolean!
+  lastRebalanceReason: RebalanceReason!
+  lastRebalanceBlock: BigInt!
+  depositedToken: BigInt!
+  withdrawnToken: BigInt!
+  userCount: Int!
+  apy24hWad: BigInt # simple annualized share-price change (undefined until 24 h of history)
+  apy7dWad: BigInt
+  params: Json
+  keepers: [String!]!
+  snapshots: [VaultSnapshot!]! @derivedFrom(field: "vault")
+}
+
+# One per NavSnapshot.
+type VaultSnapshot @index(fields: ["vault", ["block", "DESC"]]) {
+  id: ID!
+  vault: Vault!
+  navToken: BigInt!
+  totalShares: BigInt!
+  sharePriceWad: BigInt!
+  fundingAccruedWad: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+}
+
+# Last share price per hour (APY lookback; id = "<vault>-<hour>").
+type VaultHourly {
+  id: ID!
+  vault: String!
+  hour: BigInt!
+  sharePriceWad: BigInt!
+  timestamp: BigInt!
+}
+
+type VaultUser @index(fields: ["vault", "user"]) {
+  id: ID! # "<vault>-<user>"
+  vault: String!
+  user: String!
+  shares: BigInt! # from share Transfer events
+  depositedToken: BigInt!
+  withdrawnToken: BigInt!
+  updatedBlock: BigInt!
+}
+
+type VaultRebalance {
+  id: ID!
+  vault: String!
+  reason: RebalanceReason!
+  spotDeltaBase: BigInt!
+  perpDeltaBase: BigInt!
+  navAfter: BigInt!
+  sharePriceWad: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+type HedgeTrade {
+  id: ID!
+  hedger: String!
+  vault: String!
+  isBuy: Boolean!
+  quoteToken: BigInt!
+  baseWad: BigInt!
+  avgPriceWad: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+# ─── Funding swaps ─────────────────────────────────────────────────────────────
+
+# One per FundingSwapMarket (id = market address). SwapStats(markApr, realizedApr, OI) per WS-06.
+type SwapStats {
+  id: ID!
+  markAprWad: BigInt! # last traded APR (the contract's markApr median also uses book mid + realized 8 h)
+  lastTradeBlock: BigInt!
+  realizedApr8hWad: BigInt # mirrored from the underlying perp Market when a swap event fires
+  openInterestWad: BigInt! # Σ positive q (= Σ |negative q|)
+  volumeWad: BigInt!
+  tradeCount: Int!
+  feesWad: BigInt!
+  matured: Boolean!
+  cumFundingAtMaturity: BigInt
+  cumIndexTimeAtMaturity: BigInt
+  maturityBlock: BigInt
+  params: Json
+}
+
+# Mirror of MATH_SPEC §6.2 state (id = "<swapMarket>-<account>"). q = 0 with K ≠ 0 is a locked spread.
+type SwapPosition @index(fields: ["swapMarket", "account"]) {
+  id: ID!
+  swapMarket: String!
+  account: Account!
+  size: BigInt! # q, base WAD
+  fixedAprNotional: BigInt! # K += Δq·A/1e18
+  avgFixedAprWad: BigInt # K·1e18/q, undefined when q = 0
+  lockedSpread: Boolean!
+  collateralWad: BigInt!
+  floatingReceived: BigInt! # Σ SwapAccrualSettled.floatingLeg
+  fixedPaid: BigInt! # Σ fixedLeg
+  netAccrued: BigInt! # Σ net
+  realizedPnl: BigInt!
+  feesPaid: BigInt!
+  liquidationCount: Int!
+  updatedBlock: BigInt!
+}
+
+type SwapTrade @index(fields: ["account", ["block", "DESC"]]) {
+  id: ID! # "<block>-<logIndex>"
+  swapMarket: String!
+  account: String!
+  sizeDelta: BigInt!
+  newSize: BigInt!
+  aprWad: BigInt!
+  realizedPnl: BigInt!
+  fee: BigInt!
+  isMaker: Boolean!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+# ─── Protocol ──────────────────────────────────────────────────────────────────
+
+# Singleton per chain (id = "protocol").
+type ProtocolStats {
+  id: ID!
+  users: Int! # distinct accounts that deposited, traded or used the vault/swaps
+  perpVolumeQuoteWad: BigInt!
+  swapVolumeWad: BigInt!
+  feesWad: BigInt! # perp + swap fees (net of rebates)
+  tvlToken: BigInt! # AUSD 6 dp: perp collateral + swap collateral + vault NAV (event-derived)
+  perpCollateralToken: BigInt!
+  swapCollateralToken: BigInt!
+  vaultNavToken: BigInt!
+  trades: Int!
+  liquidations: Int!
+  fundingTicks: Int!
+  keeperReports: Int!
+  keeperReportFailures: Int!
+}
+
+# Low-frequency admin/config events (params updates, pause, keeper/forwarder changes, IF authorizations).
+type AdminEvent {
+  id: ID!
+  contract: String!
+  name: String!
+  data: Json!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+# IPulseKeeperReceiver.ReportExecuted (Chainlink CRE).
+type KeeperReport {
+  id: ID!
+  action: Int!
+  success: Boolean!
+  workflowId: String!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+# MarketFactory registration; lets an OrderBook resolve its market (id = book address).
+type BookRef {
+  id: ID!
+  kind: BookKind!
+  market: String!
+}

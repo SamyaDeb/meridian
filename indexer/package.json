@@ -1,0 +1,26 @@
+{
+  "name": "@pulse/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WS-06: Envio HyperIndex indexer for Pulse (per-block funding, oracle APR, positions, vault, swaps).",
+  "scripts": {
+    "gen-config": "node scripts/gen-config.mjs",
+    "codegen": "envio codegen",
+    "dev": "envio dev",
+    "start": "envio start",
+    "typecheck": "envio codegen && tsc --noEmit",
+    "test": "envio codegen && node scripts/gen-config.mjs test && ENVIO_CONFIG=config.test.yaml vitest run --test-timeout=20000"
+  },
+  "dependencies": {
+    "envio": "3.12.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.2",
+    "typescript": "6.0.3",
+    "vitest": "4.1.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
