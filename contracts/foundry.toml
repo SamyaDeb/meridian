@@ -10,6 +10,7 @@ optimizer = true
 optimizer_runs = 10_000
 via_ir = false
 bytecode_hash = "none"
+code_size_limit = 131_072     # Monad max code size 128 KB (ARCHITECTURE R7); ClearingHouse is ~25.9 KB > EIP-170. anvil: --code-size-limit 131072
 remappings = [
   "forge-std/=lib/forge-std/src/",
   "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",

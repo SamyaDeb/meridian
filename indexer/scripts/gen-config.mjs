@@ -144,6 +144,7 @@ function main() {
     // Vitest config: local 31337 deployment + TEST_FILL for missing keys (simulate() only routes configured addresses).
     const d = JSON.parse(readFileSync(resolve(REPO_DIR, "deployments/31337.json"), "utf8"));
     d.contracts = { ...TEST_FILL, ...d.contracts };
+    d.startBlock = 0; // synthetic test blocks start low; the live deployment's startBlock must not filter them
     writeFileSync(resolve(INDEXER_DIR, "config.test.yaml"), renderConfig(31337, d).replace("(local anvil (DeployLocal))", "(vitest: 31337 + TEST_FILL)"));
     console.log("wrote config.test.yaml");
     return;

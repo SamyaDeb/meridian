@@ -5,18 +5,21 @@ import {stdJson} from "forge-std/StdJson.sol";
 import {DeployBase} from "./DeployBase.s.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../src/mocks/MockOracleAdapter.sol";
-import {MockInsuranceFund} from "../src/mocks/MockInsuranceFund.sol";
-import {MockClearingHouse} from "../src/mocks/MockClearingHouse.sol";
-import {MockOrderBook} from "../src/mocks/MockOrderBook.sol";
 import {MockPulseVault} from "../src/mocks/MockPulseVault.sol";
 import {MockKuruHedger} from "../src/mocks/MockKuruHedger.sol";
+import {InsuranceFund} from "../src/clearing/InsuranceFund.sol";
+import {ClearingHouse} from "../src/clearing/ClearingHouse.sol";
+import {MarketFactory} from "../src/clearing/MarketFactory.sol";
+import {OrderBook} from "../src/orderbook/OrderBook.sol";
 
-/// @notice Local (anvil, chain 31337) stack for WS-03/06/07 development. Writes `deployments/31337.json`.
-///         Day 1: everything is a mock. As WS-01/02/05 merge, their real contracts replace the mocks here
-///         (same JSON keys, so TS consumers don't change).
+/// @notice Local (anvil, chain 31337) stack. Writes `deployments/31337.json` (same keys as before, so the TS
+///         consumers don't change). Phase 2: the perp core is REAL (OrderBook, ClearingHouse, InsuranceFund,
+///         MarketFactory) with MATH_SPEC defaults from `script/config/31337.json`. Still mocks: the oracle
+///         (MockOracleAdapter, MON = 0.029, settable), tAUSD (6 dp) and WMON, and the vault/hedger (WS-04 not merged).
 ///   anvil &
 ///   forge script script/DeployLocal.s.sol --fork-url http://localhost:8545 --broadcast
 /// @dev DEPLOYER_PK defaults to anvil's public account #0 key; local only (the script refuses other chains).
+///      Deterministic addresses on a fresh anvil (deployer nonce 0..).
 contract DeployLocal is DeployBase {
     using stdJson for string;
 
@@ -29,6 +32,7 @@ contract DeployLocal is DeployBase {
         address insuranceFund;
         address clearingHouse;
         address orderBook;
+        address marketFactory;
         address vault;
         address hedger;
     }
@@ -39,35 +43,32 @@ contract DeployLocal is DeployBase {
         require(block.chainid == 31_337, "DeployLocal: anvil only");
         _loadConfig();
         uint256 pk = vm.envOr("DEPLOYER_PK", ANVIL_PK0);
+        address owner = vm.addr(pk);
         uint256 startBlock = block.number;
         vm.startBroadcast(pk);
-        _deployPerp();
+        _deployPerp(owner);
         _deployVault();
-        MockERC20(d.ausd).mint(vm.addr(pk), _u(".local.faucetAusdToken"));
+        MockERC20(d.ausd).mint(owner, _u(".local.faucetAusdToken"));
         vm.stopBroadcast();
         _write(startBlock);
         return d;
     }
 
-    function _deployPerp() internal {
-        uint256 index = _u(".local.initialIndexPriceWad");
-        uint256 tickSize = _u(".params.perp.tickSizeWad");
-        d.ausd = address(new MockERC20("Agora USD (mock)", "AUSD", 6));
+    function _deployPerp(address owner) internal {
+        d.ausd = address(new MockERC20("Test AUSD", "tAUSD", 6));
         d.wmon = address(new MockERC20("Wrapped MON (mock)", "WMON", 18));
-        d.oracle = address(new MockOracleAdapter(index));
-        d.insuranceFund = address(new MockInsuranceFund(d.ausd));
-        MockClearingHouse ch = new MockClearingHouse(d.ausd, d.oracle, d.insuranceFund);
-        MockOrderBook ob = new MockOrderBook(address(ch), tickSize, _u(".params.perp.lotSizeWad"));
+        d.oracle = address(new MockOracleAdapter(_u(".local.initialIndexPriceWad")));
+        InsuranceFund fund = new InsuranceFund(d.ausd, owner);
+        ClearingHouse ch = new ClearingHouse(d.ausd, d.oracle, address(fund), _riskParams(), _fundingParams(), owner);
+        OrderBook ob = new OrderBook(address(ch), _u(".params.perp.tickSizeWad"), _u(".params.perp.lotSizeWad"));
         ch.setOrderBook(address(ob));
-        ch.setRiskParams(_riskParams());
-        ch.setFundingParams(_fundingParams());
-        MockInsuranceFund(d.insuranceFund).setMarketAuthorized(address(ch), true);
-        // Synthetic book around the index so the app has a mid, a spread and a fill price.
-        uint32 midTick = uint32(index / tickSize);
-        ob.mockSetBook(midTick - 1, midTick + 1);
-        ob.mockSetFillPrice(uint256(midTick) * tickSize);
+        fund.setMarketAuthorized(address(ch), true);
+        MarketFactory factory = new MarketFactory(owner);
+        factory.registerMarket(cfg.readString(".params.perp.symbol"), address(ob), address(ch), d.oracle, d.wmon);
+        d.insuranceFund = address(fund);
         d.clearingHouse = address(ch);
         d.orderBook = address(ob);
+        d.marketFactory = address(factory);
     }
 
     function _deployVault() internal {
@@ -83,14 +84,25 @@ contract DeployLocal is DeployBase {
         c.serialize("InsuranceFund", d.insuranceFund);
         c.serialize("ClearingHouse", d.clearingHouse);
         c.serialize("OrderBook", d.orderBook);
+        c.serialize("MarketFactory", d.marketFactory);
         c.serialize("PulseVault", d.vault);
         string memory contracts = c.serialize("KuruHedger", d.hedger);
+
+        string[] memory mocks = new string[](5);
+        (mocks[0], mocks[1], mocks[2], mocks[3], mocks[4]) =
+        ("AUSD", "WMON", "OracleAdapter", "PulseVault", "KuruHedger");
 
         string memory root = "root";
         root.serialize("chainId", block.chainid);
         root.serialize("startBlock", startBlock);
-        root.serialize("mocks", true);
-        root.serialize("_note", string("Day-1 mock stack; keys stay stable as real contracts replace mocks"));
+        root.serialize("mocks", false);
+        root.serialize("mockContracts", mocks);
+        root.serialize(
+            "_note",
+            string(
+                "Phase 2: real OrderBook + ClearingHouse + InsuranceFund + MarketFactory; mock oracle (settable), tAUSD (6 dp), WMON, vault, hedger"
+            )
+        );
         string memory out = root.serialize("contracts", contracts);
         out.write(_deploymentsPath());
     }

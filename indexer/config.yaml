@@ -88,7 +88,7 @@ contracts:
       - event: ForwarderUpdated
 chains:
   - id: 31337
-    start_block: 0
+    start_block: 17
     rpc:
       - url: ${ENVIO_LOCAL_RPC_URL:-http://127.0.0.1:8545}
         for: sync
@@ -98,10 +98,12 @@ chains:
       - name: OrderBook
         address: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
       - name: PulseVault
-        address: "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0"
+        address: "0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
       - name: OracleAdapter
         address: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
       - name: InsuranceFund
         address: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
+      - name: MarketFactory
+        address: "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
       - name: KuruHedger
-        address: "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82"
+        address: "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e"

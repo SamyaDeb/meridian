@@ -17,7 +17,7 @@ export const A = {
   ORACLE: dep.contracts.OracleAdapter!,
   IF: dep.contracts.InsuranceFund!,
   HEDGER: dep.contracts.KuruHedger!,
-  FACTORY: cs(TEST_FILL.MarketFactory),
+  FACTORY: dep.contracts.MarketFactory ?? cs(TEST_FILL.MarketFactory),
   SWAP: cs(TEST_FILL.FundingSwapMarket),
   SWAP_OB: cs(TEST_FILL.SwapOrderBook),
   RECEIVER: cs(TEST_FILL.PulseKeeperReceiver),

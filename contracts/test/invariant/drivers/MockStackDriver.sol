@@ -19,8 +19,9 @@ import {SwapLedgerModel} from "../models/SwapLedgerModel.sol";
 ///         (test/invariant/handlers/*Handler.sol) replace these actions as the real contracts merge.
 /// @dev Ghost sums are rebuilt from emitted events (vm.recordLogs), independently of contract views:
 ///      Σq from PositionChanged, Σowed from FundingSettled, FundingUpdated count per block, and ΣK in the swap model.
-///      Liquidation is intentionally not driven: MockClearingHouse.liquidate applies the liquidator's trade
-///      twice (reported to WS-00/A); re-enable with the real ClearingHouse.
+///      Liquidation is not driven here; the real-stack suite (RealStackInvariants.t.sol) drives it. The earlier
+///      "double credit" report was a ghost artefact: Σq must come from PositionChanged only (the Liquidated event
+///      repeats the transferred size). MockClearingHouse keeps Σq = 0 (test/mocks/MockFixes.t.sol).
 contract MockStackDriver is CommonBase, StdCheats, StdUtils {
     int256 internal constant W = PulseConstants.IWAD;
     uint256 public constant N_ACTORS = 4;

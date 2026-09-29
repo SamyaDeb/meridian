@@ -1,25 +1,25 @@
 {
   "chainId": 10143,
-  "_sources": "Only the chain id and CRE forwarders are verified (ARCHITECTURE R1, R14). Everything null = VERIFY from official docs before a testnet deploy; until then deploy MockERC20 AUSD/WMON + MockOracleAdapter.",
+  "_sources": "Chain id + CRE forwarders: ARCHITECTURE R1, R14. WMON, Pyth, 'no Chainlink', 'no AUSD': PHASES decision 10 (verified 29 Sep). Everything else null = VERIFY before use.",
   "owner": null,
   "tokens": {
     "AUSD": null,
-    "_AUSD": "VERIFY: AUSD on Monad testnet (Agora docs); else deploy MockERC20(6 dp)",
+    "_AUSD": "No AUSD on testnet (decision 10): DeployPulse deploys MockERC20 'tAUSD' (6 dp)",
     "AUSD_decimals": 6,
-    "WMON": null,
-    "_WMON": "VERIFY: WMON on testnet (docs.monad.xyz)",
+    "WMON": "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541",
+    "_WMON": "PHASES decision 10 (verified 29 Sep)",
     "USDC": null
   },
   "pyth": {
-    "contract": null,
-    "_contract": "VERIFY: Pyth on Monad testnet (docs.pyth.network contract addresses)",
+    "contract": "0x2880aB155794e7179c9eE2e38200202908C17B43",
+    "_contract": "PHASES decision 10: exists on testnet but the MON/USD feed is ~75 min stale (no sponsored push) => the keeper must push Hermes updates (Pyth API key = CP1 blocker)",
     "monUsdFeedId": "0x31491744e2dbf6df7fcf4ac0820d18a609b49076d45066d3568424e62f686cd1",
     "_monUsdFeedId": "Pyth feed ids are chain-independent; VERIFY the feed is pushed on testnet",
     "expo": -8
   },
   "chainlink": {
     "monUsd": null,
-    "_monUsd": "VERIFY: data.chain.link Monad testnet",
+    "_monUsd": "No Chainlink feeds on testnet (decision 10): adapter runs with secondary = address(0)",
     "ausdUsd": null,
     "ethUsd": null,
     "decimals": 8
