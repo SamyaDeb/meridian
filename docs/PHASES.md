@@ -41,6 +41,7 @@ Decisions recorded at the end of Phase 1 (lead):
 8. MockOrderBook must call maker fills before the single taker fill and evict on `false`.
 9. **MATH_SPEC §6.2:** swap `net` uses one floor division `floor((q·ΔF·YEAR − K·ΔG)/(1e18·YEAR))`; `kDelta = Δq·A/1e18` is computed once per fill and applied as +kDelta / −kDelta to the two sides (ΣK = 0 exactly).
 10. Testnet (verified 29 Sep): Pyth MON/USD at `0x2880aB155794e7179c9eE2e38200202908C17B43` exists but is ~75 min stale (no sponsored push), so **the keeper must push Hermes updates and the Pyth API key is a CP1 blocker**. No Chainlink feeds listed on testnet, so the guard runs with secondary = address(0). No AUSD on testnet: deploy a 6-dp MockERC20 `tAUSD`. Testnet WMON `0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541`.
+11. *(Phase 3, lead)* **MATH_SPEC §5.2 skew rule amended**: the literal form is degenerate under Σq = 0 (it caps the vault at 0.8 × its own short); capacity = skewCapacity · takers' net long = skewCapacity·max(0, −(vaultSize + Σ registered-provider sizes)). The MM bot addresses are registered as skew providers at deploy. Also: at the launch caps (maxPositionSize 25k MON ≈ $725) the vault can deploy ≈ $1.2k of its 10k AUSD deposit cap; Phase 4/5 must choose between a higher perp position cap, a vault-specific cap, or a lower vault deposit cap (open).
 
 ---
 

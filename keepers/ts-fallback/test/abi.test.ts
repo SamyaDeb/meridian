@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { type Abi, type AbiEvent, type AbiFunction, toEventSelector, toFunctionSelector } from "viem";
 import ch from "@pulse/abis/IClearingHouse.json" with { type: "json" };
 import oracle from "@pulse/abis/IOracleAdapter.json" with { type: "json" };
-import { clearingHouseAbi, oracleAdapterAbi } from "../src/abi.js";
+import vault from "@pulse/abis/IPulseVault.json" with { type: "json" };
+import { clearingHouseAbi, oracleAdapterAbi, pulseVaultAbi } from "../src/abi.js";
 
 // Every fragment the keeper uses must exist, with the same selector, in the committed frozen-interface ABI.
 function selectors(abi: Abi): Set<string> {
@@ -18,6 +19,7 @@ describe("keeper ABI fragments match abis/*.json", () => {
   it.each([
     ["IClearingHouse", clearingHouseAbi, ch as Abi],
     ["IOracleAdapter", oracleAdapterAbi, oracle as Abi],
+    ["IPulseVault", pulseVaultAbi, vault as Abi],
   ] as const)("%s", (_, mine, frozen) => {
     const want = selectors(frozen);
     const have = [...selectors(mine as Abi)];

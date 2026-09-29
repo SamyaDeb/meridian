@@ -40,6 +40,8 @@ interface IPulseVault is IERC4626 {
     error NothingToDo();
     error SlippageExceeded();
     error DepositCapExceeded();
+    /// @notice Constructor / `setVaultParams` bounds, zero addresses (CR-009, additive).
+    error InvalidParams();
 
     /// @notice Keeper entrypoint. Does whatever needsRebalance() reports using the direct Kuru route.
     function rebalance() external returns (RebalanceReason reason);

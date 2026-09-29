@@ -11,6 +11,11 @@ import {MarketFactory} from "../src/clearing/MarketFactory.sol";
 import {OrderBook} from "../src/orderbook/OrderBook.sol";
 import {PythChainlinkOracleAdapter} from "../src/oracle/PythChainlinkOracleAdapter.sol";
 import {TestnetKeeperOracle} from "../src/oracle/TestnetKeeperOracle.sol";
+import {KuruHedger} from "../src/vault/KuruHedger.sol";
+import {PulseVault} from "../src/vault/PulseVault.sol";
+import {MockKuruHedger} from "../src/mocks/MockKuruHedger.sol";
+import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPythMinimal} from "../src/interfaces/external/IPythMinimal.sol";
 import {AggregatorV3Interface} from "../src/interfaces/external/AggregatorV3Interface.sol";
 import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
@@ -60,6 +65,7 @@ contract DeployPulse is DeployBase {
     address internal owner;
     address internal keeper;
     bool internal ausdIsMock;
+    bool internal hedgerIsMock;
 
     function run() external returns (Deployed memory) {
         _loadConfig();
@@ -143,15 +149,30 @@ contract DeployPulse is DeployBase {
         return address(o);
     }
 
-    /// @dev Steps 8–9, Phase 4. TODO(WS-04): constructor args once PulseVault/KuruHedger merge.
+    /// @dev Steps 8–9 (Phase 4). Real KuruHedger when `kuru.flowEntrypoint` is set (mainnet: R16; `kuru.monAusdMarket`
+    ///      may be null ⇒ Flow routes only). Testnet has no verified Kuru deployment ⇒ a clearly labelled
+    ///      MockKuruHedger over a mock "tWMON" priced at the oracle index (refused on 143). Wiring: hedger.setVault,
+    ///      keeper (`KEEPER_ADDRESS`), skew provider = the MM bot (`MM_ADDRESS`, MATH_SPEC §5.2 amendment).
     function _deployVault() internal {
-        d.hedger = deployCode(
-            "KuruHedger.sol:KuruHedger",
-            abi.encode(d.wmon, d.ausd, cfg.readAddress(".kuru.flowEntrypoint"), cfg.readAddress(".kuru.monAusdMarket"))
-        );
-        d.vault = deployCode(
-            "PulseVault.sol:PulseVault", abi.encode(d.ausd, d.perp.clearingHouse, d.perp.orderBook, d.hedger)
-        );
+        address flowEntry = _optAddress(".kuru.flowEntrypoint");
+        address spotWmon = d.wmon;
+        if (flowEntry == address(0)) {
+            require(block.chainid != MAINNET, "VERIFY: kuru.flowEntrypoint for mainnet");
+            spotWmon = address(new MockERC20("TEST Wrapped MON (vault mock)", "tWMON", 18));
+            (bool ok, uint256 px,) = IOracleAdapter(d.perp.oracle).tryGetIndexPrice();
+            d.hedger = address(new MockKuruHedger(spotWmon, d.ausd, ok ? px : 0.029e18));
+            hedgerIsMock = true;
+        } else {
+            KuruHedger kh = new KuruHedger(deployer, d.wmon, d.ausd, flowEntry, _optAddress(".kuru.monAusdMarket"));
+            d.hedger = address(kh);
+        }
+        PulseVault v =
+            new PulseVault(IERC20(d.ausd), d.perp.clearingHouse, d.perp.orderBook, d.hedger, _vaultParams(), deployer);
+        d.vault = address(v);
+        if (flowEntry != address(0)) KuruHedger(payable(d.hedger)).setVault(d.vault);
+        if (keeper != address(0)) v.setKeeper(keeper, true);
+        address mmBot = vm.envOr("MM_ADDRESS", address(0));
+        if (mmBot != address(0)) v.setSkewProvider(mmBot, true);
     }
 
     /// @dev Steps 10–13 (Phase 4). Maturity: `params.swap.maturity` (unix s), or now + `SWAP_MATURITY_IN_SEC` for a
@@ -223,8 +244,9 @@ contract DeployPulse is DeployBase {
             m.serialize("ClearingHouse", d.demo.clearingHouse);
             root.serialize("demoMarket", m.serialize("OrderBook", d.demo.orderBook));
         }
-        string[] memory mocks = new string[](ausdIsMock ? 1 : 0);
+        string[] memory mocks = new string[]((ausdIsMock ? 1 : 0) + (hedgerIsMock ? 1 : 0));
         if (ausdIsMock) mocks[0] = "AUSD";
+        if (hedgerIsMock) mocks[mocks.length - 1] = "KuruHedger";
         root.serialize("mockContracts", mocks);
         root.serialize("chainId", block.chainid);
         root.serialize("startBlock", startBlock);

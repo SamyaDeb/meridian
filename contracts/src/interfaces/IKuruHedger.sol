@@ -14,6 +14,8 @@ interface IKuruHedger {
     error OnlyVault();
     error SlippageExceeded();
     error RouteCallFailed();
+    /// @notice Constructor / one-shot vault wiring: zero address or already set (CR-009, additive).
+    error InvalidParams();
 
     /// @param quoteInToken AUSD (6 dp) pulled from msg.sender
     /// @return baseOut base token units (WMON, 18 dp) sent to msg.sender

@@ -205,6 +205,11 @@ otherShorts = shortOI − |vaultShort|
 shortCapacity = skewCapacity · max(0, otherLongs − otherShorts)     // skewCapacity = 0.8
 ```
 If `|vaultShort| > shortCapacity` ⇒ reason `SkewCap`: reduce the short and sell the matching spot.
+*(Amended Phase 3, decision 11.)* Because every long is matched by a short (Σq = 0 ⇒ longOI = shortOI), the literal form above equals `skewCapacity·|vaultShort|`: a flat vault would have capacity 0 and never enter. "Other traders" must exclude the **registered liquidity providers** (our MM bots), whose inventory is the skew the vault replaces:
+```
+shortCapacity = skewCapacity · max(0, −(vaultSize + Σ providerSize))     // = takers' net long, via Σq = 0
+```
+Providers are owner-registered on the vault (≤ MAX_BATCH, O(#providers) view). With providers carrying m short and the vault v short, v + m is constant under vault trading (the vault sells into the MM's bids), so the vault converges to ≤ 80% of the takers' skew and leaves ≥ 20% to the MM, which keeps the premium alive.
 Rationale: funding is paid by excess longs. A vault bigger than the excess would push funding to ≤ 0 and destroy its own yield.
 
 ### 5.3 Entry / exit / rebalance

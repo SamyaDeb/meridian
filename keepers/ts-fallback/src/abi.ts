@@ -17,3 +17,9 @@ export const oracleAdapterAbi = parseAbi([
   "function updateFee(bytes[] updateData) view returns (uint256 feeWei)",
   "function updatePrice(bytes[] updateData) payable",
 ]);
+
+export const pulseVaultAbi = parseAbi([
+  "function needsRebalance() view returns (uint8 reason)",
+  "function rebalance() returns (uint8 reason)",
+  "function rebalanceWithRoute(bytes spotRoute) returns (uint8 reason)",
+]);

@@ -1378,6 +1378,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidParams",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NothingToDo",
     "inputs": []
   },

@@ -119,6 +119,25 @@ export function applyPositionChanges(open: ReadonlySet<Address>, changes: readon
   return next;
 }
 
+// ───────────────────────────── (d) vault ─────────────────────────────
+
+/** IPulseVault.RebalanceReason names (enum order in the frozen interface). */
+export const REBALANCE_REASONS = ["None", "Deploy", "DeltaDrift", "MarginLow", "ExitHedge", "EnterHedge", "Withdraw", "SkewCap"] as const;
+
+/**
+ * Check the vault every `everyBlocks` blocks (reads are cheap, but each rebalance moves ≤ one slice, so a tighter
+ * cadence only matters for MarginLow, which is checked every block).
+ */
+export function shouldCheckVault(block: bigint, everyBlocks: bigint): boolean {
+  return everyBlocks <= 1n || block % everyBlocks === 0n;
+}
+
+/** Act on any reason but None; MarginLow first-class (perp margin at risk). */
+export function vaultAction(reason: number): { act: boolean; name: string; urgent: boolean } {
+  const name = REBALANCE_REASONS[reason] ?? `Unknown(${reason})`;
+  return { act: reason !== 0, name, urgent: name === "MarginLow" };
+}
+
 // ───────────────────────────── gas ─────────────────────────────
 
 /** Monad bills the gas limit (ARCHITECTURE R6): limit = ceil(estimate × 1.2) (CLAUDE.md §7). */

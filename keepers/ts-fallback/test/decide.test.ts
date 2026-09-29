@@ -164,3 +164,18 @@ describe("gas and log ranges", () => {
     expect(() => blockRanges(0n, 1n, 0n)).toThrow();
   });
 });
+
+import { shouldCheckVault, vaultAction } from "../src/decide.js";
+
+describe("vault scheduling", () => {
+  it("checks every N blocks", () => {
+    expect(shouldCheckVault(40n, 20n)).toBe(true);
+    expect(shouldCheckVault(41n, 20n)).toBe(false);
+    expect(shouldCheckVault(41n, 1n)).toBe(true);
+  });
+  it("acts on every reason but None; MarginLow is urgent", () => {
+    expect(vaultAction(0)).toEqual({ act: false, name: "None", urgent: false });
+    expect(vaultAction(3)).toEqual({ act: true, name: "MarginLow", urgent: true });
+    expect(vaultAction(7)).toEqual({ act: true, name: "SkewCap", urgent: false });
+  });
+});

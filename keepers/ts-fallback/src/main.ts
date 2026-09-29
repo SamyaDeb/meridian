@@ -19,7 +19,7 @@ import {
   nonceManager,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { clearingHouseAbi, oracleAdapterAbi } from "./abi.js";
+import { clearingHouseAbi, oracleAdapterAbi, pulseVaultAbi } from "./abi.js";
 import {
   type AccountSnapshot,
   applyPositionChanges,
@@ -29,6 +29,8 @@ import {
   selectLiquidations,
   shouldPokeFunding,
   shouldPushPyth,
+  shouldCheckVault,
+  vaultAction,
 } from "./decide.js";
 import { DEFAULT_HERMES_URL, fetchHermesLatest } from "./hermes.js";
 import { applyFactor, decimalToWad, encodeTestOracleUpdate, latestKeylessPrice } from "./pricesource.js";
@@ -62,6 +64,11 @@ const FEED_HEARTBEAT_SEC = BigInt(env("FEED_HEARTBEAT_SEC") ?? "10");
 const FEED_MAX_SOURCE_AGE_SEC = BigInt(env("FEED_MAX_SOURCE_AGE_SEC") ?? "60");
 const PRICE_FACTOR_FILE = env("PRICE_FACTOR_FILE"); // demo market only: "0.85" in this file ⇒ push 85% of the source
 
+// Vault rebalances (WS-04), behind a flag until the vault is deployed (Phase 4). Direct route only for now:
+// > VERIFY: the Kuru Flow quote request schema (ws.kuru.io/api/quote) before passing routes to rebalanceWithRoute.
+const VAULT_REBALANCE = env("VAULT_REBALANCE") === "1";
+const VAULT_EVERY_BLOCKS = BigInt(env("VAULT_EVERY_BLOCKS") ?? "20");
+
 const MAX_FUNDING_GAP_BLOCKS = BigInt(env("MAX_FUNDING_GAP_BLOCKS") ?? "20"); // WS-03 acceptance
 const INCLUSION_LAG_BLOCKS = 1n;
 const PYTH_MAX_AGE_SEC = 3n; // LANE_B §4
@@ -84,7 +91,7 @@ interface Deployments {
   deployed?: boolean;
   /** Oracle of the main market (DeployPulse); absent on anvil (mock oracle). */
   oracleKind?: OracleKind;
-  contracts: MarketDeployment;
+  contracts: MarketDeployment & { PulseVault?: Address };
   /** MON-PERP-DEMO: separate OB + CH with a keeper-fed test oracle, used only for the crash/liquidation demo. */
   demoMarket?: MarketDeployment & { symbol: string; testMarket: true; oracleKind: OracleKind };
 }
@@ -126,6 +133,7 @@ const health = {
   liquidations: 0,
   pythPushes: 0,
   feedPushes: 0,
+  vaultRebalances: 0,
   lastFeedSource: "",
   openPositions: 0,
   liquidationLatency: new LiquidationLatency().summary(),
@@ -289,6 +297,17 @@ async function liquidationStep(block: bigint): Promise<void> {
   }
 }
 
+async function vaultStep(block: bigint): Promise<void> {
+  const v = dep.contracts.PulseVault;
+  if (!VAULT_REBALANCE || MARKET !== "main" || v === undefined) return;
+  const reason = await pub.readContract({ address: v, abi: pulseVaultAbi, functionName: "needsRebalance" });
+  const a = vaultAction(reason);
+  if (!a.act || (!a.urgent && !shouldCheckVault(block, VAULT_EVERY_BLOCKS))) return;
+  if ((await send(`vault rebalance (${a.name})`, v, encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalance" }))) !== null) {
+    health.vaultRebalances++;
+  }
+}
+
 async function balanceStep(): Promise<void> {
   const bal = await pub.getBalance({ address: account.address });
   if (bal < MIN_KEEPER_BALANCE) alert("keeper balance low", { balance: formatEther(bal) });
@@ -311,6 +330,7 @@ async function tick(block: bigint): Promise<void> {
       ["oracle", oracleStep],
       ["liquidation", () => liquidationStep(block)],
       ["funding", () => fundingStep(block)],
+      ["vault", () => vaultStep(block)],
     ];
     for (const [name, fn] of steps) await fn().catch((e: unknown) => fail(name, e));
     if (block % 100n === 0n) await balanceStep().catch((e: unknown) => fail("balance", e));

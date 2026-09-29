@@ -149,6 +149,7 @@ contract FundingSwapInvariantsTest is StdInvariant, Test {
     /// Coverage per run, appended to bench-out/fs_invariant_coverage.csv (aggregate with the command in the
     /// PR/standup): proves fills, liquidations and the post-maturity freeze were actually exercised.
     function afterInvariant() external {
+        vm.createDir("./bench-out", true); // gitignored: absent on a fresh checkout / CI
         vm.writeLine(
             "./bench-out/fs_invariant_coverage.csv",
             string.concat(
