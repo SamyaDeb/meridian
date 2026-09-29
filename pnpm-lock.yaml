@@ -17,7 +17,7 @@ importers:
         version: 5.104.0(react@19.2.8)
       next:
         specifier: 16.3.7
-        version: 16.3.7(@babel/core@7.29.7)(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        version: 16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -31,6 +31,9 @@ importers:
         specifier: 3.7.7
         version: 3.7.7(@tanstack/query-core@5.104.0)(@tanstack/react-query@5.104.0(react@19.2.8))(@types/react@19.3.0)(react@19.2.8)(typescript@5.9.3)(viem@2.57.0(typescript@5.9.3)(zod@4.6.5))
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.63.0
+        version: 1.63.0
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.3.3
@@ -881,6 +884,11 @@ packages:
 
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
+
+  '@playwright/test@1.63.0':
+    resolution: {integrity: sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   '@rescript/react@0.14.1':
     resolution: {integrity: sha512-tCdzMnzSEuEfWs/A6wq6kLx/E5nBkVJmFST+MwU01W9hzFwQi2JpvE82Fl66ets+oaC5UVpFf3vy4KvXRN+jPA==}
@@ -3025,6 +3033,16 @@ packages:
     resolution: {integrity: sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==}
     hasBin: true
 
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.63.0:
+    resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
@@ -4427,6 +4445,10 @@ snapshots:
   '@oxc-project/types@0.151.0': {}
 
   '@pinojs/redact@0.4.0': {}
+
+  '@playwright/test@1.63.0':
+    dependencies:
+      playwright: 1.63.0
 
   '@rescript/react@0.14.1(react-dom@19.3.0(react@19.2.5))(react@19.2.5)':
     dependencies:
@@ -6454,7 +6476,7 @@ snapshots:
 
   negotiator@0.6.3: {}
 
-  next@16.3.7(@babel/core@7.29.7)(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+  next@16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@22.20.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:
       '@next/env': 16.3.7
       '@swc/helpers': 0.5.23
@@ -6473,6 +6495,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 16.3.7
       '@next/swc-win32-arm64-msvc': 16.3.7
       '@next/swc-win32-x64-msvc': 16.3.7
+      '@playwright/test': 1.63.0
       sharp: 0.35.5(@types/node@22.20.4)
     transitivePeerDependencies:
       - '@babel/core'
@@ -6674,6 +6697,12 @@ snapshots:
       safe-stable-stringify: 2.5.0
       sonic-boom: 4.2.1
       thread-stream: 4.2.0
+
+  playwright-core@1.63.0: {}
+
+  playwright@1.63.0:
+    dependencies:
+      playwright-core: 1.63.0
 
   possible-typed-array-names@1.1.0: {}
 

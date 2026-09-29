@@ -16,3 +16,5 @@ indexer/generated/
 # OS
 .DS_Store
 mm-bot/KILL
+app/test-results/
+app/playwright-report/

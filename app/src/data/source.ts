@@ -17,7 +17,7 @@ import type {
 } from "./types";
 
 export interface PulseDataSource {
-  readonly kind: "mock" | "indexer";
+  readonly kind: "mock" | "indexer" | "chain";
   market(): Promise<Market>;
   fundingTicks(limit: number): Promise<FundingTick[]>;
   candles1m(limit: number): Promise<Candle[]>;

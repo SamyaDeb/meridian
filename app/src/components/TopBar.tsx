@@ -1,5 +1,6 @@
 "use client";
 import { useDataSource } from "@/data/context";
+import { ConnectButton } from "./Wallet";
 
 export function TopBar() {
   const ds = useDataSource();
@@ -10,12 +11,11 @@ export function TopBar() {
           <path d="M2 13h5l2-6 3 11 2-7 1.5 2H22" />
         </svg>
         <span className="text-lg font-semibold tracking-tight">Pulse</span>
+        {ds.kind === "chain" && <span className="rounded-full bg-long/15 px-2 py-0.5 text-[10px] font-medium uppercase text-long">local chain</span>}
         {ds.kind === "mock" && <span className="rounded-full bg-warn/15 px-2 py-0.5 text-[10px] font-medium uppercase text-warn">mock data</span>}
       </div>
-      {/* Login (Privy or Mera) lands after the Day-2 decision (BOUNTY_MAP). */}
-      <button type="button" disabled className="rounded-full bg-surface-2 px-4 py-1.5 text-sm text-muted">
-        Log in
-      </button>
+      {/* Login (Privy vs Mera) is pending the BOUNTY_MAP decision: injected wallet / anvil dev account for now. */}
+      <ConnectButton />
     </header>
   );
 }

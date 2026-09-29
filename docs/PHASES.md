@@ -11,7 +11,7 @@ Rules for every phase:
 |---|---|---|---|
 | 0 | Plan, interfaces, mocks | Tue 29 Sep | ✅ done |
 | 1 | Core modules in isolation | Tue 29 Sep | ✅ done (not merged) |
-| **2** | **Integrate the perp core on anvil** | **Thu 1 Oct** | ▶ next |
+| **2** | **Integrate the perp core on anvil** | **Thu 1 Oct** | ▶ G2 mostly met (30 Sep); open: live indexer (Docker), login decision, human items |
 | 3 | Testnet perp + yield layers built | Sun 4 Oct (CP1 Sat 3 Oct inside) | — |
 | 4 | Full stack on testnet, scope freeze | Wed 7 Oct (CP2) | — |
 | 5 | Mainnet readiness and launch | Sat 10 Oct (CP3) | — |
@@ -60,13 +60,13 @@ Decisions recorded at the end of Phase 1 (lead):
 **Merge order (A0):** ws-00 fixes (tag v1.3) → ws-03 (A reviews) → ws-01 (B reviews) → ws-02 (B reviews; delete the local `InvalidParams` declarations, now in the interface) → ws-06 → ws-07 → ws-08. After each merge: `forge fmt --check && forge test && python3 tools/gen_interfaces_md.py --check`. Conflicts in `docs/standup/A.md` (append-only) keep both sides. Conflicts in `abis/` are resolved by re-running `bash tools/export_abis.sh`.
 
 **Gate G2 ("CP1 on anvil"), all demoed live:**
-- [ ] `main` has OB + CH + IF + MarketFactory + oracle adapter; `interfaces-v1.3`; fmt, tests and the INTERFACES check are green
-- [ ] `Integration.t.sol` passes: deposit → limit → cross → positions → 12,000 blocks of per-block funding → `averageFundingApr` = ΔF·1e18/ΔG·YEAR from events → −15% oracle move liquidates a 5x long → IF and keeper paid → Σq = 0, longOI = shortOI, I1 (with −Σpending) holds
-- [ ] `anvil` + `DeployLocal` (real contracts) + `SmokeLocal`: the keeper pokes funding (≤ 20-block gaps) and liquidates within ≤ 3 blocks; the MM keeps a two-sided book
-- [ ] The indexer ingests every event type from the smoke run; realized APR 1h/8h/24h equals the contract's `averageFundingApr`
-- [ ] The app shows the live per-block funding ticker, a position with pending funding and liq price, from anvil, with the chosen login
-- [ ] Invariants I1–I7 and I11 green on the real OB + CH (256×128)
-- [ ] Human: shared git remote exists; Pyth API key in hand; Privy-vs-Mera decided; bounty criteria pasted; Envio token; Docker
+- [x] `main` has OB + CH + IF + MarketFactory + oracle adapter; `interfaces-v1.3`; fmt, tests and the INTERFACES check are green *(30 Sep: 271 contract tests)*
+- [x] `Integration.t.sol` passes *(9/9)*: deposit → limit → cross → positions → 12,000 blocks of per-block funding → `averageFundingApr` = ΔF·1e18/ΔG·YEAR from events → −15% oracle move liquidates a 5x long → IF and keeper paid → Σq = 0, longOI = shortOI, I1 (with −Σpending) holds
+- [x] `anvil` + `DeployLocal` (real contracts) + `SmokeLocal`: the keeper pokes funding (≤ 20-block gaps) and liquidates within ≤ 3 blocks; the MM keeps a two-sided book *(max gap 20; 3 liquidations at 1 block; MM 5.86 bps)*
+- [~] The indexer ingests every event type from the smoke run; realized APR 1h/8h/24h equals the contract's `averageFundingApr` *(recorded-log replay: all perp event types, 1 h APR equal to the wei; live Envio run, 8 h/24 h and lag pending Docker)*
+- [~] The app shows the live per-block funding ticker, a position with pending funding and liq price, from anvil, with the chosen login *(done with injected + anvil dev login; Privy-vs-Mera not decided)*
+- [x] Invariants I1–I7 and I11 green on the real OB + CH (256×128) *(and 512×256, fail_on_revert)*
+- [ ] Human: shared git remote exists; Pyth API key in hand; Privy-vs-Mera decided; bounty criteria pasted; Envio token; Docker *(all open on 30 Sep)*
 
 In parallel (tracked, not gating): swaps core (A2) tests-first on mocks; vault started on mocks (B).
 

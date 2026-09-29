@@ -5,7 +5,13 @@ import { FundingTicker } from "@/components/FundingTicker";
 import { Card, Row, Skeleton } from "@/components/ui";
 import { formatAusdWad, formatBaseWad, formatLeverageWad, formatPriceWad } from "@/lib/format";
 import { initialMarginWad, liquidationPriceWad } from "@/lib/math";
-import { DEFAULT_IMR_WAD, DEFAULT_MMR_WAD, MAX_LEVERAGE, PERP_LOT_SIZE_WAD, WAD } from "@/lib/units";
+import { DEFAULT_IMR_WAD, DEFAULT_MMR_WAD, MAX_LEVERAGE, PERP_LOT_SIZE_WAD, PERP_TICK_SIZE_WAD, WAD } from "@/lib/units";
+import { useTx } from "@/components/Wallet";
+import { orderBookAbi } from "@/lib/abi";
+import { deposit, sendTx } from "@/lib/tx";
+import { marketLimitTick, priceToTick } from "@/lib/orders";
+import { contractAddress } from "@/config/deployments";
+import { useAccount, useChainId } from "wagmi";
 
 const LOT_STEPS = [1, 5, 10, 50, 100, 250, 500, 1_000]; // lots of 100 MON
 
@@ -16,6 +22,15 @@ export default function TradePage() {
   const [side, setSide] = useState<"long" | "short">("long");
   const [lotIdx, setLotIdx] = useState(3);
   const [lev, setLev] = useState(3);
+  const [kind, setKind] = useState<"market" | "limit">("market");
+  const [limitPx, setLimitPx] = useState("");
+  const [depositAmt, setDepositAmt] = useState("100");
+  const { isConnected } = useAccount();
+  const chainId = useChainId();
+  const tx = useTx();
+  const ob = contractAddress(chainId, "OrderBook");
+  const ch = contractAddress(chainId, "ClearingHouse");
+  const ausd = contractAddress(chainId, "AUSD");
 
   const size = BigInt(LOT_STEPS[lotIdx] ?? 1) * PERP_LOT_SIZE_WAD;
   const signed = side === "long" ? size : -size;
@@ -28,6 +43,23 @@ export default function TradePage() {
     const margin = collateral > minIm ? collateral : minIm;
     return { notional, margin, liq: liquidationPriceWad(price, margin, signed, DEFAULT_MMR_WAD), lev: (notional * WAD) / margin };
   }, [price, size, signed, lev]);
+
+  const lots = BigInt(LOT_STEPS[lotIdx] ?? 1);
+  const isBid = side === "long";
+  const submit = () =>
+    tx.run(`${kind} ${side} ${lots} lots`, (p, w) => {
+      if (!ob) throw new Error("no OrderBook for this chain");
+      if (kind === "market") {
+        return sendTx(p, w, { address: ob, abi: orderBookAbi, functionName: "placeMarketOrder", args: [isBid, lots, marketLimitTick(price, PERP_TICK_SIZE_WAD, isBid, 50), 1n, false] });
+      }
+      const px = BigInt(Math.round(Number(limitPx) * 1e9)) * 10n ** 9n; // display → WAD (9 dp input precision)
+      return sendTx(p, w, { address: ob, abi: orderBookAbi, functionName: "placeLimitOrder", args: [isBid, priceToTick(px, PERP_TICK_SIZE_WAD, isBid ? "bid" : "ask"), lots, 0] });
+    });
+  const doDeposit = () =>
+    tx.run(`deposit ${depositAmt} AUSD`, (p, w) => {
+      if (!ausd || !ch) throw new Error("no AUSD/ClearingHouse for this chain");
+      return deposit(p, w, ausd, ch, BigInt(Math.round(Number(depositAmt) * 1e6)));
+    });
 
   return (
     <div className="space-y-3">
@@ -73,9 +105,31 @@ export default function TradePage() {
           <Row label="Margin" value={preview ? `${formatAusdWad(preview.margin)} AUSD · ${formatLeverageWad(preview.lev)}` : "—"} />
           <Row label="Liq. price (est.)" value={preview?.liq ? formatPriceWad(preview.liq) : "—"} tone="warn" />
         </div>
-        <button type="button" disabled className={`mt-3 h-12 w-full rounded-xl font-semibold text-bg opacity-60 ${side === "long" ? "bg-long" : "bg-short"}`}>
-          Log in to {side}
+        <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-surface-2 p-1">
+          {(["market", "limit"] as const).map((k) => (
+            <button key={k} type="button" onClick={() => setKind(k)} className={`h-8 rounded-lg text-xs capitalize ${kind === k ? "bg-surface text-text" : "text-muted"}`}>
+              {k}
+            </button>
+          ))}
+        </div>
+        {kind === "limit" && (
+          <input aria-label="Limit price" inputMode="decimal" placeholder="Limit price (AUSD)" value={limitPx} onChange={(e) => setLimitPx(e.target.value)} className="num mt-2 h-10 w-full rounded-lg bg-surface-2 px-3 text-sm" />
+        )}
+        <button
+          type="button"
+          disabled={!isConnected || tx.busy || price === 0n}
+          onClick={submit}
+          className={`mt-3 h-12 w-full rounded-xl font-semibold text-bg disabled:opacity-60 ${side === "long" ? "bg-long" : "bg-short"}`}
+        >
+          {isConnected ? `${kind === "market" ? "Market" : "Limit"} ${side}` : `Log in to ${side}`}
         </button>
+        <div className="mt-3 flex gap-2">
+          <input aria-label="Deposit amount" inputMode="decimal" value={depositAmt} onChange={(e) => setDepositAmt(e.target.value)} className="num h-10 flex-1 rounded-lg bg-surface-2 px-3 text-sm" />
+          <button type="button" disabled={!isConnected || tx.busy} onClick={doDeposit} className="h-10 rounded-lg bg-surface-2 px-4 text-sm disabled:opacity-60">
+            Deposit AUSD
+          </button>
+        </div>
+        {tx.status && <p className="num mt-2 break-all text-[11px] text-muted" data-testid="tx-status">{tx.status}</p>}
       </Card>
 
       <Card title="Order book">

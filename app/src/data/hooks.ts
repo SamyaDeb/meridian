@@ -1,5 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
+import { useAccount } from "wagmi";
 import { useDataSource } from "./context";
 import type { Address } from "./types";
 import { BLOCK_TIME_MS } from "@/lib/units";
@@ -30,8 +31,21 @@ export function useTrades(limit = 12) {
   return useQuery({ queryKey: ["trades", ds.kind, limit], queryFn: () => ds.trades(limit), refetchInterval: 1_000 });
 }
 
-/** Until login lands, the mock account stands in for the connected user. */
-export const useAccountAddress = (): Address => MOCK.user;
+/** The connected wallet; the mock account stands in when nothing is connected (mock data layer). */
+export function useAccountAddress(): Address {
+  const { address } = useAccount();
+  return address ?? MOCK.user;
+}
+
+/** Resting orders of `account` (chain data source only). */
+export function useOpenOrders(account: Address) {
+  const ds = useDataSource();
+  return useQuery({
+    queryKey: ["openOrders", ds.kind, account],
+    queryFn: () => ("openOrders" in ds ? (ds as import("./chain/source").ChainSource).openOrders(account) : Promise.resolve([])),
+    refetchInterval: 1_000,
+  });
+}
 
 export function usePositions(account: Address) {
   const ds = useDataSource();
