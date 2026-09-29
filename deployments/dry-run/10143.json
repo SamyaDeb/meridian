@@ -1,0 +1,31 @@
+{
+  "_status": "DRY-RUN ONLY (forge simulation on a testnet fork, throwaway deployer, block 66793749, 30 Sep 2026). Addresses are NOT live. Used by consumer tests for the 10143 shape.",
+  "chainId": 10143,
+  "contracts": {
+    "AUSD": "0xFa31e4e9d254a4C9bF30A3F0C54448BF47B649df",
+    "ClearingHouse": "0x6C58b8bfeA118d1D627112Ab076988733f978304",
+    "InsuranceFund": "0x58eD91D6520B29a9B58c2f6E91A8Ef69341F14a5",
+    "MarketFactory": "0x545058f3783aFc8Bd26b0FB93BCBF24Aae157f10",
+    "OracleAdapter": "0xD5E21be57427A188f735d43436E45116464144eA",
+    "OrderBook": "0x9BE1831a1c14b46fe3b56fb67CB1Ee8E566FC75d",
+    "WMON": "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541"
+  },
+  "demoMarket": {
+    "ClearingHouse": "0x51eB8880fC0A4E5e39FBE948e11217E98F14B793",
+    "OracleAdapter": "0x33fe06fe655d6F5F1321513ce1f6b1880D6CD623",
+    "OrderBook": "0x132613d1F5b2e18BAe704A0c4F9153507dA891fB",
+    "_label": "TEST MARKET: keeper-fed oracle, used only for the crash/liquidation demo",
+    "oracleKind": "keeper-fed",
+    "symbol": "MON-PERP-DEMO",
+    "testMarket": true
+  },
+  "deployed": true,
+  "mockContracts": [
+    "AUSD"
+  ],
+  "mocks": false,
+  "oracleKind": "keeper-fed",
+  "owner": "0xb4d6f2F7DB008577254A60f4D197679C1BB93007",
+  "startBlock": 66793749,
+  "symbol": "MON-PERP"
+}

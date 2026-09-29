@@ -94,6 +94,18 @@ describe("renderConfig", () => {
     expect(() => renderConfig(143, { ...fake(143), contracts: {} })).toThrow(/no indexable/);
   });
 
+  it("10143: refuses the NOT DEPLOYED placeholder, renders the DeployPulse dry-run shape", () => {
+    const placeholder = JSON.parse(readFileSync(resolve(ROOT, "deployments/10143.json"), "utf8"));
+    expect(() => renderConfig(10143, placeholder)).toThrow(/NOT DEPLOYED/);
+    const dry = JSON.parse(readFileSync(resolve(ROOT, "deployments/dry-run/10143.json"), "utf8"));
+    const y = renderConfig(10143, dry);
+    expect(y).toContain("url: https://10143.hypersync.xyz");
+    expect(y).toContain(`start_block: ${dry.startBlock}`);
+    expect(y).toContain(`address: "${dry.contracts.ClearingHouse}"`);
+    expect(y).toContain(`address: "${dry.contracts.MarketFactory}"`); // demo market is registered there, indexed dynamically
+    expect(y).not.toContain(dry.demoMarket.ClearingHouse);
+  });
+
   it("committed config.yaml is up to date with deployments/31337.json", () => {
     const dep = JSON.parse(readFileSync(resolve(ROOT, "deployments/31337.json"), "utf8"));
     expect(readFileSync(resolve(import.meta.dirname, "../config.yaml"), "utf8")).toBe(renderConfig(31337, dep));

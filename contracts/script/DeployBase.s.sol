@@ -21,6 +21,14 @@ abstract contract DeployBase is Script {
         return string.concat(vm.projectRoot(), "/../deployments/", vm.toString(block.chainid), ".json");
     }
 
+    /// @dev Address at `key`, or address(0) when the key is absent or JSON `null` (the config's "VERIFY" marker).
+    function _optAddress(string memory key) internal view returns (address) {
+        if (!vm.keyExistsJson(cfg, key)) return address(0);
+        bytes memory raw = vm.parseJson(cfg, key);
+        if (raw.length != 32) return address(0);
+        return abi.decode(raw, (address));
+    }
+
     function _u(string memory key) internal view returns (uint256) {
         return vm.parseUint(cfg.readString(key));
     }

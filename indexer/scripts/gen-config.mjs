@@ -64,6 +64,9 @@ export function renderConfig(chainId, deployment) {
   if (Number(deployment.chainId) !== Number(chainId)) {
     throw new Error(`deployments chainId ${deployment.chainId} != ${chainId}`);
   }
+  if (deployment.deployed === false) {
+    throw new Error(`deployments/${chainId}.json is a NOT DEPLOYED placeholder: run DeployPulse.s.sol with --broadcast first`);
+  }
   const addrs = deployment.contracts ?? {};
   const L = [];
   L.push("# yaml-language-server: $schema=./node_modules/envio/evm.schema.json");

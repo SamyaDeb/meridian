@@ -1,0 +1,11 @@
+{
+  "_status": "NOT DEPLOYED. Placeholder so consumers compile; DeployPulse.s.sol overwrites this file on broadcast. Dry-run on a testnet fork passed 30 Sep 2026 (docs/standup/A.md). Blocked on DEPLOYER_PK/KEEPER_PK/MM_PK + testnet MON.",
+  "chainId": 10143,
+  "deployed": false,
+  "startBlock": 0,
+  "mocks": false,
+  "mockContracts": ["AUSD"],
+  "symbol": "MON-PERP",
+  "oracleKind": "keeper-fed",
+  "contracts": {}
+}

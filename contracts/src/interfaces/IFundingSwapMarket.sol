@@ -50,6 +50,8 @@ interface IFundingSwapMarket is IMarginEngine {
     error ZeroAmount();
     error AlreadyInitialized();
     error Paused();
+    /// @notice Constructor/`setSwapParams` bounds, zero addresses, self-liquidation (CR-008, additive).
+    error InvalidParams();
 
     // ─── Collateral (AUSD, same units as IClearingHouse) ────────────────────────
     function deposit(uint256 amountToken) external;

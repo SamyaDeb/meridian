@@ -49,13 +49,28 @@ const HORIZON_SEC = Number(env("HORIZON_SEC") ?? String(DEFAULTS.horizonSec));
 const RECOVER_LOOKBACK_BLOCKS = BigInt(env("RECOVER_LOOKBACK_BLOCKS") ?? "5000");
 const LOG_SPAN = BigInt(env("LOG_SPAN") ?? "100"); // public RPC eth_getLogs cap (ARCHITECTURE R2)
 
+interface MarketDeployment {
+  ClearingHouse?: Address;
+  OrderBook?: Address;
+  OracleAdapter?: Address;
+}
 interface Deployments {
   chainId: number;
-  contracts: { ClearingHouse: Address; OrderBook: Address; OracleAdapter: Address };
+  deployed?: boolean;
+  contracts: MarketDeployment;
+  /** MON-PERP-DEMO test market (DeployPulse on 10143); quote it with MARKET=demo. */
+  demoMarket?: MarketDeployment & { symbol: string; testMarket: true };
 }
 const dep = JSON.parse(readFileSync(DEPLOYMENTS, "utf8")) as Deployments;
 if (dep.chainId !== CHAIN_ID) throw new Error(`deployments chainId ${dep.chainId} != CHAIN_ID ${CHAIN_ID}`);
-const { ClearingHouse: CH, OrderBook: OB, OracleAdapter: ORACLE } = dep.contracts;
+const MARKET = env("MARKET") ?? "main";
+const market = MARKET === "demo" ? dep.demoMarket : dep.contracts;
+if (dep.deployed === false || market?.ClearingHouse === undefined || market.OrderBook === undefined || market.OracleAdapter === undefined) {
+  throw new Error(`${DEPLOYMENTS}: market ${MARKET} is not deployed`);
+}
+const CH: Address = market.ClearingHouse;
+const OB: Address = market.OrderBook;
+const ORACLE: Address = market.OracleAdapter;
 
 const chain = defineChain({
   id: CHAIN_ID,
@@ -234,7 +249,7 @@ async function recoverResting(): Promise<void> {
 tickSize = await pub.readContract({ address: OB, abi: orderBookAbi, functionName: "tickSize" });
 lotSize = await pub.readContract({ address: OB, abi: orderBookAbi, functionName: "lotSize" });
 await recoverResting();
-log("mm start", { chainId: CHAIN_ID, orderBook: OB, maker: account.address, levels: LEVELS, lotsPerLevel: LOTS_PER_LEVEL, killFile: KILL_FILE });
+log("mm start", { chainId: CHAIN_ID, market: MARKET, orderBook: OB, maker: account.address, levels: LEVELS, lotsPerLevel: LOTS_PER_LEVEL, killFile: KILL_FILE });
 process.on("SIGINT", () => {
   log("SIGINT: cancelling all");
   void cancelAll("shutdown").finally(() => process.exit(0));

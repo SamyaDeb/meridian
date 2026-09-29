@@ -1,0 +1,21 @@
+import { describe, expect, it } from "vitest";
+import dryRun from "../../../deployments/dry-run/10143.json";
+import placeholder from "../../../deployments/10143.json";
+import { type Deployment, DEPLOYMENTS, buildDeployments, isLive } from "./deployments";
+
+describe("deployments", () => {
+  it("leaves the 10143 placeholder out until DeployPulse broadcasts", () => {
+    expect(isLive(placeholder as unknown as Deployment)).toBe(false);
+    expect(DEPLOYMENTS[10143]).toBeUndefined();
+    expect(DEPLOYMENTS[31337]?.contracts.ClearingHouse).toMatch(/^0x[0-9a-fA-F]{40}$/);
+  });
+
+  it("accepts the DeployPulse 10143 shape, demo market labelled as a test market", () => {
+    const d = buildDeployments([dryRun as unknown as Deployment])[10143];
+    expect(d?.contracts.ClearingHouse).toBe("0x6C58b8bfeA118d1D627112Ab076988733f978304");
+    expect(d?.oracleKind).toBe("keeper-fed");
+    expect(d?.demoMarket?.symbol).toBe("MON-PERP-DEMO");
+    expect(d?.demoMarket?.testMarket).toBe(true);
+    expect(d?.demoMarket?.ClearingHouse).not.toBe(d?.contracts.ClearingHouse);
+  });
+});

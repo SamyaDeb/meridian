@@ -75,25 +75,31 @@ const HEALTH_MAX_SILENCE_MS = 30_000;
 
 type OracleKind = "pyth" | "keeper-fed" | "mock";
 interface MarketDeployment {
-  ClearingHouse: Address;
-  OracleAdapter: Address;
-  oracleKind?: OracleKind;
+  ClearingHouse?: Address;
+  OracleAdapter?: Address;
 }
 interface Deployments {
   chainId: number;
   startBlock: number;
+  deployed?: boolean;
+  /** Oracle of the main market (DeployPulse); absent on anvil (mock oracle). */
+  oracleKind?: OracleKind;
   contracts: MarketDeployment;
   /** MON-PERP-DEMO: separate OB + CH with a keeper-fed test oracle, used only for the crash/liquidation demo. */
-  demoMarket?: MarketDeployment & { symbol: string; testMarket: true };
+  demoMarket?: MarketDeployment & { symbol: string; testMarket: true; oracleKind: OracleKind };
 }
 const dep = JSON.parse(readFileSync(DEPLOYMENTS, "utf8")) as Deployments;
 if (dep.chainId !== CHAIN_ID) throw new Error(`deployments chainId ${dep.chainId} != CHAIN_ID ${CHAIN_ID}`);
 const MARKET = env("MARKET") ?? "main";
 const market = MARKET === "demo" ? dep.demoMarket : dep.contracts;
 if (market === undefined) throw new Error(`MARKET=${MARKET}: no demoMarket in ${DEPLOYMENTS}`);
-const CH = market.ClearingHouse;
-const ORACLE = market.OracleAdapter;
-const ORACLE_KIND: OracleKind = (env("ORACLE_KIND") as OracleKind | undefined) ?? market.oracleKind ?? "pyth";
+if (dep.deployed === false || market.ClearingHouse === undefined || market.OracleAdapter === undefined) {
+  throw new Error(`${DEPLOYMENTS}: market ${MARKET} is not deployed`);
+}
+const CH: Address = market.ClearingHouse;
+const ORACLE: Address = market.OracleAdapter;
+const ORACLE_KIND: OracleKind =
+  (env("ORACLE_KIND") as OracleKind | undefined) ?? (MARKET === "demo" ? dep.demoMarket?.oracleKind : dep.oracleKind) ?? "pyth";
 if (PRICE_FACTOR_FILE !== undefined && MARKET !== "demo") throw new Error("PRICE_FACTOR_FILE is only allowed with MARKET=demo");
 
 // ───────────────────────────── clients ─────────────────────────────

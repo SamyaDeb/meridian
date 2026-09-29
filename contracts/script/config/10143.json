@@ -2,6 +2,8 @@
   "chainId": 10143,
   "_sources": "Chain id + CRE forwarders: ARCHITECTURE R1, R14. WMON, Pyth, 'no Chainlink', 'no AUSD': PHASES decision 10 (verified 29 Sep). Everything else null = VERIFY before use.",
   "owner": null,
+  "_owner": "Testnet owner = the deployer (ownerIsDeployer); DeployPulse writes the resolved address into deployments/10143.json. Mainnet (143) will be the 2-of-3 Safe in Phase 5; the script refuses a deployer owner on 143.",
+  "ownerIsDeployer": true,
   "tokens": {
     "AUSD": null,
     "_AUSD": "No AUSD on testnet (decision 10): DeployPulse deploys MockERC20 'tAUSD' (6 dp)",
@@ -96,8 +98,18 @@
       "_maxStalenessSec": "10 s assumes keeper Hermes pushes (R12); 60 s without a Pyth API key (R24). WS-03 owns",
       "maxStalenessSec": 10,
       "chainlinkGuardStalenessSec": 3600,
-      "_maxDeviationWad": "VERIFY: not set in specs; WS-03 (B) to choose",
-      "maxDeviationWad": null
+      "_maxDeviationWad": "2% (A's choice, WS-03): Pyth vs Chainlink guard tolerance on mainnet; Chainlink MON/USD moves minutes apart (R11), so a tighter band would trip in fast markets. Unused on testnet (no Chainlink; TestnetKeeperOracle reports it only). VERIFY vs Chainlink's deviation threshold at data.chain.link before mainnet",
+      "maxDeviationWad": "20000000000000000",
+      "kind": "keeper-fed",
+      "_kind": "'keeper-fed' (TestnetKeeperOracle fed by the keeper from mainnet Pyth MON/USD, fallback Hyperliquid) until a Pyth Hermes API key exists (R24; testnet Pyth MON/USD verified ~5.4 h stale on 30 Sep). With a key: 'pyth' (PythChainlinkOracleAdapter, secondary = address(0) since there is no Chainlink on testnet) + maxStalenessSec 10 and keeper Hermes pushes; the CH's oracle is immutable, so switching means redeploying the market.",
+      "keeperFedMaxStalenessSec": 60,
+      "_keeperFedMaxStalenessSec": "60 s = R24's no-key value: source cadence (mainnet sponsored Pyth 10–30 s) + keeper heartbeat 10 s + inclusion; beyond it the CH freezes funding and blocks increases (MATH_SPEC §1.6)"
     }
+  },
+  "_rpc": "Public testnet RPC https://testnet-rpc.monad.xyz (QuickNode, 50 rps; 25 rps eth_call/estimateGas) per docs.monad.xyz/developer-essentials/testnet (ARCHITECTURE R29). Scripts still read MONAD_TESTNET_RPC_URL from .env.",
+  "demoMarket": {
+    "enabled": true,
+    "symbol": "MON-PERP-DEMO",
+    "_note": "TEST MARKET (own OB + CH + keeper-fed TestnetKeeperOracle, shared IF), used only for the crash/liquidation demo: real Pyth can't be moved on demand, and the main market's price/params are never forced (Phase 3 step 3)."
   }
 }
