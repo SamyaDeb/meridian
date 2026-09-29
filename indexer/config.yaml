@@ -88,7 +88,7 @@ contracts:
       - event: ForwarderUpdated
 chains:
   - id: 31337
-    start_block: 17
+    start_block: 13
     rpc:
       - url: ${ENVIO_LOCAL_RPC_URL:-http://127.0.0.1:8545}
         for: sync
