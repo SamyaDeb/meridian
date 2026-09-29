@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: contracts (fmt, build, test, interfaces doc, abis)
+    runs-on: ubuntu-latest
+    env:
+      FOUNDRY_PROFILE: ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: forge fmt --check
+        working-directory: contracts
+        run: forge fmt --check
+
+      - name: forge build
+        working-directory: contracts
+        run: forge build --sizes
+
+      - name: forge test
+        working-directory: contracts
+        run: forge test -vvv
+
+      # A PR that edits contracts/src/interfaces/** without regenerating docs/INTERFACES.md fails here.
+      - name: INTERFACES.md in sync
+        run: python3 tools/gen_interfaces_md.py --check
+
+      # TS packages consume abis/*.json; they must match the compiled contracts.
+      - name: abis/ in sync
+        run: |
+          bash tools/export_abis.sh
+          git diff --exit-code -- abis/ || { echo "abis/ is stale: run tools/export_abis.sh"; exit 1; }
+
+  ts:
+    name: ts packages (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Skipped until the first TS package lands a lockfile.
+      - id: lock
+        run: echo "present=$([ -f pnpm-lock.yaml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - if: steps.lock.outputs.present == 'true'
+        uses: pnpm/action-setup@v4
+      - if: steps.lock.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: steps.lock.outputs.present == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -r --if-present run lint
+          pnpm -r --if-present run typecheck
+          pnpm -r --if-present run test

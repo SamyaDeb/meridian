@@ -1,0 +1,103 @@
+{
+  "chainId": 10143,
+  "_sources": "Only the chain id and CRE forwarders are verified (ARCHITECTURE R1, R14). Everything null = VERIFY from official docs before a testnet deploy; until then deploy MockERC20 AUSD/WMON + MockOracleAdapter.",
+  "owner": null,
+  "tokens": {
+    "AUSD": null,
+    "_AUSD": "VERIFY: AUSD on Monad testnet (Agora docs); else deploy MockERC20(6 dp)",
+    "AUSD_decimals": 6,
+    "WMON": null,
+    "_WMON": "VERIFY: WMON on testnet (docs.monad.xyz)",
+    "USDC": null
+  },
+  "pyth": {
+    "contract": null,
+    "_contract": "VERIFY: Pyth on Monad testnet (docs.pyth.network contract addresses)",
+    "monUsdFeedId": "0x31491744e2dbf6df7fcf4ac0820d18a609b49076d45066d3568424e62f686cd1",
+    "_monUsdFeedId": "Pyth feed ids are chain-independent; VERIFY the feed is pushed on testnet",
+    "expo": -8
+  },
+  "chainlink": {
+    "monUsd": null,
+    "_monUsd": "VERIFY: data.chain.link Monad testnet",
+    "ausdUsd": null,
+    "ethUsd": null,
+    "decimals": 8
+  },
+  "kuru": {
+    "router": null,
+    "marginAccount": null,
+    "flowEntrypoint": null,
+    "flowRouter": null,
+    "_kuru": "VERIFY: Kuru testnet deployment (docs.kuru.io); vault hedger uses MockKuruHedger until then"
+  },
+  "cre": {
+    "keystoneForwarder": "0xF8344CFd5c43616a4366C34E3EEE75af79a74482",
+    "keystoneForwarderSim": "0xB9F79d863261869B234c481D1f9A7af84AeAd192"
+  },
+  "params": {
+    "_note": "WAD values are decimal strings. Sources: MATH_SPEC §1.3 (funding), §3.3 (risk), §5.3 (vault), §6 (swaps); TEAM_PLAN §7 (launch caps).",
+    "perp": {
+      "symbol": "MON-PERP",
+      "tickSizeWad": "1000000000000",
+      "lotSizeWad": "100000000000000000000",
+      "risk": {
+        "imr": "200000000000000000",
+        "mmr": "100000000000000000",
+        "takerFee": "500000000000000",
+        "makerFee": "-100000000000000",
+        "liqPenalty": "10000000000000000",
+        "keeperShare": "500000000000000000",
+        "maxOpenInterest": "250000000000000000000000",
+        "maxPositionSize": "25000000000000000000000"
+      },
+      "funding": {
+        "alpha": "2000000000000000",
+        "interestRate": "3472222222",
+        "rateCap": "555555555556",
+        "maxRateChangePerBlock": "555555556",
+        "blockTimeMs": 300,
+        "premiumBandWad": "50000000000000000"
+      }
+    },
+    "swap": {
+      "_maturity": "unix seconds, set at deploy: 30 days after listing (MATH_SPEC §6.1)",
+      "maturity": null,
+      "tickSizeWad": "100000000000000",
+      "lotSizeWad": "1000000000000000000000",
+      "params": {
+        "aprMoveBuffer": "50000000000000000",
+        "liqHorizonSec": 86400,
+        "imMultiplier": "1500000000000000000",
+        "takerFeeApr": "2000000000000000",
+        "makerFeeApr": "-500000000000000",
+        "liqPenalty": "200000000000000000",
+        "keeperShare": "500000000000000000",
+        "maxOpenInterest": "2000000000000000000000000",
+        "_maxPositionSize": "A's choice (not in specs): 10% of the per-side OI cap, same ratio as the perp",
+        "maxPositionSize": "200000000000000000000000"
+      }
+    },
+    "vault": {
+      "leverage": "1500000000000000000",
+      "driftBand": "20000000000000000",
+      "targetMarginRatio": "600000000000000000",
+      "minMarginRatio": "250000000000000000",
+      "exitHorizonSec": 259200,
+      "roundTripFee": "1500000000000000",
+      "maxSlippage": "5000000000000000",
+      "idleBuffer": "50000000000000000",
+      "depositCap": "10000000000",
+      "skewCapacity": "800000000000000000",
+      "entryHorizonSec": 604800,
+      "maxSliceAssets": "2500000000"
+    },
+    "oracle": {
+      "_maxStalenessSec": "10 s assumes keeper Hermes pushes (R12); 60 s without a Pyth API key (R24). WS-03 owns",
+      "maxStalenessSec": 10,
+      "chainlinkGuardStalenessSec": 3600,
+      "_maxDeviationWad": "VERIFY: not set in specs; WS-03 (B) to choose",
+      "maxDeviationWad": null
+    }
+  }
+}

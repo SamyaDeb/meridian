@@ -1,0 +1,74 @@
+{
+  "chainId": 31337,
+  "_sources": "anvil: DeployLocal.s.sol deploys MockERC20 AUSD (6 dp) / WMON (18 dp), MockOracleAdapter, mock market. Addresses land in deployments/31337.json.",
+  "local": {
+    "initialIndexPriceWad": "29000000000000000",
+    "_initialIndexPriceWad": "0.029 AUSD/MON, ≈ MON price used in MATH_SPEC examples",
+    "faucetAusdToken": "100000000000"
+  },
+  "params": {
+    "_note": "WAD values are decimal strings. Sources: MATH_SPEC §1.3 (funding), §3.3 (risk), §5.3 (vault), §6 (swaps); TEAM_PLAN §7 (launch caps).",
+    "perp": {
+      "symbol": "MON-PERP",
+      "tickSizeWad": "1000000000000",
+      "lotSizeWad": "100000000000000000000",
+      "risk": {
+        "imr": "200000000000000000",
+        "mmr": "100000000000000000",
+        "takerFee": "500000000000000",
+        "makerFee": "-100000000000000",
+        "liqPenalty": "10000000000000000",
+        "keeperShare": "500000000000000000",
+        "maxOpenInterest": "250000000000000000000000",
+        "maxPositionSize": "25000000000000000000000"
+      },
+      "funding": {
+        "alpha": "2000000000000000",
+        "interestRate": "3472222222",
+        "rateCap": "555555555556",
+        "maxRateChangePerBlock": "555555556",
+        "blockTimeMs": 300,
+        "premiumBandWad": "50000000000000000"
+      }
+    },
+    "swap": {
+      "_maturity": "unix seconds, set at deploy: 30 days after listing (MATH_SPEC §6.1)",
+      "maturity": null,
+      "tickSizeWad": "100000000000000",
+      "lotSizeWad": "1000000000000000000000",
+      "params": {
+        "aprMoveBuffer": "50000000000000000",
+        "liqHorizonSec": 86400,
+        "imMultiplier": "1500000000000000000",
+        "takerFeeApr": "2000000000000000",
+        "makerFeeApr": "-500000000000000",
+        "liqPenalty": "200000000000000000",
+        "keeperShare": "500000000000000000",
+        "maxOpenInterest": "2000000000000000000000000",
+        "_maxPositionSize": "A's choice (not in specs): 10% of the per-side OI cap, same ratio as the perp",
+        "maxPositionSize": "200000000000000000000000"
+      }
+    },
+    "vault": {
+      "leverage": "1500000000000000000",
+      "driftBand": "20000000000000000",
+      "targetMarginRatio": "600000000000000000",
+      "minMarginRatio": "250000000000000000",
+      "exitHorizonSec": 259200,
+      "roundTripFee": "1500000000000000",
+      "maxSlippage": "5000000000000000",
+      "idleBuffer": "50000000000000000",
+      "depositCap": "10000000000",
+      "skewCapacity": "800000000000000000",
+      "entryHorizonSec": 604800,
+      "maxSliceAssets": "2500000000"
+    },
+    "oracle": {
+      "_maxStalenessSec": "10 s assumes keeper Hermes pushes (R12); 60 s without a Pyth API key (R24). WS-03 owns",
+      "maxStalenessSec": 10,
+      "chainlinkGuardStalenessSec": 3600,
+      "_maxDeviationWad": "VERIFY: not set in specs; WS-03 (B) to choose",
+      "maxDeviationWad": null
+    }
+  }
+}

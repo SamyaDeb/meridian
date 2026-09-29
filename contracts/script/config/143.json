@@ -1,0 +1,102 @@
+{
+  "chainId": 143,
+  "_sources": "docs/ARCHITECTURE.md §0 (R9–R19c, R14). Verified 2026-09-29.",
+  "owner": null,
+  "_owner": "VERIFY: Safe 2-of-3 address once created (TEAM_PLAN §6 item 7)",
+  "tokens": {
+    "AUSD": "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a",
+    "AUSD_decimals": 6,
+    "WMON": "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A",
+    "USDC": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+    "USDC_decimals": 6
+  },
+  "pyth": {
+    "contract": "0x2880aB155794e7179c9eE2e38200202908C17B43",
+    "monUsdFeedId": "0x31491744e2dbf6df7fcf4ac0820d18a609b49076d45066d3568424e62f686cd1",
+    "expo": -8
+  },
+  "chainlink": {
+    "monUsd": "0xBcD78f76005B7515837af6b50c7C52BCf73822fb",
+    "ausdUsd": "0xE20751C7B5867bCBef815ffc1b284c3f412a9e13",
+    "ethUsd": "0x1B1414782B859871781bA3E4B0979b9ca57A0A04",
+    "decimals": 8
+  },
+  "kuru": {
+    "router": "0xd651346d7c789536ebf06dc72aE3C8502cd695CC",
+    "marginAccount": "0x2A68ba1833cDf93fa9Da1EEbd7F46242aD8E90c5",
+    "flowEntrypoint": "0xb3e6778480b2E488385E8205eA05E20060B813cb",
+    "flowRouter": "0x0d3a1BE29E9dEd63c7a5678b31e847D68F71FFa2",
+    "monUsdcMarket": "0x065c9d28e428a0db40191a54d33d5b7c71a9c394",
+    "monAusdMarket": "0x131a2e70a5b31a517a74b8c567149bc294470da9",
+    "_monAusdMarket": "exists but dead (R19); vault uses Kuru Flow route (CR-002)"
+  },
+  "cre": {
+    "keystoneForwarder": "0x76c9cf548b4179F8901cda1f8623568b58215E62",
+    "keystoneForwarderSim": "0x9eF6468C5f37b976E57d52054c693269479A784d"
+  },
+  "params": {
+    "_note": "WAD values are decimal strings. Sources: MATH_SPEC §1.3 (funding), §3.3 (risk), §5.3 (vault), §6 (swaps); TEAM_PLAN §7 (launch caps).",
+    "perp": {
+      "symbol": "MON-PERP",
+      "tickSizeWad": "1000000000000",
+      "lotSizeWad": "100000000000000000000",
+      "risk": {
+        "imr": "200000000000000000",
+        "mmr": "100000000000000000",
+        "takerFee": "500000000000000",
+        "makerFee": "-100000000000000",
+        "liqPenalty": "10000000000000000",
+        "keeperShare": "500000000000000000",
+        "maxOpenInterest": "250000000000000000000000",
+        "maxPositionSize": "25000000000000000000000"
+      },
+      "funding": {
+        "alpha": "2000000000000000",
+        "interestRate": "3472222222",
+        "rateCap": "555555555556",
+        "maxRateChangePerBlock": "555555556",
+        "blockTimeMs": 300,
+        "premiumBandWad": "50000000000000000"
+      }
+    },
+    "swap": {
+      "_maturity": "unix seconds, set at deploy: 30 days after listing (MATH_SPEC §6.1)",
+      "maturity": null,
+      "tickSizeWad": "100000000000000",
+      "lotSizeWad": "1000000000000000000000",
+      "params": {
+        "aprMoveBuffer": "50000000000000000",
+        "liqHorizonSec": 86400,
+        "imMultiplier": "1500000000000000000",
+        "takerFeeApr": "2000000000000000",
+        "makerFeeApr": "-500000000000000",
+        "liqPenalty": "200000000000000000",
+        "keeperShare": "500000000000000000",
+        "maxOpenInterest": "2000000000000000000000000",
+        "_maxPositionSize": "A's choice (not in specs): 10% of the per-side OI cap, same ratio as the perp",
+        "maxPositionSize": "200000000000000000000000"
+      }
+    },
+    "vault": {
+      "leverage": "1500000000000000000",
+      "driftBand": "20000000000000000",
+      "targetMarginRatio": "600000000000000000",
+      "minMarginRatio": "250000000000000000",
+      "exitHorizonSec": 259200,
+      "roundTripFee": "1500000000000000",
+      "maxSlippage": "5000000000000000",
+      "idleBuffer": "50000000000000000",
+      "depositCap": "10000000000",
+      "skewCapacity": "800000000000000000",
+      "entryHorizonSec": 604800,
+      "maxSliceAssets": "2500000000"
+    },
+    "oracle": {
+      "_maxStalenessSec": "10 s assumes keeper Hermes pushes (R12); 60 s without a Pyth API key (R24). WS-03 owns",
+      "maxStalenessSec": 10,
+      "chainlinkGuardStalenessSec": 3600,
+      "_maxDeviationWad": "VERIFY: not set in specs; WS-03 (B) to choose",
+      "maxDeviationWad": null
+    }
+  }
+}

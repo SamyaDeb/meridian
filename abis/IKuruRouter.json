@@ -1,0 +1,120 @@
+[
+  {
+    "type": "function",
+    "name": "anyToAnySwap",
+    "inputs": [
+      {
+        "name": "_marketAddresses",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "_isBuy",
+        "type": "bool[]",
+        "internalType": "bool[]"
+      },
+      {
+        "name": "_nativeSend",
+        "type": "bool[]",
+        "internalType": "bool[]"
+      },
+      {
+        "name": "_debitToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_creditToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_minAmountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "_amountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "deployProxy",
+    "inputs": [
+      {
+        "name": "_type",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "_baseAssetAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_quoteAssetAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_sizePrecision",
+        "type": "uint96",
+        "internalType": "uint96"
+      },
+      {
+        "name": "_pricePrecision",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "_tickSize",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "_minSize",
+        "type": "uint96",
+        "internalType": "uint96"
+      },
+      {
+        "name": "_maxSize",
+        "type": "uint96",
+        "internalType": "uint96"
+      },
+      {
+        "name": "_takerFeeBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_makerFeeBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_kuruAmmSpread",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "proxy",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  }
+]

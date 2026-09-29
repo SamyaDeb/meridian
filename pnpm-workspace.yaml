@@ -1,0 +1,6 @@
+packages:
+  - abis
+  - keepers/*
+  - mm-bot
+  - indexer
+  - app

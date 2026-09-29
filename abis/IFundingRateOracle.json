@@ -1,0 +1,128 @@
+[
+  {
+    "type": "function",
+    "name": "averageFundingApr",
+    "inputs": [
+      {
+        "name": "blocksAgo",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "aprWad",
+        "type": "int256",
+        "internalType": "int256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "averageFundingRate",
+    "inputs": [
+      {
+        "name": "blocksAgo",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "ratePerSecondWad",
+        "type": "int256",
+        "internalType": "int256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "latestObservation",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "cumFunding",
+        "type": "int256",
+        "internalType": "int256"
+      },
+      {
+        "name": "cumIndexTime",
+        "type": "int256",
+        "internalType": "int256"
+      },
+      {
+        "name": "blockNumber",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "observe",
+    "inputs": [
+      {
+        "name": "blocksAgo",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "cumFunding",
+        "type": "int256",
+        "internalType": "int256"
+      },
+      {
+        "name": "cumIndexTime",
+        "type": "int256",
+        "internalType": "int256"
+      },
+      {
+        "name": "observedBlock",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "FundingCheckpoint",
+    "inputs": [
+      {
+        "name": "slot",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "blockNumber",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "cumFunding",
+        "type": "int256",
+        "indexed": false,
+        "internalType": "int256"
+      },
+      {
+        "name": "cumIndexTime",
+        "type": "int256",
+        "indexed": false,
+        "internalType": "int256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "ObservationTooOld",
+    "inputs": []
+  }
+]
