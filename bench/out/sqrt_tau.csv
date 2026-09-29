@@ -1,0 +1,8 @@
+design,tau_s,mmr_pct_sigma50,mmr_pct_sigma100,mmr_pct_sigma150,max_leverage_sigma100
+"Monad, 1 block",0.3,0.015,0.029,0.044,3418
+"Monad, 3 blocks",0.9,0.025,0.051,0.076,1973
+"Monad, keeper ~2 s",2.0,0.038,0.076,0.113,1324
+Ethereum L1 block,12.0,0.093,0.185,0.278,540
+1-minute,60.0,0.207,0.414,0.621,242
+Hourly,3600.0,1.603,3.205,4.808,31
+8-hour,28800.0,4.533,9.066,13.599,11
