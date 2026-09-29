@@ -51,6 +51,9 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
     uint256 internal constant MAX_RATE_CAP = 2_777_777_777_778;
     uint256 internal constant MIN_BLOCK_TIME_MS = 100;
     uint256 internal constant MAX_BLOCK_TIME_MS = 2000;
+    /// @dev Largest index accepted (else the oracle counts as stale): prices are stored as uint96 and the mark can be
+    ///      up to I·(1 + markBand), so half the uint96 range keeps every stored price in range (≈ 4e10 AUSD/unit).
+    uint256 internal constant MAX_INDEX = type(uint96).max / 2;
 
     // ─── Storage (Ownable._owner is slot 0; slots 1..13 share MIP-8 page 0) ────
     struct FundingSlotA {
@@ -66,19 +69,20 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         bool oracleStale; // result of the oracle read at lastUpdateBlock
     }
 
+    /// @dev One slot read by every touch: prices are bounded by `_tryIndex` (index ≤ MAX_INDEX, mark ≤ 1.05·index) and the
+    ///      book's tick size rides along so the first touch doesn't pay a separate cold read for it.
     struct PriceSlot {
-        uint128 lastIndex; // last good index
-        uint128 mark; // mark cached at lastUpdateBlock (last good mark while stale)
+        uint96 lastIndex; // last good index
+        uint96 mark; // mark cached at lastUpdateBlock (last good mark while stale)
+        uint64 tickSize; // OrderBook tick size (WAD), set once by setOrderBook
     }
 
-    struct FundingPacked {
-        uint64 alpha;
-        int64 interestRate;
-        uint64 rateCap;
-        uint64 maxRateChangePerBlock;
-        uint64 premiumBandWad;
-        uint32 blockTimeMs;
-    }
+    // FundingParams packed into ONE slot (read on every first touch): bits [0,59) alpha, [59,118) premiumBand,
+    // [118,160) rateCap, [160,202) maxRateChangePerBlock, [202,244) |interestRate|, [244] interestRate < 0,
+    // [245,256) blockTimeMs. `_storeFunding`'s bounds guarantee the fit: alpha, band ≤ 0.5e18 < 2^59;
+    // rateCap ≤ MAX_RATE_CAP < 2^42, δ ≤ rateCap, |i| ≤ rateCap; blockTimeMs ≤ 2000 < 2^11.
+    uint256 internal constant FP_BITS_59 = (1 << 59) - 1;
+    uint256 internal constant FP_BITS_42 = (1 << 42) - 1;
 
     struct RiskPacked {
         uint64 imr;
@@ -115,6 +119,7 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         uint256 index;
         uint256 mark;
         uint64 lastUpdateBlock;
+        uint64 tickSize;
         uint16 checkpointIdx;
         bool stale;
         bool changed;
@@ -143,12 +148,14 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
     FundingSlotA internal _fa;
     FundingSlotB internal _fb;
     PriceSlot internal _px;
-    FundingPacked internal _fp;
+    uint256 internal _fp;
     RiskPacked internal _rp;
     /// @inheritdoc IMarginEngine
     address public orderBook;
     bool public paused;
-    uint256 internal _tickSize;
+    /// @dev Copy of `_rp.imr` in the slot every hook already reads for `onlyOrderBook` (saves a cold SLOAD on the
+    ///      MM's place/cancel path). Written together with `_rp` in `_storeRisk`.
+    uint64 internal _imr;
     uint128 internal _longOI;
     uint128 internal _shortOI;
     /// @dev WAD; signed because maker rebates settle before the taker fee inside one order.
@@ -190,7 +197,7 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         _storeRisk(risk);
         _storeFunding(funding);
         (bool ok, uint256 index) = _tryIndex();
-        if (ok) _px = PriceSlot(uint128(index), uint128(index));
+        if (ok) _px = PriceSlot(uint96(index), uint96(index), 0);
         _fb = FundingSlotB(0, 0, uint64(block.number), 0, !ok);
         _ring[0] = Checkpoint(0, uint64(block.number), 0);
         emit FundingCheckpoint(0, uint64(block.number), 0, 0);
@@ -264,7 +271,7 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         _fb = FundingSlotB(
             int256(t.emaPremium).toInt64(), t.rate.toInt64(), uint64(block.number), t.checkpointIdx, t.stale
         );
-        if (!t.stale) _px = PriceSlot(t.index.toUint128(), t.mark.toUint128());
+        if (!t.stale) _px = PriceSlot(t.index.toUint96(), t.mark.toUint96(), t.tickSize);
         emit FundingUpdated(
             uint64(block.number), t.premium, t.emaPremium, t.rate, t.cumFunding, t.cumIndexTime, t.index, t.mark
         );
@@ -281,6 +288,7 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         t.rate = b.rate;
         t.index = px.lastIndex;
         t.mark = px.mark;
+        t.tickSize = px.tickSize;
         t.lastUpdateBlock = b.lastUpdateBlock;
         t.checkpointIdx = b.checkpointIdx;
         t.stale = b.oracleStale;
@@ -294,7 +302,7 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         // MATH_SPEC §1.6: stale ⇒ no premium sample, no accrual (F and G frozen), mark stays the last good one
         if (!ok) return t;
 
-        (uint256 bid, uint256 ask, uint256 lastPx, uint256 lastBlk) = _book();
+        (uint256 bid, uint256 ask, uint256 lastPx, uint256 lastBlk) = _book(t.tickSize);
         FundingState memory s = FundingState(t.cumFunding, t.cumIndexTime, t.emaPremium, t.rate, b.lastUpdateBlock);
         (FundingState memory ns, int256 prem) = FundingLib.update(
             s, _fundingParams(), index, MarkPriceLib.fairBookPrice(index, bid, ask), block.number - b.lastUpdateBlock
@@ -310,16 +318,15 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
 
     function _tryIndex() internal view returns (bool ok, uint256 index) {
         try IOracleAdapter(oracle).tryGetIndexPrice() returns (bool ok_, uint256 p, uint256) {
-            if (ok_ && p != 0 && p <= type(uint128).max) return (true, p);
+            if (ok_ && p != 0 && p <= MAX_INDEX) return (true, p);
         } catch {}
         return (false, 0);
     }
 
     /// @return bid best bid price (0 = none) @return ask best ask price (0 = none) @return lastPx @return lastBlk
-    function _book() internal view returns (uint256 bid, uint256 ask, uint256 lastPx, uint256 lastBlk) {
+    function _book(uint256 ts) internal view returns (uint256 bid, uint256 ask, uint256 lastPx, uint256 lastBlk) {
         address ob = orderBook;
         if (ob == address(0)) return (0, 0, 0, 0);
-        uint256 ts = _tickSize;
         bid = uint256(IOrderBook(ob).bestBid()) * ts;
         uint32 askTick = IOrderBook(ob).bestAsk();
         ask = askTick == type(uint32).max ? 0 : uint256(askTick) * ts;
@@ -352,19 +359,23 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         Account memory a = _accounts[trader];
         _settle(trader, a, t.cumFunding);
         // MATH_SPEC §3.2: reserve = size·price·imr, rounds up
-        a.reserved = (uint256(a.reserved) + MarginLib.orderMargin(sizeWad, priceWad, _rp.imr)).toUint128();
-        if (_equity(a, t.mark) < int256(_im(a, t.mark))) revert InsufficientMargin();
+        uint256 imr = _imr;
+        a.reserved = (uint256(a.reserved) + MarginLib.orderMargin(sizeWad, priceWad, imr)).toUint128();
+        if (_equity(a, t.mark) < int256(MarginLib.initialMargin(a.size, t.mark, imr, a.reserved))) {
+            revert InsufficientMargin();
+        }
         _accounts[trader] = a;
         emit OrderMarginChanged(trader, a.reserved);
     }
 
     /// @inheritdoc IMarginEngine
+    /// @dev No funding touch: releasing a reservation reads neither F nor the mark, and funding is lazy (the next
+    ///      touch accrues over the whole gap, MATH_SPEC §1.2, so skipping one here changes no account's funding).
     function releaseOrderMargin(address trader, bool, uint256 sizeWad, uint256 priceWad)
         external
         onlyOrderBook
         nonReentrant
     {
-        _touchFunding();
         Account storage a = _accounts[trader];
         uint128 r = _released(a.reserved, sizeWad, priceWad);
         a.reserved = r;
@@ -593,8 +604,10 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
     function setOrderBook(address orderBook_) external onlyOwner nonReentrant {
         if (orderBook != address(0)) revert AlreadyInitialized();
         if (orderBook_ == address(0)) revert InvalidParams();
+        uint256 ts = IOrderBook(orderBook_).tickSize();
+        if (ts == 0 || ts > type(uint64).max) revert InvalidParams();
         orderBook = orderBook_;
-        _tickSize = IOrderBook(orderBook_).tickSize();
+        _px.tickSize = uint64(ts);
     }
 
     /// @inheritdoc IClearingHouse
@@ -645,6 +658,7 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
             uint128(p.maxOpenInterest),
             uint128(p.maxPositionSize)
         );
+        _imr = uint64(p.imr);
         emit RiskParamsUpdated(p);
     }
 
@@ -656,14 +670,9 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
                 || p.blockTimeMs < MIN_BLOCK_TIME_MS || p.blockTimeMs > MAX_BLOCK_TIME_MS
                 || p.premiumBandWad > MAX_PREMIUM_BAND
         ) revert InvalidParams();
-        _fp = FundingPacked(
-            uint64(p.alpha),
-            int64(p.interestRate),
-            uint64(p.rateCap),
-            uint64(p.maxRateChangePerBlock),
-            uint64(p.premiumBandWad),
-            uint32(p.blockTimeMs)
-        );
+        uint256 absI = FPM.abs(p.interestRate);
+        _fp = p.alpha | (p.premiumBandWad << 59) | (p.rateCap << 118) | (p.maxRateChangePerBlock << 160) | (absI << 202)
+            | (uint256(p.interestRate < 0 ? 1 : 0) << 244) | (p.blockTimeMs << 245);
         emit FundingParamsUpdated(p);
     }
 
@@ -683,9 +692,16 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
     }
 
     function _fundingParams() internal view returns (FundingParams memory) {
-        FundingPacked memory f = _fp;
-        return
-            FundingParams(f.alpha, f.interestRate, f.rateCap, f.maxRateChangePerBlock, f.blockTimeMs, f.premiumBandWad);
+        uint256 w = _fp;
+        int256 i = int256((w >> 202) & FP_BITS_42);
+        return FundingParams(
+            w & FP_BITS_59,
+            (w >> 244) & 1 == 1 ? -i : i,
+            (w >> 118) & FP_BITS_42,
+            (w >> 160) & FP_BITS_42,
+            w >> 245,
+            (w >> 59) & FP_BITS_59
+        );
     }
 
     /// @inheritdoc IClearingHouse
@@ -839,7 +855,7 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
     }
 
     function _released(uint128 reserved, uint256 sizeWad, uint256 priceWad) internal view returns (uint128) {
-        uint256 r = MarginLib.orderMargin(sizeWad, priceWad, _rp.imr);
+        uint256 r = MarginLib.orderMargin(sizeWad, priceWad, _imr);
         return r >= reserved ? 0 : reserved - uint128(r);
     }
 

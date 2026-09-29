@@ -92,6 +92,7 @@ contract RealEngineGasBench is Test {
         uint256 place = _row("place", 0, _placeBid(BID - 1));
         uint256 cancel = _row("cancel", 0, _gas(mm, abi.encodeCall(IOrderBook.cancelOrder, (_lastId)), address(ob)));
         _row("place+cancel", 100_000, place + cancel);
+        assertLt(place + cancel, 100_000, "place+cancel >= 100k");
         _placeBid(BID - 2);
         _row(
             "replace", 100_000, _gas(mm, abi.encodeCall(IOrderBook.replaceOrder, (_lastId, BID - 3, 2, 0)), address(ob))
@@ -115,6 +116,7 @@ contract RealEngineGasBench is Test {
         uint256 ext = _externalViewGas();
         _row("funding_external_views_cold", 0, ext);
         _row("funding_ch_own_incremental", 30_000, first - noop - ext);
+        assertLt(first - noop - ext, 30_000, "CH-own funding first touch >= 30k");
         // steady-state checkpoint: wrap the 1440-slot ring so the checkpoint overwrites a nonzero slot
         uint256 b = block.number;
         for (uint256 i; i < 1440; ++i) {
@@ -126,6 +128,8 @@ contract RealEngineGasBench is Test {
         _row("funding_first_touch_checkpoint_tx", 0, ckFirst);
         _row("funding_first_touch_checkpoint_incremental", 40_000, ckFirst - ckNoop);
         _row("funding_ch_own_checkpoint_incremental", 40_000, ckFirst - ckNoop - ext);
+        assertLt(ckFirst - ckNoop - ext, 40_000, "CH-own funding first touch on a checkpoint block >= 40k");
+        assertLt(later, 3000, "later touch >= 3k");
 
         vm.createDir("./bench-out", true);
         vm.writeFile(CSV, csv);
