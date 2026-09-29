@@ -69,7 +69,7 @@ contract SmokeLocal is Script {
         _deposit(PK_LONG, 60e6);
         _deposit(PK_LIQUIDATOR, 1000e6);
 
-        // 2. maker quotes 3 levels per side, 100 lots each, 10 ticks apart (≈ 3.4 bps per tick)
+        // 2. maker quotes 3 levels per side, 100 lots each, 10 ticks apart (10 ticks ≈ 3.4 bps at 0.029)
         uint64[] memory ids = new uint64[](6);
         vm.startBroadcast(PK_MAKER);
         for (uint256 i; i < 3; ++i) {

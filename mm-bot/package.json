@@ -1,0 +1,22 @@
+{
+  "name": "@pulse/mm-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pulse market maker: Avellaneda–Stoikov in bps (MATH_SPEC §4), 3 levels per side via replaceOrder (WS-03)",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pulse/abis": "workspace:*",
+    "viem": "^2.57.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}

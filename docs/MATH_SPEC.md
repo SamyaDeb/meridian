@@ -181,7 +181,7 @@ r_bps = − q·γ·σ²·(T − t)                               // reservation 
 | γ | 1/bps | **0.01** | risk aversion |
 | k | 1/bps | **0.5** | order-arrival decay; refit from fills daily |
 | T − t | s | **60** | rolling horizon (infinite-horizon variant) |
-Worked numbers: γσ²(T−t) = 0.01·1.78²·60 ≈ **1.90 bps**; (2/γ)ln(1+γ/k) = 200·ln(1.02) ≈ **3.96 bps** ⇒ spread ≈ **5.9 bps**; at q = +1 the reservation shifts −1.90 bps. Snap bid ↓ / ask ↑ to tick (perp tick 1e-6 AUSD ≈ 3.4 bps at $0.029, so the book spread floor is 1 tick). Refresh on each new block or an index move > 2 bps.
+Worked numbers: γσ²(T−t) = 0.01·1.78²·60 ≈ **1.90 bps**; (2/γ)ln(1+γ/k) = 200·ln(1.02) ≈ **3.96 bps** ⇒ spread ≈ **5.9 bps**; at q = +1 the reservation shifts −1.90 bps. Snap bid ↓ / ask ↑ to tick (perp tick 1e-6 AUSD ≈ 0.345 bps at $0.029, so the 5.9 bps spread spans ≈ 17 ticks and the 1-tick floor never binds; *corrected Phase 2: was "3.4 bps"*). Refresh on each new block or an index move > 2 bps.
 Swap book: same model on the APR axis (units = APR bps around realizedApr(8 h)), σ from the 8 h realized APR series.
 
 ## 5. Vault: "skew absorber" basis vault (ERC-4626)
