@@ -22,6 +22,8 @@ export const oracleAdapterAbi = parseAbi([
 ]);
 
 export const pulseVaultAbi = parseAbi([
+  "struct HedgeState { uint256 spotBase; int256 perpSize; int256 perpEquity; uint256 idleAssets; uint256 nav; int256 netDelta; uint256 marginRatio; bool hedged; uint64 lastRebalanceBlock; }",
+  "function hedgeState() view returns (HedgeState)",
   "function needsRebalance() view returns (uint8 reason)",
   "function rebalance() returns (uint8 reason)",
   "function rebalanceWithRoute(bytes spotRoute) returns (uint8 reason)",
@@ -43,3 +45,5 @@ export const fundingSwapAbi = parseAbi([
 export const fundingSwapImplAbi = parseAbi([
   "function maturitySnapshot() view returns (bool snapped, int256 cumFunding, int256 cumIndexTime)",
 ]);
+
+export const insuranceFundAbi = parseAbi(["function balance() view returns (uint256 amountToken)"]);

@@ -9,7 +9,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "check-source": "tsx scripts/check-source.ts",
-    "evidence": "tsx scripts/evidence.ts"
+    "evidence": "tsx scripts/evidence.ts",
+    "watch": "tsx scripts/watch.ts"
   },
   "dependencies": {
     "@pulse/abis": "workspace:*",

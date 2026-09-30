@@ -103,3 +103,33 @@ Where the RPC went: keeper `eth_call` 229 → 95/min (account reads only on chan
 2. `echo 0.85 > $PRICE_FACTOR_FILE` → the demo keeper pushes 85% of the source on the next block (publish time = now, demo only).
 3. The mark (median of index-implied, book mid, last trade; clamped ±5% of the index) follows once the demo MM has re-quoted (one pipelined batch); the demo keeper liquidates within ≤ 3 blocks of eligibility and logs `liquidation latency` (B7).
 4. `echo 1 > $PRICE_FACTOR_FILE` to recover. Never touch the main market's price or parameters for a demo.
+
+## 8. Monitoring (TEAM_PLAN §7; paging is Phase 5)
+```bash
+cd keepers/ts-fallback && CHAIN_ID=10143 RPC_URL=<own endpoint> DEPLOYMENTS=../../deployments/10143.json \
+  KEEPER_HEALTH=http://localhost:8797/health,http://localhost:8798/health WATCH_BALANCES=keeper=0x…,mm=0x… pnpm watch
+# ONCE=1 → one check, exit 2 on any critical alert (cron/CI)
+```
+One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`, unit-tested). Critical: `oracle_stale` (the adapter says stale ⇒ funding frozen, increases blocked), `funding_gap` (> 100 blocks), `if_drop` (> 20% below the IF's peak), `vault_margin` (hedged and perp margin ratio < 30%), `keeper_down` / `keeper_stalled` (`/health` unreachable or `ok: false`). Warn: `oracle_old` (> 30 s), `keeper_balance` (< 5 MON), `indexer_lag` (> 30 s; `INDEXER_LAG_URL` returning `{"lagSec"}`, > VERIFY the Envio endpoint before wiring it).
+
+## 9. Swap keeper duties, swap MM, vault rebalancing (Phase 4)
+- **Keeper:** swap liquidations + `settleMaturity` run inside the main keeper whenever the deployment has `FundingSwapMarket` (section 4b). Vault: `VAULT_REBALANCE=1` (needsRebalance every 20 blocks and after each oracle push). The keeper key needs collateral in the CH **and** the swap market, and must be registered as the vault keeper (`DeployPulse` does it via `KEEPER_ADDRESS`).
+- **Swap MM:** `MARKET=swap` with its own key and swap-market collateral (section 4c). Stop with SIGINT; it pulls its quotes at maturity by itself.
+- **Testnet vault spot leg** is the labelled `MockKuruHedger` at a settable price. The vault checks spot vs index ± 0.5%, so sync it before rebalancing on testnet: `cast send <KuruHedger> "setPrice(uint256)" <index>` (anyone can; testnet mock only).
+- **Entry rule:** the vault hedges only when `averageFundingRate(8 h)` × 7 d > 2c (≈ 15.6% APR), so it needs 8 h of continuous checkpoints. On testnet that is ≈ 9 MON/h × 8 h of pokes at lag 6; plan the MON, or use the keeper-only `enterHedge()` for a labelled forced entry.
+- `SkewCap` fires only when the short exceeds capacity **plus one lot** (hysteresis). A slice buys back ⌈excess⌉ lots with `minFilled` = all, so it reverts `SlippageExceeded` if the book offers less within 0.5%; that is the protection working, not a bug.
+
+## 10. Incident flow
+1. **Contain:** `touch $KILL_FILE` on every MM (quotes pulled). If the market itself is unsafe (oracle wrong, exploit suspected), the owner calls `ClearingHouse.setPaused(true)` / `FundingSwapMarket.setPaused(true)`: increases are blocked, reduce-only, cancels, deposits and liquidations keep working (MATH_SPEC §1.6).
+2. **Reduce-only period:** keep the keeper running (liquidations must continue while paused). Lower `maxOpenInterest` / `maxPositionSize` with `setRiskParams` if exposure must shrink. Never change `maxStaleness` to hide an oracle problem.
+3. **Communicate:** status line in the app + the team channel: what is paused, what still works (withdrawals, closing), next update time. Write the timeline into `docs/standup/<you>.md`.
+4. **Resume:** `setPaused(false)` after the cause is fixed and the oracle is fresh; `rm $KILL_FILE`; watch `pnpm watch` for 30 min.
+
+## 11. Lessons from Phases 3–4 (testnet, 30 Sep)
+- **Monad bills the gas limit, and its receipts report `gasUsed` = the limit** (also in `debug_traceTransaction`). Execution gas isn't observable; `eth_estimateGas` is the proxy. At the 100 gwei floor: keeper ≈ **9.2 MON/h** at lag 6 (67 pokes + 31 pushes in 6 min), feed-only ≈ 0.93 MON/h, MM ≈ 24 MON/h at 3 levels (the demo MM at 1 level burned 0.35 MON in ≈ 5 min). Per op (billed): place ≈ 231k, replace ≈ 210k, cancel ≈ 140k, perp liquidation ≈ 214k, swap place ≈ 472–485k, `settleMaturity` see the standup, feed push ≈ 54k, funding poke ≈ 108k (≈ 153k when it also writes a checkpoint).
+- **Oracle freshness on the main market:** the keeper-fed oracle stores the *source's* publish time (mainnet Pyth, often 20–30 s old at push time), so a heartbeat near `maxStaleness` (60 s) leaves stale windows. Keep `FEED_HEARTBEAT_SEC` ≤ 10 whenever anything trades. Budget runs with 40–50 s produced `OracleStale` reverts that looked like out-of-gas (`gasUsed == limit` on Monad for any failure). Replay the calldata at the parent block (`cast call --block N-1`) to see the real reason.
+- **RPC:** Alchemy free tier `LOG_SPAN=10`; public RPC 100 blocks / ~25 rps. One endpoint per bot. The keeper needed no 429 retries at ≈ 440 calls/min on Alchemy (6 min run).
+- **Inclusion lag:** testnet pokes land 3–4 blocks after the decision, so lag 6 is needed (gaps 17–20, max 20 over 1,201 blocks). Lag 2 gave gaps of 21–22 and lag 5 one gap of 21.
+- **Liquidation latency on a free RPC:** 8 blocks after eligibility (estimate + send + receipt ≈ 3.2 s). The ≤ 3-block target needs the keeper on its own paid endpoint.
+- **Per-process keys** (nonces): a forge broadcast failed "EOA nonce changed" while another process used the deployer key, and forge had already written the deployments JSON during the simulation. Check `cast code` for every recorded address.
+- **Stop the MM only with SIGINT** and check `openOrderCount(mm) == 0`. Start bots from a directory that will still exist: `cast` panics ("could not determine project root") when its cwd was deleted, which silently killed a feeder loop.
