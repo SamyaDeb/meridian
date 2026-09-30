@@ -21,6 +21,9 @@ function makeSource() {
   const { chain, rpcUrl } = readChain();
   const client = createPublicClient({ chain, transport: http(rpcUrl) });
   const oracle = contractAddress(READ_CHAIN_ID, "OracleAdapter");
+  const vault = contractAddress(READ_CHAIN_ID, "PulseVault");
+  const swapMarket = contractAddress(READ_CHAIN_ID, "FundingSwapMarket");
+  const swapOrderBook = contractAddress(READ_CHAIN_ID, "SwapOrderBook");
   const span = process.env.NEXT_PUBLIC_LOG_SPAN;
   const lookback = process.env.NEXT_PUBLIC_LOG_LOOKBACK;
   return createChainSource(
@@ -30,6 +33,9 @@ function makeSource() {
       clearingHouse: ch,
       orderBook: ob,
       ...(oracle ? { oracle } : {}),
+      ...(vault ? { vault } : {}),
+      ...(swapMarket ? { swapMarket } : {}),
+      ...(swapOrderBook ? { swapOrderBook } : {}),
       ...(span ? { logSpan: BigInt(span) } : {}),
       ...(lookback ? { logLookback: BigInt(lookback) } : {}),
     },

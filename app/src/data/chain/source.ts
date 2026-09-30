@@ -1,17 +1,21 @@
-// Chain data source: the perp read path straight from contract views + recent logs (anvil / testnet without an
-// indexer). Vault, swaps and protocol stats still come from the mock until those contracts exist (fallback flag).
+// Chain data source: contract views + recent logs (anvil / testnet without an indexer). Perp always; vault and funding
+// swaps when their addresses are in the deployment (else that part stays on the mock); protocol stats stay mock.
 import type { PublicClient } from "viem";
-import { clearingHouseAbi, orderBookAbi } from "@/lib/abi";
-import { rateToAprWad } from "@/lib/math";
+import { clearingHouseAbi, orderBookAbi, swapAbi, vaultAbi } from "@/lib/abi";
+import { snapshotsFromLogs, swapPositionFromViews } from "@/lib/earnfix";
+import { rateToAprWad, vaultApyWad } from "@/lib/math";
 import { SECONDS_PER_YEAR } from "@/lib/units";
 import type { PulseDataSource } from "../source";
-import type { AccountMarket, Address, FundingTick, Market, Trade } from "../types";
+import type { AccountMarket, Address, FundingTick, Market, SwapMarketInfo, SwapPosition, SwapStats, Trade, Vault, VaultSnapshot, VaultUser } from "../types";
 
 export interface ChainAddresses {
   chainId: number;
   clearingHouse: Address;
   orderBook: Address;
   oracle?: Address;
+  vault?: Address;
+  swapMarket?: Address;
+  swapOrderBook?: Address;
   /** Blocks of history scanned for trades / ticks / orders (default 2,000: anvil or a paid RPC). */
   logLookback?: bigint;
   /** eth_getLogs range cap per request (default = lookback; public Monad RPC 100, Alchemy free tier 10). */
@@ -217,6 +221,137 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     });
   }
 
-  // Swaps are not deployed yet: never show the mock's positions next to real chain data.
-  return { ...fallback, kind: "chain", market, fundingTicks, trades, depth, positions, openOrders, swapPositions: async () => [] };
+  // ─── vault (PulseVault) ───
+  const vt = a.vault ? ({ address: a.vault, abi: vaultAbi } as const) : undefined;
+  /** chain time of `block` ≈ head timestamp − (head − block)·blockTime (one header read, no per-log block reads) */
+  async function clock(): Promise<(b: bigint) => bigint> {
+    const [head, fp] = await Promise.all([client.getBlock({ blockTag: "latest" }), client.readContract({ ...ch, functionName: "fundingParams" })]);
+    return (b) => head.timestamp - ((head.number - b) * fp.blockTimeMs) / 1000n;
+  }
+  async function vaultSnapshots(limit: number): Promise<VaultSnapshot[]> {
+    if (!vt) return fallback.vaultSnapshots(limit);
+    const [logs, ts] = await Promise.all([recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "NavSnapshot", fromBlock, toBlock, strict: true })), clock()]);
+    return snapshotsFromLogs(vt.address, logs, ts).slice(0, limit);
+  }
+  async function vault(): Promise<Vault> {
+    if (!vt) return fallback.vault();
+    const [nav, supply, price, h, needs, cap, snaps, deposits, withdraws, rebal, ts, head] = await Promise.all([
+      client.readContract({ ...vt, functionName: "totalAssets" }),
+      client.readContract({ ...vt, functionName: "totalSupply" }),
+      client.readContract({ ...vt, functionName: "sharePrice" }),
+      client.readContract({ ...vt, functionName: "hedgeState" }),
+      client.readContract({ ...vt, functionName: "needsRebalance" }),
+      client.readContract({ ...vt, functionName: "shortCapacity" }),
+      vaultSnapshots(1_000),
+      recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Deposit", fromBlock, toBlock, strict: true })),
+      recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Withdraw", fromBlock, toBlock, strict: true })),
+      recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Rebalanced", fromBlock, toBlock, strict: true })),
+      clock(),
+      client.getBlockNumber(),
+    ]);
+    // APY from the share price: the oldest snapshot in the lookback → the live price now (per-block funding shows)
+    const oldest = snaps[snaps.length - 1];
+    const dt = oldest ? ts(head) - oldest.timestamp : 0n;
+    const apy = oldest && dt > 0n ? vaultApyWad(oldest.sharePriceWad, price, dt) : undefined;
+    const last = rebal[rebal.length - 1];
+    const REASONS = ["None", "Deploy", "DeltaDrift", "MarginLow", "ExitHedge", "EnterHedge", "Withdraw", "SkewCap"] as const;
+    return {
+      id: vt.address,
+      navToken: nav,
+      totalShares: supply,
+      sharePriceWad: price,
+      fundingAccruedWad: snaps[0]?.fundingAccruedWad ?? 0n,
+      hedged: h.hedged,
+      lastRebalanceReason: last ? (REASONS[last.args.reason] ?? "None") : "None",
+      lastRebalanceBlock: h.lastRebalanceBlock,
+      depositedToken: deposits.reduce((x, l) => x + l.args.assets, 0n), // over the lookback window
+      withdrawnToken: withdraws.reduce((x, l) => x + l.args.assets, 0n),
+      userCount: new Set(deposits.map((l) => l.args.owner.toLowerCase())).size,
+      ...(apy !== undefined ? { apyWad: apy, apyWindowSec: Number(dt) } : {}),
+      needsRebalance: needs,
+      idleToken: h.idleAssets,
+      shortCapacityWad: cap,
+      spotBaseWad: h.spotBase,
+      perpSizeWad: h.perpSize,
+      netDeltaWad: h.netDelta,
+      marginRatioWad: h.marginRatio,
+    };
+  }
+  async function vaultUser(account: Address): Promise<VaultUser | undefined> {
+    if (!vt) return fallback.vaultUser(account);
+    const [shares, dep, wd, head] = await Promise.all([
+      client.readContract({ ...vt, functionName: "balanceOf", args: [account] }),
+      recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Deposit", args: { owner: account }, fromBlock, toBlock, strict: true })),
+      recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Withdraw", args: { owner: account }, fromBlock, toBlock, strict: true })),
+      client.getBlockNumber(),
+    ]);
+    return {
+      id: `${vt.address}-${account}`,
+      vault: vt.address,
+      user: account,
+      shares,
+      depositedToken: dep.reduce((x, l) => x + l.args.assets, 0n),
+      withdrawnToken: wd.reduce((x, l) => x + l.args.assets, 0n),
+      updatedBlock: head,
+    };
+  }
+
+  // ─── funding swaps (FundingSwapMarket + its OrderBook) ───
+  const sw = a.swapMarket ? ({ address: a.swapMarket, abi: swapAbi } as const) : undefined;
+  const sob = a.swapOrderBook ? ({ address: a.swapOrderBook, abi: orderBookAbi } as const) : undefined;
+  async function swapInfo(): Promise<SwapMarketInfo> {
+    if (!sw) return fallback.swapInfo();
+    const m = await client.readContract({ ...sw, functionName: "maturity" });
+    return { id: sw.address, maturityTimestamp: Number(m), ...(sob ? { orderBook: sob.address } : {}) };
+  }
+  async function swapStats(): Promise<SwapStats> {
+    if (!sw) return fallback.swapStats();
+    const fp = await client.readContract({ ...ch, functionName: "fundingParams" });
+    const blocks8h = (28_800n * 1000n) / fp.blockTimeMs;
+    const [mark, realized, [longOI], matured, trades] = await Promise.all([
+      client.readContract({ ...sw, functionName: "markApr" }),
+      client.readContract({ ...sw, functionName: "realizedApr", args: [blocks8h] }).catch(() => undefined),
+      client.readContract({ ...sw, functionName: "openInterest" }),
+      client.readContract({ ...sw, functionName: "isMatured" }),
+      sob ? recent((fromBlock, toBlock) => client.getContractEvents({ ...sob, eventName: "Trade", fromBlock, toBlock, strict: true })) : Promise.resolve([]),
+    ]);
+    return {
+      id: sw.address,
+      markAprWad: mark,
+      lastTradeBlock: trades[trades.length - 1]?.blockNumber ?? 0n,
+      ...(realized !== undefined ? { realizedApr8hWad: realized } : {}),
+      openInterestWad: longOI,
+      volumeWad: trades.reduce((x, l) => x + l.args.sizeWad, 0n), // over the lookback window
+      tradeCount: trades.length,
+      feesWad: 0n,
+      matured,
+    };
+  }
+  async function swapPositions(account: Address): Promise<SwapPosition[]> {
+    if (!sw) return []; // never show the mock's swap positions next to real chain data
+    const [p, v, head] = await Promise.all([
+      client.readContract({ ...sw, functionName: "getPosition", args: [account] }),
+      client.readContract({ ...sw, functionName: "getAccount", args: [account] }),
+      client.getBlockNumber(),
+    ]);
+    if (p.size === 0n && p.fixedAprNotional === 0n && v.collateral === 0n) return [];
+    return [swapPositionFromViews(sw.address, account, p, v, head)];
+  }
+
+  return {
+    ...fallback,
+    kind: "chain",
+    market,
+    fundingTicks,
+    trades,
+    depth,
+    positions,
+    openOrders,
+    vault,
+    vaultSnapshots,
+    vaultUser,
+    swapInfo,
+    swapStats,
+    swapPositions,
+  };
 }

@@ -50,6 +50,7 @@ export const orderBookAbi = parseAbi([
   "error OracleStale()",
   "error PositionCapExceeded()",
   "error OpenInterestCapExceeded()",
+  "error Matured()", // bubbled from the FundingSwapMarket hooks on the swap book
   "event Trade(uint64 indexed makerOrderId, address indexed maker, address indexed taker, bool takerIsBid, uint32 tick, uint64 lots, uint256 priceWad, uint256 sizeWad)",
 ]);
 
@@ -59,4 +60,58 @@ export const erc20Abi = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
   "function nonces(address owner) view returns (uint256)",
   "function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)",
+]);
+
+// PulseVault (ERC-4626 + IPulseVault, interfaces-v1.5).
+export const vaultAbi = parseAbi([
+  "struct HedgeState { uint256 spotBase; int256 perpSize; int256 perpEquity; uint256 idleAssets; uint256 nav; int256 netDelta; uint256 marginRatio; bool hedged; uint64 lastRebalanceBlock; }",
+  "function asset() view returns (address)",
+  "function totalAssets() view returns (uint256)",
+  "function totalSupply() view returns (uint256)",
+  "function balanceOf(address) view returns (uint256)",
+  "function sharePrice() view returns (uint256)",
+  "function hedgeState() view returns (HedgeState)",
+  "function needsRebalance() view returns (uint8)",
+  "function shortCapacity() view returns (uint256)",
+  "function maxDeposit(address) view returns (uint256)",
+  "function maxRedeem(address owner) view returns (uint256)",
+  "function previewRedeem(uint256 shares) view returns (uint256)",
+  "function previewDeposit(uint256 assets) view returns (uint256)",
+  "function convertToAssets(uint256 shares) view returns (uint256)",
+  "function WITHDRAW_FEE() view returns (uint256)",
+  "function deposit(uint256 assets, address receiver) returns (uint256 shares)",
+  "function redeem(uint256 shares, address receiver, address owner) returns (uint256 assets)",
+  "event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)",
+  "event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)",
+  "event NavSnapshot(uint256 nav, uint256 totalShares, uint256 sharePriceWad, int256 fundingAccruedWad)",
+  "event Rebalanced(uint8 indexed reason, int256 spotDeltaBase, int256 perpDeltaBase, uint256 navAfter, uint256 sharePriceWad)",
+  "error ERC4626ExceededMaxDeposit(address receiver, uint256 assets, uint256 max)",
+  "error ERC4626ExceededMaxRedeem(address owner, uint256 shares, uint256 max)",
+  "error SlippageExceeded()",
+]);
+
+// FundingSwapMarket (IFundingSwapMarket, interfaces-v1.5). Its book is a second OrderBook (orderBookAbi).
+export const swapAbi = parseAbi([
+  "struct SwapPosition { int256 size; int256 fixedAprNotional; int256 lastCumFunding; int256 lastCumIndexTime; }",
+  "struct SwapAccountView { uint256 collateral; int256 size; int256 avgFixedApr; int256 accruedNet; int256 unrealizedPnl; int256 equity; uint256 initialMargin; uint256 maintenanceMargin; uint256 reservedOrderMargin; bool liquidatable; }",
+  "function markApr() view returns (int256)",
+  "function realizedApr(uint64 blocksAgo) view returns (int256)",
+  "function timeToMaturity() view returns (uint256)",
+  "function maturity() view returns (uint256)",
+  "function isMatured() view returns (bool)",
+  "function openInterest() view returns (uint256 longOI, uint256 shortOI)",
+  "function getAccount(address account) view returns (SwapAccountView)",
+  "function getPosition(address account) view returns (SwapPosition)",
+  "function deposit(uint256 amountToken)",
+  "function withdraw(uint256 amountToken)",
+  "event SwapPositionChanged(address indexed account, int256 sizeDelta, int256 newSize, int256 aprWad, int256 realizedPnl, int256 fee, bool isMaker)",
+  "event MaturitySettled(int256 cumFundingAtMaturity, int256 cumIndexTimeAtMaturity, uint64 blockNumber)",
+  "error Matured()",
+  "error NotLiquidatable()",
+  "error PositionCapExceeded()",
+  "error OpenInterestCapExceeded()",
+  "error InsufficientMargin()",
+  "error ReduceOnlyViolated()",
+  "error Paused()",
+  "error ZeroAmount()",
 ]);

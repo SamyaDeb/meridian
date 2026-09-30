@@ -1,6 +1,6 @@
 // Write path. Monad bills the gas LIMIT (CLAUDE.md §7): every tx is estimated first and sent with estimate × 1.2.
 import type { Abi, Address, ContractFunctionArgs, ContractFunctionName, PublicClient, WalletClient } from "viem";
-import { clearingHouseAbi, erc20Abi } from "./abi";
+import { clearingHouseAbi, erc20Abi, swapAbi, vaultAbi } from "./abi";
 import { gasLimitFromEstimate } from "./gas";
 
 export async function sendTx<const abi extends Abi, fn extends ContractFunctionName<abi, "nonpayable" | "payable">>(
@@ -35,6 +35,37 @@ export async function supportsPermit(pub: PublicClient, token: Address, owner: A
  * chainId, verifyingContract = AUSD) the approval is a signature + permit; otherwise approve + deposit.
  */
 export async function deposit(pub: PublicClient, wallet: WalletClient, token: Address, ch: Address, amountToken: bigint) {
+  await approveOrPermit(pub, wallet, token, ch, amountToken);
+  return sendTx(pub, wallet, { address: ch, abi: clearingHouseAbi, functionName: "deposit", args: [amountToken] });
+}
+
+/** Vault: ERC-4626 deposit(assets, receiver = me) after permit/approve. Deposits stay idle until a rebalance. */
+export async function vaultDeposit(pub: PublicClient, wallet: WalletClient, token: Address, vault: Address, amountToken: bigint) {
+  const me = wallet.account?.address;
+  if (!me) throw new Error("wallet not connected");
+  await approveOrPermit(pub, wallet, token, vault, amountToken);
+  return sendTx(pub, wallet, { address: vault, abi: vaultAbi, functionName: "deposit", args: [amountToken, me] });
+}
+
+/** Vault: redeem(shares) to me (5 bps fee; an unwind's measured cost if idle AUSD doesn't cover it). */
+export async function vaultRedeem(pub: PublicClient, wallet: WalletClient, vault: Address, shares: bigint) {
+  const me = wallet.account?.address;
+  if (!me) throw new Error("wallet not connected");
+  return sendTx(pub, wallet, { address: vault, abi: vaultAbi, functionName: "redeem", args: [shares, me, me] });
+}
+
+/** Swap market collateral (same AUSD units as the perp). */
+export async function swapDeposit(pub: PublicClient, wallet: WalletClient, token: Address, swap: Address, amountToken: bigint) {
+  await approveOrPermit(pub, wallet, token, swap, amountToken);
+  return sendTx(pub, wallet, { address: swap, abi: swapAbi, functionName: "deposit", args: [amountToken] });
+}
+
+export async function swapWithdraw(pub: PublicClient, wallet: WalletClient, swap: Address, amountToken: bigint) {
+  return sendTx(pub, wallet, { address: swap, abi: swapAbi, functionName: "withdraw", args: [amountToken] });
+}
+
+/** Allowance for `spender`: EIP-2612 permit when the token supports it (AUSD), else approve (tAUSD mock). */
+export async function approveOrPermit(pub: PublicClient, wallet: WalletClient, token: Address, ch: Address, amountToken: bigint) {
   const owner = wallet.account?.address;
   if (!owner) throw new Error("wallet not connected");
   const allowance = await pub.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [owner, ch] });
@@ -58,5 +89,4 @@ export async function deposit(pub: PublicClient, wallet: WalletClient, token: Ad
       await sendTx(pub, wallet, { address: token, abi: erc20Abi, functionName: "approve", args: [ch, amountToken] });
     }
   }
-  return sendTx(pub, wallet, { address: ch, abi: clearingHouseAbi, functionName: "deposit", args: [amountToken] });
 }

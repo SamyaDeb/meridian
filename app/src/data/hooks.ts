@@ -72,7 +72,7 @@ export function useSwap(account: Address) {
   return useQuery({
     queryKey: ["swap", ds.kind, account],
     queryFn: async () => ({ stats: await ds.swapStats(), info: await ds.swapInfo(), positions: await ds.swapPositions(account) }),
-    refetchInterval: SLOW,
+    refetchInterval: 1_000, // accrual ticks per block on the Fix screen
   });
 }
 

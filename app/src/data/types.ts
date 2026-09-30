@@ -125,6 +125,17 @@ export interface Vault {
   userCount: number;
   apy24hWad?: bigint;
   apy7dWad?: bigint;
+  /** chain source: APY from the share price over `apyWindowSec` (NavSnapshot → now), when the window is < 24 h */
+  apyWad?: bigint;
+  apyWindowSec?: number;
+  /** chain source (contract views): what the Earn screen needs for status and the withdraw path */
+  needsRebalance?: number;
+  idleToken?: bigint;
+  shortCapacityWad?: bigint;
+  spotBaseWad?: bigint;
+  perpSizeWad?: bigint;
+  netDeltaWad?: bigint;
+  marginRatioWad?: bigint;
 }
 
 export interface VaultSnapshot {
@@ -208,4 +219,6 @@ export interface DepthLevel {
 export interface SwapMarketInfo {
   id: Address;
   maturityTimestamp: number; // unix seconds
+  /** chain source: the swap OrderBook (orders go there) */
+  orderBook?: Address;
 }
