@@ -95,7 +95,8 @@ describe("renderConfig", () => {
   });
 
   it("10143: refuses the NOT DEPLOYED placeholder, renders the DeployPulse dry-run shape", () => {
-    const placeholder = JSON.parse(readFileSync(resolve(ROOT, "deployments/10143.json"), "utf8"));
+    // deployments/10143.json is broadcast now (30 Sep); the placeholder shape DeployPulse overwrites stays tested inline
+    const placeholder = { chainId: 10143, deployed: false, startBlock: 0, contracts: {} };
     expect(() => renderConfig(10143, placeholder)).toThrow(/NOT DEPLOYED/);
     const dry = JSON.parse(readFileSync(resolve(ROOT, "deployments/dry-run/10143.json"), "utf8"));
     const y = renderConfig(10143, dry);

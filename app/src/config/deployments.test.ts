@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import dryRun from "../../../deployments/dry-run/10143.json";
-import placeholder from "../../../deployments/10143.json";
+import testnet from "../../../deployments/10143.json";
 import { type Deployment, DEPLOYMENTS, buildDeployments, isLive } from "./deployments";
 
 describe("deployments", () => {
-  it("leaves the 10143 placeholder out until DeployPulse broadcasts", () => {
+  it("leaves a `deployed: false` placeholder out; 10143 is live since the 30 Sep broadcast", () => {
+    const placeholder = { chainId: 10143, deployed: false, startBlock: 0, contracts: {} };
     expect(isLive(placeholder as unknown as Deployment)).toBe(false);
-    expect(DEPLOYMENTS[10143]).toBeUndefined();
+    expect(DEPLOYMENTS[10143]?.contracts.ClearingHouse).toBe(testnet.contracts.ClearingHouse);
+    expect(DEPLOYMENTS[10143]?.demoMarket?.testMarket).toBe(true);
     expect(DEPLOYMENTS[31337]?.contracts.ClearingHouse).toMatch(/^0x[0-9a-fA-F]{40}$/);
   });
 

@@ -1,11 +1,30 @@
 {
-  "_status": "NOT DEPLOYED. Placeholder so consumers compile; DeployPulse.s.sol overwrites this file on broadcast. Dry-run on a testnet fork passed 30 Sep 2026 (docs/standup/A.md). Blocked on DEPLOYER_PK/KEEPER_PK/MM_PK + testnet MON.",
   "chainId": 10143,
-  "deployed": false,
-  "startBlock": 0,
+  "contracts": {
+    "AUSD": "0xBb6E367e7658F19F39F1c28B694a2724c8A95c25",
+    "ClearingHouse": "0x4c5fB2762986D15Bb626e15867Fc2385f3a4802f",
+    "InsuranceFund": "0x75A3Dbdd37b4e27B4C6cCaf1767d393ccaE63A20",
+    "MarketFactory": "0xCe0163631adB9866A9902F453E4f23F0ac83bA14",
+    "OracleAdapter": "0x7f10816dD85eF7B851Ff7c04E03A98a945B907c1",
+    "OrderBook": "0x5d0650551588b92b2Efe3f8d34Ca1f1FDf1F7498",
+    "WMON": "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541"
+  },
+  "demoMarket": {
+    "ClearingHouse": "0x7e543d88306f12018E733Ea15DBEF46fb3D8Aeb6",
+    "OracleAdapter": "0x70Cd2922A204F19673377D2A18913Fb40885417c",
+    "OrderBook": "0x3501B975971Da66751dc5d96ED378bBC9BA2425e",
+    "_label": "TEST MARKET: keeper-fed oracle, used only for the crash/liquidation demo",
+    "oracleKind": "keeper-fed",
+    "symbol": "MON-PERP-DEMO",
+    "testMarket": true
+  },
+  "deployed": true,
+  "mockContracts": [
+    "AUSD"
+  ],
   "mocks": false,
-  "mockContracts": ["AUSD"],
-  "symbol": "MON-PERP",
   "oracleKind": "keeper-fed",
-  "contracts": {}
+  "owner": "0xEF4E34a3754c878BE0191B103691FD088e3F3b91",
+  "startBlock": 66875788,
+  "symbol": "MON-PERP"
 }

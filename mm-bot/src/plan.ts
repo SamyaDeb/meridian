@@ -59,9 +59,11 @@ export interface RequoteInput {
   allFull: boolean;
   /** |q − q at the last quote| */
   dq: number;
+  /** index-move threshold in bps; default 2 (MATH_SPEC §4). Raised only to save gas on testnet (REQUOTE_BPS) */
+  requoteBps?: bigint;
 }
 
 /** Requote only on a > 2 bps index move (MATH_SPEC §4), a missing/partially filled level, or a ≥ 0.05 inventory move. */
 export function needsRequote(i: RequoteInput): boolean {
-  return i.movedBps > 2n || i.restingCount < i.targetCount || !i.allFull || i.dq >= 0.05;
+  return i.movedBps > (i.requoteBps ?? 2n) || i.restingCount < i.targetCount || !i.allFull || i.dq >= 0.05;
 }

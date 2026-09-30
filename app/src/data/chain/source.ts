@@ -12,6 +12,10 @@ export interface ChainAddresses {
   clearingHouse: Address;
   orderBook: Address;
   oracle?: Address;
+  /** Blocks of history scanned for trades / ticks / orders (default 2,000: anvil or a paid RPC). */
+  logLookback?: bigint;
+  /** eth_getLogs range cap per request (default = lookback; public Monad RPC 100, Alchemy free tier 10). */
+  logSpan?: bigint;
 }
 
 export interface OpenOrder {
@@ -26,7 +30,15 @@ export interface ChainSource extends PulseDataSource {
   openOrders(account: Address): Promise<OpenOrder[]>;
 }
 
-const LOG_LOOKBACK = 2_000n; // blocks scanned for trades / ticks / orders (anvil or a paid RPC)
+const LOG_LOOKBACK = 2_000n; // default blocks scanned for trades / ticks / orders (anvil or a paid RPC)
+
+/** Pure: [from, to] split into inclusive ranges of at most `span` blocks (RPC eth_getLogs caps). */
+export function blockRanges(from: bigint, to: bigint, span: bigint): Array<[bigint, bigint]> {
+  if (span <= 0n) throw new Error("span must be > 0");
+  const out: Array<[bigint, bigint]> = [];
+  for (let s = from; s <= to; s += span) out.push([s, s + span - 1n < to ? s + span - 1n : to]);
+  return out;
+}
 const WINDOWS: Array<[keyof Pick<Market, "realizedApr1hWad" | "realizedApr8hWad" | "realizedApr24hWad">, number]> = [
   ["realizedApr1hWad", 3_600],
   ["realizedApr8hWad", 28_800],
@@ -42,10 +54,15 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
       client.readContract({ ...ob, functionName: "tickSize" }),
       client.readContract({ ...ob, functionName: "lotSize" }),
     ]).then(([tick, lot]) => ({ tick, lot })));
-  const fromBlock = async () => {
+  const lookback = a.logLookback ?? LOG_LOOKBACK;
+  const span = a.logSpan ?? lookback + 1n;
+  /** Logs of the last `lookback` blocks, fetched in `span`-block chunks (sequential: public RPCs are rate-limited). */
+  async function recent<T>(fetch: (fromBlock: bigint, toBlock: bigint) => Promise<T[]>): Promise<T[]> {
     const head = await client.getBlockNumber();
-    return head > LOG_LOOKBACK ? head - LOG_LOOKBACK : 0n;
-  };
+    const out: T[] = [];
+    for (const [f, t] of blockRanges(head > lookback ? head - lookback : 0n, head, span)) out.push(...(await fetch(f, t)));
+    return out;
+  }
 
   async function market(): Promise<Market> {
     const [fs, mark, index, [longOI, shortOI], paused, fp, head] = await Promise.all([
@@ -102,7 +119,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
   }
 
   async function fundingTicks(limit: number): Promise<FundingTick[]> {
-    const logs = await client.getContractEvents({ ...ch, eventName: "FundingUpdated", fromBlock: await fromBlock(), strict: true });
+    const logs = await recent((fromBlock, toBlock) => client.getContractEvents({ ...ch, eventName: "FundingUpdated", fromBlock, toBlock, strict: true }));
     return logs
       .slice(-limit)
       .reverse()
@@ -123,7 +140,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
   }
 
   async function trades(limit: number): Promise<Trade[]> {
-    const logs = await client.getContractEvents({ ...ob, eventName: "Trade", fromBlock: await fromBlock(), strict: true });
+    const logs = await recent((fromBlock, toBlock) => client.getContractEvents({ ...ob, eventName: "Trade", fromBlock, toBlock, strict: true }));
     return logs
       .slice(-limit)
       .reverse()
@@ -161,7 +178,9 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     const [v, p, settled, head] = await Promise.all([
       client.readContract({ ...ch, functionName: "getAccount", args: [account] }),
       client.readContract({ ...ch, functionName: "getPosition", args: [account] }),
-      client.getContractEvents({ ...ch, eventName: "FundingSettled", args: { account }, fromBlock: await fromBlock(), strict: true }),
+      recent((fromBlock, toBlock) =>
+        client.getContractEvents({ ...ch, eventName: "FundingSettled", args: { account }, fromBlock, toBlock, strict: true }),
+      ),
       client.getBlockNumber(),
     ]);
     return [
@@ -188,7 +207,9 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
 
   async function openOrders(account: Address): Promise<OpenOrder[]> {
     const { tick } = await bookUnits();
-    const placed = await client.getContractEvents({ ...ob, eventName: "OrderPlaced", args: { maker: account }, fromBlock: await fromBlock(), strict: true });
+    const placed = await recent((fromBlock, toBlock) =>
+      client.getContractEvents({ ...ob, eventName: "OrderPlaced", args: { maker: account }, fromBlock, toBlock, strict: true }),
+    );
     const views = await Promise.all(placed.map((l) => client.readContract({ ...ob, functionName: "getOrder", args: [l.args.orderId] })));
     return placed.flatMap((l, i) => {
       const o = views[i]!;

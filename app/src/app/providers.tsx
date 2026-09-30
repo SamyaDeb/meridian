@@ -6,20 +6,35 @@ import { wagmiConfig } from "@/lib/wagmi";
 import { DataSourceProvider } from "@/data/context";
 import { createMockSource } from "@/data/mock/source";
 import { createChainSource } from "@/data/chain/source";
-import { createPublicClient, http } from "viem";
-import { LOCAL_RPC_URL, localChain } from "@/lib/wagmi";
+import { type PublicClient, createPublicClient, http } from "viem";
+import { READ_CHAIN_ID, readChain } from "@/lib/wagmi";
 import { contractAddress } from "@/config/deployments";
 
-/** NEXT_PUBLIC_DATA_SOURCE=chain reads the perp from anvil (deployments/31337.json); default = mock layer. */
+/** NEXT_PUBLIC_DATA_SOURCE=chain reads the perp from deployments/<NEXT_PUBLIC_CHAIN_ID>.json (default 31337 = anvil);
+ *  default = mock layer. NEXT_PUBLIC_LOG_SPAN / NEXT_PUBLIC_LOG_LOOKBACK fit the RPC's eth_getLogs cap on testnet. */
 function makeSource() {
   const mockSource = createMockSource();
   if (process.env.NEXT_PUBLIC_DATA_SOURCE !== "chain") return mockSource;
-  const ch = contractAddress(localChain.id, "ClearingHouse");
-  const ob = contractAddress(localChain.id, "OrderBook");
+  const ch = contractAddress(READ_CHAIN_ID, "ClearingHouse");
+  const ob = contractAddress(READ_CHAIN_ID, "OrderBook");
   if (!ch || !ob) return mockSource;
-  const client = createPublicClient({ chain: localChain, transport: http(LOCAL_RPC_URL) });
-  const oracle = contractAddress(localChain.id, "OracleAdapter");
-  return createChainSource(client, { chainId: localChain.id, clearingHouse: ch, orderBook: ob, ...(oracle ? { oracle } : {}) }, mockSource);
+  const { chain, rpcUrl } = readChain();
+  const client = createPublicClient({ chain, transport: http(rpcUrl) });
+  const oracle = contractAddress(READ_CHAIN_ID, "OracleAdapter");
+  const span = process.env.NEXT_PUBLIC_LOG_SPAN;
+  const lookback = process.env.NEXT_PUBLIC_LOG_LOOKBACK;
+  return createChainSource(
+    client as PublicClient,
+    {
+      chainId: READ_CHAIN_ID,
+      clearingHouse: ch,
+      orderBook: ob,
+      ...(oracle ? { oracle } : {}),
+      ...(span ? { logSpan: BigInt(span) } : {}),
+      ...(lookback ? { logLookback: BigInt(lookback) } : {}),
+    },
+    mockSource,
+  );
 }
 
 export function Providers({ children }: { children: ReactNode }) {

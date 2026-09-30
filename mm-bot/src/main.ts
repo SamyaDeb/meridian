@@ -40,6 +40,7 @@ const KILL_FILE = env("KILL_FILE") ?? fileURLToPath(new URL("../KILL", import.me
 const LEVELS = Number(env("LEVELS") ?? "3");
 const LOTS_PER_LEVEL = BigInt(env("LOTS_PER_LEVEL") ?? "20");
 const LEVEL_SPACING_BPS = Number(env("LEVEL_SPACING_BPS") ?? "2");
+const REQUOTE_BPS = BigInt(env("REQUOTE_BPS") ?? "2"); // MATH_SPEC §4; testnet budget runs raise it (Monad bills the gas limit)
 const MAX_INVENTORY_LOTS = BigInt(env("MAX_INVENTORY_LOTS") ?? "200"); // 20,000 MON (< the 25,000 MON position cap)
 const SIGMA_WINDOW_SEC = 600; // σ from the last 10 min of index
 const SIGMA_MIN_COVERAGE_SEC = Number(env("SIGMA_MIN_COVERAGE_SEC") ?? "120");
@@ -92,6 +93,7 @@ let lastQuotedIndex = 0n;
 let lastQ = Number.NaN;
 let busy = false;
 let killed = false;
+let stopping = false; // set on SIGINT: no new ticks start, the in-flight one finishes before the final cancel
 let tickSize = 0n;
 let lotSize = 0n;
 const stats = { requotes: 0, txs: 0, errors: 0 };
@@ -159,7 +161,7 @@ async function cancelAll(reason: string): Promise<void> {
 }
 
 async function tick(block: bigint): Promise<void> {
-  if (busy) return;
+  if (busy || stopping) return;
   busy = true;
   try {
     if (existsSync(KILL_FILE)) {
@@ -170,6 +172,7 @@ async function tick(block: bigint): Promise<void> {
       return;
     }
     killed = false;
+    if (needResync) await syncResting();
     const [[ok, index], acct, blk] = await Promise.all([
       pub.readContract({ address: ORACLE, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" }),
       pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "getAccount", args: [account.address] }),
@@ -204,6 +207,7 @@ async function tick(block: bigint): Promise<void> {
       targetCount: ladder.bids.length + ladder.asks.length,
       allFull: resting.every((r) => r.lots === LOTS_PER_LEVEL),
       dq: Number.isNaN(lastQ) ? 1 : Math.abs(q - lastQ),
+      requoteBps: REQUOTE_BPS,
     });
     if (!requote) return;
     const plan = planRequote(resting, ladder);
@@ -238,6 +242,7 @@ async function tick(block: bigint): Promise<void> {
     });
   } catch (e) {
     stats.errors++;
+    needResync = true; // a failed batch may still have placed orders
     log("error", { step: "tick", error: String(e).split("\n")[0] });
   } finally {
     busy = false;
@@ -248,27 +253,46 @@ function abs(x: bigint): bigint {
   return x < 0n ? -x : x;
 }
 
-/** Adopt our orders that are still resting from a previous run (restart safety): scan our OrderPlaced logs. */
-async function recoverResting(): Promise<void> {
+/**
+ * Merge our OrderPlaced logs in (syncedTo, head] into `resting`, then drop filled/cancelled ids. Used at start (restart
+ * safety, RECOVER_LOOKBACK_BLOCKS), after a failed tick and before the shutdown cancel: a batch whose receipt wait fails
+ * still places orders, and memory alone left them orphaned on testnet (30 Sep).
+ */
+let syncedTo = -1n;
+let needResync = false;
+async function syncResting(): Promise<void> {
   const head = await pub.getBlockNumber();
-  const from = head > RECOVER_LOOKBACK_BLOCKS ? head - RECOVER_LOOKBACK_BLOCKS : 0n;
-  const found: Resting[] = [];
+  const from = syncedTo >= 0n ? syncedTo + 1n : head > RECOVER_LOOKBACK_BLOCKS ? head - RECOVER_LOOKBACK_BLOCKS : 0n;
+  const known = new Set(resting.map((r) => r.id));
   for (let s = from; s <= head; s += LOG_SPAN) {
     const e = s + LOG_SPAN - 1n < head ? s + LOG_SPAN - 1n : head;
     const logs = await pub.getContractEvents({ address: OB, abi: orderBookAbi, eventName: "OrderPlaced", args: { maker: account.address }, fromBlock: s, toBlock: e, strict: true });
-    for (const l of logs) found.push({ id: l.args.orderId, isBid: l.args.isBid, tick: l.args.tick, lots: l.args.lots });
+    for (const l of logs) {
+      if (known.has(l.args.orderId)) continue;
+      known.add(l.args.orderId);
+      resting.push({ id: l.args.orderId, isBid: l.args.isBid, tick: l.args.tick, lots: l.args.lots });
+    }
+    syncedTo = e;
   }
-  resting = found;
   await refreshResting();
-  log("recovered resting orders", { count: resting.length, lookbackBlocks: RECOVER_LOOKBACK_BLOCKS });
+  needResync = false;
 }
 
 tickSize = await pub.readContract({ address: OB, abi: orderBookAbi, functionName: "tickSize" });
 lotSize = await pub.readContract({ address: OB, abi: orderBookAbi, functionName: "lotSize" });
-await recoverResting();
+await syncResting();
+log("recovered resting orders", { count: resting.length, lookbackBlocks: RECOVER_LOOKBACK_BLOCKS });
 log("mm start", { chainId: CHAIN_ID, market: MARKET, orderBook: OB, maker: account.address, levels: LEVELS, lotsPerLevel: LOTS_PER_LEVEL, killFile: KILL_FILE });
 process.on("SIGINT", () => {
-  log("SIGINT: cancelling all");
-  void cancelAll("shutdown").finally(() => process.exit(0));
+  if (stopping) process.exit(1); // second Ctrl-C: exit now, restart re-adopts resting orders (RECOVER_LOOKBACK_BLOCKS)
+  stopping = true;
+  log("SIGINT: waiting for the in-flight re-quote, then cancelling all");
+  // Cancelling while a pipelined batch is in flight left its new orders resting (testnet, 30 Sep): wait for it first.
+  const drain = async (): Promise<void> => {
+    while (busy) await new Promise((r) => setTimeout(r, 100));
+    await syncResting();
+    await cancelAll("shutdown");
+  };
+  void drain().finally(() => process.exit(0));
 });
 pub.watchBlockNumber({ emitOnBegin: true, onBlockNumber: (b) => void tick(b), onError: (e) => log("error", { step: "watch", error: String(e) }) });

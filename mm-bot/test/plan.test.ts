@@ -79,6 +79,11 @@ describe("needsRequote: gas discipline (no tx storm when the ladder is legitimat
     expect(needsRequote({ movedBps: 3n, restingCount: 6, targetCount: 6, allFull: true, dq: 0 })).toBe(true);
     expect(needsRequote({ movedBps: 2n, restingCount: 6, targetCount: 6, allFull: true, dq: 0 })).toBe(false);
   });
+  it("a raised threshold (REQUOTE_BPS, testnet budget) only gates index moves", () => {
+    expect(needsRequote({ movedBps: 10n, restingCount: 2, targetCount: 2, allFull: true, dq: 0, requoteBps: 10n })).toBe(false);
+    expect(needsRequote({ movedBps: 11n, restingCount: 2, targetCount: 2, allFull: true, dq: 0, requoteBps: 10n })).toBe(true);
+    expect(needsRequote({ movedBps: 0n, restingCount: 1, targetCount: 2, allFull: true, dq: 0, requoteBps: 10n })).toBe(true);
+  });
   it("requotes when a target level is missing or partially filled, or inventory moved ≥ 0.05", () => {
     expect(needsRequote({ movedBps: 0n, restingCount: 5, targetCount: 6, allFull: true, dq: 0 })).toBe(true);
     expect(needsRequote({ movedBps: 0n, restingCount: 6, targetCount: 6, allFull: false, dq: 0 })).toBe(true);

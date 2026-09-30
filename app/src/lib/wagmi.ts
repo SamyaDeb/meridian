@@ -24,6 +24,14 @@ export const wagmiConfig = createConfig({
   ssr: true,
 });
 
+/** Chain the read path (data source) follows: NEXT_PUBLIC_CHAIN_ID = 31337 (default, anvil) | 10143 | 143. */
+export const READ_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? String(localChain.id));
+export function readChain(): { chain: typeof localChain | typeof monadTestnet | typeof monad; rpcUrl: string | undefined } {
+  if (READ_CHAIN_ID === monadTestnet.id) return { chain: monadTestnet, rpcUrl: process.env.NEXT_PUBLIC_MONAD_TESTNET_RPC_URL };
+  if (READ_CHAIN_ID === monad.id) return { chain: monad, rpcUrl: process.env.NEXT_PUBLIC_MONAD_RPC_URL };
+  return { chain: localChain, rpcUrl: LOCAL_RPC_URL };
+}
+
 declare module "wagmi" {
   interface Register {
     config: typeof wagmiConfig;

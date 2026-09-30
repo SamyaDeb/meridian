@@ -18,3 +18,7 @@ indexer/generated/
 mm-bot/KILL
 app/test-results/
 app/playwright-report/
+contracts/broadcast/*/*/dry-run/
+# local bot run logs (evidence summarised in docs/standup)
+runs/
+contracts/broadcast/*/*/run-[0-9]*.json
