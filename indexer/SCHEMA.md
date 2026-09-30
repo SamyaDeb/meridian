@@ -101,11 +101,14 @@ Enforced by `test/config.test.ts`, which diffs `abis/*.json` and `contracts/src/
 | MarketFactory | MarketRegistered (also registers the new OB/CH/oracle), MarketStatusChanged | `src/handlers/periphery.ts` |
 | PulseKeeperReceiver | ReportExecuted, ForwarderUpdated | `src/handlers/periphery.ts` |
 
+**Replay evidence on real chain data** (handlers via `createTestIndexer` simulate): `test/replay.test.ts` = the Phase 2 perp stack (`fixtures/anvil-e2e.json`); `test/replay-fullstack.test.ts` = the Phase 4 full-stack rehearsal (`fixtures/anvil-fullstack-10143.json`: perp + vault + hedger + funding swaps, 97k blocks of funding history, keeper rebalances incl. SkewCap, a crash liquidation, swap maturity). It checks every vault/hedger/swap event type recorded, and entities against the contracts' own answers at the same block: `VaultSnapshot.sharePriceWad` = `sharePrice()`, `VaultUser.shares` = `balanceOf`, Σ shares = `totalSupply`, `SwapPosition` q/K = `getPosition`, Σq = ΣK = 0, OI, the maturity snapshot, and realized 8 h APR = `FundingSwapMarket.realizedApr(96,000)` = `averageFundingApr(96,000)`. `SwapLiquidated`, `Withdrawn` (swap), `Withdraw` / `HedgeExited` (vault) did not occur in the rehearsal; they are covered by the unit tests with synthetic events.
+
 Not indexed yet: Kuru OrderBook trade events (WS-06 "Consumes"; > VERIFY ABI at docs.kuru.io/contracts/Integration).
 
 ## Known approximations (tell WS-07)
 - `AccountMarket.collateralWad` doesn't credit a liquidator's `keeperReward`: whether it's paid into CH collateral or as tokens isn't specified (> VERIFY with WS-02).
 - `SwapStats.markAprWad` is the last traded APR. The contract's `markApr` is a median with book mid and realized 8 h (MATH_SPEC §6.3), so read `markApr()` for margin-grade values.
+- `SwapTrade` is one row per `SwapPositionChanged` (maker and taker legs), so there are 2 per book fill; the book's `Trade` rows have `kind: "Swap"`.
 - The local mock deployment (31337) has no MarketFactory / FundingSwapMarket / SwapOrderBook / KeeperReceiver yet. Those contracts get indexed once they're in `deployments/<chainId>.json`: rerun `pnpm gen-config <chainId>`.
 
 ## Commands

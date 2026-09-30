@@ -7,7 +7,12 @@
 // Testnet (after the DeployPulse broadcast; public RPC caps eth_getLogs at 100 blocks, R2/R29):
 //   RPC_URL=$MONAD_TESTNET_RPC_URL DEPLOYMENTS=../deployments/10143.json LOG_SPAN=100 \
 //     node scripts/record-anvil.mjs test/fixtures/testnet-10143.json
-// The labelled demo market (deployments.demoMarket) is recorded too.
+// The labelled demo market (deployments.demoMarket) is recorded too, and (Phase 4) the vault, its hedger, the funding
+// swap market + its book. EXTRA_SOURCES="FundingSwapMarket=0x…,SwapOrderBook=0x…" adds contracts that are no longer in
+// the deployments file (e.g. a matured swap market replaced by REUSE_DEPLOYMENT on the full-stack rehearsal).
+// Full-stack rehearsal (anvil --chain-id 10143, contracts/script/README.md):
+//   RPC_URL=http://127.0.0.1:8546 DEPLOYMENTS=../deployments/anvil-10143.json EXTRA_SOURCES=… \
+//     node scripts/record-anvil.mjs test/fixtures/anvil-fullstack-10143.json
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +34,20 @@ const SOURCES = [
   ["InsuranceFund", "InsuranceFund", abi("InsuranceFund")],
   ["OracleAdapter", "OracleAdapter", abi("IOracleAdapter")],
   ["MarketFactory", "MarketFactory", abi("MarketFactory")],
+  ["PulseVault", "PulseVault", abi("PulseVault")],
+  ["KuruHedger", "KuruHedger", abi("IKuruHedger")],
+  ["FundingSwapMarket", "FundingSwapMarket", abi("FundingSwapMarket")],
+  ["SwapOrderBook", "SwapOrderBook", abi("OrderBook")],
 ];
+const ABI_OF = Object.fromEntries(SOURCES.map(([c, , a]) => [c, a]));
+const EXTRA = (process.env.EXTRA_SOURCES ?? "")
+  .split(",")
+  .filter(Boolean)
+  .map((kv) => {
+    const [c, addr] = kv.split("=");
+    if (!ABI_OF[c] || !/^0x[0-9a-fA-F]{40}$/.test(addr ?? "")) throw new Error(`EXTRA_SOURCES: bad entry ${kv}`);
+    return [c, addr, ABI_OF[c]];
+  });
 // the labelled demo market's contracts (DeployPulse on 10143), same event sources under the same Envio names
 const DEMO = dep.demoMarket
   ? [
@@ -44,7 +62,7 @@ const head = await pub.getBlockNumber();
 const start = BigInt(dep.startBlock ?? 0);
 
 const raw = [];
-for (const [contract, keyOrAddress, contractAbi] of [...SOURCES, ...DEMO]) {
+for (const [contract, keyOrAddress, contractAbi] of [...SOURCES, ...DEMO, ...EXTRA]) {
   const address = keyOrAddress.startsWith("0x") ? keyOrAddress : dep.contracts[keyOrAddress];
   if (address === undefined) continue;
   for (let s = start; s <= head; s += SPAN) {
@@ -104,6 +122,50 @@ for (let k = 0; k < cps.length; k += 10) {
 const [longOI, shortOI] = await read("openInterest");
 const fs = await read("fundingState");
 
+// Phase 4: the vault's and swap markets' own answers. Share price at every NavSnapshot block whose state anvil still
+// has (--prune-history keeps ~1,000 blocks: older calls fail and are skipped); balances/positions at `at`.
+const vaultAddr = dep.contracts.PulseVault;
+const vaultAbi = abi("PulseVault");
+const vault = {};
+if (vaultAddr) {
+  const vread = (functionName, args = [], blockNumber = at) => pub.readContract({ address: vaultAddr, abi: vaultAbi, functionName, args, blockNumber });
+  vault.sharePriceAt = [];
+  for (const b of new Set(items.filter((i) => i.event === "NavSnapshot").map((i) => i.block.number))) {
+    try {
+      vault.sharePriceAt.push({ block: b, sharePrice: await vread("sharePrice", [], BigInt(b)) });
+    } catch {
+      /* pruned */
+    }
+  }
+  const holders = new Set(items.filter((i) => i.contract === "PulseVault" && i.event === "Transfer").flatMap((i) => [i.params.from, i.params.to]));
+  holders.delete("0x0000000000000000000000000000000000000000");
+  vault.balances = {};
+  for (const h of holders) vault.balances[h] = await vread("balanceOf", [h]);
+  vault.totalSupply = await vread("totalSupply");
+  vault.totalAssets = await vread("totalAssets");
+  vault.sharePrice = await vread("sharePrice");
+}
+const swapAbi = abi("FundingSwapMarket");
+const swaps = {};
+for (const addr of new Set(items.filter((i) => i.contract === "FundingSwapMarket").map((i) => i.srcAddress))) {
+  const sread = (functionName, args = []) => pub.readContract({ address: addr, abi: swapAbi, functionName, args, blockNumber: at });
+  const accounts = new Set(items.filter((i) => i.srcAddress === addr && i.event === "SwapPositionChanged").map((i) => i.params.account));
+  const positions = {};
+  for (const a of accounts) {
+    const p = await sread("getPosition", [a]);
+    positions[a] = { size: p.size, fixedAprNotional: p.fixedAprNotional };
+  }
+  const [lo, so] = await sread("openInterest");
+  const [snapped, fAtM, gAtM] = await sread("maturitySnapshot");
+  let realized8h = null;
+  try {
+    realized8h = await sread("realizedApr", [96_000n]);
+  } catch {
+    /* no 8 h history */
+  }
+  swaps[addr] = { positions, longOI: lo, shortOI: so, matured: await sread("isMatured"), snapped, fAtM, gAtM, realized8h, markApr: await sread("markApr") };
+}
+
 const out = {
   chainId: Number(dep.chainId),
   rpc: RPC_URL,
@@ -111,7 +173,7 @@ const out = {
   endBlock: Number(head),
   atBlock: Number(at),
   counts: Object.fromEntries([...new Set(items.map((i) => `${i.contract}.${i.event}`))].map((k) => [k, items.filter((i) => `${i.contract}.${i.event}` === k).length])),
-  expected: { averageFundingApr: apr, checkpointApr1h, longOI, shortOI, cumFunding: fs.cumFunding, cumIndexTime: fs.cumIndexTime },
+  expected: { averageFundingApr: apr, checkpointApr1h, longOI, shortOI, cumFunding: fs.cumFunding, cumIndexTime: fs.cumIndexTime, vault, swaps },
   items,
 };
 // bigint → "123n" (revived by test/replay.test.ts)
