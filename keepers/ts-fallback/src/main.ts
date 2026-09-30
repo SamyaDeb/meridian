@@ -1,6 +1,11 @@
 // Thin RPC wiring for the Pulse TS fallback keeper. All decisions live in decide.ts (pure, unit-tested).
 // Per block: (a) oracle push — Pyth Hermes (only with PYTH_API_KEY) or, on testnet without a key, the keeper-fed
 // TestnetKeeperOracle from a keyless source (pricesource.ts) — (b) funding poke, (c) perp liquidations.
+// RPC budget (Phase 4 step 1): ONE eth_getLogs per block (CH PositionChanged + FundingUpdated, oracle PriceUpdated)
+// feeds every step: the open-position set, the funding decision (last FundingUpdated block, observed gaps) and
+// "an oracle push landed" (full liquidation sweep + vault read). getAccount only for accounts that changed, whose
+// mark move could have crossed maintenance (decide.ts accountsToCheck), or on a full sweep. Throttled requests are
+// retried with jittered back-off (@pulse/bot-rpc) instead of failing the step.
 // MARKET=demo runs the same loop against the clearly labelled MON-PERP-DEMO test market (deployments.demoMarket).
 // Next (LANE_B §4): swap-market liquidations, settleMaturity, vault rebalanceWithRoute.
 import { existsSync, readFileSync } from "node:fs";
@@ -19,10 +24,19 @@ import {
   nonceManager,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { RateWindow, burnPerHourWei, createCountingFetch, newRpcStats, pruneSamples, type BalanceSample } from "@pulse/bot-rpc";
 import { clearingHouseAbi, oracleAdapterAbi, pulseVaultAbi } from "./abi.js";
 import {
   type AccountSnapshot,
+  type CheckedAccount,
+  type PricePoint,
+  accountsToCheck,
   applyPositionChanges,
+  checkedFrom,
+  defaultInclusionLag,
+  forceSweepAfterPush,
+  fundingGaps,
+  observedMaxGap,
   isLiquidationCandidate,
   blockRanges,
   gasLimitFor,
@@ -30,10 +44,11 @@ import {
   shouldPokeFunding,
   shouldPushPyth,
   shouldCheckVault,
+  shouldReadSource,
   vaultAction,
 } from "./decide.js";
 import { DEFAULT_HERMES_URL, fetchHermesLatest } from "./hermes.js";
-import { decimalToWad, encodeTestOracleUpdate, feedPoint, latestKeylessPrice } from "./pricesource.js";
+import { type SourcedPrice, decimalToWad, encodeTestOracleUpdate, feedPoint, latestKeylessPrice } from "./pricesource.js";
 import { LiquidationLatency } from "./latency.js";
 
 // ───────────────────────────── config ─────────────────────────────
@@ -70,9 +85,16 @@ const VAULT_REBALANCE = env("VAULT_REBALANCE") === "1";
 const VAULT_EVERY_BLOCKS = BigInt(env("VAULT_EVERY_BLOCKS") ?? "20");
 
 const MAX_FUNDING_GAP_BLOCKS = BigInt(env("MAX_FUNDING_GAP_BLOCKS") ?? "20"); // WS-03 acceptance
-// Blocks between reading a block and our tx landing. 2 absorbs RPC latency: the Phase 3 rehearsal with 1 showed
-// 109 gaps of 21 blocks (the poke landed one block later than assumed). Tunable per network.
-const INCLUSION_LAG_BLOCKS = BigInt(env("INCLUSION_LAG_BLOCKS") ?? "2");
+// Blocks between reading a block and our tx landing. Default per chain (decide.ts defaultInclusionLag): 6 on
+// 10143 (30 Sep: pokes landed 3–4 blocks after the decision), 2 elsewhere (the Phase 3 rehearsal with 1 showed
+// 109 gaps of 21 blocks). Tunable per network.
+const INCLUSION_LAG_BLOCKS = BigInt(env("INCLUSION_LAG_BLOCKS") ?? String(defaultInclusionLag(CHAIN_ID)));
+// Incremental liquidation scan (Phase 4 step 1): full sweep every N blocks and for a few blocks after every oracle push.
+const FULL_SWEEP_EVERY_BLOCKS = BigInt(env("FULL_SWEEP_EVERY_BLOCKS") ?? "50");
+const SWEEP_AFTER_PUSH_BLOCKS = BigInt(env("SWEEP_AFTER_PUSH_BLOCKS") ?? "4");
+const SOURCE_POLL_MS = Number(env("SOURCE_POLL_MS") ?? "1000"); // external price source read at most every 1 s
+const BALANCE_EVERY_BLOCKS = BigInt(env("BALANCE_EVERY_BLOCKS") ?? "100");
+const BURN_WINDOW_MS = 30 * 60_000; // monPerHour over the last 30 min
 const PYTH_MAX_AGE_SEC = 3n; // LANE_B §4
 const PYTH_MAX_MOVE_BPS = 5n; // LANE_B §4
 const MAX_LIQUIDATIONS_PER_BLOCK = 5;
@@ -110,6 +132,9 @@ const ORACLE: Address = market.OracleAdapter;
 const ORACLE_KIND: OracleKind =
   (env("ORACLE_KIND") as OracleKind | undefined) ?? (MARKET === "demo" ? dep.demoMarket?.oracleKind : dep.oracleKind) ?? "pyth";
 if (PRICE_FACTOR_FILE !== undefined && MARKET !== "demo") throw new Error("PRICE_FACTOR_FILE is only allowed with MARKET=demo");
+const SCAN_EVENTS = [...clearingHouseAbi, ...oracleAdapterAbi].filter(
+  (x): x is Extract<(typeof clearingHouseAbi)[number] | (typeof oracleAdapterAbi)[number], { type: "event" }> => x.type === "event",
+);
 
 // ───────────────────────────── clients ─────────────────────────────
 
@@ -120,8 +145,16 @@ const chain = defineChain({
   rpcUrls: { default: { http: [RPC_URL] } },
 });
 const account = privateKeyToAccount(KEEPER_PK, { nonceManager });
-const pub = createPublicClient({ chain, transport: http(RPC_URL), pollingInterval: 250 });
-const wallet = createWalletClient({ chain, account, transport: http(RPC_URL) });
+const rpcStats = newRpcStats();
+const rpcRate = new RateWindow(60_000);
+// Every request is counted (rpcCallsPerMin) and 429/5xx are retried with jittered back-off (viem's own retry off).
+const fetchFn = createCountingFetch({ stats: rpcStats, onCall: (m) => rpcRate.add(Date.now(), Math.max(1, m.length)) });
+const transport = http(RPC_URL, { fetchFn, retryCount: 0 });
+// New-block polling (eth_blockNumber) is the largest remaining RPC cost (~240/min at 250 ms, 30 Sep rehearsal); 250 ms
+// still sees every 300–400 ms Monad block. Raise it only if liquidation latency may grow by the same amount.
+const POLL_MS = Number(env("POLL_MS") ?? "250");
+const pub = createPublicClient({ chain, transport, pollingInterval: POLL_MS });
+const wallet = createWalletClient({ chain, account, transport });
 // Read-only price source: short timeout, no retries (a slow public RPC must fail fast; the push just waits a tick).
 const mainnet =
   MAINNET_RPC_URL === undefined ? null : createPublicClient({ transport: http(MAINNET_RPC_URL, { timeout: 2_000, retryCount: 0 }) });
@@ -143,10 +176,26 @@ const health = {
   liquidationLatency: new LiquidationLatency().summary(),
   errors: 0,
   lastError: "",
+  // Phase 4 step 1
+  accountReads: 0,
+  fullSweeps: 0,
+  maxFundingGapBlocks: 0n, // observed from FundingUpdated logs since start
+  lastFundingUpdateBlock: -1n,
+  monPerHour: null as string | null, // balance decrease over the last 30 min, scaled to 1 h
 };
 let open = new Set<Address>();
+let changed = new Set<Address>(); // PositionChanged since the last liquidation check
+const checked = new Map<Address, CheckedAccount>();
+let lastFullSweepBlock = -1n;
+let lastPushBlock = -1n; // block of the newest oracle PriceUpdated seen
+let lastUpdateBlock = -1n; // newest FundingUpdated block seen (bootstrapped from fundingState())
+let onchainPrice: PricePoint | null = null; // newest oracle point (PriceUpdated logs / our pushes / bootstrap read)
+let source: SourcedPrice | null = null;
+let sourceReadMs = -1;
+let balances: BalanceSample[] = [];
 const latency = new LiquidationLatency();
 let scannedTo = -1n;
+let firstTickBlock = -1n;
 let busy = false;
 let oracleBusy = false;
 
@@ -181,30 +230,40 @@ const WAD_ONE = 10n ** 18n;
 /** Keeper-fed TestnetKeeperOracle: same push rule as Pyth (older than the heartbeat, or moved > 5 bps). */
 async function feedStep(): Promise<void> {
   if (PYTH_FEED_ID === undefined) throw new Error("missing env PYTH_MON_USD_FEED_ID (mainnet Pyth source)");
-  const block = await pub.getBlock({ blockTag: "latest" });
-  const [src, onchain] = await Promise.all([
-    latestKeylessPrice(mainnet, PYTH_FEED_ID, block.timestamp, FEED_MAX_SOURCE_AGE_SEC),
-    pub.readContract({ address: ORACLE, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" }),
-  ]);
-  if (src === null) {
-    alert("no usable price source: the test oracle will go stale");
-    return;
+  const nowMs = Date.now();
+  const nowSec = BigInt(Math.floor(nowMs / 1000));
+  // The source publishes every 10–30 s: read it at most every SOURCE_POLL_MS, not every 0.3 s block.
+  if (shouldReadSource(nowMs, sourceReadMs, SOURCE_POLL_MS)) {
+    sourceReadMs = nowMs;
+    const src = await latestKeylessPrice(mainnet, PYTH_FEED_ID, nowSec, FEED_MAX_SOURCE_AGE_SEC);
+    if (src === null) alert("no usable price source: the test oracle will go stale");
+    source = src;
   }
-  const point = feedPoint(src, priceFactor(), block.timestamp, MARKET === "demo");
-  const [, priceWad, updatedAt] = onchain;
+  if (source === null) return;
+  if (onchainPrice === null) onchainPrice = await readOnchainPrice();
+  // Decide on the local clock (no block read per tick); the demo's publish time is re-derived from the chain below.
   const reason = shouldPushPyth({
-    nowSec: block.timestamp,
-    onchain: { priceWad, publishTime: updatedAt },
-    offchain: point,
+    nowSec,
+    onchain: onchainPrice,
+    offchain: feedPoint(source, priceFactor(), nowSec, MARKET === "demo"),
     maxAgeSec: FEED_HEARTBEAT_SEC,
     maxMoveBps: PYTH_MAX_MOVE_BPS,
   });
   if (reason === null) return;
+  const block = await pub.getBlock({ blockTag: "latest" });
+  const point = feedPoint(source, priceFactor(), block.timestamp, MARKET === "demo");
+  if (point.publishTime < onchainPrice.publishTime) return; // never push an older observation (the oracle reverts)
   const data = encodeFunctionData({ abi: oracleAdapterAbi, functionName: "updatePrice", args: [encodeTestOracleUpdate(point)] });
-  if ((await send(`feed push (${reason}, ${src.source})`, ORACLE, data)) !== null) {
+  if ((await send(`feed push (${reason}, ${source.source})`, ORACLE, data)) !== null) {
     health.feedPushes++;
-    health.lastFeedSource = src.source;
+    health.lastFeedSource = source.source;
+    onchainPrice = point;
   }
+}
+
+async function readOnchainPrice(): Promise<PricePoint> {
+  const [, priceWad, publishTime] = await pub.readContract({ address: ORACLE, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" });
+  return { priceWad, publishTime };
 }
 
 async function oracleStep(): Promise<void> {
@@ -235,56 +294,114 @@ async function pythStep(): Promise<void> {
   }
 }
 
-async function fundingStep(block: bigint): Promise<void> {
-  const fs = await pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "fundingState", blockNumber: block });
-  const poke = shouldPokeFunding({
-    currentBlock: block,
-    lastUpdateBlock: fs.lastUpdateBlock,
-    maxGapBlocks: MAX_FUNDING_GAP_BLOCKS,
-    inclusionLagBlocks: INCLUSION_LAG_BLOCKS,
-  });
-  if (!poke) return;
-  if ((await send("funding poke", CH, encodeFunctionData({ abi: clearingHouseAbi, functionName: "updateFunding" }))) !== null) {
-    health.fundingPokes++;
-    health.lastFundingPokeBlock = block;
-  }
-}
-
-async function scanPositions(block: bigint): Promise<void> {
+/**
+ * The one eth_getLogs of the tick (chunked by LOG_SPAN): CH PositionChanged + FundingUpdated and oracle PriceUpdated
+ * over (scannedTo, block]. Updates the open set, the changed set, the last funding update (+ observed gaps) and the
+ * last oracle push. If it throws, `scannedTo` stays behind and the funding step reads fundingState() instead.
+ */
+async function scanStep(block: bigint): Promise<void> {
   if (scannedTo < 0n) {
     const floor = block > LOOKBACK_BLOCKS ? block - LOOKBACK_BLOCKS : 0n;
     const start = BigInt(dep.startBlock);
     scannedTo = (start > floor ? start : floor) - 1n;
   }
   for (const [fromBlock, toBlock] of blockRanges(scannedTo + 1n, block, LOG_SPAN)) {
-    const logs = await pub.getContractEvents({ address: CH, abi: clearingHouseAbi, eventName: "PositionChanged", fromBlock, toBlock, strict: true });
-    open = applyPositionChanges(
-      open,
-      logs.map((l) => ({ account: l.args.account, newSize: l.args.newSize })),
-    );
+    const logs = await pub.getLogs({ address: [CH, ORACLE], events: SCAN_EVENTS, fromBlock, toBlock, strict: true });
+    const pos: Array<{ account: Address; newSize: bigint }> = [];
+    const fundingBlocks: bigint[] = [];
+    for (const l of logs) {
+      const fromCh = l.address.toLowerCase() === CH.toLowerCase();
+      if (fromCh && l.eventName === "PositionChanged") {
+        pos.push({ account: l.args.account, newSize: l.args.newSize });
+        changed.add(l.args.account.toLowerCase() as Address);
+      } else if (fromCh && l.eventName === "FundingUpdated") {
+        fundingBlocks.push(l.blockNumber);
+      } else if (!fromCh && l.eventName === "PriceUpdated") {
+        if (l.blockNumber > lastPushBlock) lastPushBlock = l.blockNumber;
+        if (onchainPrice === null || l.args.publishTime >= onchainPrice.publishTime) {
+          onchainPrice = { priceWad: l.args.priceWad, publishTime: l.args.publishTime };
+        }
+      }
+    }
+    open = applyPositionChanges(open, pos);
+    // Observed gaps count only between updates since the keeper's first tick (not the history of the initial scan).
+    const gap = observedMaxGap(lastUpdateBlock, firstTickBlock, fundingBlocks);
+    if (gap > health.maxFundingGapBlocks) health.maxFundingGapBlocks = gap;
+    lastUpdateBlock = fundingGaps(lastUpdateBlock, fundingBlocks).last;
+    health.lastFundingUpdateBlock = lastUpdateBlock;
     scannedTo = toBlock;
   }
   health.openPositions = open.size;
 }
 
+async function fundingStep(block: bigint): Promise<void> {
+  // lastUpdateBlock comes from the shared log scan; a fundingState() read only if the scan is behind (it failed).
+  let last = lastUpdateBlock;
+  if (scannedTo < block || last < 0n) {
+    last = (await pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "fundingState", blockNumber: block })).lastUpdateBlock;
+  }
+  const poke = shouldPokeFunding({
+    currentBlock: block,
+    lastUpdateBlock: last,
+    maxGapBlocks: MAX_FUNDING_GAP_BLOCKS,
+    inclusionLagBlocks: INCLUSION_LAG_BLOCKS,
+  });
+  if (!poke) return;
+  const landed = await send("funding poke", CH, encodeFunctionData({ abi: clearingHouseAbi, functionName: "updateFunding" }));
+  if (landed !== null) {
+    health.fundingPokes++;
+    health.lastFundingPokeBlock = block;
+    if (landed > lastUpdateBlock && scannedTo >= lastUpdateBlock) {
+      // the next scan sees this FundingUpdated too; recording it now stops a second poke before that scan runs
+      const gap = observedMaxGap(lastUpdateBlock, firstTickBlock, [landed]);
+      if (gap > health.maxFundingGapBlocks) health.maxFundingGapBlocks = gap;
+      lastUpdateBlock = fundingGaps(lastUpdateBlock, [landed]).last;
+    }
+  }
+}
+
 async function liquidationStep(block: bigint): Promise<void> {
-  await scanPositions(block);
   if (open.size === 0) return;
+  for (const a of [...checked.keys()]) if (!open.has(a)) checked.delete(a);
+  const markWad = await pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "markPrice", blockNumber: block });
+  const pick = accountsToCheck({
+    block,
+    open,
+    changed,
+    checked,
+    markWad,
+    lastFullSweepBlock,
+    fullSweepEvery: FULL_SWEEP_EVERY_BLOCKS,
+    forceFull: forceSweepAfterPush(block, lastPushBlock, SWEEP_AFTER_PUSH_BLOCKS),
+  });
+  changed = new Set();
+  if (pick.full) {
+    lastFullSweepBlock = block;
+    health.fullSweeps++;
+  }
+  if (pick.accounts.length === 0) return;
   // Plain eth_calls in bounded batches: no Multicall3 dependency (address not in ARCHITECTURE §Research).
-  const accounts = [...open];
   const snaps: AccountSnapshot[] = [];
-  for (let i = 0; i < accounts.length; i += READ_BATCH) {
-    const batch = accounts.slice(i, i + READ_BATCH);
+  for (let i = 0; i < pick.accounts.length; i += READ_BATCH) {
+    const batch = pick.accounts.slice(i, i + READ_BATCH);
     const views = await Promise.allSettled(
       batch.map((a) => pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "getAccount", args: [a], blockNumber: block })),
     );
+    health.accountReads += batch.length;
     views.forEach((r, j) => {
       const a = batch[j];
-      if (r.status !== "fulfilled" || a === undefined) return;
+      if (a === undefined) return;
+      if (r.status !== "fulfilled") {
+        changed.add(a); // retry next block
+        return;
+      }
       const v = r.value;
-      snaps.push({ account: a, size: v.size, equity: v.equity, maintenanceMargin: v.maintenanceMargin, liquidatable: v.liquidatable });
+      const s = { account: a, size: v.size, equity: v.equity, maintenanceMargin: v.maintenanceMargin, liquidatable: v.liquidatable };
+      snaps.push(s);
+      checked.set(a, checkedFrom(s, markWad));
     });
   }
+  // Every eligible account is re-read each block (headroom ≤ 0 ⇒ needsRecheck), so the latency tracker sees it.
   latency.observe(block, snaps.filter(isLiquidationCandidate).map((s) => s.account));
   // The liquidator takes over the position and must hold margin in this market (IClearingHouse.liquidate).
   for (const s of selectLiquidations(snaps, MAX_LIQUIDATIONS_PER_BLOCK, account.address)) {
@@ -299,15 +416,18 @@ async function liquidationStep(block: bigint): Promise<void> {
     } catch (e) {
       fail(`liquidate ${s.account}`, e); // someone else got there first, or margin moved: keep going
     }
+    changed.add(s.account.toLowerCase() as Address);
   }
 }
 
 async function vaultStep(block: bigint): Promise<void> {
   const v = dep.contracts.PulseVault;
   if (!VAULT_REBALANCE || MARKET !== "main" || v === undefined) return;
+  // Read every VAULT_EVERY_BLOCKS, and right after an oracle push (MarginLow can only follow a price move).
+  if (!shouldCheckVault(block, VAULT_EVERY_BLOCKS, forceSweepAfterPush(block, lastPushBlock, SWEEP_AFTER_PUSH_BLOCKS))) return;
   const reason = await pub.readContract({ address: v, abi: pulseVaultAbi, functionName: "needsRebalance" });
   const a = vaultAction(reason);
-  if (!a.act || (!a.urgent && !shouldCheckVault(block, VAULT_EVERY_BLOCKS))) return;
+  if (!a.act) return;
   if ((await send(`vault rebalance (${a.name})`, v, encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalance" }))) !== null) {
     health.vaultRebalances++;
   }
@@ -315,6 +435,10 @@ async function vaultStep(block: bigint): Promise<void> {
 
 async function balanceStep(): Promise<void> {
   const bal = await pub.getBalance({ address: account.address });
+  const now = Date.now();
+  balances = pruneSamples([...balances, { tMs: now, wei: bal }], now, BURN_WINDOW_MS);
+  const burn = burnPerHourWei(balances);
+  health.monPerHour = burn === null ? null : formatEther(burn);
   if (bal < MIN_KEEPER_BALANCE) alert("keeper balance low", { balance: formatEther(bal) });
 }
 
@@ -329,16 +453,18 @@ async function tick(block: bigint): Promise<void> {
   busy = true;
   try {
     health.lastBlock = block;
-    // Independent steps: one failing must not starve the others. Liquidations first (latency-critical, ≤ 3 blocks),
-    // then the funding poke (any liquidation already touched F). The oracle push runs on its own loop (oracleTick):
-    // the Phase 3 rehearsal showed a stalled external price read blocking a whole tick for 56 s.
+    if (firstTickBlock < 0n) firstTickBlock = block;
+    // One log scan shared by every step. Then liquidations first (latency-critical, ≤ 3 blocks), then the funding
+    // poke (any liquidation already touched F). The oracle push runs on its own loop (oracleTick): the Phase 3
+    // rehearsal showed a stalled external price read blocking a whole tick for 56 s.
+    await scanStep(block).catch((e: unknown) => fail("scan", e));
     const steps: Array<[string, () => Promise<void>]> = [
-      ["liquidation", () => liquidationStep(block)],
+      ["liquidation", () => (scannedTo >= block ? liquidationStep(block) : Promise.resolve())],
       ["funding", () => fundingStep(block)],
       ["vault", () => vaultStep(block)],
     ];
     for (const [name, fn] of steps) await fn().catch((e: unknown) => fail(name, e));
-    if (block % 100n === 0n) await balanceStep().catch((e: unknown) => fail("balance", e));
+    if (block % BALANCE_EVERY_BLOCKS === 0n) await balanceStep().catch((e: unknown) => fail("balance", e));
     health.lastTickAt = Date.now();
   } finally {
     busy = false;
@@ -365,7 +491,8 @@ createServer((req, res) => {
   }
   const ok = Date.now() - health.lastTickAt < HEALTH_MAX_SILENCE_MS;
   res.writeHead(ok ? 200 : 503, { "content-type": "application/json" });
-  res.end(JSON.stringify({ ok, keeper: account.address, ...health }, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
+  const rpc = { rpcCalls: rpcStats.calls, rpcCallsPerMin: rpcRate.perMinute(Date.now()), rpcErrors: rpcStats.errors, rpcRateLimited: rpcStats.rateLimited, rpcRetries: rpcStats.retries, rpcByMethod: rpcStats.byMethod };
+  res.end(JSON.stringify({ ok, keeper: account.address, ...health, ...rpc }, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
 }).listen(HEALTH_PORT);
 
 log("keeper start", {
@@ -378,6 +505,9 @@ log("keeper start", {
   pyth: PYTH_API_KEY !== undefined,
   mainnetSource: MAINNET_RPC_URL !== undefined,
   health: HEALTH_PORT,
+  inclusionLagBlocks: INCLUSION_LAG_BLOCKS,
+  fullSweepEveryBlocks: FULL_SWEEP_EVERY_BLOCKS,
+  logSpan: LOG_SPAN,
 });
 await balanceStep().catch((e: unknown) => fail("balance", e));
 pub.watchBlockNumber({

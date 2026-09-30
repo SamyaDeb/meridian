@@ -67,3 +67,20 @@ export interface RequoteInput {
 export function needsRequote(i: RequoteInput): boolean {
   return i.movedBps > (i.requoteBps ?? 2n) || i.restingCount < i.targetCount || !i.allFull || i.dq >= 0.05;
 }
+
+// ───────────────────────────── RPC / gas discipline (Phase 4 step 1) ─────────────────────────────
+
+/** Quote every `every` blocks (1 = every block; 2–3 on testnet halve/third the reads). */
+export function shouldTick(block: bigint, lastTickBlock: bigint, every: bigint): boolean {
+  return lastTickBlock < 0n || every <= 1n || block - lastTickBlock >= every;
+}
+
+/**
+ * Which resting orders need a getOrder read: only ids a Trade / OrderEvicted log of ours mentioned since the last
+ * tick (a fill or an eviction is the only way a resting order changes without our own tx), plus every order once
+ * every `fullEvery` ticks as a safety net (a missed log range, a failed read).
+ */
+export function idsToRefresh(resting: readonly Resting[], touched: ReadonlySet<bigint>, tickCount: number, fullEvery: number): bigint[] {
+  const full = fullEvery <= 1 || tickCount % fullEvery === 0;
+  return resting.filter((r) => full || touched.has(r.id)).map((r) => r.id);
+}

@@ -12,11 +12,56 @@ export interface BatchIo<Tx, Receipt> {
   /** Signs and sends with the given gas limit (nonces assigned in call order); returns the hash. */
   send(tx: Tx, gas: bigint): Promise<`0x${string}`>;
   wait(hash: `0x${string}`): Promise<Receipt>;
+  /**
+   * Gas limits for a fully pipelined batch from the per-tx estimates (same order). Default: every tx gets
+   * gasLimitFor(max estimate) (the Phase 3 rule); the MM passes gasLimitsForBatch.
+   */
+  limits?(txs: readonly Tx[], estimates: readonly bigint[]): bigint[];
 }
 
 /** Monad bills the gas limit (ARCHITECTURE R6): limit = ceil(estimate × 1.2) (CLAUDE.md §7). */
 export function gasLimitFor(estimate: bigint): bigint {
   return (estimate * 12n + 9n) / 10n;
+}
+
+export interface GasItem {
+  estimate: bigint;
+  /** book side the tx writes (its level + that side's bitmap); null = touches no level */
+  side: "bid" | "ask" | null;
+}
+
+export interface GasPolicy {
+  /**
+   * Added to a tx's own estimate when an EARLIER tx of the same batch writes the same side: that tx may empty a level
+   * or bitmap word this one then re-creates (zero→nonzero SSTORE 17k per slot + MIP-8 page 8.1k/2.8k), which the
+   * estimate against the pre-batch state doesn't see. 45k = 2 × 17k + 8.1k + 2.8k.
+   */
+  conflictBufferGas: bigint;
+  /**
+   * Added to every tx when estimates may exclude the block's first funding touch (an estimate at `latest` whose block
+   * was already touched; the tx then lands first in a new block). 0 when estimating against `pending` (anvil does).
+   */
+  touchAllowanceGas: bigint;
+}
+
+/**
+ * Per-tx gas limits for a pipelined batch: ceil((own estimate + touch allowance + conflict buffer if an earlier tx of
+ * the batch wrote the same side) × 1.2), capped at the Phase 3 rule gasLimitFor(max estimate + touch allowance), so a
+ * batch is never billed more than before. Phase 3: every tx got the batch max × 1.2 (limit 331,910 vs 122–184k used
+ * ⇒ up to 2.5× the billed gas on Monad, which bills the limit). Local rehearsal, 30 Sep: estimates against `pending`
+ * already include the block's first funding touch (≈ 70k on anvil) that only the first tx of a block pays, which is
+ * more headroom than the conflict buffer; hence the cap loses no safety the old rule had.
+ */
+export function gasLimitsForBatch(items: readonly GasItem[], p: GasPolicy): bigint[] {
+  const max = items.reduce((a, b) => (b.estimate > a ? b.estimate : a), 0n);
+  const cap = gasLimitFor(max + p.touchAllowanceGas);
+  const seen = new Set<string>();
+  return items.map((it) => {
+    const conflict = it.side !== null && seen.has(it.side);
+    if (it.side !== null) seen.add(it.side);
+    const own = gasLimitFor(it.estimate + p.touchAllowanceGas + (conflict ? p.conflictBufferGas : 0n));
+    return own < cap ? own : cap;
+  });
 }
 
 export interface BatchResult<Receipt> {
@@ -35,11 +80,12 @@ export async function sendBatch<Tx, Receipt>(txs: readonly Tx[], io: BatchIo<Tx,
   if (txs.length === 0) return { receipts: [], gasLimits: [], pipelined: true };
   const estimates = await Promise.all(txs.map((tx) => io.estimate(tx).catch(() => null)));
   if (estimates.every((e): e is bigint => e !== null)) {
-    const gas = gasLimitFor(estimates.reduce((a, b) => (b > a ? b : a)));
+    const max = gasLimitFor(estimates.reduce((a, b) => (b > a ? b : a)));
+    const gasLimits = io.limits ? io.limits(txs, estimates) : txs.map(() => max);
     const hashes: `0x${string}`[] = [];
-    for (const tx of txs) hashes.push(await io.send(tx, gas)); // in order ⇒ consecutive nonces
+    for (let i = 0; i < txs.length; i++) hashes.push(await io.send(txs[i]!, gasLimits[i]!)); // in order ⇒ consecutive nonces
     const receipts = await Promise.all(hashes.map((h) => io.wait(h)));
-    return { receipts, gasLimits: txs.map(() => gas), pipelined: true };
+    return { receipts, gasLimits, pipelined: true };
   }
   const receipts: Receipt[] = [];
   const gasLimits: bigint[] = [];

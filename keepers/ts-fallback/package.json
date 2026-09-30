@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@pulse/abis": "workspace:*",
+    "@pulse/bot-rpc": "workspace:*",
     "viem": "^2.57.0"
   },
   "devDependencies": {

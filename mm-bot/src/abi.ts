@@ -11,6 +11,8 @@ export const orderBookAbi = parseAbi([
   "function tickSize() view returns (uint256)",
   "function lotSize() view returns (uint256)",
   "event OrderPlaced(uint64 indexed orderId, address indexed maker, bool isBid, uint32 tick, uint64 lots, uint8 flags)",
+  "event OrderEvicted(uint64 indexed orderId, address indexed maker, uint64 remainingLots)",
+  "event Trade(uint64 indexed makerOrderId, address indexed maker, address indexed taker, bool takerIsBid, uint32 tick, uint64 lots, uint256 priceWad, uint256 sizeWad)",
 ]);
 
 export const clearingHouseAbi = parseAbi([

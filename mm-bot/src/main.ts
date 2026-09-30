@@ -2,6 +2,10 @@
 // Per block: read index + inventory → A–S quotes (MATH_SPEC §4) → 3-level ladder → replace/place/cancel.
 // Requotes when the index moved > 2 bps since the last quote, inventory moved, or a level is missing (filled).
 // Kill switch: the KILL_FILE exists, or the oracle is stale ⇒ cancel every resting order and stop quoting.
+// RPC/gas budget (Phase 4 step 1): tick every TICK_EVERY_BLOCKS; per tick the index + our account (parallel) and ONE
+// eth_getLogs for our Trade/OrderEvicted since the last tick; getOrder only for ids those logs mention (plus a full
+// refresh every FULL_REFRESH_TICKS); per-tx gas limits (send.ts gasLimitsForBatch) instead of the batch max; reads can
+// go to a separate READ_RPC_URL; throttled requests retry with jittered back-off (@pulse/bot-rpc).
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
@@ -17,10 +21,11 @@ import {
   nonceManager,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { RateWindow, createCountingFetch, newRpcStats } from "@pulse/bot-rpc";
 import { clearingHouseAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
 import { DEFAULTS, buildLadder, inventoryRatio, quoteBps, sigmaForQuoting } from "./as.js";
-import { type Resting, needsRequote, planRequote } from "./plan.js";
-import { gasLimitFor, sendBatch } from "./send.js";
+import { type Resting, idsToRefresh, needsRequote, planRequote, shouldTick } from "./plan.js";
+import { gasLimitFor, gasLimitsForBatch, sendBatch } from "./send.js";
 
 const env = (k: string): string | undefined => {
   const v = process.env[k];
@@ -50,6 +55,13 @@ const K = Number(env("K") ?? String(DEFAULTS.k));
 const HORIZON_SEC = Number(env("HORIZON_SEC") ?? String(DEFAULTS.horizonSec));
 const RECOVER_LOOKBACK_BLOCKS = BigInt(env("RECOVER_LOOKBACK_BLOCKS") ?? "5000");
 const LOG_SPAN = BigInt(env("LOG_SPAN") ?? "100"); // public RPC eth_getLogs cap (ARCHITECTURE R2)
+const READ_RPC_URL = env("READ_RPC_URL") ?? RPC_URL; // reads/estimates/receipts; sends always go to RPC_URL
+const TICK_EVERY_BLOCKS = BigInt(env("TICK_EVERY_BLOCKS") ?? "1"); // 2–3 on testnet
+const FULL_REFRESH_TICKS = Number(env("FULL_REFRESH_TICKS") ?? "20"); // getOrder on every resting id every N ticks
+const ESTIMATE_BLOCK_TAG = (env("ESTIMATE_BLOCK_TAG") ?? "pending") as "pending" | "latest";
+// Gas policy (send.ts): per-tx estimate + buffers. Touch allowance defaults to 0 when estimating against `pending`.
+const CONFLICT_BUFFER_GAS = BigInt(env("CONFLICT_BUFFER_GAS") ?? "45000");
+const TOUCH_ALLOWANCE_GAS = BigInt(env("TOUCH_ALLOWANCE_GAS") ?? (ESTIMATE_BLOCK_TAG === "pending" ? "0" : "60000"));
 
 interface MarketDeployment {
   ClearingHouse?: Address;
@@ -70,6 +82,10 @@ const market = MARKET === "demo" ? dep.demoMarket : dep.contracts;
 if (dep.deployed === false || market?.ClearingHouse === undefined || market.OrderBook === undefined || market.OracleAdapter === undefined) {
   throw new Error(`${DEPLOYMENTS}: market ${MARKET} is not deployed`);
 }
+const TOUCH_EVENTS = orderBookAbi.filter(
+  (x): x is Extract<(typeof orderBookAbi)[number], { type: "event"; name: "Trade" | "OrderEvicted" }> =>
+    x.type === "event" && (x.name === "Trade" || x.name === "OrderEvicted"),
+);
 const CH: Address = market.ClearingHouse;
 const OB: Address = market.OrderBook;
 const ORACLE: Address = market.OracleAdapter;
@@ -81,8 +97,14 @@ const chain = defineChain({
   rpcUrls: { default: { http: [RPC_URL] } },
 });
 const account = privateKeyToAccount(MM_PK, { nonceManager });
-const pub = createPublicClient({ chain, transport: http(RPC_URL), pollingInterval: 250 });
-const wallet = createWalletClient({ chain, account, transport: http(RPC_URL) });
+const rpcStats = newRpcStats();
+const rpcRate = new RateWindow(60_000);
+const fetchFn = createCountingFetch({ stats: rpcStats, onCall: (m) => rpcRate.add(Date.now(), Math.max(1, m.length)) });
+// eth_blockNumber polling was ~250/min at 250 ms (30 Sep rehearsal): quoting every N blocks needs no faster polling.
+const POLL_MS = Number(env("POLL_MS") ?? String(250 * Number(TICK_EVERY_BLOCKS)));
+const pub = createPublicClient({ chain, transport: http(READ_RPC_URL, { fetchFn, retryCount: 0 }), pollingInterval: POLL_MS });
+const wallet = createWalletClient({ chain, account, transport: http(RPC_URL, { fetchFn, retryCount: 0 }) });
+const rpc = () => ({ rpcCalls: rpcStats.calls, rpcCallsPerMin: rpcRate.perMinute(Date.now()), rpcErrors: rpcStats.errors, rpcRateLimited: rpcStats.rateLimited });
 
 const log = (msg: string, extra: Record<string, unknown> = {}): void =>
   console.log(JSON.stringify({ t: new Date().toISOString(), msg, ...extra }, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
@@ -96,30 +118,56 @@ let killed = false;
 let stopping = false; // set on SIGINT: no new ticks start, the in-flight one finishes before the final cancel
 let tickSize = 0n;
 let lotSize = 0n;
-const stats = { requotes: 0, txs: 0, errors: 0 };
+let lastTickBlock = -1n;
+let ticks = 0;
+let logsTo = -1n; // our Trade/OrderEvicted logs are read up to here
+const touched = new Set<bigint>(); // resting ids a fill/eviction log mentioned since the last refresh
+const stats = { requotes: 0, txs: 0, errors: 0, gasLimitSum: 0n, gasUsedSum: 0n };
 
 /** Monad bills the gas limit (ARCHITECTURE R6): limit = ceil(estimate × 1.2) (CLAUDE.md §7). */
 
 /** One re-quote as a pipelined batch (send.ts): cancels, then replaces, then new placements, in planner order. */
-async function sendPlan(items: ReadonlyArray<{ label: string; data: Hex }>): Promise<TransactionReceipt[]> {
+async function estimate(data: Hex): Promise<bigint> {
+  if (ESTIMATE_BLOCK_TAG === "pending") {
+    try {
+      return await pub.estimateGas({ account, to: OB, data, blockTag: "pending" });
+    } catch (e) {
+      if (!/pending|block tag|not supported|invalid/i.test(String(e))) throw e; // a revert stays a revert
+    }
+  }
+  return pub.estimateGas({ account, to: OB, data });
+}
+
+type PlanItem = { label: string; data: Hex; side: "bid" | "ask" };
+async function sendPlan(items: readonly PlanItem[]): Promise<TransactionReceipt[]> {
   const r = await sendBatch(items, {
-    estimate: (it) => pub.estimateGas({ account, to: OB, data: it.data }),
+    estimate: (it) => estimate(it.data),
     send: (it, gas) => wallet.sendTransaction({ to: OB, data: it.data, gas }),
     wait: (hash) => pub.waitForTransactionReceipt({ hash, timeout: 10_000 }),
+    limits: (txs, est) =>
+      gasLimitsForBatch(
+        txs.map((t, i) => ({ estimate: est[i]!, side: t.side })),
+        { conflictBufferGas: CONFLICT_BUFFER_GAS, touchAllowanceGas: TOUCH_ALLOWANCE_GAS },
+      ),
   });
   r.receipts.forEach((rcpt, i) => {
     stats.txs++;
+    stats.gasLimitSum += r.gasLimits[i]!;
+    stats.gasUsedSum += rcpt.gasUsed;
     log(items[i]!.label, { block: rcpt.blockNumber, status: rcpt.status, gasUsed: rcpt.gasUsed, gasLimit: r.gasLimits[i], pipelined: r.pipelined });
   });
   return r.receipts;
 }
 
 async function send(label: string, data: Hex): Promise<TransactionReceipt> {
-  const est = await pub.estimateGas({ account, to: OB, data });
-  const hash = await wallet.sendTransaction({ to: OB, data, gas: gasLimitFor(est) });
+  const est = await estimate(data);
+  const gas = gasLimitFor(est + TOUCH_ALLOWANCE_GAS);
+  const hash = await wallet.sendTransaction({ to: OB, data, gas });
   const rcpt = await pub.waitForTransactionReceipt({ hash, timeout: 10_000 });
   stats.txs++;
-  log(label, { block: rcpt.blockNumber, status: rcpt.status, gasUsed: rcpt.gasUsed, gasLimit: gasLimitFor(est) });
+  stats.gasLimitSum += gas;
+  stats.gasUsedSum += rcpt.gasUsed;
+  log(label, { block: rcpt.blockNumber, status: rcpt.status, gasUsed: rcpt.gasUsed, gasLimit: gas });
   return rcpt;
 }
 
@@ -140,12 +188,35 @@ function placedFrom(rcpt: TransactionReceipt): Resting[] {
   return out;
 }
 
-/** Drop orders that no longer rest (filled / evicted) and refresh partially filled sizes. */
-async function refreshResting(): Promise<void> {
-  const views = await Promise.all(
-    resting.map((r) => pub.readContract({ address: OB, abi: orderBookAbi, functionName: "getOrder", args: [r.id] })),
-  );
-  resting = resting.flatMap((r, i) => (views[i]!.remainingLots === 0n ? [] : [{ ...r, lots: views[i]!.remainingLots }]));
+/**
+ * Drop orders that no longer rest (filled / evicted) and refresh partially filled sizes. `ids` = the orders to read
+ * (default: all). Only a fill or an eviction changes a resting order without our own tx (idsToRefresh).
+ */
+async function refreshResting(ids?: readonly bigint[]): Promise<void> {
+  const want = new Set(ids ?? resting.map((r) => r.id));
+  const toRead = resting.filter((r) => want.has(r.id));
+  const views = await Promise.all(toRead.map((r) => pub.readContract({ address: OB, abi: orderBookAbi, functionName: "getOrder", args: [r.id] })));
+  const lots = new Map(toRead.map((r, i) => [r.id, views[i]!.remainingLots]));
+  resting = resting.flatMap((r) => {
+    const l = lots.get(r.id);
+    if (l === undefined) return [r];
+    touched.delete(r.id);
+    return l === 0n ? [] : [{ ...r, lots: l }];
+  });
+}
+
+/** Our fills/evictions since the last tick (one eth_getLogs, chunked by LOG_SPAN): marks the ids to re-read. */
+async function scanTouched(head: bigint): Promise<void> {
+  const from = logsTo >= 0n ? logsTo + 1n : head;
+  for (let s = from; s <= head; s += LOG_SPAN) {
+    const e = s + LOG_SPAN - 1n < head ? s + LOG_SPAN - 1n : head;
+    const logs = await pub.getLogs({ address: OB, events: TOUCH_EVENTS, fromBlock: s, toBlock: e, strict: true });
+    for (const l of logs) {
+      if (l.args.maker.toLowerCase() !== account.address.toLowerCase()) continue;
+      touched.add(l.eventName === "Trade" ? l.args.makerOrderId : l.args.orderId);
+    }
+    logsTo = e;
+  }
 }
 
 async function cancelAll(reason: string): Promise<void> {
@@ -162,6 +233,9 @@ async function cancelAll(reason: string): Promise<void> {
 
 async function tick(block: bigint): Promise<void> {
   if (busy || stopping) return;
+  if (!shouldTick(block, lastTickBlock, TICK_EVERY_BLOCKS)) return;
+  lastTickBlock = block;
+  ticks++;
   busy = true;
   try {
     if (existsSync(KILL_FILE)) {
@@ -173,20 +247,23 @@ async function tick(block: bigint): Promise<void> {
     }
     killed = false;
     if (needResync) await syncResting();
-    const [[ok, index], acct, blk] = await Promise.all([
+    // Parallel reads: index, our account, our fills/evictions since the last tick. σ samples use the local clock
+    // (no eth_getBlockByNumber per tick; σ over 10 min doesn't care about a second of skew).
+    const [[ok, index], acct] = await Promise.all([
       pub.readContract({ address: ORACLE, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" }),
       pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "getAccount", args: [account.address] }),
-      pub.getBlock({ blockNumber: block }),
+      scanTouched(block),
     ]);
     if (!ok || index === 0n) {
       await refreshResting();
       if (resting.length) await cancelAll("oracle stale");
       return;
     }
-    samples.push({ t: Number(blk.timestamp), price: index });
-    while (samples.length && samples[0]!.t < Number(blk.timestamp) - SIGMA_WINDOW_SEC) samples.shift();
+    const nowSec = Math.floor(Date.now() / 1000);
+    samples.push({ t: nowSec, price: index });
+    while (samples.length && samples[0]!.t < nowSec - SIGMA_WINDOW_SEC) samples.shift();
 
-    await refreshResting();
+    await refreshResting(idsToRefresh(resting, touched, ticks, FULL_REFRESH_TICKS));
     const q = inventoryRatio(acct.size, MAX_INVENTORY_LOTS * lotSize);
     const sigma = sigmaForQuoting(samples, { fallback: DEFAULTS.sigma, minCoverageSec: SIGMA_MIN_COVERAGE_SEC, max: SIGMA_MAX });
     const quote = quoteBps({ sigma, gamma: GAMMA, k: K, horizonSec: HORIZON_SEC, q });
@@ -211,14 +288,22 @@ async function tick(block: bigint): Promise<void> {
     });
     if (!requote) return;
     const plan = planRequote(resting, ladder);
-    const items = [
-      ...plan.cancel.map((id) => ({ label: "cancel", data: encodeFunctionData({ abi: orderBookAbi, functionName: "cancelOrder", args: [id] }) })),
+    const sideOf = (isBid: boolean): "bid" | "ask" => (isBid ? "bid" : "ask");
+    const bySide = new Map(resting.map((r) => [r.id, sideOf(r.isBid)]));
+    const items: PlanItem[] = [
+      ...plan.cancel.map((id) => ({
+        label: "cancel",
+        side: bySide.get(id) ?? "bid",
+        data: encodeFunctionData({ abi: orderBookAbi, functionName: "cancelOrder", args: [id] }),
+      })),
       ...plan.replace.map((r) => ({
         label: "replace",
+        side: sideOf(r.isBid),
         data: encodeFunctionData({ abi: orderBookAbi, functionName: "replaceOrder", args: [r.id, r.tick, r.lots, 0] }),
       })),
       ...plan.place.map((p) => ({
         label: "place",
+        side: sideOf(p.isBid),
         data: encodeFunctionData({ abi: orderBookAbi, functionName: "placeLimitOrder", args: [p.isBid, p.tick, p.lots, 0] }),
       })),
     ];
@@ -239,6 +324,7 @@ async function tick(block: bigint): Promise<void> {
       bids: ladder.bids.map((l) => l.tick),
       asks: ladder.asks.map((l) => l.tick),
       ...stats,
+      ...rpc(),
     });
   } catch (e) {
     stats.errors++;
@@ -282,7 +368,19 @@ tickSize = await pub.readContract({ address: OB, abi: orderBookAbi, functionName
 lotSize = await pub.readContract({ address: OB, abi: orderBookAbi, functionName: "lotSize" });
 await syncResting();
 log("recovered resting orders", { count: resting.length, lookbackBlocks: RECOVER_LOOKBACK_BLOCKS });
-log("mm start", { chainId: CHAIN_ID, market: MARKET, orderBook: OB, maker: account.address, levels: LEVELS, lotsPerLevel: LOTS_PER_LEVEL, killFile: KILL_FILE });
+log("mm start", {
+  chainId: CHAIN_ID,
+  market: MARKET,
+  orderBook: OB,
+  maker: account.address,
+  levels: LEVELS,
+  lotsPerLevel: LOTS_PER_LEVEL,
+  killFile: KILL_FILE,
+  tickEveryBlocks: TICK_EVERY_BLOCKS,
+  estimateBlockTag: ESTIMATE_BLOCK_TAG,
+  separateReadRpc: READ_RPC_URL !== RPC_URL,
+});
+setInterval(() => log("stats", { ...stats, ...rpc(), resting: resting.length }), 60_000).unref();
 process.on("SIGINT", () => {
   if (stopping) process.exit(1); // second Ctrl-C: exit now, restart re-adopts resting orders (RECOVER_LOOKBACK_BLOCKS)
   stopping = true;
