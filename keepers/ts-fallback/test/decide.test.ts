@@ -179,3 +179,12 @@ describe("vault scheduling", () => {
     expect(vaultAction(7)).toEqual({ act: true, name: "SkewCap", urgent: false });
   });
 });
+
+describe("funding poke inclusion lag (Phase 3 rehearsal)", () => {
+  it("lag 2 pokes two blocks early so a one-block-late landing still keeps gaps ≤ 20", () => {
+    const base = { lastUpdateBlock: 100n, maxGapBlocks: 20n };
+    expect(shouldPokeFunding({ ...base, currentBlock: 118n, inclusionLagBlocks: 2n })).toBe(true);
+    expect(shouldPokeFunding({ ...base, currentBlock: 117n, inclusionLagBlocks: 2n })).toBe(false);
+    expect(shouldPokeFunding({ ...base, currentBlock: 118n, inclusionLagBlocks: 1n })).toBe(false);
+  });
+});

@@ -33,7 +33,7 @@ import {
   vaultAction,
 } from "./decide.js";
 import { DEFAULT_HERMES_URL, fetchHermesLatest } from "./hermes.js";
-import { applyFactor, decimalToWad, encodeTestOracleUpdate, latestKeylessPrice } from "./pricesource.js";
+import { decimalToWad, encodeTestOracleUpdate, feedPoint, latestKeylessPrice } from "./pricesource.js";
 import { LiquidationLatency } from "./latency.js";
 
 // ───────────────────────────── config ─────────────────────────────
@@ -70,7 +70,9 @@ const VAULT_REBALANCE = env("VAULT_REBALANCE") === "1";
 const VAULT_EVERY_BLOCKS = BigInt(env("VAULT_EVERY_BLOCKS") ?? "20");
 
 const MAX_FUNDING_GAP_BLOCKS = BigInt(env("MAX_FUNDING_GAP_BLOCKS") ?? "20"); // WS-03 acceptance
-const INCLUSION_LAG_BLOCKS = 1n;
+// Blocks between reading a block and our tx landing. 2 absorbs RPC latency: the Phase 3 rehearsal with 1 showed
+// 109 gaps of 21 blocks (the poke landed one block later than assumed). Tunable per network.
+const INCLUSION_LAG_BLOCKS = BigInt(env("INCLUSION_LAG_BLOCKS") ?? "2");
 const PYTH_MAX_AGE_SEC = 3n; // LANE_B §4
 const PYTH_MAX_MOVE_BPS = 5n; // LANE_B §4
 const MAX_LIQUIDATIONS_PER_BLOCK = 5;
@@ -120,7 +122,9 @@ const chain = defineChain({
 const account = privateKeyToAccount(KEEPER_PK, { nonceManager });
 const pub = createPublicClient({ chain, transport: http(RPC_URL), pollingInterval: 250 });
 const wallet = createWalletClient({ chain, account, transport: http(RPC_URL) });
-const mainnet = MAINNET_RPC_URL === undefined ? null : createPublicClient({ transport: http(MAINNET_RPC_URL) });
+// Read-only price source: short timeout, no retries (a slow public RPC must fail fast; the push just waits a tick).
+const mainnet =
+  MAINNET_RPC_URL === undefined ? null : createPublicClient({ transport: http(MAINNET_RPC_URL, { timeout: 2_000, retryCount: 0 }) });
 
 // ───────────────────────────── state ─────────────────────────────
 
@@ -144,6 +148,7 @@ let open = new Set<Address>();
 const latency = new LiquidationLatency();
 let scannedTo = -1n;
 let busy = false;
+let oracleBusy = false;
 
 const log = (msg: string, extra: Record<string, unknown> = {}): void =>
   console.log(JSON.stringify({ t: new Date().toISOString(), msg, ...extra }, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
@@ -185,7 +190,7 @@ async function feedStep(): Promise<void> {
     alert("no usable price source: the test oracle will go stale");
     return;
   }
-  const point = { priceWad: applyFactor(src.priceWad, priceFactor()), publishTime: src.publishTime };
+  const point = feedPoint(src, priceFactor(), block.timestamp, MARKET === "demo");
   const [, priceWad, updatedAt] = onchain;
   const reason = shouldPushPyth({
     nowSec: block.timestamp,
@@ -324,10 +329,10 @@ async function tick(block: bigint): Promise<void> {
   busy = true;
   try {
     health.lastBlock = block;
-    // Independent steps: one failing must not starve the others. Order: fresh price first (the CH needs it),
-    // then liquidations (latency-critical, ≤ 3 blocks), then the funding poke (any liquidation already touched F).
+    // Independent steps: one failing must not starve the others. Liquidations first (latency-critical, ≤ 3 blocks),
+    // then the funding poke (any liquidation already touched F). The oracle push runs on its own loop (oracleTick):
+    // the Phase 3 rehearsal showed a stalled external price read blocking a whole tick for 56 s.
     const steps: Array<[string, () => Promise<void>]> = [
-      ["oracle", oracleStep],
       ["liquidation", () => liquidationStep(block)],
       ["funding", () => fundingStep(block)],
       ["vault", () => vaultStep(block)],
@@ -337,6 +342,17 @@ async function tick(block: bigint): Promise<void> {
     health.lastTickAt = Date.now();
   } finally {
     busy = false;
+  }
+}
+
+/** Oracle pushes on their own non-overlapping loop: never delay liquidations or funding pokes. */
+async function oracleTick(): Promise<void> {
+  if (oracleBusy) return;
+  oracleBusy = true;
+  try {
+    await oracleStep().catch((e: unknown) => fail("oracle", e));
+  } finally {
+    oracleBusy = false;
   }
 }
 
@@ -366,6 +382,9 @@ log("keeper start", {
 await balanceStep().catch((e: unknown) => fail("balance", e));
 pub.watchBlockNumber({
   emitOnBegin: true,
-  onBlockNumber: (b) => void tick(b),
+  onBlockNumber: (b) => {
+    void oracleTick();
+    void tick(b);
+  },
   onError: (e) => fail("watchBlockNumber", e),
 });

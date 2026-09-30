@@ -12,7 +12,7 @@ Rules for every phase:
 | 0 | Plan, interfaces, mocks | Tue 29 Sep | ✅ done |
 | 1 | Core modules in isolation | Tue 29 Sep | ✅ done (not merged) |
 | **2** | **Integrate the perp core on anvil** | **Thu 1 Oct** | ▶ G2 mostly met (30 Sep); open: live indexer (Docker), login decision, human items |
-| 3 | Testnet perp + yield layers built | Sun 4 Oct (CP1 Sat 3 Oct inside) | — |
+| **3** | **Testnet perp + yield layers built** | **Sun 4 Oct (CP1 Sat 3 Oct inside)** | ▶ built + rehearsed (30 Sep); testnet deploy/run blocked on keys + testnet MON (G3 below) |
 | 4 | Full stack on testnet, scope freeze | Wed 7 Oct (CP2) | — |
 | 5 | Mainnet readiness and launch | Sat 10 Oct (CP3) | — |
 | 6 | Proof and submission | Tue 13 Oct 18:00 | — |
@@ -81,6 +81,18 @@ In parallel (tracked, not gating): swaps core (A2) tests-first on mocks; vault s
 - B: keeper + MM live on testnet; vault + KuruHedger on real CH/OB (mainnet-fork tests for Kuru and Kuru Flow); merge.
 - C: indexer on hosted testnet; app Earn + Fix screens on mocks → testnet; benchmark harness B1/B2 on testnet; user outreach starts.
 **Gate G3 = CP1 (testnet):** real trades on testnet with per-block funding, a live liquidation, keeper + MM running unattended 1 h, the indexer and app showing it; swaps and vault merged with green unit + integration tests.
+
+**G3 status (30 Sep, lead, single session; evidence in docs/standup/A.md, B.md, C.md):**
+| Item | Status | Evidence |
+|---|---|---|
+| Real trades on **Monad testnet**, per-block funding (≤ 20-block gaps) | ❌ blocked (no `DEPLOYER_PK`/`KEEPER_PK`/`MM_PK`, no testnet MON) · ⚠️ rehearsed | `DeployPulse` fork dry-run at testnet block 66,793,749 OK (29.7 M gas perp+demo; 48.1 M with vault+swaps); testnet code limit measured 128 KB; broadcast rehearsal on a local chain id 10143: after the keeper fix **max FundingUpdated gap 19 blocks, 0 > 20** (1,243 blocks) |
+| **Live liquidation** (demo market), keeper latency | ❌ on testnet · ⚠️ rehearsed | MON-PERP-DEMO crash (factor 0.85): liquidated **1 block after eligibility, 3 blocks / 3.95 s after the oracle push** (1 s anvil blocks) |
+| Keeper + MM **unattended ≥ 1 h** | ❌ on testnet · ⚠️ rehearsed | 3 h 29 min, 4 bots, 0 errors, books two-sided 208/210 & 209/210 samples ≤ 11.1 bps; bug found + fixed (56-block gap from a stalled price read) and re-verified 20 min |
+| Indexer and app show the testnet market | ❌ pending deployment · ⚠️ ready | `testMarket` label (indexer + app badge), recorder with 100-block chunks verified on the 10143-shaped chain (4,653 events); live Envio needs Docker + token |
+| **Swaps and vault merged**, green unit + integration (+ I9, I8/I10) | ✅ | contracts **380/380**: swaps 26 unit + fuzz + 4 integration on the real CH + 2nd OB + I9 (256×128 and 512×256, 35 liquidations/771 runs); vault 20 unit + 11 hedger + fork (live Kuru: 10 USDC → 370.49 MON) + fuzz + I8 (1,224 unwind withdrawals); tags `interfaces-v1.4`, `interfaces-v1.5` |
+| Gas targets | ✅ Foundry · ⏳ testnet | place+cancel 96,478 (< 100k), CH-own first touch 29,273 (< 30k), checkpoint 29,984 (< 40k); MIP-8 receipts need the testnet run (`bench/gas_onchain.ts`) |
+| Human: remote, Pyth key, login decision, bounty criteria, Envio token, Docker, testnet MON, paid RPC | ❌ all open | — |
+Lead decisions this phase: 11 (skew rule amended, above); CR-007 proposed (maker-fill Skip vs Evict), CR-008/CR-009 applied.
 
 ## Phase 4: Full stack on testnet, scope freeze (latest end Wed 7 Oct = CP2)
 - Swap market + vault deployed on testnet; MM quotes the swap book; keeper does swap liquidations and `settleMaturity` (1-hour test maturity).

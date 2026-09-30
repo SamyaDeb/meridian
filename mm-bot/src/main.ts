@@ -20,6 +20,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { clearingHouseAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
 import { DEFAULTS, buildLadder, inventoryRatio, quoteBps, sigmaForQuoting } from "./as.js";
 import { type Resting, needsRequote, planRequote } from "./plan.js";
+import { gasLimitFor, sendBatch } from "./send.js";
 
 const env = (k: string): string | undefined => {
   const v = process.env[k];
@@ -96,7 +97,20 @@ let lotSize = 0n;
 const stats = { requotes: 0, txs: 0, errors: 0 };
 
 /** Monad bills the gas limit (ARCHITECTURE R6): limit = ceil(estimate × 1.2) (CLAUDE.md §7). */
-const gasLimitFor = (est: bigint): bigint => (est * 12n + 9n) / 10n;
+
+/** One re-quote as a pipelined batch (send.ts): cancels, then replaces, then new placements, in planner order. */
+async function sendPlan(items: ReadonlyArray<{ label: string; data: Hex }>): Promise<TransactionReceipt[]> {
+  const r = await sendBatch(items, {
+    estimate: (it) => pub.estimateGas({ account, to: OB, data: it.data }),
+    send: (it, gas) => wallet.sendTransaction({ to: OB, data: it.data, gas }),
+    wait: (hash) => pub.waitForTransactionReceipt({ hash, timeout: 10_000 }),
+  });
+  r.receipts.forEach((rcpt, i) => {
+    stats.txs++;
+    log(items[i]!.label, { block: rcpt.blockNumber, status: rcpt.status, gasUsed: rcpt.gasUsed, gasLimit: r.gasLimits[i], pipelined: r.pipelined });
+  });
+  return r.receipts;
+}
 
 async function send(label: string, data: Hex): Promise<TransactionReceipt> {
   const est = await pub.estimateGas({ account, to: OB, data });
@@ -193,18 +207,21 @@ async function tick(block: bigint): Promise<void> {
     });
     if (!requote) return;
     const plan = planRequote(resting, ladder);
-    for (const id of plan.cancel) {
-      await send("cancel", encodeFunctionData({ abi: orderBookAbi, functionName: "cancelOrder", args: [id] }));
-      resting = resting.filter((r) => r.id !== id);
-    }
-    for (const r of plan.replace) {
-      const rcpt = await send("replace", encodeFunctionData({ abi: orderBookAbi, functionName: "replaceOrder", args: [r.id, r.tick, r.lots, 0] }));
-      resting = [...resting.filter((x) => x.id !== r.id), ...placedFrom(rcpt)];
-    }
-    for (const p of plan.place) {
-      const rcpt = await send("place", encodeFunctionData({ abi: orderBookAbi, functionName: "placeLimitOrder", args: [p.isBid, p.tick, p.lots, 0] }));
-      resting = [...resting, ...placedFrom(rcpt)];
-    }
+    const items = [
+      ...plan.cancel.map((id) => ({ label: "cancel", data: encodeFunctionData({ abi: orderBookAbi, functionName: "cancelOrder", args: [id] }) })),
+      ...plan.replace.map((r) => ({
+        label: "replace",
+        data: encodeFunctionData({ abi: orderBookAbi, functionName: "replaceOrder", args: [r.id, r.tick, r.lots, 0] }),
+      })),
+      ...plan.place.map((p) => ({
+        label: "place",
+        data: encodeFunctionData({ abi: orderBookAbi, functionName: "placeLimitOrder", args: [p.isBid, p.tick, p.lots, 0] }),
+      })),
+    ];
+    const receipts = await sendPlan(items);
+    // Cancelled and replaced ids no longer rest; a replace or place re-rests under the id in its OrderPlaced log.
+    const gone = new Set<bigint>([...plan.cancel, ...plan.replace.map((r) => r.id)]);
+    resting = [...resting.filter((r) => !gone.has(r.id)), ...receipts.flatMap((rc) => (rc.status === "success" ? placedFrom(rc) : []))];
     lastQuotedIndex = index;
     lastQ = q;
     stats.requotes++;

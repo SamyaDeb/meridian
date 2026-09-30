@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decodeAbiParameters } from "viem";
-import { applyFactor, decimalToWad, encodeTestOracleUpdate, parseHyperliquidMid, pythPriceToPoint } from "../src/pricesource.js";
+import { applyFactor, decimalToWad, feedPoint, encodeTestOracleUpdate, parseHyperliquidMid, pythPriceToPoint } from "../src/pricesource.js";
 import { shouldPushPyth } from "../src/decide.js";
 
 describe("pythPriceToPoint (mirrors the adapter's checks)", () => {
@@ -75,5 +75,16 @@ describe("keeper-fed push rule = shouldPushPyth with the testnet heartbeat", () 
     const moved = { priceWad: on.priceWad + (on.priceWad * 6n) / 10_000n, publishTime: 101n };
     expect(shouldPushPyth({ nowSec: 101n, onchain: on, offchain: moved, maxAgeSec: 10n, maxMoveBps: 5n })).toBe("moved");
     expect(shouldPushPyth({ nowSec: 200n, onchain: on, offchain: { ...moved, publishTime: 100n }, maxAgeSec: 10n, maxMoveBps: 5n })).toBeNull();
+  });
+});
+
+describe("feedPoint", () => {
+  const src = { priceWad: 29_000_000_000_000_000n, publishTime: 100n };
+  it("main market: the source as is, factor ignored", () => {
+    expect(feedPoint(src, 850_000_000_000_000_000n, 130n, false)).toEqual(src);
+  });
+  it("demo market: price × factor, publish time = max(source, now) so the crash pushes next block", () => {
+    expect(feedPoint(src, 850_000_000_000_000_000n, 130n, true)).toEqual({ priceWad: 24_650_000_000_000_000n, publishTime: 130n });
+    expect(feedPoint({ ...src, publishTime: 140n }, 10n ** 18n, 130n, true).publishTime).toBe(140n);
   });
 });

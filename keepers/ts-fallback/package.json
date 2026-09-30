@@ -8,7 +8,8 @@
     "start": "tsx src/main.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "check-source": "tsx scripts/check-source.ts"
+    "check-source": "tsx scripts/check-source.ts",
+    "evidence": "tsx scripts/evidence.ts"
   },
   "dependencies": {
     "@pulse/abis": "workspace:*",

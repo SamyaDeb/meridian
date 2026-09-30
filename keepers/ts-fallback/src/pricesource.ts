@@ -58,6 +58,16 @@ export function applyFactor(priceWad: bigint, factorWad: bigint): bigint {
   return (priceWad * factorWad) / WAD;
 }
 
+/**
+ * The point pushed to a keeper-fed oracle. Main market: the source observation as is (price and publish time).
+ * Demo test market (`demo`): price × factor, and publish time = max(source, now) so a factor change (the crash
+ * lever) is pushed on the next block instead of waiting for the source's next publish. Pure.
+ */
+export function feedPoint(src: PricePoint, factorWad: bigint, nowSec: bigint, demo: boolean): PricePoint {
+  if (!demo) return { priceWad: src.priceWad, publishTime: src.publishTime };
+  return { priceWad: applyFactor(src.priceWad, factorWad), publishTime: src.publishTime > nowSec ? src.publishTime : nowSec };
+}
+
 /** updateData for TestnetKeeperOracle.updatePrice: `abi.encode(uint256 priceWad, uint256 publishTime)`. Pure. */
 export function encodeTestOracleUpdate(p: PricePoint): Hex[] {
   return [encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [p.priceWad, p.publishTime])];
