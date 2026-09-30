@@ -58,6 +58,7 @@ contract CrashDemo is Script, StdCheats {
 
         (, uint256 p0,) = oracle.tryGetIndexPrice();
         require(p0 != 0, "CrashDemo: oracle has no price");
+        _seedBookIfEmpty(p0);
         address trader = _openTrader(p0);
         _hedgeVault();
 
@@ -98,6 +99,20 @@ contract CrashDemo is Script, StdCheats {
             _row(csv, i, b0, trader, liq, here);
         }
         console2.log("CSV", csv);
+    }
+
+    /// @dev A fork taken while no MM runs has an empty book (dry-run finding, 30 Sep): the MM (CRASH_MM) rests one level
+    ///      per side 3 ticks around the index inside the simulation, so the trader can open and the mark has a book mid.
+    function _seedBookIfEmpty(uint256 p0) internal {
+        uint32 t = uint32(p0 / ob.tickSize());
+        bool noBid = ob.bestBid() == 0;
+        bool noAsk = ob.bestAsk() == type(uint32).max || ob.bestAsk() == 0;
+        if (!noBid && !noAsk) return;
+        vm.startPrank(mm);
+        if (noAsk) ob.placeLimitOrder(false, t + 3, 60, 0);
+        if (noBid) ob.placeLimitOrder(true, t - 3, 60, 0);
+        vm.stopPrank();
+        console2.log("seeded an empty book as the MM (simulation only)");
     }
 
     /// @dev A fresh trader deposits 30 AUSD and buys ≈ 4.9x notional at the best ask (the imr 20% = 5x cap).

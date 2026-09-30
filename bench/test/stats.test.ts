@@ -44,3 +44,20 @@ describe("stats", () => {
     expect(s).toMatchObject({ markets: 2, sent: 4, included: 3, blocks: 3, txPerBlock: 1, latencyMsP50: 600, latencyMsP95: 900 });
   });
 });
+
+import { hasSide } from "../src/stats.js";
+describe("hasSide (empty book sides in load.ts)", () => {
+  it("0 = no bids, the uint32 sentinel = no asks", () => {
+    expect(hasSide(0)).toBe(false);
+    expect(hasSide(4_294_967_295)).toBe(false);
+    expect(hasSide(26_600)).toBe(true);
+  });
+});
+
+import { networkLabel } from "../src/stats.js";
+describe("networkLabel (anvil outputs never look like testnet evidence)", () => {
+  it("prefixes anvil nodes", () => {
+    expect(networkLabel(10143, "anvil/v1.5.1")).toBe("anvil-10143");
+    expect(networkLabel(10143, "Monad/0.12")).toBe("10143");
+  });
+});

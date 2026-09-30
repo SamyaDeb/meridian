@@ -2,13 +2,14 @@
   "name": "@pulse/bench",
   "version": "0.1.0",
   "private": true,
-  "description": "Pulse benchmarks B1/B2 (gas from receipts) and B4 (multi-market load) — WS-08",
+  "description": "Pulse benchmarks B1/B2 (gas from receipts) and B4 (multi-market load) \u2014 WS-08",
   "type": "module",
   "scripts": {
     "gas": "tsx gas_onchain.ts",
     "load": "tsx load.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "report": "tsx report.ts"
   },
   "dependencies": {
     "@pulse/abis": "workspace:*",

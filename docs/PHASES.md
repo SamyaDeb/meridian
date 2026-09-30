@@ -11,9 +11,9 @@ Rules for every phase:
 |---|---|---|---|
 | 0 | Plan, interfaces, mocks | Tue 29 Sep | ✅ done |
 | 1 | Core modules in isolation | Tue 29 Sep | ✅ done (not merged) |
-| **2** | **Integrate the perp core on anvil** | **Thu 1 Oct** | ▶ G2 mostly met (30 Sep); open: live indexer (Docker), login decision, human items |
-| **3** | **Testnet perp + yield layers built** | **Sun 4 Oct (CP1 Sat 3 Oct inside)** | ▶ built + rehearsed (30 Sep); testnet deploy/run blocked on keys + testnet MON (G3 below) |
-| 4 | Full stack on testnet, scope freeze | Wed 7 Oct (CP2) | — |
+| 2 | Integrate the perp core on anvil | Thu 1 Oct | ✅ G2 met except human items (live indexer/Docker, login decision) |
+| 3 | Testnet perp + yield layers built | Sun 4 Oct (CP1 Sat 3 Oct inside) | ✅ on testnet except the 1 h unattended run + B7 ≤ 3 (MON / paid RPC); see G3 |
+| **4** | **Full stack on testnet, scope freeze** | **Wed 7 Oct (CP2)** | **✅ scope frozen 30 Sep 2026**; G4 below (⚠️ items are MON / RPC / human bound) |
 | 5 | Mainnet readiness and launch | Sat 10 Oct (CP3) | — |
 | 6 | Proof and submission | Tue 13 Oct 18:00 | — |
 
@@ -94,12 +94,45 @@ In parallel (tracked, not gating): swaps core (A2) tests-first on mocks; vault s
 | Human: remote, Pyth key, login decision, bounty criteria, Envio token, Docker, testnet MON, paid RPC | ❌ all open | — |
 Lead decisions this phase: 11 (skew rule amended, above); CR-007 proposed (maker-fill Skip vs Evict), CR-008/CR-009 applied.
 
+**G3 close-out (Phase 4, 30 Sep; docs/standup/A.md "Phase 4"):**
+| Item | Status | Evidence |
+|---|---|---|
+| Real trades + per-block funding on testnet, gaps ≤ 20 | ✅ | lag 6 keeper: 66 gaps over 1,201 blocks (66,932,691–66,933,892), max 20, 0 > 20 (chunked logs) |
+| Live liquidation on testnet | ✅ | demo market, tx `0xac7d67c8…f23f` (block 66,933,023), IF credited |
+| B7 ≤ 3 blocks | ❌ | 8 blocks after eligibility on the free public RPC (send path ≈ 3.2 s); 1 block locally. Needs the keeper on a paid RPC |
+| Keeper + MM unattended ≥ 1 h on testnet | ❌ | not affordable: keeper ≈ 9.2 MON/h at lag 6, MM ≈ 24 MON/h; wallets held 6.39 MON. Rehearsed locally (3 h 29 min, Phase 3; 20 min A/B, Phase 4) |
+| Indexer + app show testnet | ⚠️ | app reads testnet on all tabs (read-only dry-run screenshots); indexer live run pending Docker, replay tests green |
+
 ## Phase 4: Full stack on testnet, scope freeze (latest end Wed 7 Oct = CP2)
 - Swap market + vault deployed on testnet; MM quotes the swap book; keeper does swap liquidations and `settleMaturity` (1-hour test maturity).
 - CRE only if deploy access was granted (else dropped, recorded).
 - Invariants I1–I11 green on real contracts; benchmark runs B1–B4 and B7 on testnet; app complete (all 5 tabs).
 - Demo dry-run end to end.
 **Gate G4 = CP2 + scope freeze:** everything in the demo script works on testnet; after this, fixes/UX/ops only.
+
+**G4 status (30 Sep, lead, single session; evidence in docs/standup/A.md "Phase 4"):**
+| Item | Status | Evidence |
+|---|---|---|
+| Vault: deposit → keeper rebalance → hedged within θ | ✅ testnet (forced entry) · ✅ local (entry rule) | testnet: keeper `enterHedge()` tx `0x59a0ed8c…6040` ⇒ spot 400 = short 400 MON, netDelta 0. The 8 h entry rule on testnet would need ≈ 72 MON of pokes, so it ran locally: realized 8 h APR 43.86% ⇒ EnterHedge ⇒ hedged 20,000/20,000 |
+| Skew cap enforced | ✅ testnet + local | testnet `rebalance()` (SkewCap) tx `0x551e7306…363a`: 400 → 100 ≤ capacity 160; local 20,000 → 16,000 = 0.8 × 20,000 |
+| NAV rises with funding | ✅ testnet + local | testnet share price +5.0e10 wei over 82 blocks; local up every block |
+| Swaps: long/short fill on the swap book | ✅ testnet | MM two-sided 10.92/10.98%; long at 10.98% tx `0x977de75c…8355`, short at 10.92% tx `0x8ccb451d…a498` |
+| Accrual = MATH_SPEC §6.2 within 1 wei | ✅ testnet + local | diff 0 wei on both sides (testnet block 66,932,382/390; local block 146) |
+| Maturity snapshot on the 1-hour test maturity; keeper `settleMaturity` | ✅ testnet | keeper tx `0x839985ea…31f9` 1 s after maturity; accrual frozen; `Matured` on increases |
+| Swap liquidation | ⚠️ local only | a 1-hour maturity can't be liquidated by a price shock (MM horizon = min(liqHorizon, τ)); rehearsed on a 30-day market (1 block) |
+| Invariants I1–I11 on real contracts (256×128 and 512×256), `forge test` 100% | ✅ | `forge test` 379/379 (twice after the flaky-check fix); `FOUNDRY_PROFILE=ci` invariant suites 29/29 at 512×256 |
+| Keeper + MM (perp + swap) running; G3 closed | ⚠️ | all bots ran on testnet in budgeted windows; 1 h unattended + B7 ≤ 3 open (MON, paid RPC) |
+| App: all 5 tabs live on testnet, Earn + Fix write paths, login per decision | ⚠️ | 5 tabs read testnet (dry-run screenshots `app/e2e/screenshots/demo-*.png`); Earn/Fix writes pass Playwright on the local full stack; **login undecided** ⇒ injected + dev |
+| Indexer live (or replay + pending note) | ⚠️ replay | full-stack replay 8/8 vs contract views; live Envio pending Docker; hosted needs the git remote |
+| B1–B4 + B7 in `docs/outputs/BENCHMARKS.md` | ⚠️ | B1/B2 testnet + Foundry, B6, B7 in; B3/B4 placeholders (no paid RPC / MON) |
+| Demo dry-run | ✅ with gaps | read-only testnet walk-through 4/4 + crash on a local fork (liquidated at offset 1, NAV flat, markApr flat). Gaps: login segment (decision), metrics dashboard (indexer), a fresh 30-day swap market for the video, mainnet |
+
+Decisions this phase: CRE **dropped** (no deploy access; PRD §8 cut order). CR-007 stays **Proposed** (unapplied). **Vault cap (decision 11): open, the owner picks one** (numbers at MON = 0.0272, L = 1.5, launch caps maxPositionSize 25k / OI 250k MON):
+- **A. Raise the perp `maxPositionSize` for everyone** (e.g. to the 250k OI cap): the vault's reach becomes 0.8 × takers' net long, at most 200k MON ≈ $5.4k notional ⇒ ≈ $9.1k deployed (spot + margin). Config only, but one trader could then hold the whole OI.
+- **B. Vault-specific position cap** (a per-account cap override in the CH): same reach for the vault only. Needs an IClearingHouse CR (interfaces-v1.6) and CH code, which conflicts with this scope freeze.
+- **C. Lower the vault `depositCap` to ≈ 1,200 AUSD at launch** (`setVaultParams`, no code): at the 25k cap the vault can deploy ≈ $1.13k (25k MON spot ≈ $680 + margin ≈ $453) of 10k today. Raise it together with the perp caps later. **Lead's recommendation: C for launch** (honest, no code after the freeze).
+
+**Scope frozen: Wed 30 Sep 2026** (lead). From here: fixes, UX, ops only.
 
 ## Phase 5: Mainnet readiness and launch (latest end Sat 10 Oct = CP3)
 - Security review of all contracts (cross-review + WS-08 checklist), fixes.

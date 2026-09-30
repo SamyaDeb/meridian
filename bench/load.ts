@@ -8,7 +8,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { type Address, type Hex, createPublicClient, createWalletClient, decodeEventLog, defineChain, encodeFunctionData, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { gasLimitFor, loadMix, summarizeLoad } from "./src/stats.js";
+import { gasLimitFor, hasSide, loadMix, networkLabel, summarizeLoad } from "./src/stats.js";
 
 const need = (k: string): string => {
   const v = process.env[k];
@@ -94,6 +94,9 @@ async function run(k: number) {
     const ask = await pub.readContract({ address: m.OrderBook, abi: obAbi, functionName: "bestAsk" });
     let op = mix[i]!;
     if (op === "cancel" && (open.get(key)?.length ?? 0) === 0) op = "place";
+    // an empty side reads 0 (bid) or the uint32 sentinel (ask): a market order there has nothing to take
+    const buy = i % 2 === 0;
+    if (op === "market" && (buy ? !hasSide(ask) : !hasSide(bid))) op = "place";
     let data: Hex;
     if (op === "place") {
       data = encodeFunctionData({ abi: obAbi, functionName: "placeLimitOrder", args: [true, bid > 300 ? bid - 300 : 1, 1n, 0] });
@@ -101,7 +104,6 @@ async function run(k: number) {
       const ids = open.get(key)!;
       data = encodeFunctionData({ abi: obAbi, functionName: "cancelOrder", args: [ids.shift()!] });
     } else {
-      const buy = i % 2 === 0;
       data = encodeFunctionData({ abi: obAbi, functionName: "placeMarketOrder", args: [buy, 1n, buy ? ask + 50 : bid > 50 ? bid - 50 : 1, 0n, false] });
     }
     const gk = `${op}`;
@@ -129,7 +131,8 @@ for (const k of KS) {
   results.push(await run(k));
 }
 mkdirSync(`${HERE}out`, { recursive: true });
-const file = `${HERE}out/load_${CHAIN_ID}_${new Date().toISOString().slice(0, 10)}.json`;
+const net = networkLabel(CHAIN_ID, await pub.request({ method: "web3_clientVersion" }));
+const file = `${HERE}out/load_${net}_${new Date().toISOString().slice(0, 10)}.json`;
 writeFileSync(file, JSON.stringify({ chainId: CHAIN_ID, rpc: RPC_URL, txs: TXS, wallets: wallets.length, results }, null, 2));
 console.table(results);
 console.log(`→ ${file} (skeleton: latency uses 1 s block timestamps; B4 proper = testnet + paid RPC)`);

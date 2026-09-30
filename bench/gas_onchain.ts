@@ -19,7 +19,7 @@ import {
   parseAbi,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { GAS_CSV_HEADER, type GasRow, gasCsvRow, gasLimitFor, meanBlockTimeMs, parseFoundryCsv } from "./src/stats.js";
+import { GAS_CSV_HEADER, type GasRow, gasCsvRow, gasLimitFor, meanBlockTimeMs, networkLabel, parseFoundryCsv } from "./src/stats.js";
 
 const need = (k: string): string => {
   const v = process.env[k];
@@ -85,8 +85,11 @@ const first = await pub.getBlock();
 // margin for the resting orders and a 1-lot market order
 const bal = await pub.readContract({ address: AUSD, abi: erc20, functionName: "balanceOf", args: [account.address] });
 const dep0 = bal > 1_000_000_000n ? 1_000_000_000n : bal; // ≤ 1,000 tAUSD
-await send("approve", AUSD, encodeFunctionData({ abi: erc20, functionName: "approve", args: [CH, dep0] }));
-await send("deposit", CH, encodeFunctionData({ abi: chAbi, functionName: "deposit", args: [dep0] }));
+// rerunnable: with no tAUSD left in the wallet, trade on the margin already deposited by an earlier run
+if (dep0 > 0n) {
+  await send("approve", AUSD, encodeFunctionData({ abi: erc20, functionName: "approve", args: [CH, dep0] }));
+  await send("deposit", CH, encodeFunctionData({ abi: chAbi, functionName: "deposit", args: [dep0] }));
+}
 const bid = await pub.readContract({ address: OB, abi: obAbi, functionName: "bestBid" });
 const ask = await pub.readContract({ address: OB, abi: obAbi, functionName: "bestAsk" });
 const far = bid > 200 ? bid - 200 : 1; // rests, never crosses
@@ -116,7 +119,8 @@ try {
 const date = new Date().toISOString().slice(0, 10);
 const blockTimeMs = meanBlockTimeMs(first, last);
 mkdirSync(`${HERE}out`, { recursive: true });
-const file = `${HERE}out/gas_onchain_${CHAIN_ID}_${date}.csv`;
+const net = networkLabel(CHAIN_ID, await pub.request({ method: "web3_clientVersion" }));
+const file = `${HERE}out/gas_onchain_${net}_${date}.csv`;
 writeFileSync(file, [GAS_CSV_HEADER, ...rows.map((r) => gasCsvRow(r, { commit, date, chainId: CHAIN_ID, blockTimeMs }))].join("\n") + "\n");
 
 // summary vs Foundry (Ethereum schedule). Receipts include the 21k base + calldata; Foundry rows are execution only.

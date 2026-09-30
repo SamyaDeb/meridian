@@ -11,3 +11,7 @@ Every reported number carries network, block range, commit hash and date (BENCHM
 | B4 load (skeleton) | `cd bench && CHAIN_ID=… RPC_URL=… LOAD_PKS=0x…,0x… TXS=60 K=1,2 pnpm load` (`MARKETS_FILE` for K > 2) | `bench/out/load_<chain>_<date>.json`: included tx/block, landed latency p50/p95 per K. Testnet run only with a paid RPC and a MON budget |
 
 Anvil receipts use the Ethereum gas schedule, not Monad's MIP-8 page pricing: only testnet/mainnet receipts are B1/B3 evidence. Pure helpers (`src/stats.ts`) are unit-tested (`pnpm test`).
+| B7 liquidation latency | rows appended to `bench/out/b7_liquidation_latency.csv` from keeper logs (blocks, tx, RPC, bots commit) | table in the report |
+| Report | `cd contracts && forge test --match-contract RealEngineGasBench && cd ../bench && pnpm report` | `docs/outputs/BENCHMARKS.md` (placeholders for runs not done) |
+
+Output files from an anvil node are named `*_anvil-<chain>_*` (`networkLabel`, from `web3_clientVersion`), so a local chain started with `--chain-id 10143` can never pass for testnet evidence.

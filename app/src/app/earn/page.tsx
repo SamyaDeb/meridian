@@ -71,6 +71,11 @@ export default function EarnPage() {
               {v.apy7dWad !== undefined && ` · 7 d ${formatAprWad(v.apy7dWad)}`}
             </div>
           </div>
+        ) : status !== "waiting" ? (
+          // hedged (or rebalancing) but no share-price window yet in the lookback: earning, APY not measurable yet
+          <p className="text-sm text-long" data-testid="earning-no-apy">
+            Earning funding every block. The APY shows once the share-price history covers a window.
+          </p>
         ) : (
           // Never show a fake APY (lane brief §3); PRD US6.
           <p className="text-sm text-warn" data-testid="waiting-for-funding">

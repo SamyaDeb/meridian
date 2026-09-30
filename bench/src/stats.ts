@@ -91,3 +91,16 @@ export function loadMix(n: number, seed: number): Array<"place" | "cancel" | "ma
   }
   return out;
 }
+
+/** A book side exists when its best tick is neither 0 (no bids) nor near the uint32 sentinel (no asks). */
+export function hasSide(tick: number): boolean {
+  return tick > 0 && tick < 0xffff_ff00;
+}
+
+/**
+ * Label for output files: "anvil-<chainId>" when the node is anvil (a local chain started with --chain-id 10143 must
+ * never produce a file that reads like testnet evidence), else the chain id.
+ */
+export function networkLabel(chainId: number, clientVersion: string): string {
+  return /anvil/i.test(clientVersion) ? `anvil-${chainId}` : String(chainId);
+}
