@@ -22,3 +22,6 @@ contracts/broadcast/*/*/dry-run/
 # local bot run logs (evidence summarised in docs/standup)
 runs/
 contracts/broadcast/*/*/run-[0-9]*.json
+# local rehearsal deployments (DeployPulse DEPLOYMENTS_OUT=anvil-<chain>.json)
+deployments/anvil-*.json
+contracts/broadcast/SmokeFull.s.sol/

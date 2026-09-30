@@ -24,7 +24,10 @@ import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
 ///   Dry-run:  forge script script/DeployPulse.s.sol --fork-url $MONAD_TESTNET_RPC_URL --code-size-limit 131072
 ///   Deploy:   … --rpc-url $MONAD_TESTNET_RPC_URL --broadcast --slow --code-size-limit 131072
 ///   env: DEPLOYER_PK (required), KEEPER_ADDRESS (feeder of the keeper-fed oracles; optional),
-///        DEPLOY_VAULT / DEPLOY_SWAPS (Phase 4, default false), DEPLOY_CRE_RECEIVER (should-tier, default false).
+///        DEPLOY_VAULT / DEPLOY_SWAPS (Phase 4, default false), DEPLOY_CRE_RECEIVER (should-tier, default false),
+///        REUSE_DEPLOYMENT (a file name under deployments/, e.g. "10143.json"): keep that deployment's perp + demo market
+///        (and any vault/swaps not being redeployed) and add only the requested yield layers; the merged record is
+///        written to DEPLOYMENTS_OUT (default <chainid>.json). Phase 4 step 7: vault + swaps on the live testnet perp.
 /// @dev Config (`script/config/<chainid>.json`):
 ///      - `tokens.AUSD` null ⇒ a 6-dp MockERC20 "tAUSD" (refused on mainnet).
 ///      - `oracle.kind`: "pyth" = PythChainlinkOracleAdapter (Chainlink guard off when `chainlink.monUsd` is null);
@@ -66,6 +69,8 @@ contract DeployPulse is DeployBase {
     address internal keeper;
     bool internal ausdIsMock;
     bool internal hedgerIsMock;
+    bool internal reusing;
+    uint256 internal yieldLayersBlock; // REUSE_DEPLOYMENT: block the vault/swaps section was broadcast in
 
     function run() external returns (Deployed memory) {
         _loadConfig();
@@ -84,19 +89,27 @@ contract DeployPulse is DeployBase {
         require(d.ausd != address(0) || block.chainid != MAINNET, "mainnet needs the real AUSD");
 
         uint256 startBlock = block.number;
-        vm.startBroadcast(pk);
-        if (d.ausd == address(0)) {
-            d.ausd = address(new MockERC20("Test AUSD", "tAUSD", 6));
-            ausdIsMock = true;
+        string memory reuse = vm.envOr("REUSE_DEPLOYMENT", string(""));
+        reusing = bytes(reuse).length != 0;
+        if (reusing) {
+            yieldLayersBlock = block.number;
+            startBlock = _loadExisting(reuse);
         }
-        // 1. InsuranceFund (shared by every market) + registry
-        d.insuranceFund = address(new InsuranceFund(d.ausd, deployer));
-        d.marketFactory = address(new MarketFactory(deployer));
-        // 2–7. the perp market
-        d.perp = _deployMarket(cfg.readString(".params.perp.symbol"), cfg.readString(".params.oracle.kind"), false);
-        if (cfg.readBoolOr(".demoMarket.enabled", false)) {
-            require(block.chainid != MAINNET, "no test markets on mainnet");
-            d.demo = _deployMarket(cfg.readString(".demoMarket.symbol"), "keeper-fed", true);
+        vm.startBroadcast(pk);
+        if (!reusing) {
+            if (d.ausd == address(0)) {
+                d.ausd = address(new MockERC20("Test AUSD", "tAUSD", 6));
+                ausdIsMock = true;
+            }
+            // 1. InsuranceFund (shared by every market) + registry
+            d.insuranceFund = address(new InsuranceFund(d.ausd, deployer));
+            d.marketFactory = address(new MarketFactory(deployer));
+            // 2–7. the perp market
+            d.perp = _deployMarket(cfg.readString(".params.perp.symbol"), cfg.readString(".params.oracle.kind"), false);
+            if (cfg.readBoolOr(".demoMarket.enabled", false)) {
+                require(block.chainid != MAINNET, "no test markets on mainnet");
+                d.demo = _deployMarket(cfg.readString(".demoMarket.symbol"), "keeper-fed", true);
+            }
         }
         // 8–9. vault (Phase 4)
         if (vm.envOr("DEPLOY_VAULT", false)) _deployVault();
@@ -107,6 +120,50 @@ contract DeployPulse is DeployBase {
         _write(startBlock);
         _log();
         return d;
+    }
+
+    /// @dev REUSE_DEPLOYMENT: take every address of an existing record (same chain, deployed) instead of deploying the
+    ///      perp. Vault / swap addresses are kept unless DEPLOY_VAULT / DEPLOY_SWAPS redeploy them. Returns its startBlock.
+    function _loadExisting(string memory name) internal returns (uint256 startBlock) {
+        string memory j = vm.readFile(string.concat(vm.projectRoot(), "/../deployments/", name));
+        require(j.readUint(".chainId") == block.chainid, "REUSE_DEPLOYMENT: chain id mismatch");
+        require(j.readBoolOr(".deployed", false), "REUSE_DEPLOYMENT: not a broadcast deployment");
+        require(j.readAddress(".owner") == deployer || block.chainid != MAINNET, "REUSE_DEPLOYMENT: owner must deploy");
+        d.ausd = j.readAddress(".contracts.AUSD");
+        d.wmon = j.readAddress(".contracts.WMON");
+        d.insuranceFund = j.readAddress(".contracts.InsuranceFund");
+        d.marketFactory = j.readAddress(".contracts.MarketFactory");
+        d.perp = Market(
+            j.readAddress(".contracts.OracleAdapter"),
+            j.readAddress(".contracts.ClearingHouse"),
+            j.readAddress(".contracts.OrderBook"),
+            j.readString(".symbol"),
+            j.readString(".oracleKind")
+        );
+        if (vm.keyExistsJson(j, ".demoMarket")) {
+            d.demo = Market(
+                j.readAddress(".demoMarket.OracleAdapter"),
+                j.readAddress(".demoMarket.ClearingHouse"),
+                j.readAddress(".demoMarket.OrderBook"),
+                j.readString(".demoMarket.symbol"),
+                j.readString(".demoMarket.oracleKind")
+            );
+        }
+        if (!vm.envOr("DEPLOY_VAULT", false) && vm.keyExistsJson(j, ".contracts.PulseVault")) {
+            d.vault = j.readAddress(".contracts.PulseVault");
+            d.hedger = j.readAddress(".contracts.KuruHedger");
+        }
+        if (!vm.envOr("DEPLOY_SWAPS", false) && vm.keyExistsJson(j, ".contracts.FundingSwapMarket")) {
+            d.swapMarket = j.readAddress(".contracts.FundingSwapMarket");
+            d.swapOrderBook = j.readAddress(".contracts.SwapOrderBook");
+        }
+        string[] memory mocks = j.readStringArray(".mockContracts");
+        for (uint256 i; i < mocks.length; ++i) {
+            if (keccak256(bytes(mocks[i])) == keccak256("AUSD")) ausdIsMock = true;
+            if (keccak256(bytes(mocks[i])) == keccak256("KuruHedger") && d.hedger != address(0)) hedgerIsMock = true;
+        }
+        startBlock = j.readUint(".startBlock");
+        console.log("REUSE_DEPLOYMENT", name, "perp CH", d.perp.clearingHouse);
     }
 
     /// @dev IF (shared) → oracle → ClearingHouse → OrderBook → setOrderBook → IF authorisation → registry.
@@ -199,6 +256,19 @@ contract DeployPulse is DeployBase {
     /// @dev Testnet (owner = deployer): nothing to do. Mainnet: every owned contract to the Safe.
     function _handOver() internal {
         if (owner == deployer) return;
+        if (reusing) {
+            // the reused perp contracts were handed over by their own deploy: only what this run created
+            address[2] memory fresh = [
+                vm.envOr("DEPLOY_SWAPS", false) ? d.swapMarket : address(0),
+                vm.envOr("DEPLOY_VAULT", false) ? d.vault : address(0)
+            ];
+            for (uint256 i; i < fresh.length; ++i) {
+                if (fresh[i] == address(0)) continue;
+                (bool ok,) = fresh[i].call(abi.encodeWithSignature("transferOwnership(address)", owner));
+                require(ok, "transferOwnership failed");
+            }
+            return;
+        }
         address[8] memory owned = [
             d.insuranceFund,
             d.marketFactory,
@@ -250,6 +320,7 @@ contract DeployPulse is DeployBase {
         root.serialize("mockContracts", mocks);
         root.serialize("chainId", block.chainid);
         root.serialize("startBlock", startBlock);
+        if (yieldLayersBlock != 0) root.serialize("yieldLayersBlock", yieldLayersBlock);
         root.serialize("mocks", false);
         root.serialize("deployed", true);
         root.serialize("owner", owner);

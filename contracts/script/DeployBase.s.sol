@@ -17,8 +17,11 @@ abstract contract DeployBase is Script {
         require(cfg.readUint(".chainId") == block.chainid, "config chainId mismatch");
     }
 
+    /// @dev `DEPLOYMENTS_OUT` (a file name under ../deployments, e.g. "anvil-10143.json") keeps a local rehearsal on
+    ///      a chain-id-10143 anvil from overwriting the real testnet record deployments/10143.json.
     function _deploymentsPath() internal view returns (string memory) {
-        return string.concat(vm.projectRoot(), "/../deployments/", vm.toString(block.chainid), ".json");
+        string memory name = vm.envOr("DEPLOYMENTS_OUT", string.concat(vm.toString(block.chainid), ".json"));
+        return string.concat(vm.projectRoot(), "/../deployments/", name);
     }
 
     /// @dev Address at `key`, or address(0) when the key is absent or JSON `null` (the config's "VERIFY" marker).
