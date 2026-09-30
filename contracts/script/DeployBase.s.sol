@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Script} from "forge-std/Script.sol";
+import {VmSafe} from "forge-std/Vm.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {RiskParams, FundingParams, SwapParams, VaultParams} from "../src/interfaces/PulseTypes.sol";
 
@@ -12,8 +13,19 @@ abstract contract DeployBase is Script {
 
     string internal cfg;
 
+    /// @dev `DEPLOY_CONFIG` (a path under script/config/, e.g. "tmp/143-test.json") replaces `<chainid>.json` for
+    ///      fork tests and rehearsals only: it is refused in a real broadcast to mainnet (143).
     function _loadConfig() internal {
-        cfg = vm.readFile(string.concat(vm.projectRoot(), "/script/config/", vm.toString(block.chainid), ".json"));
+        string memory alt = vm.envOr("DEPLOY_CONFIG", string(""));
+        if (bytes(alt).length != 0) {
+            require(
+                block.chainid != 143 || !vm.isContext(VmSafe.ForgeContext.ScriptBroadcast),
+                "DEPLOY_CONFIG is refused in a mainnet broadcast"
+            );
+        } else {
+            alt = string.concat(vm.toString(block.chainid), ".json");
+        }
+        cfg = vm.readFile(string.concat(vm.projectRoot(), "/script/config/", alt));
         require(cfg.readUint(".chainId") == block.chainid, "config chainId mismatch");
     }
 
@@ -30,6 +42,14 @@ abstract contract DeployBase is Script {
         bytes memory raw = vm.parseJson(cfg, key);
         if (raw.length != 32) return address(0);
         return abi.decode(raw, (address));
+    }
+
+    /// @dev Unsigned number at `key`, or 0 when the key is absent or JSON `null`.
+    function _optUint(string memory key) internal view returns (uint256) {
+        if (!vm.keyExistsJson(cfg, key)) return 0;
+        bytes memory raw = vm.parseJson(cfg, key);
+        if (raw.length != 32) return 0;
+        return abi.decode(raw, (uint256));
     }
 
     function _u(string memory key) internal view returns (uint256) {

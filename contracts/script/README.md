@@ -62,3 +62,37 @@ REUSE_DEPLOYMENT=10143.json DEPLOY_VAULT=1 DEPLOY_SWAPS=1 SWAP_MATURITY_IN_SEC=3
 ```
 - The perp, demo market, IF and factory addresses are taken from the record; vault/swap entries are kept unless `DEPLOY_VAULT`/`DEPLOY_SWAPS` redeploy them. `startBlock` stays; `yieldLayersBlock` records the new section's block.
 - **Forge writes the deployments JSON during the simulation, before the broadcast.** If the broadcast fails (30 Sep rehearsal: an "EOA nonce changed" clash with another process using the deployer key), the file lists addresses with no code. After every broadcast, check `cast code` at each new address before committing the record, and never share the deployer key with a running process.
+
+## Mainnet (143): configuration, hand-over and wiring (Phase 5 A5)
+**Config** `config/143.json`, status 30 Sep. Every value has a source in ARCHITECTURE §0/§Research or MATH_SPEC.
+
+| Key | Value | Status |
+|---|---|---|
+| `owner` | the Safe 2-of-3 | ⏳ **launch blocker**: B creates it. A verifies on 143 (`cast call <safe> "getThreshold()(uint256)"` = 2, `getOwners()` = the 3 founders) before writing it |
+| `params.oracle.kind` | `"pyth"` (PythChainlinkOracleAdapter, Chainlink guard) | ✅ structural, added by A (DeployPulse reads it; the file had no key) |
+| `params.oracle.maxDeviationWad` | B chooses | ⏳ **launch blocker**: null fails the adapter's constructor bounds (0, 10%] |
+| `params.oracle.maxStalenessSec` | 10 (with the Pyth API key) / 60 (without) | ⏳ B confirms once the key is in hand |
+| `params.vault.depositCap` | `"1200000000"` = 1,200 AUSD | ✅ PHASES decision 12. Falls back to 1,000 AUSD if review A-04 isn't fixed by Mon 5 Oct |
+| `params.swap.maturity` / `maturityInSec` | null / 2,592,000 | ✅ DeployPulse sets maturity = the listing block's time + 30 d (MATH_SPEC §6.1). `SWAP_MATURITY_IN_SEC` overrides it (test maturities only) |
+| `kuru.monAusdMarket` | dead book (R19) | ⚠️ review **A-01 (High)**: withdrawals beyond idle and forced exits use this direct route. Until fixed, the mainnet vault stays idle (no rebalance) |
+| `foundry.toml` `evm_version = cancun` | — | ⏳ > VERIFY before mainnet (Monad docs) |
+
+**What the script refuses on 143** (proved by `test/fork/DeployPulseMainnet.t.sol` against a mainnet fork; runs with `MONAD_RPC_URL`, skips without): owner missing or = deployer; tAUSD (`tokens.AUSD` null); a demo market; MockKuruHedger (`kuru.flowEntrypoint` null); a keeper-fed oracle (TestnetKeeperOracle's constructor); a vault without `KEEPER_ADDRESS` + `MM_ADDRESS`, or with either equal to the deployer. A code guard (untestable without a real broadcast) also refuses `DEPLOY_CONFIG` in a mainnet broadcast.
+
+**Hand-over.** Every Ownable contract (InsuranceFund, MarketFactory, oracle adapter, ClearingHouse, FundingSwapMarket, PulseVault, KuruHedger) is plain `Ownable`: `transferOwnership(safe)` takes effect immediately, so **no Safe accept transaction exists and no Safe batch is needed for the hand-over**. The script asserts `owner() == safe` for each one and that the deployer is not a vault keeper. The OrderBooks have no owner. After the run, the deployer holds **no role** on any contract (fork test).
+
+**Wiring, in execution order** (all inside `DeployPulse --broadcast`, signed by the deployer before the hand-over):
+1. `InsuranceFund(deployer)`, `MarketFactory(deployer)`
+2. `PythChainlinkOracleAdapter(deployer, pyth, MON/USD id, chainlink MON/USD, maxStaleness, maxDeviation, 3600 s)`
+3. `ClearingHouse(AUSD, oracle, IF, risk, funding, deployer)` → `OrderBook(CH, tick, lot)` → `CH.setOrderBook(OB)` (one-shot)
+4. `IF.setMarketAuthorized(CH, true)`, `MarketFactory.registerMarket("MON-PERP", OB, CH, oracle, WMON)`
+5. `KuruHedger(deployer, WMON, AUSD, flowEntrypoint, monAusdMarket)` → `PulseVault(AUSD, CH, OB, hedger, vault params, deployer)` → `hedger.setVault(vault)` (one-shot) → `vault.setKeeper(KEEPER_ADDRESS)` → `vault.setSkewProvider(MM_ADDRESS)` (MATH_SPEC §5.2 amendment)
+6. `FundingSwapMarket(CH, AUSD, IF, now + 30 d, swap params, deployer)` → `OrderBook(swap, 1e14, 1,000 MON)` → `swap.setOrderBook` (one-shot) → `IF.setMarketAuthorized(swap, true)`
+7. `transferOwnership(safe)` × 7, with asserts
+
+**After the hand-over (Safe, as needed; none is required to go live):** `CH.setPaused` / `FundingSwapMarket.setPaused` (incident), `CH.setRiskParams` + `vault.setVaultParams` (raise the caps together, decision 12), `vault.setKeeper(k, false)` (revoke a leaked keeper: review A-09), `CH.collectFees(to)` / `swap.collectFees(to)`, `adapter.setOracleParams`. **Permissionless seeding:** `InsuranceFund.fund(amount)` (anyone), MM `CH.deposit`, vault `deposit`, swap margin.
+
+```bash
+# mainnet-fork check of the whole config (no broadcast); needs MONAD_RPC_URL
+cd contracts && forge test --match-path test/fork/DeployPulseMainnet.t.sol -vv
+```

@@ -16,6 +16,7 @@ import {PulseVault} from "../src/vault/PulseVault.sol";
 import {MockKuruHedger} from "../src/mocks/MockKuruHedger.sol";
 import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IPythMinimal} from "../src/interfaces/external/IPythMinimal.sol";
 import {AggregatorV3Interface} from "../src/interfaces/external/AggregatorV3Interface.sol";
 import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
@@ -223,21 +224,29 @@ contract DeployPulse is DeployBase {
             KuruHedger kh = new KuruHedger(deployer, d.wmon, d.ausd, flowEntry, _optAddress(".kuru.monAusdMarket"));
             d.hedger = address(kh);
         }
+        address mmBot = vm.envOr("MM_ADDRESS", address(0));
+        if (block.chainid == MAINNET) {
+            // the vault needs its keeper and its skew provider at launch, and neither may be the deployer (hot keys)
+            require(keeper != address(0) && mmBot != address(0), "mainnet vault: set KEEPER_ADDRESS and MM_ADDRESS");
+            require(keeper != deployer && mmBot != deployer, "mainnet vault: keeper/MM must not be the deployer");
+        }
         PulseVault v =
             new PulseVault(IERC20(d.ausd), d.perp.clearingHouse, d.perp.orderBook, d.hedger, _vaultParams(), deployer);
         d.vault = address(v);
         if (flowEntry != address(0)) KuruHedger(payable(d.hedger)).setVault(d.vault);
         if (keeper != address(0)) v.setKeeper(keeper, true);
-        address mmBot = vm.envOr("MM_ADDRESS", address(0));
         if (mmBot != address(0)) v.setSkewProvider(mmBot, true);
     }
 
-    /// @dev Steps 10–13 (Phase 4). Maturity: `params.swap.maturity` (unix s), or now + `SWAP_MATURITY_IN_SEC` for a
-    ///      test maturity (e.g. 3600 on testnet, PHASES Phase 4). Tick 1e14 = 1 bp APR, lot 1,000 MON (WS-05).
+    /// @dev Steps 10–13 (Phase 4). Maturity: now + `SWAP_MATURITY_IN_SEC` (test maturity, e.g. 3600 on testnet,
+    ///      PHASES Phase 4), else `params.swap.maturity` (unix s), else now + `params.swap.maturityInSec`. Tick 1e14 = 1 bp APR, lot 1,000 MON (WS-05).
     function _deploySwaps() internal {
         uint256 inSec = vm.envOr("SWAP_MATURITY_IN_SEC", uint256(0));
-        uint256 maturity = inSec != 0 ? block.timestamp + inSec : cfg.readUintOr(".params.swap.maturity", 0);
-        require(maturity > block.timestamp, "VERIFY: set params.swap.maturity or SWAP_MATURITY_IN_SEC");
+        uint256 maturity = inSec != 0 ? 0 : _optUint(".params.swap.maturity");
+        // MATH_SPEC §6.1: one 30-day contract from listing ⇒ config `maturityInSec` (2,592,000 on 143) from this block
+        if (maturity == 0) inSec = inSec != 0 ? inSec : _optUint(".params.swap.maturityInSec");
+        if (inSec != 0) maturity = block.timestamp + inSec;
+        require(maturity > block.timestamp, "VERIFY: set params.swap.maturity(InSec) or SWAP_MATURITY_IN_SEC");
         FundingSwapMarket swap = new FundingSwapMarket(
             d.perp.clearingHouse, d.ausd, d.insuranceFund, uint64(maturity), _swapParams(), deployer
         );
@@ -258,9 +267,10 @@ contract DeployPulse is DeployBase {
         if (owner == deployer) return;
         if (reusing) {
             // the reused perp contracts were handed over by their own deploy: only what this run created
-            address[2] memory fresh = [
+            address[3] memory fresh = [
                 vm.envOr("DEPLOY_SWAPS", false) ? d.swapMarket : address(0),
-                vm.envOr("DEPLOY_VAULT", false) ? d.vault : address(0)
+                vm.envOr("DEPLOY_VAULT", false) ? d.vault : address(0),
+                vm.envOr("DEPLOY_VAULT", false) && !hedgerIsMock ? d.hedger : address(0)
             ];
             for (uint256 i; i < fresh.length; ++i) {
                 if (fresh[i] == address(0)) continue;
@@ -269,7 +279,7 @@ contract DeployPulse is DeployBase {
             }
             return;
         }
-        address[8] memory owned = [
+        address[9] memory owned = [
             d.insuranceFund,
             d.marketFactory,
             d.perp.oracle,
@@ -277,13 +287,17 @@ contract DeployPulse is DeployBase {
             d.demo.oracle,
             d.demo.clearingHouse,
             d.swapMarket,
-            d.vault
+            d.vault,
+            hedgerIsMock ? address(0) : d.hedger // MockKuruHedger is not Ownable
         ];
         for (uint256 i; i < owned.length; ++i) {
             if (owned[i] == address(0)) continue;
             (bool ok,) = owned[i].call(abi.encodeWithSignature("transferOwnership(address)", owner));
             require(ok, "transferOwnership failed");
+            require(Ownable(owned[i]).owner() == owner, "hand-over: owner not set");
         }
+        // the deployer keeps no role: it is never a vault keeper on a handed-over deployment
+        if (d.vault != address(0)) require(!PulseVault(d.vault).isKeeper(deployer), "hand-over: deployer is keeper");
     }
 
     /// @dev Same keys as deployments/31337.json (consumers unchanged) + oracleKind, owner and the labelled demo market.

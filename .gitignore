@@ -25,3 +25,6 @@ contracts/broadcast/*/*/run-[0-9]*.json
 # local rehearsal deployments (DeployPulse DEPLOYMENTS_OUT=anvil-<chain>.json)
 deployments/anvil-*.json
 contracts/broadcast/SmokeFull.s.sol/
+# DeployPulse fork tests: patched configs + their deployment records
+contracts/script/config/tmp/
+deployments/fork-test-*.json
