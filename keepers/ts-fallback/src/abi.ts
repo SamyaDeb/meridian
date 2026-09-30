@@ -26,3 +26,20 @@ export const pulseVaultAbi = parseAbi([
   "function rebalance() returns (uint8 reason)",
   "function rebalanceWithRoute(bytes spotRoute) returns (uint8 reason)",
 ]);
+
+// IFundingSwapMarket (interfaces-v1.5), checked against abis/IFundingSwapMarket.json.
+export const fundingSwapAbi = parseAbi([
+  "struct SwapAccountView { uint256 collateral; int256 size; int256 avgFixedApr; int256 accruedNet; int256 unrealizedPnl; int256 equity; uint256 initialMargin; uint256 maintenanceMargin; uint256 reservedOrderMargin; bool liquidatable; }",
+  "function getAccount(address account) view returns (SwapAccountView)",
+  "function liquidate(address account, uint256 maxSizeWad) returns (int256 sizeTransferred)",
+  "function settleMaturity()",
+  "function maturity() view returns (uint256 timestamp)",
+  "event SwapPositionChanged(address indexed account, int256 sizeDelta, int256 newSize, int256 aprWad, int256 realizedPnl, int256 fee, bool isMaker)",
+  "event MaturitySettled(int256 cumFundingAtMaturity, int256 cumIndexTimeAtMaturity, uint64 blockNumber)",
+]);
+
+// FundingSwapMarket (the deployed contract, not the frozen interface), checked against abis/FundingSwapMarket.json:
+// the "snapshot taken" flag. isMatured() is only `block.timestamp >= maturity`, true before any snapshot.
+export const fundingSwapImplAbi = parseAbi([
+  "function maturitySnapshot() view returns (bool snapped, int256 cumFunding, int256 cumIndexTime)",
+]);

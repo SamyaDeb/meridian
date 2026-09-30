@@ -7,7 +7,10 @@
 // mark move could have crossed maintenance (decide.ts accountsToCheck), or on a full sweep. Throttled requests are
 // retried with jittered back-off (@pulse/bot-rpc) instead of failing the step.
 // MARKET=demo runs the same loop against the clearly labelled MON-PERP-DEMO test market (deployments.demoMarket).
-// Next (LANE_B §4): swap-market liquidations, settleMaturity, vault rebalanceWithRoute.
+// Funding swaps (Phase 4 step 2): an extra step of the MAIN keeper (not a separate process: it shares the tick, the one
+// log scan, the nonce and the block polling), on when deployments has FundingSwapMarket (SWAP_DUTIES=0 turns it off):
+// swap liquidations (SwapPositionChanged → getAccount → liquidate, size-bounded; the keeper must hold collateral in the
+// swap market because the liquidator takes the position) and settleMaturity() exactly once at maturity.
 import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
@@ -25,7 +28,8 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RateWindow, burnPerHourWei, createCountingFetch, newRpcStats, pruneSamples, type BalanceSample } from "@pulse/bot-rpc";
-import { clearingHouseAbi, oracleAdapterAbi, pulseVaultAbi } from "./abi.js";
+import { clearingHouseAbi, fundingSwapAbi, fundingSwapImplAbi, oracleAdapterAbi, pulseVaultAbi } from "./abi.js";
+import { type SwapSnapshot, shouldSettleMaturity, swapAccountIsInert, swapAccountsToCheck, swapIsHot, swapLiquidationCandidates } from "./swap.js";
 import {
   type AccountSnapshot,
   type CheckedAccount,
@@ -115,7 +119,7 @@ interface Deployments {
   deployed?: boolean;
   /** Oracle of the main market (DeployPulse); absent on anvil (mock oracle). */
   oracleKind?: OracleKind;
-  contracts: MarketDeployment & { PulseVault?: Address };
+  contracts: MarketDeployment & { PulseVault?: Address; FundingSwapMarket?: Address; SwapOrderBook?: Address };
   /** MON-PERP-DEMO: separate OB + CH with a keeper-fed test oracle, used only for the crash/liquidation demo. */
   demoMarket?: MarketDeployment & { symbol: string; testMarket: true; oracleKind: OracleKind };
 }
@@ -132,9 +136,15 @@ const ORACLE: Address = market.OracleAdapter;
 const ORACLE_KIND: OracleKind =
   (env("ORACLE_KIND") as OracleKind | undefined) ?? (MARKET === "demo" ? dep.demoMarket?.oracleKind : dep.oracleKind) ?? "pyth";
 if (PRICE_FACTOR_FILE !== undefined && MARKET !== "demo") throw new Error("PRICE_FACTOR_FILE is only allowed with MARKET=demo");
-const SCAN_EVENTS = [...clearingHouseAbi, ...oracleAdapterAbi].filter(
-  (x): x is Extract<(typeof clearingHouseAbi)[number] | (typeof oracleAdapterAbi)[number], { type: "event" }> => x.type === "event",
+const SWAP: Address | undefined = MARKET === "main" && env("SWAP_DUTIES") !== "0" ? dep.contracts.FundingSwapMarket : undefined;
+const SWAP_FULL_EVERY_BLOCKS = BigInt(env("SWAP_FULL_EVERY_BLOCKS") ?? "10");
+// Size-bounded swap liquidation (the keeper takes the position and must pass IM afterwards); default = whole position.
+const SWAP_LIQ_MAX_SIZE = env("SWAP_LIQ_MAX_SIZE_WAD") === undefined ? maxUint256 : BigInt(env("SWAP_LIQ_MAX_SIZE_WAD") as string);
+const SCAN_EVENTS = [...clearingHouseAbi, ...oracleAdapterAbi, ...fundingSwapAbi].filter(
+  (x): x is Extract<(typeof clearingHouseAbi)[number] | (typeof oracleAdapterAbi)[number] | (typeof fundingSwapAbi)[number], { type: "event" }> =>
+    x.type === "event",
 );
+const SCAN_ADDRESSES: Address[] = SWAP === undefined ? [CH, ORACLE] : [CH, ORACLE, SWAP];
 
 // ───────────────────────────── clients ─────────────────────────────
 
@@ -182,7 +192,28 @@ const health = {
   maxFundingGapBlocks: 0n, // observed from FundingUpdated logs since start
   lastFundingUpdateBlock: -1n,
   monPerHour: null as string | null, // balance decrease over the last 30 min, scaled to 1 h
+  // Phase 4 step 2 (funding swaps)
+  swapMarket: SWAP ?? null,
+  swapTracked: 0,
+  swapAccountReads: 0,
+  swapLiquidations: 0,
+  swapLiquidationLatency: new LiquidationLatency().summary(),
+  maturity: 0n,
+  maturitySettled: false, // snapshot exists (ours or lazy)
+  maturitySettledByKeeper: false,
 };
+const swapTracked = new Set<Address>();
+let swapChanged = new Set<Address>();
+const swapHot = new Set<Address>();
+let swapLastFull = -1n;
+const swapLatency = new LiquidationLatency();
+let maturityPending = false;
+// chain time ≈ local time + offset (refreshed from a block read every CLOCK_EVERY_BLOCKS): the maturity pre-check must
+// not trust the local clock (skew; anvil evm_increaseTime in the rehearsal).
+let clockOffsetSec = 0n;
+let clockReadBlock = -1n;
+const CLOCK_EVERY_BLOCKS = 300n;
+const localSec = (): bigint => BigInt(Math.floor(Date.now() / 1000));
 let open = new Set<Address>();
 let changed = new Set<Address>(); // PositionChanged since the last liquidation check
 const checked = new Map<Address, CheckedAccount>();
@@ -306,7 +337,7 @@ async function scanStep(block: bigint): Promise<void> {
     scannedTo = (start > floor ? start : floor) - 1n;
   }
   for (const [fromBlock, toBlock] of blockRanges(scannedTo + 1n, block, LOG_SPAN)) {
-    const logs = await pub.getLogs({ address: [CH, ORACLE], events: SCAN_EVENTS, fromBlock, toBlock, strict: true });
+    const logs = await pub.getLogs({ address: SCAN_ADDRESSES, events: SCAN_EVENTS, fromBlock, toBlock, strict: true });
     const pos: Array<{ account: Address; newSize: bigint }> = [];
     const fundingBlocks: bigint[] = [];
     for (const l of logs) {
@@ -316,6 +347,13 @@ async function scanStep(block: bigint): Promise<void> {
         changed.add(l.args.account.toLowerCase() as Address);
       } else if (fromCh && l.eventName === "FundingUpdated") {
         fundingBlocks.push(l.blockNumber);
+      } else if (l.eventName === "SwapPositionChanged") {
+        const a = l.args.account.toLowerCase() as Address;
+        swapTracked.add(a); // tracked until a read proves it inert (newSize 0 may still carry a K stream)
+        swapChanged.add(a);
+      } else if (l.eventName === "MaturitySettled") {
+        health.maturitySettled = true;
+        maturityPending = false;
       } else if (!fromCh && l.eventName === "PriceUpdated") {
         if (l.blockNumber > lastPushBlock) lastPushBlock = l.blockNumber;
         if (onchainPrice === null || l.args.publishTime >= onchainPrice.publishTime) {
@@ -420,6 +458,77 @@ async function liquidationStep(block: bigint): Promise<void> {
   }
 }
 
+async function swapLiquidationStep(block: bigint): Promise<void> {
+  if (SWAP === undefined || swapTracked.size === 0) return;
+  const pick = swapAccountsToCheck({ block, tracked: swapTracked, changed: swapChanged, hot: swapHot, lastFullBlock: swapLastFull, fullEvery: SWAP_FULL_EVERY_BLOCKS });
+  swapChanged = new Set();
+  if (pick.full) swapLastFull = block;
+  const snaps: SwapSnapshot[] = [];
+  for (let i = 0; i < pick.accounts.length; i += READ_BATCH) {
+    const batch = pick.accounts.slice(i, i + READ_BATCH);
+    const views = await Promise.allSettled(
+      batch.map((a) => pub.readContract({ address: SWAP, abi: fundingSwapAbi, functionName: "getAccount", args: [a], blockNumber: block })),
+    );
+    health.swapAccountReads += batch.length;
+    views.forEach((r, j) => {
+      const a = batch[j];
+      if (a === undefined) return;
+      if (r.status !== "fulfilled") {
+        swapChanged.add(a);
+        return;
+      }
+      const v = r.value;
+      const s: SwapSnapshot = { account: a, size: v.size, unrealizedPnl: v.unrealizedPnl, equity: v.equity, maintenanceMargin: v.maintenanceMargin, liquidatable: v.liquidatable };
+      snaps.push(s);
+      if (swapIsHot(s)) swapHot.add(a);
+      else swapHot.delete(a);
+      if (swapAccountIsInert(s) && v.collateral === 0n) swapTracked.delete(a);
+    });
+  }
+  health.swapTracked = swapTracked.size;
+  swapLatency.observe(block, snaps.filter((s) => s.liquidatable).map((s) => s.account));
+  for (const s of swapLiquidationCandidates(snaps, MAX_LIQUIDATIONS_PER_BLOCK, account.address)) {
+    try {
+      const data = encodeFunctionData({ abi: fundingSwapAbi, functionName: "liquidate", args: [s.account, SWAP_LIQ_MAX_SIZE] });
+      const landed = await send("swap liquidate", SWAP, data);
+      if (landed !== null) {
+        health.swapLiquidations++;
+        log("swap liquidation latency", { account: s.account, firstSeen: swapLatency.firstSeen(s.account), landed, blocks: swapLatency.liquidated(s.account, landed) });
+        health.swapLiquidationLatency = swapLatency.summary();
+      }
+    } catch (e) {
+      fail(`swap liquidate ${s.account}`, e); // someone else first, or the keeper lacks swap-market margin (RUNBOOK)
+    }
+    swapChanged.add(s.account);
+    swapTracked.add(account.address.toLowerCase() as Address); // the keeper now holds (part of) the position
+  }
+}
+
+async function readClock(block: bigint): Promise<void> {
+  const blk = await pub.getBlock({ blockNumber: block });
+  clockOffsetSec = blk.timestamp - localSec();
+  clockReadBlock = block;
+}
+
+/** settleMaturity() exactly once: at/after maturity, no snapshot yet (a trade may have taken it lazily), none pending. */
+async function maturityStep(): Promise<void> {
+  if (SWAP === undefined || health.maturitySettled || maturityPending) return;
+  if (localSec() + clockOffsetSec + 2n < health.maturity) return; // chain-clock pre-check: no block read per tick
+  const blk = await pub.getBlock({ blockTag: "latest" });
+  clockOffsetSec = blk.timestamp - localSec();
+  if (!shouldSettleMaturity({ nowSec: blk.timestamp, maturity: health.maturity, snapped: health.maturitySettled, pending: maturityPending })) return;
+  maturityPending = true;
+  try {
+    const landed = await send("settleMaturity", SWAP, encodeFunctionData({ abi: fundingSwapAbi, functionName: "settleMaturity" }));
+    if (landed !== null) {
+      health.maturitySettled = true;
+      health.maturitySettledByKeeper = true;
+    }
+  } finally {
+    maturityPending = false;
+  }
+}
+
 async function vaultStep(block: bigint): Promise<void> {
   const v = dep.contracts.PulseVault;
   if (!VAULT_REBALANCE || MARKET !== "main" || v === undefined) return;
@@ -461,6 +570,9 @@ async function tick(block: bigint): Promise<void> {
     const steps: Array<[string, () => Promise<void>]> = [
       ["liquidation", () => (scannedTo >= block ? liquidationStep(block) : Promise.resolve())],
       ["funding", () => fundingStep(block)],
+      ["swap liquidation", () => (scannedTo >= block ? swapLiquidationStep(block) : Promise.resolve())],
+      ["maturity", () => maturityStep()],
+      ["clock", () => (SWAP !== undefined && (clockReadBlock < 0n || block - clockReadBlock >= CLOCK_EVERY_BLOCKS) ? readClock(block) : Promise.resolve())],
       ["vault", () => vaultStep(block)],
     ];
     for (const [name, fn] of steps) await fn().catch((e: unknown) => fail(name, e));
@@ -510,6 +622,12 @@ log("keeper start", {
   logSpan: LOG_SPAN,
 });
 await balanceStep().catch((e: unknown) => fail("balance", e));
+if (SWAP !== undefined) {
+  health.maturity = await pub.readContract({ address: SWAP, abi: fundingSwapAbi, functionName: "maturity" });
+  const [snapped] = await pub.readContract({ address: SWAP, abi: fundingSwapImplAbi, functionName: "maturitySnapshot" });
+  health.maturitySettled = snapped;
+  log("swap duties on", { swapMarket: SWAP, maturity: health.maturity, snapped, fullEveryBlocks: SWAP_FULL_EVERY_BLOCKS });
+}
 pub.watchBlockNumber({
   emitOnBegin: true,
   onBlockNumber: (b) => {

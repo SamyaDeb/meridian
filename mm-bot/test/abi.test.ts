@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { type Abi, toFunctionSelector, toEventSelector, type AbiFunction, type AbiEvent } from "viem";
-import { clearingHouseAbi, oracleAdapterAbi, orderBookAbi } from "../src/abi.js";
+import { clearingHouseAbi, fundingSwapAbi, oracleAdapterAbi, orderBookAbi } from "../src/abi.js";
 
 const load = (name: string): Abi =>
   JSON.parse(readFileSync(new URL(`../../abis/${name}.json`, import.meta.url), "utf8")) as Abi;
@@ -20,6 +20,7 @@ describe("ABI fragments match the committed interfaces", () => {
     ["IOrderBook", orderBookAbi],
     ["IClearingHouse", clearingHouseAbi],
     ["IOracleAdapter", oracleAdapterAbi],
+    ["IFundingSwapMarket", fundingSwapAbi],
   ] as const)("%s", (name, fragment) => {
     const committed = selectors(load(name));
     for (const s of selectors(fragment as Abi)) expect(committed.has(s), `${name}: ${s}`).toBe(true);

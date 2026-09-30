@@ -16,10 +16,24 @@ export const orderBookAbi = parseAbi([
 ]);
 
 export const clearingHouseAbi = parseAbi([
+  "struct FundingState { int256 cumFunding; int256 cumIndexTime; int256 emaPremium; int256 rate; uint64 lastUpdateBlock; }",
+  "struct FundingParams { uint256 alpha; int256 interestRate; uint256 rateCap; uint256 maxRateChangePerBlock; uint256 blockTimeMs; uint256 premiumBandWad; }",
+  "function previewFundingState() view returns (FundingState)",
+  "function fundingParams() view returns (FundingParams)",
   "struct AccountView { uint256 collateral; int256 size; uint256 entryPrice; int256 unrealizedPnl; int256 pendingFunding; int256 equity; uint256 initialMargin; uint256 maintenanceMargin; uint256 reservedOrderMargin; uint256 liquidationPrice; bool liquidatable; }",
   "function getAccount(address account) view returns (AccountView)",
 ]);
 
 export const oracleAdapterAbi = parseAbi([
   "function tryGetIndexPrice() view returns (bool ok, uint256 priceWad, uint256 updatedAt)",
+]);
+
+// IFundingSwapMarket (MARKET=swap): the swap market is the margin engine of the SwapOrderBook.
+export const fundingSwapAbi = parseAbi([
+  "struct SwapAccountView { uint256 collateral; int256 size; int256 avgFixedApr; int256 accruedNet; int256 unrealizedPnl; int256 equity; uint256 initialMargin; uint256 maintenanceMargin; uint256 reservedOrderMargin; bool liquidatable; }",
+  "struct SwapParams { uint256 aprMoveBuffer; uint256 liqHorizonSec; uint256 imMultiplier; uint256 takerFeeApr; int256 makerFeeApr; uint256 liqPenalty; uint256 keeperShare; uint256 maxOpenInterest; uint256 maxPositionSize; }",
+  "function getAccount(address account) view returns (SwapAccountView)",
+  "function realizedApr(uint64 blocksAgo) view returns (int256 aprWad)",
+  "function swapParams() view returns (SwapParams)",
+  "function isMatured() view returns (bool)",
 ]);

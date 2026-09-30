@@ -22,8 +22,9 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RateWindow, createCountingFetch, newRpcStats } from "@pulse/bot-rpc";
-import { clearingHouseAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
+import { clearingHouseAbi, fundingSwapAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
 import { DEFAULTS, buildLadder, inventoryRatio, quoteBps, sigmaForQuoting } from "./as.js";
+import { type AnchorSource, aprSigma, aprWadToBps, blocksFor, buildAprLadder, chooseAnchor, movedAprBps } from "./aprbook.js";
 import { type Resting, idsToRefresh, needsRequote, planRequote, shouldTick } from "./plan.js";
 import { gasLimitFor, gasLimitsForBatch, sendBatch } from "./send.js";
 
@@ -47,6 +48,12 @@ const LOTS_PER_LEVEL = BigInt(env("LOTS_PER_LEVEL") ?? "20");
 const LEVEL_SPACING_BPS = Number(env("LEVEL_SPACING_BPS") ?? "2");
 const REQUOTE_BPS = BigInt(env("REQUOTE_BPS") ?? "2"); // MATH_SPEC §4; testnet budget runs raise it (Monad bills the gas limit)
 const MAX_INVENTORY_LOTS = BigInt(env("MAX_INVENTORY_LOTS") ?? "200"); // 20,000 MON (< the 25,000 MON position cap)
+// Swap book (MARKET=swap): inventory limit = the swap market's maxPositionSize × this fraction (read at start).
+const SWAP_INVENTORY_FRACTION_BPS = BigInt(env("SWAP_INVENTORY_FRACTION_BPS") ?? "8000");
+// σ on the APR axis (APR bps/√s): the spec gives no default; 1 bp/√s ⇒ δ ≈ 4.56 APR bps at γ 0.01, k 0.5, 60 s.
+const SWAP_SIGMA_BPS = Number(env("SWAP_SIGMA_BPS") ?? "1");
+const SWAP_SIGMA_MAX = Number(env("SWAP_SIGMA_MAX") ?? "20");
+const SWAP_SIGMA_WINDOW_SEC = 8 * 3600; // σ from the 8 h realized APR series (MATH_SPEC §4)
 const SIGMA_WINDOW_SEC = 600; // σ from the last 10 min of index
 const SIGMA_MIN_COVERAGE_SEC = Number(env("SIGMA_MIN_COVERAGE_SEC") ?? "120");
 const SIGMA_MAX = Number(env("SIGMA_MAX") ?? String(5 * DEFAULTS.sigma)); // ≈ 500% annual vol
@@ -71,14 +78,19 @@ interface MarketDeployment {
 interface Deployments {
   chainId: number;
   deployed?: boolean;
-  contracts: MarketDeployment;
+  contracts: MarketDeployment & { FundingSwapMarket?: Address; SwapOrderBook?: Address };
   /** MON-PERP-DEMO test market (DeployPulse on 10143); quote it with MARKET=demo. */
   demoMarket?: MarketDeployment & { symbol: string; testMarket: true };
 }
 const dep = JSON.parse(readFileSync(DEPLOYMENTS, "utf8")) as Deployments;
 if (dep.chainId !== CHAIN_ID) throw new Error(`deployments chainId ${dep.chainId} != CHAIN_ID ${CHAIN_ID}`);
 const MARKET = env("MARKET") ?? "main";
+// MARKET=swap quotes the funding-swap book (SwapOrderBook, margin engine FundingSwapMarket) on the APR axis; the perp
+// CH/oracle of the main market give the anchor fallback and the stale-oracle kill switch.
+const IS_SWAP = MARKET === "swap";
 const market = MARKET === "demo" ? dep.demoMarket : dep.contracts;
+const SWAP: Address | undefined = IS_SWAP ? dep.contracts.FundingSwapMarket : undefined;
+if (IS_SWAP && (SWAP === undefined || dep.contracts.SwapOrderBook === undefined)) throw new Error(`${DEPLOYMENTS}: no FundingSwapMarket/SwapOrderBook`);
 if (dep.deployed === false || market?.ClearingHouse === undefined || market.OrderBook === undefined || market.OracleAdapter === undefined) {
   throw new Error(`${DEPLOYMENTS}: market ${MARKET} is not deployed`);
 }
@@ -87,7 +99,7 @@ const TOUCH_EVENTS = orderBookAbi.filter(
     x.type === "event" && (x.name === "Trade" || x.name === "OrderEvicted"),
 );
 const CH: Address = market.ClearingHouse;
-const OB: Address = market.OrderBook;
+const OB: Address = IS_SWAP ? (dep.contracts.SwapOrderBook as Address) : market.OrderBook;
 const ORACLE: Address = market.OracleAdapter;
 
 const chain = defineChain({
@@ -112,6 +124,9 @@ const log = (msg: string, extra: Record<string, unknown> = {}): void =>
 let resting: Resting[] = [];
 const samples: Array<{ t: number; price: bigint }> = [];
 let lastQuotedIndex = 0n;
+const aprSamples: Array<{ t: number; aprBps: number }> = [];
+let maxInventoryWad = 0n; // swap: maxPositionSize × fraction
+let REALIZED_BLOCKS = 96_000n; // 8 h at the CH's blockTimeMs (read at start)
 let lastQ = Number.NaN;
 let busy = false;
 let killed = false;
@@ -231,6 +246,74 @@ async function cancelAll(reason: string): Promise<void> {
   resting = [];
 }
 
+type QuoteState =
+  | { kind: "stale" }
+  | { kind: "matured" }
+  | {
+      kind: "quote";
+      /** perp: oracle index (WAD); swap: anchor APR (WAD) */
+      ref: bigint;
+      q: number;
+      sigma: number;
+      quote: ReturnType<typeof quoteBps>;
+      ladder: ReturnType<typeof buildLadder>;
+      movedBps: bigint;
+      anchorSource?: AnchorSource;
+    };
+let maturedLogged = false;
+let lastAnchorSource: AnchorSource | null = null;
+
+/**
+ * Parallel reads (index/anchor, our account, our fills/evictions since the last tick) → A–S quote → target ladder.
+ * Perp: bps relative to the index (MATH_SPEC §4). Swap: absolute APR bps around realizedApr(8 h), falling back to the
+ * perp's current funding APR until 8 h of checkpoints exist (aprbook.ts). σ samples use the local clock (no block read).
+ */
+async function readQuoteState(block: bigint): Promise<QuoteState> {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const oracleRead = pub.readContract({ address: ORACLE, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" });
+  if (!IS_SWAP) {
+    const [[ok, index], acct] = await Promise.all([
+      oracleRead,
+      pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "getAccount", args: [account.address] }),
+      scanTouched(block),
+    ]);
+    if (!ok || index === 0n) return { kind: "stale" };
+    samples.push({ t: nowSec, price: index });
+    while (samples.length && samples[0]!.t < nowSec - SIGMA_WINDOW_SEC) samples.shift();
+    const q = inventoryRatio(acct.size, MAX_INVENTORY_LOTS * lotSize);
+    const sigma = sigmaForQuoting(samples, { fallback: DEFAULTS.sigma, minCoverageSec: SIGMA_MIN_COVERAGE_SEC, max: SIGMA_MAX });
+    const quote = quoteBps({ sigma, gamma: GAMMA, k: K, horizonSec: HORIZON_SEC, q });
+    const ladder = buildLadder({ midWad: index, tickSize, bidBps: quote.bidBps, askBps: quote.askBps, levels: LEVELS, levelSpacingBps: LEVEL_SPACING_BPS, lotsPerLevel: LOTS_PER_LEVEL, q });
+    const movedBps = lastQuotedIndex === 0n ? 10_000n : (abs(index - lastQuotedIndex) * 10_000n) / lastQuotedIndex;
+    return { kind: "quote", ref: index, q, sigma, quote, ladder, movedBps };
+  }
+  const [[ok, index], acct, matured, realized, fs] = await Promise.all([
+    oracleRead,
+    pub.readContract({ address: SWAP!, abi: fundingSwapAbi, functionName: "getAccount", args: [account.address] }),
+    pub.readContract({ address: SWAP!, abi: fundingSwapAbi, functionName: "isMatured" }),
+    // reverts ObservationTooOld until the perp has 8 h of checkpoints ⇒ null ⇒ perp-rate anchor
+    pub.readContract({ address: SWAP!, abi: fundingSwapAbi, functionName: "realizedApr", args: [REALIZED_BLOCKS] }).catch(() => null),
+    pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "previewFundingState" }),
+    scanTouched(block),
+  ]);
+  if (!ok || index === 0n) return { kind: "stale" };
+  if (matured) return { kind: "matured" };
+  const anchor = chooseAnchor(realized, fs.rate);
+  if (anchor.source !== lastAnchorSource) {
+    log(anchor.source === "realized-8h" ? "anchor: realized 8 h APR" : "anchor: perp current funding APR (no 8 h history yet)", { aprWad: anchor.aprWad });
+    lastAnchorSource = anchor.source;
+  }
+  const aprBps = aprWadToBps(anchor.aprWad);
+  aprSamples.push({ t: nowSec, aprBps });
+  while (aprSamples.length && aprSamples[0]!.t < nowSec - SWAP_SIGMA_WINDOW_SEC) aprSamples.shift();
+  const q = inventoryRatio(acct.size, maxInventoryWad);
+  const sigma = aprSigma(aprSamples, { fallback: SWAP_SIGMA_BPS, minCoverageSec: SIGMA_MIN_COVERAGE_SEC, max: SWAP_SIGMA_MAX });
+  const quote = quoteBps({ sigma, gamma: GAMMA, k: K, horizonSec: HORIZON_SEC, q });
+  const ladder = buildAprLadder({ anchorAprBps: aprBps, tickSize, bidBps: quote.bidBps, askBps: quote.askBps, levels: LEVELS, levelSpacingBps: LEVEL_SPACING_BPS, lotsPerLevel: LOTS_PER_LEVEL, q });
+  const movedBps = Number.isNaN(lastQ) ? 10_000n : movedAprBps(anchor.aprWad, lastQuotedIndex); // first quote always
+  return { kind: "quote", ref: anchor.aprWad, q, sigma, quote, ladder, movedBps, anchorSource: anchor.source };
+}
+
 async function tick(block: bigint): Promise<void> {
   if (busy || stopping) return;
   if (!shouldTick(block, lastTickBlock, TICK_EVERY_BLOCKS)) return;
@@ -247,37 +330,16 @@ async function tick(block: bigint): Promise<void> {
     }
     killed = false;
     if (needResync) await syncResting();
-    // Parallel reads: index, our account, our fills/evictions since the last tick. σ samples use the local clock
-    // (no eth_getBlockByNumber per tick; σ over 10 min doesn't care about a second of skew).
-    const [[ok, index], acct] = await Promise.all([
-      pub.readContract({ address: ORACLE, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" }),
-      pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "getAccount", args: [account.address] }),
-      scanTouched(block),
-    ]);
-    if (!ok || index === 0n) {
+    const st = await readQuoteState(block);
+    if (st.kind !== "quote") {
       await refreshResting();
-      if (resting.length) await cancelAll("oracle stale");
+      if (resting.length) await cancelAll(st.kind === "stale" ? "oracle stale" : "swap matured");
+      if (st.kind === "matured" && !maturedLogged) log("swap market matured: quotes pulled (reduce-only market, MATH_SPEC §6)");
+      maturedLogged = st.kind === "matured";
       return;
     }
-    const nowSec = Math.floor(Date.now() / 1000);
-    samples.push({ t: nowSec, price: index });
-    while (samples.length && samples[0]!.t < nowSec - SIGMA_WINDOW_SEC) samples.shift();
-
+    const { ref, q, sigma, quote, ladder, movedBps } = st;
     await refreshResting(idsToRefresh(resting, touched, ticks, FULL_REFRESH_TICKS));
-    const q = inventoryRatio(acct.size, MAX_INVENTORY_LOTS * lotSize);
-    const sigma = sigmaForQuoting(samples, { fallback: DEFAULTS.sigma, minCoverageSec: SIGMA_MIN_COVERAGE_SEC, max: SIGMA_MAX });
-    const quote = quoteBps({ sigma, gamma: GAMMA, k: K, horizonSec: HORIZON_SEC, q });
-    const ladder = buildLadder({
-      midWad: index,
-      tickSize,
-      bidBps: quote.bidBps,
-      askBps: quote.askBps,
-      levels: LEVELS,
-      levelSpacingBps: LEVEL_SPACING_BPS,
-      lotsPerLevel: LOTS_PER_LEVEL,
-      q,
-    });
-    const movedBps = lastQuotedIndex === 0n ? 10_000n : (abs(index - lastQuotedIndex) * 10_000n) / lastQuotedIndex;
     const requote = needsRequote({
       movedBps,
       restingCount: resting.length,
@@ -311,12 +373,12 @@ async function tick(block: bigint): Promise<void> {
     // Cancelled and replaced ids no longer rest; a replace or place re-rests under the id in its OrderPlaced log.
     const gone = new Set<bigint>([...plan.cancel, ...plan.replace.map((r) => r.id)]);
     resting = [...resting.filter((r) => !gone.has(r.id)), ...receipts.flatMap((rc) => (rc.status === "success" ? placedFrom(rc) : []))];
-    lastQuotedIndex = index;
+    lastQuotedIndex = ref;
     lastQ = q;
     stats.requotes++;
     log("quoted", {
       block,
-      index,
+      ...(IS_SWAP ? { anchorAprBps: aprWadToBps(ref).toFixed(2), anchorSource: st.anchorSource } : { index: ref }),
       sigmaBps: sigma.toFixed(3),
       q: q.toFixed(3),
       spreadBps: quote.spread.toFixed(2),
@@ -366,6 +428,13 @@ async function syncResting(): Promise<void> {
 
 tickSize = await pub.readContract({ address: OB, abi: orderBookAbi, functionName: "tickSize" });
 lotSize = await pub.readContract({ address: OB, abi: orderBookAbi, functionName: "lotSize" });
+if (IS_SWAP) {
+  const sp = await pub.readContract({ address: SWAP!, abi: fundingSwapAbi, functionName: "swapParams" });
+  maxInventoryWad = (sp.maxPositionSize * SWAP_INVENTORY_FRACTION_BPS) / 10_000n;
+  const fp = await pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "fundingParams" });
+  REALIZED_BLOCKS = blocksFor(8 * 3600, fp.blockTimeMs);
+  log("swap book", { swapMarket: SWAP, swapOrderBook: OB, maxInventoryWad, realizedWindowBlocks: REALIZED_BLOCKS, sigmaFallbackAprBps: SWAP_SIGMA_BPS });
+}
 await syncResting();
 log("recovered resting orders", { count: resting.length, lookbackBlocks: RECOVER_LOOKBACK_BLOCKS });
 log("mm start", {

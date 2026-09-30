@@ -3,7 +3,9 @@ import { type Abi, type AbiEvent, type AbiFunction, toEventSelector, toFunctionS
 import ch from "@pulse/abis/IClearingHouse.json" with { type: "json" };
 import oracle from "@pulse/abis/IOracleAdapter.json" with { type: "json" };
 import vault from "@pulse/abis/IPulseVault.json" with { type: "json" };
-import { clearingHouseAbi, oracleAdapterAbi, pulseVaultAbi } from "../src/abi.js";
+import swap from "@pulse/abis/IFundingSwapMarket.json" with { type: "json" };
+import swapImpl from "@pulse/abis/FundingSwapMarket.json" with { type: "json" };
+import { clearingHouseAbi, fundingSwapAbi, fundingSwapImplAbi, oracleAdapterAbi, pulseVaultAbi } from "../src/abi.js";
 
 // Every fragment the keeper uses must exist, with the same selector, in the committed frozen-interface ABI.
 function selectors(abi: Abi): Set<string> {
@@ -20,6 +22,8 @@ describe("keeper ABI fragments match abis/*.json", () => {
     ["IClearingHouse", clearingHouseAbi, ch as Abi],
     ["IOracleAdapter", oracleAdapterAbi, oracle as Abi],
     ["IPulseVault", pulseVaultAbi, vault as Abi],
+    ["IFundingSwapMarket", fundingSwapAbi, swap as Abi],
+    ["FundingSwapMarket", fundingSwapImplAbi, swapImpl as Abi],
   ] as const)("%s", (_, mine, frozen) => {
     const want = selectors(frozen);
     const have = [...selectors(mine as Abi)];
