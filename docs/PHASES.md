@@ -14,7 +14,7 @@ Rules for every phase:
 | 2 | Integrate the perp core on anvil | Thu 1 Oct | ✅ G2 met except human items (live indexer/Docker, login decision) |
 | 3 | Testnet perp + yield layers built | Sun 4 Oct (CP1 Sat 3 Oct inside) | ✅ on testnet except the 1 h unattended run + B7 ≤ 3 (MON / paid RPC); see G3 |
 | **4** | **Full stack on testnet, scope freeze** | **Wed 7 Oct (CP2)** | **✅ scope frozen 30 Sep 2026**; G4 below (⚠️ items are MON / RPC / human bound) |
-| 5 | Mainnet readiness and launch | Sat 10 Oct (CP3) | — |
+| 5 | Mainnet readiness and launch | Sat 10 Oct (CP3) | ▶ started 30 Sep (remote `github.com/SamyaDeb/pulse`, decisions 12–13) |
 | 6 | Proof and submission | Tue 13 Oct 18:00 | — |
 
 ---
@@ -42,6 +42,8 @@ Decisions recorded at the end of Phase 1 (lead):
 9. **MATH_SPEC §6.2:** swap `net` uses one floor division `floor((q·ΔF·YEAR − K·ΔG)/(1e18·YEAR))`; `kDelta = Δq·A/1e18` is computed once per fill and applied as +kDelta / −kDelta to the two sides (ΣK = 0 exactly).
 10. Testnet (verified 29 Sep): Pyth MON/USD at `0x2880aB155794e7179c9eE2e38200202908C17B43` exists but is ~75 min stale (no sponsored push), so **the keeper must push Hermes updates and the Pyth API key is a CP1 blocker**. No Chainlink feeds listed on testnet, so the guard runs with secondary = address(0). No AUSD on testnet: deploy a 6-dp MockERC20 `tAUSD`. Testnet WMON `0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541`.
 11. *(Phase 3, lead)* **MATH_SPEC §5.2 skew rule amended**: the literal form is degenerate under Σq = 0 (it caps the vault at 0.8 × its own short); capacity = skewCapacity · takers' net long = skewCapacity·max(0, −(vaultSize + Σ registered-provider sizes)). The MM bot addresses are registered as skew providers at deploy. Also: at the launch caps (maxPositionSize 25k MON ≈ $725) the vault can deploy ≈ $1.2k of its 10k AUSD deposit cap; Phase 4/5 must choose between a higher perp position cap, a vault-specific cap, or a lower vault deposit cap (open).
+12. *(Phase 5, owner, 30 Sep)* **Vault cap: option C.** Mainnet `vault.depositCap` = **1,200 AUSD** (`"1200000000"`, 6 dp) in `contracts/script/config/143.json`; config only, no code. It supersedes the 10,000 AUSD launch cap in TEAM_PLAN §7 / MATH_SPEC §5.3 for launch. Raise it (Safe, `setVaultParams`) together with the perp `maxPositionSize` after launch.
+13. *(Phase 5, owner, 30 Sep)* **CR-007 deferred** to post-hackathon; the runbook mitigation (MM re-quotes after `OrderEvicted` / stale→fresh) stays. No interface change: interfaces stay `v1.5` unless a security finding rated High reopens it before the 10 Oct 18:00 freeze.
 
 ---
 

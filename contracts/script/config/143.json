@@ -86,7 +86,8 @@
       "roundTripFee": "1500000000000000",
       "maxSlippage": "5000000000000000",
       "idleBuffer": "50000000000000000",
-      "depositCap": "10000000000",
+      "_depositCap": "Launch cap per PHASES decision 12 (vault-cap option C, owner 30 Sep 2026): 1,200 AUSD (6 dp) = what the vault can deploy at maxPositionSize 25k MON. Raise with the perp caps via setVaultParams (Safe).",
+      "depositCap": "1200000000",
       "skewCapacity": "800000000000000000",
       "entryHorizonSec": 604800,
       "maxSliceAssets": "2500000000"
