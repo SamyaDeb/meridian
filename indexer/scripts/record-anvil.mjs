@@ -4,6 +4,10 @@
 // Also records the contract's own answers at the last block (averageFundingApr, fundingState, openInterest)
 // so the replay can check the indexer's realized APR against averageFundingApr at the same block.
 //   RPC_URL=http://127.0.0.1:8546 node scripts/record-anvil.mjs [out.json]
+// Testnet (after the DeployPulse broadcast; public RPC caps eth_getLogs at 100 blocks, R2/R29):
+//   RPC_URL=$MONAD_TESTNET_RPC_URL DEPLOYMENTS=../deployments/10143.json LOG_SPAN=100 \
+//     node scripts/record-anvil.mjs test/fixtures/testnet-10143.json
+// The labelled demo market (deployments.demoMarket) is recorded too.
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,9 +17,10 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = resolve(HERE, "../..");
 const RPC_URL = process.env.RPC_URL ?? "http://127.0.0.1:8545";
 const OUT = resolve(process.argv[2] ?? resolve(HERE, "../test/fixtures/anvil-e2e.json"));
-const SPAN = 20_000n;
+const SPAN = BigInt(process.env.LOG_SPAN ?? "20000");
 
-const dep = JSON.parse(readFileSync(resolve(ROOT, "deployments/31337.json"), "utf8"));
+const dep = JSON.parse(readFileSync(resolve(process.env.DEPLOYMENTS ?? resolve(ROOT, "deployments/31337.json")), "utf8"));
+if (dep.deployed === false) throw new Error("deployments file is a NOT DEPLOYED placeholder");
 const abi = (n) => JSON.parse(readFileSync(resolve(ROOT, `abis/${n}.json`), "utf8"));
 // Envio contract name → (deployments key, ABI). The oracle on anvil is the mock (same events as IOracleAdapter).
 const SOURCES = [
@@ -25,14 +30,23 @@ const SOURCES = [
   ["OracleAdapter", "OracleAdapter", abi("IOracleAdapter")],
   ["MarketFactory", "MarketFactory", abi("MarketFactory")],
 ];
+// the labelled demo market's contracts (DeployPulse on 10143), same event sources under the same Envio names
+const DEMO = dep.demoMarket
+  ? [
+      ["ClearingHouse", dep.demoMarket.ClearingHouse, abi("ClearingHouse")],
+      ["OrderBook", dep.demoMarket.OrderBook, abi("OrderBook")],
+      ["OracleAdapter", dep.demoMarket.OracleAdapter, abi("IOracleAdapter")],
+    ]
+  : [];
 
 const pub = createPublicClient({ transport: http(RPC_URL) });
 const head = await pub.getBlockNumber();
 const start = BigInt(dep.startBlock ?? 0);
 
 const raw = [];
-for (const [contract, key, contractAbi] of SOURCES) {
-  const address = dep.contracts[key];
+for (const [contract, keyOrAddress, contractAbi] of [...SOURCES, ...DEMO]) {
+  const address = keyOrAddress.startsWith("0x") ? keyOrAddress : dep.contracts[keyOrAddress];
+  if (address === undefined) continue;
   for (let s = start; s <= head; s += SPAN) {
     const e = s + SPAN - 1n < head ? s + SPAN - 1n : head;
     for (const l of await pub.getLogs({ address, fromBlock: s, toBlock: e })) {
@@ -91,7 +105,7 @@ const [longOI, shortOI] = await read("openInterest");
 const fs = await read("fundingState");
 
 const out = {
-  chainId: 31337,
+  chainId: Number(dep.chainId),
   rpc: RPC_URL,
   startBlock: Number(start),
   endBlock: Number(head),

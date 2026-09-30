@@ -2,5 +2,9 @@
 // Static wiring used when MarketFactory.MarketRegistered has not (yet) been indexed.
 export type DeploymentWiring = { readonly [K in "ClearingHouse" | "OrderBook" | "FundingSwapMarket" | "SwapOrderBook" | "PulseVault"]?: string };
 export const DEPLOYMENTS: Readonly<Record<number, DeploymentWiring>> = {
+  10143: {  },
   31337: { ClearingHouse: "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9", OrderBook: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707", PulseVault: "0x610178dA211FEF7D417bC0e6FeD39F05609AD788" },
+};
+/** Labelled TEST markets (deployments demoMarket): the crash/liquidation demo market, never the product. */
+export const TEST_MARKETS: Readonly<Record<number, readonly string[]>> = {
 };

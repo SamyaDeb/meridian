@@ -19,7 +19,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 ## Entities
 | Entity | Id | Key fields | Screen |
 |---|---|---|---|
-| `Market` | ClearingHouse address | `symbol`, `lastRate`, `lastRateAprWad`, `lastCumFunding` (F), `lastCumIndexTime` (G), `lastMarkPrice`, `lastIndexPrice`, `realizedApr1hWad / 8hWad / 24hWad`, `lastTradePrice`, `volumeQuoteWad`, `openInterestLongWad / ShortWad`, `feesWad`, `paused`, `blockTimeMs` | Trade header, Stats |
+| `Market` | ClearingHouse address | `symbol`, **`testMarket`** (labelled TEST market: deployments `demoMarket` or a `-DEMO` symbol, e.g. testnet `MON-PERP-DEMO` — show "test market", never mix into product stats), `lastRate`, `lastRateAprWad`, `lastCumFunding` (F), `lastCumIndexTime` (G), `lastMarkPrice`, `lastIndexPrice`, `realizedApr1hWad / 8hWad / 24hWad`, `lastTradePrice`, `volumeQuoteWad`, `openInterestLongWad / ShortWad`, `feesWad`, `paused`, `blockTimeMs` | Trade header, Stats |
 | `FundingTick` | `<market>-<block>` | `block`, `timestamp`, `rate`, `rateAprWad`, `premium`, `emaPremium`, `cumFunding`, **`cumIndexTime`**, `index`, `mark` | per-block funding chart |
 | `FundingCheckpoint` | `<market>-<block/200>` | `slot`, `blockNumber`, `cumFunding`, `cumIndexTime`, `realizedApr1h/8h/24hWad` | oracle APR history (~60 s) |
 | `Order` | `<book>-<orderId>` | `kind` (Perp/Swap), `market`, `maker`, `isBid`, `tick`, `lots`, `remainingLots`, `filledLots`, `status` (Open/PartiallyFilled/Filled/Cancelled/Evicted) | open orders |

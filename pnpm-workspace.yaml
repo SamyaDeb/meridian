@@ -4,3 +4,4 @@ packages:
   - mm-bot
   - indexer
   - app
+  - bench

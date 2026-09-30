@@ -123,6 +123,13 @@ export function renderDeploymentsTs(deployments) {
     L.push(`  ${Number(d.chainId)}: { ${entries.join(", ")} },`);
   }
   L.push("};");
+  L.push("/** Labelled TEST markets (deployments demoMarket): the crash/liquidation demo market, never the product. */");
+  L.push("export const TEST_MARKETS: Readonly<Record<number, readonly string[]>> = {");
+  for (const d of [...deployments].sort((a, b) => Number(a.chainId) - Number(b.chainId))) {
+    const ch = d.demoMarket?.ClearingHouse;
+    if (ch) L.push(`  ${Number(d.chainId)}: ["${ch.toLowerCase()}"],`);
+  }
+  L.push("};");
   return L.join("\n") + "\n";
 }
 

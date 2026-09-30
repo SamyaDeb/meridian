@@ -13,6 +13,8 @@ import {
   swapPositionValueWad,
   isLockedSpread,
   sharePriceWadFromAssets,
+  vaultSharePriceWad,
+  vaultApyWad,
   tokenToWad,
   wadToToken,
 } from "./math";
@@ -95,6 +97,18 @@ describe("funding swaps (MATH_SPEC §6)", () => {
     close(f(net), 143.01, 0.01);
   });
 
+  it("net is ONE floor division, like SwapMathLib.net (PHASES decision 9): matches the contract to the wei", () => {
+    // two divisions (floor floating − ceil fixed) would give −1 here; the contract gives 0
+    expect(swapAccrualPreviewWad(1n, 1n, 10n ** 18n - 1n, 1n)).toBe(0n);
+    const q = 1_000_000n * WAD;
+    const K = 120_000n * WAD;
+    const dG = 29n * 10n ** 15n * 2_592_000n;
+    const dF = 429_041_095_890_410n;
+    const exact = q * dF * SECONDS_PER_YEAR - K * dG;
+    const d = WAD * SECONDS_PER_YEAR;
+    expect(swapAccrualPreviewWad(q, K, dF, dG)).toBe(exact >= 0n ? exact / d : -((-exact + d - 1n) / d));
+  });
+
   it("net rounds down (against the account)", () => {
     expect(swapAccrualPreviewWad(1n, 0n, 1n, 0n)).toBe(0n); // 1e-36 floating → 0
     expect(swapAccrualPreviewWad(0n, 1n, 0n, 1n)).toBe(-1n); // tiny fixed leg → −1 wei
@@ -119,6 +133,18 @@ describe("AUSD boundary and gas", () => {
     expect(tokenToWad(1n)).toBe(10n ** 12n);
     expect(wadToToken(10n ** 12n - 1n)).toBe(0n);
     expect(sharePriceWadFromAssets(1_000_420n)).toBe(1_000_420n * 10n ** 12n);
+  });
+  it("vault share price = (totalAssets + 1)·1e30/(totalSupply + 1e12), as PulseVault.sharePrice()", () => {
+    expect(vaultSharePriceWad(10_000_000_000n, 10_000n * WAD)).toBe(WAD); // par, virtual offset 12
+    expect(vaultSharePriceWad(0n, 0n)).toBe(WAD);
+    // +15 token units of funding on 10,000 AUSD is visible (convertToAssets(1e18) would round it away)
+    expect(vaultSharePriceWad(10_000_000_015n, 10_000n * WAD)).toBe(WAD + 1_500_000_000n - 1n);
+  });
+  it("vault APY from two share prices: (p1/p0 − 1)·YEAR/dt, simple, rounds down", () => {
+    expect(vaultApyWad(WAD, WAD + WAD / 100n, 86_400n * 365n / 12n)).toBe(120_000_000_000_000_000n); // 1% a month ≈ 12%
+    expect(vaultApyWad(WAD, WAD, 3600n)).toBe(0n);
+    expect(vaultApyWad(WAD, WAD, 0n)).toBeUndefined();
+    expect(vaultApyWad(WAD, WAD - 1n, 3600n)! < 0n).toBe(true);
   });
   it("gas limit = estimate × 1.2, rounded up", () => {
     expect(gasLimitFromEstimate(100_000n)).toBe(120_000n);

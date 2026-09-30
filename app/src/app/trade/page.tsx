@@ -65,7 +65,12 @@ export default function TradePage() {
     <div className="space-y-3">
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-xs text-muted">MON-PERP · AUSD</div>
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <span>{m?.symbol ?? "MON-PERP"} · AUSD</span>
+            {m?.testMarket && (
+              <span className="rounded bg-warn/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warn">test market</span>
+            )}
+          </div>
           <div className="num text-3xl font-semibold">{m ? formatPriceWad(m.lastMarkPrice) : <Skeleton className="h-9 w-32" />}</div>
         </div>
         <div className="text-right text-[11px] text-muted">

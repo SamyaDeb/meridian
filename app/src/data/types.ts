@@ -12,6 +12,8 @@ export interface Market {
   chainId: number;
   marketId?: string;
   symbol: string;
+  /** Labelled TEST market (indexer `Market.testMarket` / deployments `demoMarket`): always shown with a badge. */
+  testMarket?: boolean;
   clearingHouse: Address;
   orderBook?: Address;
   oracle?: Address;

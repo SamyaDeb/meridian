@@ -1,6 +1,6 @@
 // IOracleAdapter, IInsuranceFund, IMarketFactory, IPulseKeeperReceiver events.
 import { indexer } from "envio";
-import { FIELDS, evId, blockOf, tsOf, getMarket, updateProtocol, logAdmin } from "../lib/common.js";
+import { FIELDS, evId, blockOf, tsOf, getMarket, updateProtocol, logAdmin, isTestMarket } from "../lib/common.js";
 
 // ─── Oracle adapter ────────────────────────────────────────────────────────────
 
@@ -76,7 +76,15 @@ indexer.contractRegister({ contract: "MarketFactory", event: "MarketRegistered" 
 indexer.onEvent({ contract: "MarketFactory", event: "MarketRegistered", fields: FIELDS }, async ({ event, context }) => {
   const p = event.params;
   const m = await getMarket(context, p.clearingHouse);
-  context.Market.set({ ...m, marketId: p.marketId, symbol: p.symbol, orderBook: p.orderBook, oracle: p.oracle, active: true });
+  context.Market.set({
+    ...m,
+    marketId: p.marketId,
+    symbol: p.symbol,
+    testMarket: isTestMarket(context.chain.id, p.clearingHouse, p.symbol),
+    orderBook: p.orderBook,
+    oracle: p.oracle,
+    active: true,
+  });
   context.BookRef.set({ id: p.orderBook, kind: "Perp", market: p.clearingHouse });
   await logAdmin(context, event, "MarketRegistered", p);
 });

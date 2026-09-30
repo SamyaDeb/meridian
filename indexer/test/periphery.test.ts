@@ -65,7 +65,7 @@ describe("MarketFactory", () => {
     expect(indexer.chains[CHAIN].OrderBook.addresses).toContain(NEW_OB);
     expect(indexer.chains[CHAIN].ClearingHouse.addresses).toContain(NEW_CH);
     expect(indexer.chains[CHAIN].OracleAdapter.addresses).toContain(NEW_ORACLE);
-    expect(await indexer.Market.getOrThrow(NEW_CH)).toMatchObject({ marketId: MARKET_ID, symbol: "ETH-PERP", orderBook: NEW_OB, oracle: NEW_ORACLE, active: true });
+    expect(await indexer.Market.getOrThrow(NEW_CH)).toMatchObject({ marketId: MARKET_ID, symbol: "ETH-PERP", testMarket: false, orderBook: NEW_OB, oracle: NEW_ORACLE, active: true });
 
     await indexer.process({
       chains: {
@@ -79,6 +79,23 @@ describe("MarketFactory", () => {
     });
     expect((await indexer.Order.getOrThrow(`${NEW_OB}-1`)).market).toBe(NEW_CH);
     expect((await indexer.Market.getOrThrow(NEW_CH)).active).toBe(false);
+  });
+});
+
+describe("test market label (Phase 3: MON-PERP-DEMO)", () => {
+  it("a market registered with a -DEMO symbol is a labelled test market", async () => {
+    const indexer = createTestIndexer();
+    const DEMO_CH = "0x00000000000000000000000000000000000000d1";
+    await indexer.process({
+      chains: {
+        [CHAIN]: {
+          simulate: [
+            { contract: "MarketFactory", event: "MarketRegistered", srcAddress: A.FACTORY, block: blk(1), params: { marketId: `0x${"d".repeat(64)}`, symbol: "MON-PERP-DEMO", orderBook: "0x00000000000000000000000000000000000000d2", clearingHouse: DEMO_CH, oracle: "0x00000000000000000000000000000000000000d3" } },
+          ],
+        },
+      },
+    });
+    expect((await indexer.Market.getOrThrow(DEMO_CH)).testMarket).toBe(true);
   });
 });
 

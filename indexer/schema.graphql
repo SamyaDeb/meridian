@@ -39,6 +39,7 @@ type Market {
   id: ID!
   marketId: String # bytes32 from MarketFactory.MarketRegistered (undefined until registered)
   symbol: String!
+  testMarket: Boolean! # labelled TEST market (deployments demoMarket or a "-DEMO" symbol): UI must say "test market"
   clearingHouse: String!
   orderBook: String
   oracle: String

@@ -9,7 +9,7 @@ import type {
   Vault,
   VaultUser,
 } from "envio";
-import { DEPLOYMENTS } from "../deployments.gen.js";
+import { DEPLOYMENTS, TEST_MARKETS } from "../deployments.gen.js";
 import { DEFAULT_BLOCK_TIME_MS } from "./math.js";
 
 export type Ctx = EvmOnEventContext;
@@ -77,11 +77,18 @@ export async function touchAccount(context: Ctx, address: string, block: bigint,
   return acc;
 }
 
+/** A labelled test market: listed in deployments (demoMarket) or registered with a "-DEMO" symbol. */
+export function isTestMarket(chainId: number, clearingHouse: string, symbol?: string): boolean {
+  if (symbol?.toUpperCase().endsWith("-DEMO")) return true;
+  return (TEST_MARKETS[chainId] ?? []).includes(clearingHouse.toLowerCase());
+}
+
 export async function getMarket(context: Ctx, clearingHouse: string): Promise<Market> {
   return context.Market.getOrCreate({
     id: clearingHouse,
     marketId: undefined,
     symbol: DEFAULT_SYMBOL,
+    testMarket: isTestMarket(context.chain.id, clearingHouse),
     clearingHouse,
     orderBook: DEPLOYMENTS[context.chain.id]?.OrderBook,
     oracle: undefined,
