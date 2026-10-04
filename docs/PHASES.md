@@ -14,7 +14,7 @@ Rules for every phase:
 | 2 | Integrate the perp core on anvil | Thu 1 Oct | ✅ G2 met except human items (live indexer/Docker, login decision) |
 | 3 | Testnet perp + yield layers built | Sun 4 Oct (CP1 Sat 3 Oct inside) | ✅ on testnet except the 1 h unattended run + B7 ≤ 3 (MON / paid RPC); see G3 |
 | **4** | **Full stack on testnet, scope freeze** | **Wed 7 Oct (CP2)** | **✅ scope frozen 30 Sep 2026**; G4 below (⚠️ items are MON / RPC / human bound) |
-| 5 | Mainnet readiness and launch | Sat 10 Oct (CP3) | ▶ started 30 Sep (remote `github.com/SamyaDeb/pulse`, decisions 12–13) |
+| 5 | Mainnet readiness and launch | Sat 10 Oct (CP3) | ▶ ~50% (4 Oct): reviews A/B done, C's 4 frontend branches merged; 2 High open, B's 5 + A's 1 branches unmerged; see "Phase 5 plan update" |
 | 6 | Proof and submission | Tue 13 Oct 18:00 | — |
 
 ---
@@ -44,6 +44,9 @@ Decisions recorded at the end of Phase 1 (lead):
 11. *(Phase 3, lead)* **MATH_SPEC §5.2 skew rule amended**: the literal form is degenerate under Σq = 0 (it caps the vault at 0.8 × its own short); capacity = skewCapacity · takers' net long = skewCapacity·max(0, −(vaultSize + Σ registered-provider sizes)). The MM bot addresses are registered as skew providers at deploy. Also: at the launch caps (maxPositionSize 25k MON ≈ $725) the vault can deploy ≈ $1.2k of its 10k AUSD deposit cap; Phase 4/5 must choose between a higher perp position cap, a vault-specific cap, or a lower vault deposit cap (open).
 12. *(Phase 5, owner, 30 Sep)* **Vault cap: option C.** Mainnet `vault.depositCap` = **1,200 AUSD** (`"1200000000"`, 6 dp) in `contracts/script/config/143.json`; config only, no code. It supersedes the 10,000 AUSD launch cap in TEAM_PLAN §7 / MATH_SPEC §5.3 for launch. Raise it (Safe, `setVaultParams`) together with the perp `maxPositionSize` after launch.
 13. *(Phase 5, owner, 30 Sep)* **CR-007 deferred** to post-hackathon; the runbook mitigation (MM re-quotes after `OrderEvicted` / stale→fresh) stays. No interface change: interfaces stay `v1.5` unless a security finding rated High reopens it before the 10 Oct 18:00 freeze.
+14. *(Phase 5, lead, 4 Oct)* **Agora bounty dropped.** The reported requirement (BOUNTY_MAP "Agora requirement", third-party source) needs Mera login and trades executed through Perpl; a Perpl path would be built only for the bounty. Reopen only if a founder confirms the official text says otherwise.
+15. *(Phase 5, lead, 4 Oct; OPEN for the owner)* **Login: Privy recommended.** With Agora dropped, Mera is no longer forced. Owner decides by Mon 5 Oct; without a decision the app ships the injected wallet and claims neither login bounty.
+16. *(Phase 5, lead, 4 Oct)* **Positioning.** At least one public Track 01 entry (FluxState) has a per-block-funding perp on testnet. Write-up, video and pitch lead with the onchain CLOB + funding oracle + yield layers + mainnet (BOUNTY_MAP "Field check").
 
 ---
 
@@ -143,9 +146,29 @@ Decisions this phase: CRE **dropped** (no deploy access; PRD §8 cut order). CR-
 - **Mainnet day:** deploy with caps, seed IF + MM inventory + vault, keeper/MM live, indexer on mainnet, first external users. Contract code freeze 18:00.
 **Gate G5 = CP3:** live on mainnet, ≥ 5 external users, first fees onchain.
 
+### Phase 5 plan update (Sun 4 Oct, lead)
+> **Superseded for task order by `docs/WIN_PLAN.md`** (mainnet moved up to Thu 8 Oct, MFI + Perpl, desktop, Privy). The table below stays as the merge/fix record.
+
+**Merged to main 4 Oct (squash, after `tsc`, app vitest 75/75, indexer 78/78, `next build`, testnet dry-run Playwright 4/4):** `ws-07f-tos-geo` (8b48fd9), `ws-07h-onboarding` (3831866), `ws-07g-mainnet-polish` (f4de43b), `ws-06e-live` (3ec2eb5).
+
+**Decisions 4 Oct:** 14 (Agora dropped), 15 (login: Privy recommended, owner by Mon 5 Oct), 16 (positioning); see the decisions list above and BOUNTY_MAP.
+
+**Remaining work, in order (owner, latest date):**
+| # | Task | Owner | By |
+|---|---|---|---|
+| 1 | Merge B's branches: `ws-04b-sec-fixes`, `ws-03i-review-b`, `ws-03j-oracle-params`, `ws-03i-kuru-flow`, `ws-03k-paging` (rebase on main first); A's `ws-00h-review-a` scratch tests | A (B rebases) | Mon 5 Oct |
+| 2 | Fix the two Highs: **A-01** vault route (decide CR-010 or launch the vault idle with `NEXT_PUBLIC_VAULT_ROUTE_PENDING`), **B-01** swap `markApr` atomic manipulation | A + B | Tue 6 Oct |
+| 3 | Login per decision 15 (Privy wiring, or confirm injected) | C | Tue 6 Oct |
+| 4 | Rename the app's public name **Pulse → Meridian** (header, manifest, title, terms) | C | Tue 6 Oct |
+| 5 | **Desktop layout** (≥ 1024 px: book + order form side by side, top nav; phone layout unchanged). Judges will likely open it on a laptop; UX only, allowed after the freeze. Owner to confirm | C | Wed 7 Oct |
+| 6 | Mainnet-fork rehearsal of `DeployPulse` (owner = Safe 2-of-3) + crash demo on the fork (per-block CSV) | A | Wed 7 Oct |
+| 7 | HUMAN: Safe address, paid RPC, MON for mainnet keys, Docker (live Envio), ToS sign-off ×3 + jurisdiction list, Track 01 rubric + Mera/Privy/Envio/Kuru blocks pasted into BOUNTY_MAP | founders | Tue 6 Oct |
+| 8 | Mainnet day: deploy with caps (vault `depositCap` 1,200 AUSD), seed IF + MM + vault, keeper/MM live, indexer on 143, outreach to ≥ 5 external users (USERS.md) | all | Thu 8 – Sat 10 Oct |
+
 ## Phase 6: Proof and submission (Tue 13 Oct 18:00)
 - Benchmarks final (`docs/outputs/BENCHMARKS.md`), metrics dashboard, √τ chart.
 - Crash demo recording (mainnet fork, labelled), demo video per DEMO_SCRIPT, `docs/outputs/WRITEUP.md` using only PRD §7.1 claims, project profile, bounty forms.
+- Write-up and video follow the positioning in BOUNTY_MAP "Field check": open with the full funding-rate layer (CLOB → oracle → vault → swaps) and mainnet evidence. Bounty forms only for bounties still claimed: Track 01, Envio, the login bounty per decision 15, Kuru only if confirmed (Agora and CRE dropped).
 **Gate G6:** submitted before 18:00, with every hard acceptance criterion linked to evidence.
 
 Prompts for the current phase live in `docs/prompts/phase-N/`.

@@ -28,3 +28,7 @@ contracts/broadcast/SmokeFull.s.sol/
 # DeployPulse fork tests: patched configs + their deployment records
 contracts/script/config/tmp/
 deployments/fork-test-*.json
+
+# teaser video sources/renders
+teaser/assets/raw/
+teaser/renders/
