@@ -9,6 +9,7 @@ import { createChainSource } from "@/data/chain/source";
 import { type PublicClient, createPublicClient, http } from "viem";
 import { READ_CHAIN_ID, readChain } from "@/lib/wagmi";
 import { contractAddress } from "@/config/deployments";
+import { WriteGateProvider } from "@/components/WriteGate";
 
 /** NEXT_PUBLIC_DATA_SOURCE=chain reads the perp from deployments/<NEXT_PUBLIC_CHAIN_ID>.json (default 31337 = anvil);
  *  default = mock layer. NEXT_PUBLIC_LOG_SPAN / NEXT_PUBLIC_LOG_LOOKBACK fit the RPC's eth_getLogs cap on testnet. */
@@ -49,7 +50,9 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <DataSourceProvider value={source}>{children}</DataSourceProvider>
+        <DataSourceProvider value={source}>
+          <WriteGateProvider>{children}</WriteGateProvider>
+        </DataSourceProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

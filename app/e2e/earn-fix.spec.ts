@@ -5,8 +5,17 @@
 //   NEXT_PUBLIC_LOCAL_RPC_URL=http://127.0.0.1:8546 NEXT_PUBLIC_DEV_ACCOUNT=<unlocked anvil account holding tAUSD>
 //   NEXT_PUBLIC_DEPLOYMENT_OVERRIDE="$(cat deployments/anvil-10143.json)"
 import { type Page, expect, test } from "@playwright/test";
+import { TERMS_STORAGE_KEY, acceptanceRecord } from "../src/lib/terms";
 
 const SHOTS = process.env.SHOTS_DIR ?? "e2e/screenshots";
+
+// terms already accepted for this version (the gate itself is exercised in anvil-smoke.spec.ts)
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(
+    ([key, record]) => localStorage.setItem(key, record),
+    [TERMS_STORAGE_KEY, acceptanceRecord(Date.now())] as const,
+  );
+});
 
 async function login(page: Page) {
   await page.getByRole("button", { name: "Dev account" }).click();

@@ -21,6 +21,12 @@ test("login → deposit → open → ticker → position", async ({ page }) => {
 
   await page.getByLabel("Deposit amount").fill("100");
   await page.getByRole("button", { name: "Deposit AUSD" }).click();
+  // first write: the terms gate (C3) asks once, then the deposit goes ahead
+  const gate = page.getByRole("dialog");
+  await expect(gate).toContainText("Before your first transaction");
+  await expect(gate.getByRole("button", { name: "Accept" })).toBeDisabled();
+  await gate.getByRole("checkbox").check();
+  await gate.getByRole("button", { name: "Accept" }).click();
   await expect(page.getByTestId("tx-status")).toContainText("deposit 100 AUSD ✓", { timeout: 30_000 });
 
   await page.getByRole("button", { name: "Market long" }).click();
