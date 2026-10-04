@@ -13,7 +13,7 @@ import {MockKuruHedger} from "../../src/mocks/MockKuruHedger.sol";
 import {IPulseVault} from "../../src/interfaces/IPulseVault.sol";
 import {IKuruHedger} from "../../src/interfaces/IKuruHedger.sol";
 import {IFundingRateOracle} from "../../src/interfaces/IFundingRateOracle.sol";
-import {RiskParams, FundingParams, VaultParams, HedgeState} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, VaultParams, HedgeState, AccountView} from "../../src/interfaces/PulseTypes.sol";
 
 /// @dev REAL ClearingHouse + OrderBook (MATH_SPEC defaults, caps raised so the §5.5 example fits), MockKuruHedger
 ///      for the spot leg, MockOracleAdapter. r̄ (8 h) is pinned with vm.mockCall on the real CH for rule tests.
@@ -258,6 +258,24 @@ contract PulseVaultTest is PulseVaultBase {
         assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.EnterHedge));
     }
 
+    /// Review finding B-S1: an exit whose last step leaves spot ≥ 1 lot with the perp already flat must keep
+    /// unwinding (sell the spot), not revert NothingToDo in `_reduceBoth(n, 0)` and stay stuck in ExitHedge.
+    function test_exit_perpFlatSpotLeft_keepsSellingSpot() public {
+        _whaleLong(3000);
+        _setAvgApr(0.3e18);
+        _deposit(alice, 10_000e6);
+        _rebalanceAll();
+        assertTrue(_hs().hedged);
+        // excess spot of more than one slice (2,500 AUSD ≈ 86k MON) on top of the hedge, e.g. a large drift
+        wmon.mint(address(vault), 200_000e18);
+        _setAvgApr(-0.3e18);
+        _rebalanceAll();
+        HedgeState memory h = _hs();
+        assertEq(h.perpSize, 0);
+        assertLt(h.spotBase, 100e18, "all spot sold");
+        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.None));
+    }
+
     // ═══ NAV at the index (MATH_SPEC §5.4) ═════════════════════════════════════
     function test_priceMove20pct_navUnchanged_notLiquidatable() public {
         _whaleLong(3000);
@@ -458,5 +476,106 @@ contract PulseVaultTest is PulseVaultBase {
         MockERC20 other = new MockERC20("x", "x", 6);
         vm.expectRevert(IPulseVault.InvalidParams.selector);
         new PulseVault(other, address(ch), address(ob), address(hedger), _params(), owner);
+    }
+}
+
+/// Review A-05/A-06: NAV uses the SIGNED perp collateral (AccountView.collateral is clamped at 0), and deposits close
+/// while the vault's perp account carries bad debt.
+contract PulseVaultBadDebtNav is PulseVaultBase {
+    function test_A05_A06_negativePerpCollateral_navAndDepositsClosed() public {
+        _deposit(alice, 1000e6);
+        assertGt(vault.maxDeposit(bob), 0);
+        // the CH reports the vault's account after a deficit liquidation: flat, collateral −50 AUSD (clamped to 0)
+        AccountView memory a;
+        a.equity = -50e18;
+        vm.mockCall(address(ch), abi.encodeWithSelector(ch.getAccount.selector, address(vault)), abi.encode(a));
+        assertEq(vault.totalAssets(), 950e6, "NAV = idle - the perp deficit");
+        assertEq(vault.maxDeposit(bob), 0, "no deposits into the deficit");
+    }
+}
+
+// ═══ Review A findings (docs/outputs/security/review-A.md), moved from test/review/ReviewA.t.sol ═══
+
+/// A-02 (Medium): one lot (100 MON ≈ $2.7) of WMON donated to a flat, not-entered vault makes `_needs` return
+/// ExitHedge forever and `_exitSlice` revert NothingToDo (q = 0 ⇒ `_reduceBoth(0)`): the entry rule can never fire.
+contract ReviewA02_DonationBricksRule is PulseVaultBase {
+    function test_A02_wmonDonation_doesNotBlockRuleBasedEntry() public {
+        _whaleLong(3000);
+        _deposit(alice, 5000e6);
+        wmon.mint(address(vault), 100e18); // griefer: one lot of WMON
+        _setAvgApr(0.3e18); // entry test passes
+        // Expected: the rule path still works (sell the stray spot, or enter). Today: ExitHedge + NothingToDo.
+        vm.prank(keeper);
+        vault.rebalance();
+        _rebalanceAll();
+        assertTrue(vault.hedgeState().hedged, "vault entered by rule despite the donation");
+    }
+
+    /// Same state reached by `exitHedge()`: the forced exit can't clear stray spot either.
+    function test_A02_wmonDonation_exitHedgeClearsSpot() public {
+        _deposit(alice, 5000e6);
+        wmon.mint(address(vault), 100e18);
+        vm.prank(keeper);
+        vault.exitHedge();
+        assertLt(vault.hedgeState().spotBase, 100e18);
+    }
+}
+
+/// A-03 (Medium): MarginLow tops up only from idle and reduces the legs only when idle == 0 exactly. A griefer who
+/// sends 1 unit (1e-6 AUSD) before each keeper rebalance keeps the top-up at dust: no margin added, no reduction,
+/// and a further pump liquidates the vault's short.
+contract ReviewA03_DustIdleMarginLow is PulseVaultBase {
+    function test_A03_dustIdle_marginLowStillMakesProgress() public {
+        _whaleLong(3000);
+        _setAvgApr(0.3e18);
+        _deposit(alice, 10_000e6);
+        _rebalanceAll();
+        _setPrice(I0 * 145 / 100); // +45%
+        vm.roll(block.number + 1);
+        // first MarginLow uses the real idle buffer
+        vm.prank(keeper);
+        vault.rebalance();
+        vm.roll(block.number + 1);
+        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.MarginLow), "still low");
+        assertEq(ausd.balanceOf(address(vault)), 0, "idle spent");
+        HedgeState memory h0 = vault.hedgeState();
+        // griefer front-runs the keeper with 1 unit
+        ausd.mint(address(vault), 1);
+        vm.prank(keeper);
+        vault.rebalance();
+        HedgeState memory h1 = vault.hedgeState();
+        // Expected: the keeper's call reduces the legs (or restores the ratio). Today: 1 unit deposited, nothing else.
+        assertTrue(
+            h1.marginRatio >= 0.25e18 || uint256(-h1.perpSize) < uint256(-h0.perpSize),
+            "MarginLow rebalance made no progress"
+        );
+    }
+}
+
+/// A-04 (Medium): `_targetBase` ignores the CH per-account `maxPositionSize`. With the launch config (perp cap 25k MON,
+/// vault depositCap 1,200 AUSD, PHASES decision 12) the target N/P = 0.57·1,200/P exceeds 25k MON whenever MON <
+/// ≈ $0.0274 (today ≈ 0.0272): the first (only) slice reverts PositionCapExceeded and the vault never deploys, while
+/// needsRebalance keeps reporting EnterHedge/Deploy.
+contract ReviewA04_TargetIgnoresPositionCap is PulseVaultBase {
+    function _params() internal pure override returns (VaultParams memory p) {
+        p = super._params();
+        p.depositCap = 1200e6;
+    }
+
+    function test_A04_launchCaps_vaultDeploysUpToPositionCap() public {
+        _whaleLong(3000); // takers net long 300k MON ⇒ capacity 240k, not the binding limit
+        _setPrice(0.0272e18);
+        _quote(27_200, 2000);
+        RiskParams memory r = ch.riskParams();
+        r.maxPositionSize = 25_000e18; // config/143.json launch cap
+        vm.prank(owner);
+        ch.setRiskParams(r);
+        _setAvgApr(0.3e18);
+        _deposit(alice, 1200e6);
+        // Expected: the vault shorts min(N/P, capacity, maxPositionSize) = 25k MON. Today: PositionCapExceeded.
+        _rebalanceAll();
+        HedgeState memory h = vault.hedgeState();
+        assertTrue(h.hedged, "vault deployed");
+        assertLe(uint256(-h.perpSize), 25_000e18);
     }
 }

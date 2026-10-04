@@ -182,6 +182,17 @@ contract OracleTestnetKeeperTest is Test {
         assertTrue(ok);
     }
 
+    /// Review A-10: a publish time far in the future (ms pushed as s) is refused, so it can't freeze the price.
+    function test_push_rejectsFarFuturePublishTime() public {
+        vm.startPrank(keeper);
+        o.pushPrice(0.029e18, block.timestamp + 60); // clock skew up to 60 s is fine
+        vm.expectRevert(IOracleAdapter.InvalidPrice.selector);
+        o.pushPrice(0.029e18, block.timestamp + 61);
+        vm.expectRevert(IOracleAdapter.InvalidPrice.selector);
+        o.pushPrice(0.029e18, block.timestamp * 1000); // milliseconds
+        vm.stopPrank();
+    }
+
     // ─── on the real ClearingHouse: fresh ⇒ accrual, stale ⇒ frozen ────
     function test_clearingHouse_accruesOnlyWhileFed() public {
         _push(0.029e18, block.timestamp);

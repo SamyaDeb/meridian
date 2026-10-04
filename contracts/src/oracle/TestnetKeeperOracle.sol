@@ -21,6 +21,8 @@ contract TestnetKeeperOracle is IOracleAdapter, Ownable, ReentrancyGuardTransien
     uint256 public constant MIN_STALENESS = 1;
     uint256 public constant MAX_STALENESS = 1 hours;
     uint256 public constant MAX_DEVIATION = 0.1e18;
+    /// @dev A push may be at most this far ahead of the block time (review A-10).
+    uint256 public constant MAX_FUTURE_SEC = 60;
     /// @notice Human-readable label shown by explorers / the app.
     string public constant name = unicode"TESTNET ONLY – keeper-fed";
 
@@ -107,7 +109,11 @@ contract TestnetKeeperOracle is IOracleAdapter, Ownable, ReentrancyGuardTransien
     // ───────────────────────────── internals ─────────────────────────────
 
     function _push(uint256 priceWad, uint256 publishTime) internal {
-        if (priceWad == 0 || priceWad > type(uint128).max || publishTime > type(uint128).max) revert InvalidPrice();
+        // a publish time > 60 s ahead (e.g. milliseconds pushed as seconds) would stay "fresh" forever and make every
+        // later correct push revert StalePrice (review A-10)
+        if (priceWad == 0 || priceWad > type(uint128).max || publishTime > block.timestamp + MAX_FUTURE_SEC) {
+            revert InvalidPrice();
+        }
         if (publishTime < _publishTime) revert StalePrice();
         _price = uint128(priceWad);
         _publishTime = uint128(publishTime);

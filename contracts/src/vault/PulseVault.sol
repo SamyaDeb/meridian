@@ -67,6 +67,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         int256 perpEquity; // at the index: collateral + size·I − ON − pending (quote WAD)
         int256 pending; // unsettled funding owed by the vault (quote WAD)
         uint256 nav; // AUSD token units
+        bool insolvent; // true NAV ≤ 0 with shares outstanding, or the perp account carries bad debt (negative collateral)
     }
 
     modifier onlyKeeper() {
@@ -109,8 +110,11 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         return _nav().nav;
     }
 
+    /// @dev 0 while the vault is under water (review A-06): a new deposit would first fill the deficit.
     function maxDeposit(address) public view override(ERC4626, IERC4626) returns (uint256) {
-        uint256 ta = totalAssets();
+        Nav memory n = _nav();
+        if (n.insolvent) return 0;
+        uint256 ta = n.nav;
         return ta >= _p.depositCap ? 0 : _p.depositCap - ta;
     }
 
@@ -199,7 +203,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         uint256 hedgedValue = n.nav > n.idle ? n.nav - n.idle : 0;
         uint256 missing = (assets - idle).mulDiv(UNWIND_HEADROOM, WAD, Math.Rounding.Ceil);
         uint256 f = hedgedValue == 0 ? WAD : FPM.min(WAD, missing.mulDiv(WAD, hedgedValue, Math.Rounding.Ceil));
-        _unwind(n, f, "", true);
+        _unwind(n, f, "");
         uint256 navAfter = totalAssets();
         cost = n.nav > navAfter ? n.nav - navAfter : 0;
         if (IERC20(asset()).balanceOf(address(this)) < assets - FPM.min(assets, cost)) revert SlippageExceeded();
@@ -350,11 +354,14 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         skewProviders.push(provider);
     }
 
-    /// @dev MATH_SPEC §5.1: h = min(N/P, shortCapacity) in lots ↓, N = D·L/(L+1) ↓ with D = NAV·(1 − idleBuffer).
+    /// @dev MATH_SPEC §5.1: h = min(N/P, shortCapacity, perp maxPositionSize) in lots ↓, N = D·L/(L+1) ↓ with
+    ///      D = NAV·(1 − idleBuffer). The CH per-account cap binds at the launch config (review A-04): a slice past it
+    ///      would revert PositionCapExceeded forever.
     function _targetBase(Nav memory n) internal view returns (uint256) {
         uint256 d = FPM.mulWad(n.nav * TO_WAD, WAD - _p.idleBuffer);
         uint256 notional = FPM.mulDiv(d, _p.leverage, _p.leverage + WAD);
-        return _floorLots(FPM.min(FPM.divWad(notional, n.index), shortCapacity()));
+        uint256 cap = IClearingHouse(clearingHouse).riskParams().maxPositionSize;
+        return _floorLots(FPM.min(FPM.min(FPM.divWad(notional, n.index), shortCapacity()), cap));
     }
 
     /// @dev Target hedge notional N (quote WAD) for the drift test.
@@ -415,7 +422,8 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
     function _exitSlice(Nav memory n, bytes memory route) internal {
         uint256 q = FPM.abs(n.size);
         uint256 x = FPM.min(q, _ceilLots(_sliceBase(n.index)));
-        _reduceBoth(n, x, route);
+        // perp already flat (an earlier final step left ≥ 1 lot of spot): skip the perp leg, keep selling spot
+        if (x != 0) _reduceBoth(n, x, route);
         if (q == x) {
             // flat: sell the remaining spot (≤ one slice) and withdraw all collateral
             uint256 spot = IERC20(_wmon).balanceOf(address(this));
@@ -434,14 +442,14 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         if (spot != 0) _sellSpot(FPM.min(spot, x), n.index, route);
     }
 
-    /// @dev MarginLow: top the perp margin up to the target ratio from idle; if there is no idle, reduce both legs by
-    ///      a slice first and use the proceeds.
+    /// @dev MarginLow: top the perp margin up to the target ratio from idle; if idle covers less than a tenth of the
+    ///      need (none, or a dust donation: review A-03), reduce both legs by a slice first and use the proceeds.
     function _topUpMargin(Nav memory n, bytes memory route) internal {
         uint256 q = FPM.abs(n.size);
         uint256 want = FPM.mulWadUp(FPM.mulWadUp(q, n.index), _p.targetMarginRatio);
         uint256 need = n.perpEquity >= int256(want) ? 0 : FPM.divUp(want - uint256(FPM.max(n.perpEquity, 0)), TO_WAD);
         uint256 idle = IERC20(asset()).balanceOf(address(this));
-        if (idle == 0) {
+        if (idle * 10 < need) {
             _reduceBoth(n, FPM.min(q, _ceilLots(_sliceBase(n.index))), route);
             idle = IERC20(asset()).balanceOf(address(this));
         }
@@ -467,7 +475,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
 
     /// @dev Pro-rata unwind of a fraction f of both legs and of the perp equity (withdrawals). Bounded: one perp
     ///      order, one spot sell, one CH withdraw.
-    function _unwind(Nav memory n, uint256 f, bytes memory route, bool) internal {
+    function _unwind(Nav memory n, uint256 f, bytes memory route) internal {
         uint256 q = FPM.abs(n.size);
         uint256 x = FPM.min(q, _ceilLots(FPM.mulWadUp(q, f)));
         if (x != 0) _perpOrder(true, x, n.index, true);
@@ -528,10 +536,12 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         AccountView memory a = ch.getAccount(address(this));
         n.size = pos.size;
         n.pending = a.pendingFunding;
-        n.perpEquity =
-            int256(a.collateral) + FPM.sMulWad(pos.size, int256(n.index)) - pos.openNotional - a.pendingFunding;
+        // signed collateral − pending = equity − upnl (AccountView.collateral is clamped at 0; review A-05)
+        int256 settled = a.equity - a.unrealizedPnl;
+        n.perpEquity = settled + FPM.sMulWad(pos.size, int256(n.index)) - pos.openNotional;
         int256 navWad = int256(n.idle * TO_WAD) + int256(FPM.mulWad(n.spot, n.index)) + n.perpEquity;
         n.nav = navWad > 0 ? uint256(navWad) / TO_WAD : 0;
+        n.insolvent = (navWad <= 0 && totalSupply() != 0) || settled + a.pendingFunding < 0;
     }
 
     function _snapshot() internal {
