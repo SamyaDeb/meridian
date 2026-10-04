@@ -212,6 +212,7 @@ contract FundingSwapIntegrationTest is Test {
         uint256 steps;
         while (!fs.isLiquidatable(alice) && steps < 200) {
             _run(20);
+            fs.settle(keeper); // B-01: the keeper touches the market, which advances the bounded mark
             ++steps;
         }
         assertTrue(fs.isLiquidatable(alice), "long receive-floating is under water");

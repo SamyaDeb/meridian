@@ -40,6 +40,11 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
     uint64 public constant REALIZED_WINDOW_BLOCKS = 96_000;
     /// @dev A swap trade older than 100 blocks (30 s) is not a mark input (MATH_SPEC §6.3).
     uint256 public constant LAST_TRADE_MAX_AGE = 100;
+    /// @dev B-01: the mark may move at most 0.5 APR points per block from its per-block anchor (MATH_SPEC §6.3).
+    int256 public constant MARK_MAX_STEP_PER_BLOCK = 0.005e18;
+    /// @dev B-01: blocks of elapsed time credited to the bound, so one refresh moves the mark ≤ 10 APR points
+    ///      (≈ 0.8% of notional at τ = 30 d, below the ≈ 2.6% IM–MM gap).
+    uint256 public constant MARK_MAX_ELAPSED_BLOCKS = 20;
 
     // ─── Hard bounds on admin parameters ───────────────────────────────────────
     uint256 internal constant MIN_LIQ_HORIZON = 1 hours;
@@ -100,6 +105,9 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
     uint256 public totalBadDebt;
     int256 internal _fAtMaturity;
     int256 internal _gAtMaturity;
+    /// @dev B-01: the mark of the last block that touched this market, and that block (one slot).
+    int128 internal _markAnchor;
+    uint64 internal _markAnchorBlock;
     SwapParams internal _p;
     mapping(address => Account) internal _accounts;
 
@@ -190,6 +198,10 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
             (int256 f, int256 g,) = IFundingRateOracle(perpClearingHouse).latestObservation();
             (_fAtMaturity, _gAtMaturity, _snapped) = (f, g, true);
             emit MaturitySettled(f, g, uint64(block.number));
+        }
+        // B-01: the first touch of a block fixes the bounded mark for the whole block (no same-block movement).
+        if (_markAnchorBlock != block.number) {
+            (_markAnchor, _markAnchorBlock) = (_boundedMark().toInt128(), uint64(block.number));
         }
         return _observe();
     }
@@ -511,7 +523,29 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
         return _markApr();
     }
 
+    /// @dev B-01: the mark every margin, liquidation and view decision uses. The first touch of a block stores it
+    ///      (`_markAnchor`) and it stays fixed for that block, so book or trade moves made after it in the same
+    ///      transaction or block change nothing. Across blocks it follows the live mark by at most
+    ///      MARK_MAX_STEP_PER_BLOCK per elapsed block (capped at MARK_MAX_ELAPSED_BLOCKS), so even a manipulation
+    ///      that lands before the first touch moves it ≤ 10 APR points per refresh and the MM can re-quote.
+    ///      MATH_SPEC §6.3 (per-block bound added to the band), rounds neutral.
     function _markApr() internal view returns (int256) {
+        if (_markAnchorBlock == block.number) return _markAnchor;
+        return _boundedMark();
+    }
+
+    function _boundedMark() internal view returns (int256) {
+        int256 live = _liveMarkApr();
+        uint256 ab = _markAnchorBlock;
+        if (ab == 0) return live; // first ever touch: nothing to bound against
+        uint256 elapsed = FPM.min(block.number - ab, MARK_MAX_ELAPSED_BLOCKS);
+        // MATH_SPEC §6.3, rounds neutral
+        int256 band = int256(elapsed) * MARK_MAX_STEP_PER_BLOCK;
+        int256 anchor = _markAnchor;
+        return FPM.clamp(live, anchor - band, anchor + band);
+    }
+
+    function _liveMarkApr() internal view returns (int256) {
         int256 a = _realized8h();
         int256 b = a;
         int256 c = a;
@@ -525,7 +559,8 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
                 b = int256((uint256(bid) + uint256(ask)) * ts / 2) - IWAD;
             }
             (uint256 px, uint64 blk) = IOrderBook(ob).lastTrade();
-            if (px != 0 && blk <= block.number && block.number - blk <= LAST_TRADE_MAX_AGE) c = int256(px) - IWAD;
+            // B-01: a trade printed in this very block is not an input (it can be a same-block self-trade)
+            if (px != 0 && blk < block.number && block.number - blk <= LAST_TRADE_MAX_AGE) c = int256(px) - IWAD;
         }
         int256 m = _median(a, b, c);
         return FPM.clamp(m, a - MARK_BAND_APR, a + MARK_BAND_APR);

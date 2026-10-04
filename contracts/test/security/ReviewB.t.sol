@@ -12,8 +12,8 @@ import {RiskParams, FundingParams, SwapParams, SwapAccountView} from "../../src/
 
 /// @notice Founder B's security review (docs/outputs/security/review-B.md): proof-of-concept tests for the
 ///         High/Medium findings in A's contracts. Each test asserts the CORRECT behaviour, so it FAILS on the
-///         current code and passes once the finding is fixed. They are skipped unless REVIEW_B_POC=true, so
-///         `forge test` stays green until A lands the fix and removes the gate:
+///         current code and passes once the finding is fixed. B-01 is FIXED (per-block bound on the swap
+///         mark) and runs always as a regression test. B-02 is still open: its test is skipped unless REVIEW_B_POC=true:
 ///           REVIEW_B_POC=true forge test --match-path test/security/ReviewB.t.sol -vv
 ///         Fixture: the real perp ClearingHouse + OrderBook and the real FundingSwapMarket + its own OrderBook
 ///         (tick 1e14 = 1 bp APR, lot 1,000 MON), MATH_SPEC defaults (same as FundingSwapIntegration.t.sol).
@@ -37,7 +37,6 @@ contract ReviewBTest is Test {
     uint64 samBid;
 
     function setUp() public {
-        if (!vm.envOr("REVIEW_B_POC", false)) vm.skip(true);
         vm.roll(1_000_000);
         vm.warp(1_790_000_000);
         ausd = new MockERC20("Test AUSD", "tAUSD", 6);
@@ -155,6 +154,7 @@ contract ReviewBTest is Test {
     /// colluding counterparty keeps the mirror stream (a free option paid by the IF). Correct behaviour: a
     /// voluntary trade must not leave an account below maintenance (or must not increase MM).
     function test_B02_swapReductionAtOffMarketAprLeavesAccountBelowMM() public {
+        if (!vm.envOr("REVIEW_B_POC", false)) vm.skip(true);
         _victimLong();
         _fund(address(fs), y, 10_000e6);
         vm.prank(sam);

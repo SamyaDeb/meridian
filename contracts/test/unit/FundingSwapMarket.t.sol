@@ -407,12 +407,15 @@ contract FundingSwapMarketTest is FundingSwapBase {
         assertEq(fs.markApr(), realized, "no book, no trade: realized");
         ob.mockSetBook(11_500, 11_700); // mid 16%
         assertEq(fs.markApr(), realized, "median(A, B, A) = A");
-        ob.mockSetLastTrade(1.2e18, uint64(block.number)); // 20%, fresh
+        ob.mockSetLastTrade(1.2e18, uint64(block.number)); // 20%, printed this block: not an input yet (B-01)
+        assertEq(fs.markApr(), realized, "same-block trade is not a mark input");
+        vm.roll(block.number + 1); // one block later it counts
         assertEq(fs.markApr(), 0.16e18, "median(12, 16, 20) = 16");
         vm.roll(block.number + 101);
         assertEq(fs.markApr(), realized, "stale trade ignored");
         ob.mockSetBook(20_000, 20_200); // mid 101%
         ob.mockSetLastTrade(2.2e18, uint64(block.number)); // 120%
+        vm.roll(block.number + 1); // a trade only counts from the next block (B-01)
         assertEq(fs.markApr(), realized + 0.5e18, "clamped to realized + 50 APR points");
         assertEq(fs.realizedApr(96_000), realized);
     }
@@ -426,6 +429,19 @@ contract FundingSwapMarketTest is FundingSwapBase {
         _trade(alice, bob, true, 1000, 0.12e18);
         vm.roll(block.number + 101); // the 12% trade leaves the mark inputs
         ch.mockAccrue(0, 0, newApr / YEAR);
+        _convergeMark(newApr);
+    }
+
+    /// B-01: the mark follows a regime change by at most MARK_MAX_STEP_PER_BLOCK × MARK_MAX_ELAPSED_BLOCKS (10 APR
+    /// points) per touched refresh, so a keeper touches the market (`settle` of a flat account) while it waits:
+    /// one refresh per 10 points of distance from the 12% trade, plus two spare.
+    function _convergeMark(int256 targetApr) internal {
+        int256 dist = targetApr > 0.12e18 ? targetApr - 0.12e18 : 0.12e18 - targetApr;
+        uint256 refreshes = uint256(dist) / 0.1e18 + 2;
+        for (uint256 i; i < refreshes; ++i) {
+            vm.roll(block.number + 20);
+            fs.settle(dave);
+        }
     }
 
     function test_liquidation_transfersPositionValueAndPenalty() public {

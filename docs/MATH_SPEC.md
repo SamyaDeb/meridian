@@ -269,6 +269,11 @@ Equivalent form: `net = q·Σ I·Δt·(r − Ā/YEAR)` with r per second and Ā 
 ### 6.3 Mark and PnL
 ```
 markApr = median(bookMidApr, lastTradeApr (≤ 30 s old), realizedApr(8 h)),  clamped to realizedApr ± 50 APR points
+markApr_used = clamp(markApr, anchor ± min(blocksSinceAnchor, 20) · 0.5 APR points)   // B-01 (review B), rounds neutral
+//   anchor = the markApr_used of the last block that touched the market; the first touch of a block fixes it for the
+//   whole block, and a trade printed in the current block is not a lastTradeApr input. One refresh moves the mark
+//   ≤ 10 APR points (≈ 0.8% of notional at τ = 30 d, below the ≈ 2.6% IM–MM gap); a genuine regime change reaches the
+//   live mark in ≈ 10 points per touched refresh (keepers touch with `settle` of any account).
 V       = (q·markApr/1e18 − K) · I / 1e18 · τ / YEAR      // value of the remaining stream, AUSD WAD ↓ (K is stored in WAD: K += Δq·A/1e18)
 equity  = collateral + accruedNet(unsettled, §6.2) + V
 ```
