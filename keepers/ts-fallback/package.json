@@ -11,7 +11,8 @@
     "check-source": "tsx scripts/check-source.ts",
     "evidence": "tsx scripts/evidence.ts",
     "watch": "tsx scripts/watch.ts",
-    "oracle-deviation": "tsx scripts/oracle-deviation.ts"
+    "oracle-deviation": "tsx scripts/oracle-deviation.ts",
+    "flow-quote": "tsx scripts/flow-quote.ts"
   },
   "dependencies": {
     "@pulse/abis": "workspace:*",

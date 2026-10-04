@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Snapshot, TEAM_PLAN_THRESHOLDS as T, evaluateAlerts, ifBaseline } from "../src/alerts.js";
+import { type Snapshot, TEAM_PLAN_THRESHOLDS as T, emptySince, evaluateAlerts, ifBaseline } from "../src/alerts.js";
 
 const E = 10n ** 18n;
 const ok: Snapshot = {
@@ -47,5 +47,43 @@ describe("evaluateAlerts (TEAM_PLAN §7 thresholds)", () => {
   });
   it("unknown parts (null) never alert", () => {
     expect(codes({ ...ok, oracle: null, lastFundingBlock: null, insuranceFundToken: null, vault: null, keeperBalances: [], keeperHealth: [], indexerLagSec: null }, null)).toEqual([]);
+  });
+});
+
+describe("Phase 5 B6 rules", () => {
+  const vcodes = (s: Snapshot, vaultPeak: bigint | null = null) =>
+    evaluateAlerts(s, T, 1_000_000_000n, vaultPeak).map((a) => `${a.severity}:${a.code}`);
+
+  it("AUSD depeg < 0.99 is critical; a feed older than 2 h is a warning", () => {
+    expect(vcodes({ ...ok, ausdUsd: { price8: 99_988_476n, updatedAt: 0n } })).toEqual([]); // 30 Sep reading
+    expect(vcodes({ ...ok, ausdUsd: { price8: 98_999_999n, updatedAt: 900n } })).toEqual(["critical:ausd_depeg"]);
+    expect(vcodes({ ...ok, nowSec: 8_201n, oracle: { ok: true, updatedAt: 8_200n }, ausdUsd: { price8: 100_000_000n, updatedAt: 1_000n } })).toEqual(["warn:ausd_feed_old"]);
+  });
+  it("Chainlink MON/USD guard feed older than 2 h (the deviation guard fails open)", () => {
+    expect(vcodes({ ...ok, secondaryFeed: { updatedAt: 1_000n } })).toEqual([]);
+    expect(vcodes({ ...ok, nowSec: 8_201n, oracle: { ok: true, updatedAt: 8_200n }, secondaryFeed: { updatedAt: 1_000n } })).toEqual(["warn:guard_feed_old"]);
+  });
+  it("an MM with 0 open orders for > 60 s", () => {
+    expect(vcodes({ ...ok, mmBooks: [{ label: "mm-perp", emptyForSec: 60n }] })).toEqual([]);
+    expect(vcodes({ ...ok, mmBooks: [{ label: "mm-swap", emptyForSec: 61n }] })).toEqual(["critical:mm_empty"]);
+    expect(emptySince(null, true, 100n)).toBe(100n);
+    expect(emptySince(100n, true, 200n)).toBe(100n);
+    expect(emptySince(100n, false, 200n)).toBeNull();
+  });
+  it("swap maturity: warn within 24 h with OI; critical if matured and not snapshotted after 60 s; quiet without OI", () => {
+    const sw = (maturity: bigint, snapped: boolean, longOI = 1n) => ({ ...ok, swap: { maturity, snapped, longOI } });
+    expect(vcodes(sw(1_000n + 86_401n, false))).toEqual([]);
+    expect(vcodes(sw(1_000n + 86_400n, false))).toEqual(["warn:maturity_soon"]);
+    expect(vcodes(sw(940n, false))).toEqual([]); // 60 s grace
+    expect(vcodes(sw(939n, false))).toEqual(["critical:maturity_unsettled"]);
+    expect(vcodes(sw(939n, true))).toEqual([]);
+    expect(vcodes(sw(1_100n, false, 0n))).toEqual([]);
+  });
+  it("vault share price > 50 bps under its peak (A-09)", () => {
+    expect(vcodes({ ...ok, vaultSharePrice: 995n * 10n ** 15n }, E)).toEqual([]);
+    expect(vcodes({ ...ok, vaultSharePrice: 9_949n * 10n ** 14n }, E)).toEqual(["critical:vault_share_drop"]);
+  });
+  it("per-wallet balance floors override the 5 MON default", () => {
+    expect(vcodes({ ...ok, keeperBalances: [{ label: "mm", wei: 6n * E, minWei: 10n * E }] })).toEqual(["warn:keeper_balance"]);
   });
 });

@@ -6,7 +6,21 @@ import vault from "@pulse/abis/IPulseVault.json" with { type: "json" };
 import swap from "@pulse/abis/IFundingSwapMarket.json" with { type: "json" };
 import insurance from "@pulse/abis/IInsuranceFund.json" with { type: "json" };
 import swapImpl from "@pulse/abis/FundingSwapMarket.json" with { type: "json" };
-import { clearingHouseAbi, fundingSwapAbi, fundingSwapImplAbi, insuranceFundAbi, oracleAdapterAbi, pulseVaultAbi } from "../src/abi.js";
+import hedger from "@pulse/abis/IKuruHedger.json" with { type: "json" };
+import ob from "@pulse/abis/IOrderBook.json" with { type: "json" };
+import agg from "@pulse/abis/AggregatorV3Interface.json" with { type: "json" };
+import {
+  aggregatorAbi,
+  clearingHouseAbi,
+  fundingSwapAbi,
+  fundingSwapImplAbi,
+  fundingSwapWatchAbi,
+  insuranceFundAbi,
+  kuruHedgerAbi,
+  oracleAdapterAbi,
+  orderBookWatchAbi,
+  pulseVaultAbi,
+} from "../src/abi.js";
 
 // Every fragment the keeper uses must exist, with the same selector, in the committed frozen-interface ABI.
 function selectors(abi: Abi): Set<string> {
@@ -26,6 +40,10 @@ describe("keeper ABI fragments match abis/*.json", () => {
     ["IFundingSwapMarket", fundingSwapAbi, swap as Abi],
     ["FundingSwapMarket", fundingSwapImplAbi, swapImpl as Abi],
     ["IInsuranceFund", insuranceFundAbi, insurance as Abi],
+    ["IKuruHedger", kuruHedgerAbi, hedger as Abi],
+    ["IOrderBook", orderBookWatchAbi, ob as Abi],
+    ["IFundingSwapMarket (watch)", fundingSwapWatchAbi, swap as Abi],
+    ["AggregatorV3Interface", aggregatorAbi, agg as Abi],
   ] as const)("%s", (_, mine, frozen) => {
     const want = selectors(frozen);
     const have = [...selectors(mine as Abi)];

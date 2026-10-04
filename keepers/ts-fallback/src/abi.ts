@@ -27,6 +27,17 @@ export const pulseVaultAbi = parseAbi([
   "function needsRebalance() view returns (uint8 reason)",
   "function rebalance() returns (uint8 reason)",
   "function rebalanceWithRoute(bytes spotRoute) returns (uint8 reason)",
+  "function hedger() view returns (address)",
+  "function sharePrice() view returns (uint256)",
+]);
+
+// IKuruHedger (CR-002): the vault's spot leg; the keeper decodes its calls from a trace and reads its wiring.
+export const kuruHedgerAbi = parseAbi([
+  "function buySpot(uint256 quoteInToken, uint256 minBaseOut, bytes route) returns (uint256 baseOut)",
+  "function sellSpot(uint256 baseIn, uint256 minQuoteOut, bytes route) returns (uint256 quoteOutToken)",
+  "function flowEntrypoint() view returns (address)",
+  "function baseToken() view returns (address)",
+  "function quoteToken() view returns (address)",
 ]);
 
 // IFundingSwapMarket (interfaces-v1.5), checked against abis/IFundingSwapMarket.json.
@@ -47,3 +58,13 @@ export const fundingSwapImplAbi = parseAbi([
 ]);
 
 export const insuranceFundAbi = parseAbi(["function balance() view returns (uint256 amountToken)"]);
+
+// Watcher reads (Phase 5 B6): IOrderBook, IFundingSwapMarket, Chainlink AggregatorV3 (external interface).
+export const orderBookWatchAbi = parseAbi(["function openOrderCount(address account) view returns (uint256)"]);
+export const fundingSwapWatchAbi = parseAbi([
+  "function maturity() view returns (uint256 timestamp)",
+  "function openInterest() view returns (uint256 longOI, uint256 shortOI)",
+]);
+export const aggregatorAbi = parseAbi([
+  "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
+]);

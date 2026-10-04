@@ -24,6 +24,10 @@ Two processes per market: the **keeper** (`keepers/ts-fallback`: oracle pushes, 
 | `SOURCE_POLL_MS` | opt | — | default 1000: keeper-fed source read at most once per second (it publishes every 10–30 s) |
 | `BALANCE_EVERY_BLOCKS` | opt | — | default 100: balance sample for `monPerHour` + the < 5 MON alert |
 | `VAULT_REBALANCE` | opt | — | `1` = rebalance the vault (read every `VAULT_EVERY_BLOCKS`=20 and after every oracle push); main market only, Phase 4 |
+| `VAULT_ROUTE` | opt | `direct` | `flow` on mainnet (Phase 5 B4): each rebalance with a spot leg reads the vault's exact `buySpot`/`sellSpot` amount from a `debug_traceCall` of `rebalanceWithRoute(0x00)` (the RPC must serve `debug_traceCall` + `callTracer`: the public mainnet RPC does, the Alchemy free tier doesn't), quotes Kuru Flow for it minus the haircut (hedger = `userAddress`), refuses any route whose target isn't the hedger's `flowEntrypoint` or whose value ≠ 0, then sends `rebalanceWithRoute`. `direct` = `rebalance()` (testnet MockKuruHedger) |
+| `KURU_FLOW_JWT` / `KURU_API_KEY` | flow | — | Kuru auth: a pre-issued JWT or an API key (`X-API-Key`); unset ⇒ the keeper calls `/generate-token` for the hedger address and caches the JWT until 60 s before `expires_at`. Kuru allows **1 rps** (burst 1): calls are spaced ≥ 1.05 s |
+| `KURU_FLOW_HAIRCUT_BPS` | flow | 10 | quote this much under the vault's amount (the route may pull at most the exact approval; the hedger returns leftovers). Must stay well under the vault's `maxSlippage` (50 bps), or the output misses minOut |
+| `KURU_FLOW_SLIPPAGE_BPS` | flow | 50 | `slippageTolerance` sent to Kuru (advisory: the vault's index ∓ maxSlippage minOut + the hedger's balance-delta check bind) |
 | `READ_RPC_URL` | — | opt | reads/estimates/receipts on a second endpoint (default `RPC_URL`); sends always go to `RPC_URL` |
 | `TICK_EVERY_BLOCKS` | — | opt | default 1; **2–3 on testnet** (300–400 ms blocks) |
 | `FULL_REFRESH_TICKS` | — | opt | default 20: `getOrder` on every resting id every N ticks (otherwise only ids a `Trade`/`OrderEvicted` log mentioned) |
@@ -104,13 +108,40 @@ Where the RPC went: keeper `eth_call` 229 → 95/min (account reads only on chan
 3. The mark (median of index-implied, book mid, last trade; clamped ±5% of the index) follows once the demo MM has re-quoted (one pipelined batch); the demo keeper liquidates within ≤ 3 blocks of eligibility and logs `liquidation latency` (B7).
 4. `echo 1 > $PRICE_FACTOR_FILE` to recover. Never touch the main market's price or parameters for a demo.
 
-## 8. Monitoring (TEAM_PLAN §7; paging is Phase 5)
+## 8. Monitoring and paging (TEAM_PLAN §7; paging Phase 5 B6)
 ```bash
-cd keepers/ts-fallback && CHAIN_ID=10143 RPC_URL=<own endpoint> DEPLOYMENTS=../../deployments/10143.json \
-  KEEPER_HEALTH=http://localhost:8797/health,http://localhost:8798/health WATCH_BALANCES=keeper=0x…,mm=0x… pnpm watch
+cd keepers/ts-fallback && CHAIN_ID=143 RPC_URL=<watcher's own endpoint> DEPLOYMENTS=../../deployments/143.json \
+  KEEPER_HEALTH=http://localhost:8797/health,http://localhost:8798/health \
+  WATCH_BALANCES=deployer=0x…:2,keeper=0x…:<floor>,mm=0x…:<floor>,mmswap=0x…:<floor> \
+  WATCH_MM=perp=<MM perp address>,swap=<MM swap address> \
+  CHAINLINK_AUSD_USD=0xE20751C7B5867bCBef815ffc1b284c3f412a9e13 CHAINLINK_MON_USD=0xBcD78f76005B7515837af6b50c7C52BCf73822fb \
+  PAGE_DISCORD_WEBHOOK_URL=<from .env>   # or PAGE_TELEGRAM_BOT_TOKEN + PAGE_TELEGRAM_CHAT_ID (ONE channel)
+  pnpm watch
 # ONCE=1 → one check, exit 2 on any critical alert (cron/CI)
 ```
-One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`, unit-tested). Critical: `oracle_stale` (the adapter says stale ⇒ funding frozen, increases blocked), `funding_gap` (> 100 blocks), `if_drop` (> 20% below the IF's peak), `vault_margin` (hedged and perp margin ratio < 30%), `keeper_down` / `keeper_stalled` (`/health` unreachable or `ok: false`). Warn: `oracle_old` (> 30 s), `keeper_balance` (< 5 MON), `indexer_lag` (> 30 s; `INDEXER_LAG_URL` returning `{"lagSec"}`, > VERIFY the Envio endpoint before wiring it).
+Run it as a **long-lived process next to the bots** (its own terminal / tmux / `nohup … > watch.log &`), on its own RPC endpoint. Startup prints `paging via discord|telegram|none`.
+
+One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`, unit-tested).
+| Code | Sev | Fires when | First response |
+|---|---|---|---|
+| `oracle_stale` | crit | adapter says stale ⇒ funding frozen, increases blocked | keeper push loop / Pyth; §6 |
+| `funding_gap` | crit | no funding touch for > 100 blocks | keeper down? restart; §2 |
+| `if_drop` | crit | IF > 20% below its peak | check liquidations / bad debt |
+| `vault_margin` | crit | hedged and perp margin ratio < 30% | keeper `rebalance` (MarginLow) |
+| `vault_share_drop` | crit | share price > 50 bps under its peak (review A-09) | check the last `Rebalanced` fills; if unexplained **revoke the keeper** (`setKeeper(k, false)` from the Safe) |
+| `mm_empty` | crit | an MM has had 0 open orders > 60 s (eviction storm B-04, crash, kill switch left on) | MM logs; restart / remove KILL file |
+| `maturity_unsettled` | crit | swap matured > 60 s ago with OI and no snapshot | `cast send <swap> "settleMaturity()"` from any key |
+| `ausd_depeg` | crit | Chainlink AUSD/USD < 0.99 (RISKS E4) | §10: pause deposits / markets per incident flow |
+| `keeper_down` / `keeper_stalled` | crit | `/health` unreachable or `ok: false` | restart that bot |
+| `watcher_error` | crit | the watcher's own read failed | its RPC |
+| `oracle_old` | warn | oracle age > 30 s | — |
+| `maturity_soon` | warn | swap maturity < 24 h with OI | confirm the keeper runs swap duties |
+| `ausd_feed_old` / `guard_feed_old` | warn | Chainlink AUSD/USD or MON/USD > 2 h old (depeg monitor blind / the Pyth deviation guard is off, review A-15) | — |
+| `keeper_balance` | warn | a wallet below its floor (`label=addr:MON`; default 5 MON) | top it up (§4 costs) |
+| `indexer_lag` | warn | > 30 s (`INDEXER_LAG_URL` returning `{"lagSec"}`; > VERIFY the Envio endpoint before wiring it) | — |
+
+**Paging (`src/paging.ts`, unit-tested):** a code pages when it starts firing, again every 15 min (critical) / 2 h (warn) while it keeps firing, and once as `✅ RESOLVED` when it clears. Everything due in one cycle goes out as **one** message; at most 6 messages per minute, and the overflow is folded into the next message, never dropped. Provider shapes: Discord "Execute Webhook" `POST /webhooks/{id}/{token}` `{"content"}` ≤ 2,000 chars; Telegram `https://api.telegram.org/bot<token>/sendMessage` `{"chat_id","text"}`. A delivery failure prints `PAGE_FAILED <detail>` (secret redacted) and the watcher keeps going. **The team picks ONE channel** (both set = startup error). The webhook URL / bot token is a secret: `.env` only.
+**Balance floors:** = MON/h of that bot (§4, scaled to the mainnet gas price) × 12 h of runway, so a page leaves half a day to refill.
 
 ## 9. Swap keeper duties, swap MM, vault rebalancing (Phase 4)
 - **Keeper:** swap liquidations + `settleMaturity` run inside the main keeper whenever the deployment has `FundingSwapMarket` (section 4b). Vault: `VAULT_REBALANCE=1` (needsRebalance every 20 blocks and after each oracle push). The keeper key needs collateral in the CH **and** the swap market, and must be registered as the vault keeper (`DeployPulse` does it via `KEEPER_ADDRESS`).

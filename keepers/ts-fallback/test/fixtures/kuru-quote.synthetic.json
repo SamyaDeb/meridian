@@ -1,0 +1,14 @@
+{
+  "_provenance": "SYNTHETIC, not a recorded API response. Top-level keys from the documented example (docs.kuru.io/api-reference/calculate-best-path-quote); buildResponse.{to,data,value} per Kuru's published client (github.com/Kuru-Labs/kuru-trading-skills scripts/kuru-trade.ts normalizeBuildResponse). Replace with a recorded quote via `pnpm flow-quote` once a Kuru token exists (docs/standup/B.md).",
+  "type": "swap_calculation",
+  "status": "success",
+  "output": "36640000000000000000000",
+  "message": "",
+  "path": {},
+  "buildResponse": {
+    "to": "0xb3e6778480b2E488385E8205eA05E20060B813cb",
+    "data": "0x12345678000000000000000000000000000000000000000000000000000000003b9aca00",
+    "value": "0"
+  },
+  "gasPrices": {}
+}

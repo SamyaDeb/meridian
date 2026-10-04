@@ -28,7 +28,8 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RateWindow, burnPerHourWei, createCountingFetch, newRpcStats, pruneSamples, type BalanceSample } from "@pulse/bot-rpc";
-import { clearingHouseAbi, fundingSwapAbi, fundingSwapImplAbi, oracleAdapterAbi, pulseVaultAbi } from "./abi.js";
+import { clearingHouseAbi, fundingSwapAbi, fundingSwapImplAbi, kuruHedgerAbi, oracleAdapterAbi, pulseVaultAbi } from "./abi.js";
+import { type CallFrame, FlowClient, findHedgerCalls, parseQuote, quoteRequest, routeAmount } from "./kuruflow.js";
 import { type SwapSnapshot, shouldSettleMaturity, swapAccountIsInert, swapAccountsToCheck, swapIsHot, swapLiquidationCandidates } from "./swap.js";
 import {
   type AccountSnapshot,
@@ -83,9 +84,13 @@ const FEED_HEARTBEAT_SEC = BigInt(env("FEED_HEARTBEAT_SEC") ?? "10");
 const FEED_MAX_SOURCE_AGE_SEC = BigInt(env("FEED_MAX_SOURCE_AGE_SEC") ?? "60");
 const PRICE_FACTOR_FILE = env("PRICE_FACTOR_FILE"); // demo market only: "0.85" in this file ⇒ push 85% of the source
 
-// Vault rebalances (WS-04), behind a flag until the vault is deployed (Phase 4). Direct route only for now:
-// > VERIFY: the Kuru Flow quote request schema (ws.kuru.io/api/quote) before passing routes to rebalanceWithRoute.
+// Vault rebalances (WS-04), behind a flag. VAULT_ROUTE=flow (mainnet, Phase 5 B4): the spot leg goes through a Kuru
+// Flow route (src/kuruflow.ts: documented schema, amount read from a debug_traceCall of the vault, target checked);
+// "direct" (default) sends rebalance() with the empty route (testnet MockKuruHedger / a live direct Kuru market).
 const VAULT_REBALANCE = env("VAULT_REBALANCE") === "1";
+const VAULT_ROUTE = env("VAULT_ROUTE") ?? "direct";
+const KURU_FLOW_HAIRCUT_BPS = BigInt(env("KURU_FLOW_HAIRCUT_BPS") ?? "10"); // quote 0.1% under the vault's amount
+const KURU_FLOW_SLIPPAGE_BPS = Number(env("KURU_FLOW_SLIPPAGE_BPS") ?? "50"); // advisory; the vault's minOut binds
 const VAULT_EVERY_BLOCKS = BigInt(env("VAULT_EVERY_BLOCKS") ?? "20");
 
 const MAX_FUNDING_GAP_BLOCKS = BigInt(env("MAX_FUNDING_GAP_BLOCKS") ?? "20"); // WS-03 acceptance
@@ -537,9 +542,44 @@ async function vaultStep(block: bigint): Promise<void> {
   const reason = await pub.readContract({ address: v, abi: pulseVaultAbi, functionName: "needsRebalance" });
   const a = vaultAction(reason);
   if (!a.act) return;
-  if ((await send(`vault rebalance (${a.name})`, v, encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalance" }))) !== null) {
+  const data =
+    VAULT_ROUTE === "flow"
+      ? await flowRebalanceData(v)
+      : encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalance" });
+  if ((await send(`vault rebalance (${a.name}, ${VAULT_ROUTE})`, v, data)) !== null) {
     health.vaultRebalances++;
   }
+}
+
+let flow: FlowClient | undefined;
+let hedgerWiring: { hedger: Address; entry: Address; base: Address; quote: Address } | undefined;
+
+/** rebalanceWithRoute calldata: the vault's exact spot amount from a trace, a Kuru Flow quote for it (− haircut). */
+async function flowRebalanceData(v: Address): Promise<Hex> {
+  if (hedgerWiring === undefined) {
+    const hedger = await pub.readContract({ address: v, abi: pulseVaultAbi, functionName: "hedger" });
+    const [entry, base, quote] = await Promise.all([
+      pub.readContract({ address: hedger, abi: kuruHedgerAbi, functionName: "flowEntrypoint" }),
+      pub.readContract({ address: hedger, abi: kuruHedgerAbi, functionName: "baseToken" }),
+      pub.readContract({ address: hedger, abi: kuruHedgerAbi, functionName: "quoteToken" }),
+    ]);
+    hedgerWiring = { hedger, entry, base, quote };
+  }
+  const w = hedgerWiring;
+  flow ??= new FlowClient(fetch as never, w.hedger, { staticJwt: env("KURU_FLOW_JWT"), apiKey: env("KURU_API_KEY") });
+  const probe = encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalanceWithRoute", args: ["0x00"] });
+  const trace = (await pub.request({
+    method: "debug_traceCall" as never,
+    params: [{ from: account.address, to: v, data: probe }, "latest", { tracer: "callTracer" }] as never,
+  })) as CallFrame;
+  const r = routeAmount(findHedgerCalls(trace, w.hedger), KURU_FLOW_HAIRCUT_BPS);
+  // no spot leg in this rebalance (e.g. MarginLow topped up from idle): the empty route is never used
+  if (r === null) return encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalance" });
+  const [tokenIn, tokenOut] = r.kind === "buy" ? [w.quote, w.base] : [w.base, w.quote];
+  const q = await flow.quote(quoteRequest({ hedger: w.hedger, tokenIn, tokenOut, amountIn: r.amountIn, slippageBps: KURU_FLOW_SLIPPAGE_BPS }));
+  const route = parseQuote(q, w.entry);
+  log("kuru flow route", { kind: r.kind, amountIn: r.amountIn, expectedOut: route.expectedOut, bytes: (route.data.length - 2) / 2 });
+  return encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalanceWithRoute", args: [route.data] });
 }
 
 async function balanceStep(): Promise<void> {
