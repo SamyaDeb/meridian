@@ -53,3 +53,10 @@ body {
 input[type="range"] {
   accent-color: var(--accent);
 }
+
+/* Pinch-zoom stays enabled (WCAG 1.4.4); 16 px inputs keep iOS Safari from zooming in on focus. */
+input:not([type="range"]):not([type="checkbox"]),
+select,
+textarea {
+  font-size: 16px;
+}

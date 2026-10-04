@@ -62,7 +62,7 @@ export default function PositionsPage() {
                   <Row label="Collateral" value={formatAusdWad(p.collateralWad)} />
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button type="button" disabled className="h-10 rounded-xl bg-surface-2 text-sm text-muted">Add margin</button>
+                  <button type="button" disabled className="h-11 rounded-xl bg-surface-2 text-sm text-muted">Add margin</button>
                   <button
                     type="button"
                     disabled={!tx.ready || tx.busy}
@@ -73,7 +73,7 @@ export default function PositionsPage() {
                         return sendTx(p, w, { address: ob, abi: orderBookAbi, functionName: "placeMarketOrder", args: [c.isBid, c.lots, marketLimitTick(m.lastMarkPrice, PERP_TICK_SIZE_WAD, c.isBid, 100), 1n, true] });
                       })
                     }
-                    className="h-10 rounded-xl bg-surface-2 text-sm disabled:text-muted"
+                    className="h-11 rounded-xl bg-surface-2 text-sm disabled:text-muted"
                   >
                     Close
                   </button>

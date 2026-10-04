@@ -13,7 +13,7 @@ export function ConnectButton() {
   return (
     <div className="flex gap-2">
       {connectors.map((c) => (
-        <button key={c.uid} type="button" onClick={() => connect({ connector: c })} className="h-8 rounded-lg bg-surface-2 px-3 text-xs">
+        <button key={c.uid} type="button" onClick={() => connect({ connector: c })} className="h-11 rounded-lg bg-surface-2 px-3 text-xs">
           {c.type === "mock" ? "Dev account" : "Connect wallet"}
         </button>
       ))}

@@ -34,6 +34,11 @@ describe("vault withdrawals (PulseVault.previewRedeem, _ensureIdle)", () => {
     expect(vaultStatus(false, 5)).toBe("rebalancing");
     expect(vaultStatus(false, 0)).toBe("waiting");
   });
+  it("route pending: an unhedged vault waits for the route; a hedged one keeps its state", () => {
+    expect(vaultStatus(false, 0, true)).toBe("waiting-route");
+    expect(vaultStatus(false, 5, true)).toBe("waiting-route");
+    expect(vaultStatus(true, 0, true)).toBe("hedged");
+  });
 });
 
 describe("swap order entry (p = 1 + APR, tick 1 bp)", () => {

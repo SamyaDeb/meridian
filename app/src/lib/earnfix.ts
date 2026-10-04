@@ -26,9 +26,16 @@ export function vaultWithdrawPath(idleToken: bigint, assetsToken: bigint): "idle
 /**
  * Headline state for Earn (PRD US6): "hedged" (earning), "rebalancing" (the keeper has something to do), or
  * "waiting" (not hedged and nothing to do ⇒ the 8 h funding entry rule is off: "waiting for funding").
+ * `routePending` (NEXT_PUBLIC_VAULT_ROUTE_PENDING=1, set by ops while the mainnet Kuru Flow spot route isn't live,
+ * B4 / review A-01): an unhedged vault is "waiting-route" whatever the keeper's rule says, since it can't hedge.
  */
-export function vaultStatus(hedged: boolean, needsRebalance: number): "hedged" | "rebalancing" | "waiting" {
+export function vaultStatus(
+  hedged: boolean,
+  needsRebalance: number,
+  routePending = false,
+): "hedged" | "rebalancing" | "waiting" | "waiting-route" {
   if (hedged) return needsRebalance === 0 ? "hedged" : "rebalancing";
+  if (routePending) return "waiting-route";
   return needsRebalance === 0 ? "waiting" : "rebalancing";
 }
 

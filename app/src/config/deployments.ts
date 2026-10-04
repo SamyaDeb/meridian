@@ -1,8 +1,10 @@
 // Contract addresses come from deployments/<chainId>.json (never hard-coded). 10143/143 files are
 // written by DeployPulse.s.sol; until a network is broadcast its file is a `deployed: false` placeholder
-// and the network is left out of DEPLOYMENTS (the app then stays on the mock layer for it).
+// and the network is left out of DEPLOYMENTS (the app then stays on the mock layer for it). 143 (mainnet) is bundled by
+// scripts/sync-mainnet.mjs because deployments/143.json doesn't exist until A commits it.
 import local from "../../../deployments/31337.json";
 import testnet from "../../../deployments/10143.json";
+import { MAINNET_RECORD } from "./mainnet.generated";
 import type { Address } from "@/data/types";
 
 export type ContractKey =
@@ -66,8 +68,22 @@ export function withOverride(files: readonly Deployment[], overrideJson: string 
 }
 
 export const DEPLOYMENTS: Readonly<Record<number, Deployment>> = buildDeployments(
-  withOverride([local as Deployment, testnet as unknown as Deployment], process.env.NEXT_PUBLIC_DEPLOYMENT_OVERRIDE),
+  withOverride(
+    [local as Deployment, testnet as unknown as Deployment, ...(MAINNET_RECORD ? [MAINNET_RECORD] : [])],
+    process.env.NEXT_PUBLIC_DEPLOYMENT_OVERRIDE,
+  ),
 );
+
+/** Networks users can be pointed at; when one of these has no live record the UI says so instead of showing mocks. */
+export const PUBLIC_CHAIN_IDS = [143, 10143] as const;
+
+export type DeploymentState = "live" | "not-deployed" | "local";
+
+/** Pure: live record ⇒ "live"; a public network without one ⇒ "not-deployed"; anything else (anvil) ⇒ "local". */
+export function deploymentState(chainId: number, deployments: Readonly<Record<number, Deployment>> = DEPLOYMENTS): DeploymentState {
+  if (deployments[chainId]) return "live";
+  return (PUBLIC_CHAIN_IDS as readonly number[]).includes(chainId) ? "not-deployed" : "local";
+}
 
 export function contractAddress(chainId: number, key: ContractKey): Address | undefined {
   return DEPLOYMENTS[chainId]?.contracts[key];

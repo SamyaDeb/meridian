@@ -2,7 +2,8 @@
 import { useMemo, useState } from "react";
 import { useDepth, useMarket, useTrades } from "@/data/hooks";
 import { FundingTicker } from "@/components/FundingTicker";
-import { Card, Row, Skeleton } from "@/components/ui";
+import { GetStarted } from "@/components/GetStarted";
+import { Card, Row } from "@/components/ui";
 import { formatAusdWad, formatBaseWad, formatLeverageWad, formatPriceWad } from "@/lib/format";
 import { initialMarginWad, liquidationPriceWad } from "@/lib/math";
 import { DEFAULT_IMR_WAD, DEFAULT_MMR_WAD, MAX_LEVERAGE, PERP_LOT_SIZE_WAD, PERP_TICK_SIZE_WAD, WAD } from "@/lib/units";
@@ -71,7 +72,8 @@ export default function TradePage() {
               <span className="rounded bg-warn/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warn">test market</span>
             )}
           </div>
-          <div className="num text-3xl font-semibold">{m ? formatPriceWad(m.lastMarkPrice) : <Skeleton className="h-9 w-32" />}</div>
+          {/* text placeholder with the same metrics as the price (no layout shift; paints with the first frame) */}
+          <div className="num text-3xl font-semibold">{m ? formatPriceWad(m.lastMarkPrice) : <span className="text-muted">—.——————</span>}</div>
         </div>
         <div className="text-right text-[11px] text-muted">
           <div className="num">Index {m ? formatPriceWad(m.lastIndexPrice) : "—"}</div>
@@ -88,7 +90,7 @@ export default function TradePage() {
               key={s}
               type="button"
               onClick={() => setSide(s)}
-              className={`h-10 rounded-lg text-sm font-semibold capitalize ${side === s ? (s === "long" ? "bg-long text-bg" : "bg-short text-bg") : "text-muted"}`}
+              className={`h-11 rounded-lg text-sm font-semibold capitalize ${side === s ? (s === "long" ? "bg-long text-bg" : "bg-short text-bg") : "text-muted"}`}
             >
               {s}
             </button>
@@ -112,13 +114,13 @@ export default function TradePage() {
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-surface-2 p-1">
           {(["market", "limit"] as const).map((k) => (
-            <button key={k} type="button" onClick={() => setKind(k)} className={`h-8 rounded-lg text-xs capitalize ${kind === k ? "bg-surface text-text" : "text-muted"}`}>
+            <button key={k} type="button" onClick={() => setKind(k)} className={`h-11 rounded-lg text-xs capitalize ${kind === k ? "bg-surface text-text" : "text-muted"}`}>
               {k}
             </button>
           ))}
         </div>
         {kind === "limit" && (
-          <input aria-label="Limit price" inputMode="decimal" placeholder="Limit price (AUSD)" value={limitPx} onChange={(e) => setLimitPx(e.target.value)} className="num mt-2 h-10 w-full rounded-lg bg-surface-2 px-3 text-sm" />
+          <input aria-label="Limit price" inputMode="decimal" placeholder="Limit price (AUSD)" value={limitPx} onChange={(e) => setLimitPx(e.target.value)} className="num mt-2 h-11 w-full rounded-lg bg-surface-2 px-3 text-sm" />
         )}
         <button
           type="button"
@@ -129,8 +131,8 @@ export default function TradePage() {
           {isConnected ? `${kind === "market" ? "Market" : "Limit"} ${side}` : `Log in to ${side}`}
         </button>
         <div className="mt-3 flex gap-2">
-          <input aria-label="Deposit amount" inputMode="decimal" value={depositAmt} onChange={(e) => setDepositAmt(e.target.value)} className="num h-10 flex-1 rounded-lg bg-surface-2 px-3 text-sm" />
-          <button type="button" disabled={!isConnected || tx.busy} onClick={doDeposit} className="h-10 rounded-lg bg-surface-2 px-4 text-sm disabled:opacity-60">
+          <input aria-label="Deposit amount" inputMode="decimal" value={depositAmt} onChange={(e) => setDepositAmt(e.target.value)} className="num h-11 flex-1 rounded-lg bg-surface-2 px-3 text-sm" />
+          <button type="button" disabled={!isConnected || tx.busy} onClick={doDeposit} className="h-11 whitespace-nowrap rounded-lg bg-surface-2 px-4 text-sm disabled:opacity-60">
             Deposit AUSD
           </button>
         </div>
@@ -163,6 +165,7 @@ export default function TradePage() {
           ))}
         </ul>
       </Card>
+      <GetStarted />
     </div>
   );
 }

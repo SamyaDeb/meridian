@@ -95,7 +95,8 @@ export default function FixPage() {
       <h1 className="text-xl font-semibold">Fix your funding</h1>
       <Card>
         {!swap || !m ? (
-          <Skeleton className="h-20 w-full" />
+          // same height as the loaded card at 390 px (stats + order entry), so the margin card doesn't jump (CLS)
+          <Skeleton className="h-[376px] w-full" />
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">

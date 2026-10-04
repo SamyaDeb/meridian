@@ -24,7 +24,8 @@ export default function EarnPage() {
   const ausd = contractAddress(chainId, "AUSD");
 
   const myValueWad = v && u ? (u.shares * v.sharePriceWad) / WAD : undefined;
-  const status = v ? vaultStatus(v.hedged, v.needsRebalance ?? 0) : undefined;
+  const routePending = process.env.NEXT_PUBLIC_VAULT_ROUTE_PENDING === "1";
+  const status = v ? vaultStatus(v.hedged, v.needsRebalance ?? 0, routePending) : undefined;
   // redeem preview: shares × price (token units) − the 5 bps fee; the path decides whether an unwind cost applies
   const redeemShares = u ? (u.shares * BigInt(pct)) / 100n : 0n;
   const grossToken = v ? (redeemShares * v.sharePriceWad) / WAD / 10n ** 12n : 0n;
@@ -56,13 +57,17 @@ export default function EarnPage() {
         right={
           status && (
             <span data-testid="vault-status" className={`text-xs ${status === "hedged" ? "text-long" : "text-warn"}`}>
-              {status === "hedged" ? "● Hedged" : status === "rebalancing" ? "● Rebalancing" : "● Idle"}
+              {status === "hedged" ? "● Hedged" : status === "rebalancing" ? "● Rebalancing" : status === "waiting-route" ? "● Waiting for route" : "● Idle"}
             </span>
           )
         }
       >
         {!v ? (
-          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-[52px] w-full" />
+        ) : status === "waiting-route" ? (
+          <p className="text-sm text-warn" data-testid="waiting-for-route">
+            Waiting for the spot route. Deposits stay idle AUSD (no hedge, no yield yet) and can be withdrawn from idle.
+          </p>
         ) : status !== "waiting" && apy !== undefined ? (
           <div>
             <div className="num text-3xl font-semibold text-long">{formatAprWad(apy)}</div>
@@ -117,6 +122,9 @@ export default function EarnPage() {
             {isConnected ? "Deposit" : "Log in"}
           </button>
         </div>
+        <p className="mt-2 text-[11px] text-muted">
+          Deposits stay idle until the next rebalance. The vault holds spot MON and a short MON-PERP, and only takes the short when other traders are net long.
+        </p>
         {u && u.shares > 0n && (
           <div className="mt-3 border-t border-border pt-3">
             <label htmlFor="wpct" className="text-xs text-muted">
@@ -127,10 +135,18 @@ export default function EarnPage() {
             <Row label="Withdrawal fee (5 bps, stays in the vault)" value={`${formatAusdToken(feeToken)} AUSD`} />
             <Row
               label="Path"
-              value={path === "unwind" ? "unwind: a slice of both legs is sold; you pay its cost" : path === "idle" ? "from idle AUSD (no trade)" : "—"}
+              value={
+                path === "unwind"
+                  ? routePending
+                    ? "needs an unwind: not available until the spot route is live; withdraw less"
+                    : "unwind: a slice of both legs is sold; you pay its cost"
+                  : path === "idle"
+                    ? "from idle AUSD (no trade)"
+                    : "—"
+              }
               tone={path === "unwind" ? "warn" : undefined}
             />
-            <button type="button" disabled={!isConnected || tx.busy} onClick={doRedeem} className="mt-2 h-12 w-full rounded-xl bg-surface-2 font-semibold disabled:opacity-60">
+            <button type="button" disabled={!isConnected || tx.busy || (routePending && path === "unwind")} onClick={doRedeem} className="mt-2 h-12 w-full rounded-xl bg-surface-2 font-semibold disabled:opacity-60">
               Withdraw
             </button>
           </div>
@@ -140,9 +156,6 @@ export default function EarnPage() {
             {tx.status}
           </p>
         )}
-        <p className="mt-2 text-[11px] text-muted">
-          Deposits stay idle until the next rebalance. The vault holds spot MON and a short MON-PERP, and only takes the short when other traders are net long.
-        </p>
       </Card>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 import { useFundingTicks, useMarket } from "@/data/hooks";
 import { formatAprWad, formatSignedAprWad } from "@/lib/format";
-import { Skeleton, Sparkline } from "./ui";
+import { Sparkline } from "./ui";
 
 /** Per-block funding: rate APR updates every block (~300 ms), with a short history sparkline. */
 export function FundingTicker() {
@@ -12,7 +12,7 @@ export function FundingTicker() {
     <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-baseline justify-between">
         <span className="text-xs text-muted">Funding, every block</span>
-        <span className="num text-[11px] text-muted">{m ? `block #${m.lastFundingBlock.toString()}` : <Skeleton className="h-3 w-20" />}</span>
+        <span className="num text-[11px] text-muted">{m ? `block #${m.lastFundingBlock.toString()}` : "block #—"}</span>
       </div>
       <div className="mt-1 flex items-end justify-between gap-3">
         <div>
@@ -21,7 +21,7 @@ export function FundingTicker() {
               {formatSignedAprWad(m.lastRateAprWad, 3)}
             </div>
           ) : (
-            <Skeleton className="h-8 w-28" />
+            <div className="num text-2xl font-semibold text-muted">—.———%</div>
           )}
           <div className="text-[11px] text-muted">APR · longs pay shorts when positive</div>
         </div>
@@ -37,7 +37,7 @@ export function FundingTicker() {
         ).map(([label, v]) => (
           <div key={label}>
             <div className="text-[11px] text-muted">Realized {label}</div>
-            <div className="num text-sm">{m ? (v === undefined ? "—" : formatAprWad(v)) : <Skeleton className="h-4 w-12" />}</div>
+            <div className="num text-sm">{m ? (v === undefined ? "—" : formatAprWad(v)) : "—"}</div>
           </div>
         ))}
       </div>
