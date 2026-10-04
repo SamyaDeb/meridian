@@ -28,7 +28,7 @@ Hackathon: Monad Metropolis, **Track 01 Onchain Finance & Trading** (+ Grand Cha
 ## 4. Scope
 | Tier | Items |
 |---|---|
-| **Must** | MON-PERP (5x max, AUSD), funding oracle, basis vault (10k cap), funding swaps (1 maturity), mobile PWA (Privy or Mera), Envio indexer, TS keeper, MM bot, benchmarks, crash demo |
+| **Must** | MON-PERP (5x max, AUSD), funding oracle, basis vault (10k cap; **mainnet launch: 1,200 AUSD, idle, no hedge until the spot route is proven: PHASES decision 17**), funding swaps (1 maturity), mobile PWA (Privy or Mera), Envio indexer, TS keeper, MM bot, benchmarks, crash demo |
 | **Should** | Chainlink CRE workflows (if deploy access by Day 7); Mera login if Agora requires it; vault locks a fixed rate via swaps |
 | **Stretch** | ETH-PERP; Aurora any-chain deposit |
 | **No** | PT/YT alongside swaps; anything depending on Kuru owner actions |
