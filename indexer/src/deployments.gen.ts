@@ -9,3 +9,10 @@ export const DEPLOYMENTS: Readonly<Record<number, DeploymentWiring>> = {
 export const TEST_MARKETS: Readonly<Record<number, readonly string[]>> = {
   10143: ["0x7e543d88306f12018e733ea15dbef46fb3d8aeb6"],
 };
+/** Our market-maker accounts (deployments `mmAccounts`): their volume is disclosed separately (RISKS E9). */
+export const MM_ACCOUNTS: Readonly<Record<number, readonly string[]>> = {
+};
+/** Accounts that are ours (MM, keeper, owner): excluded from ProtocolStats.externalUsers. */
+export const OPERATOR_ACCOUNTS: Readonly<Record<number, readonly string[]>> = {
+  10143: ["0xef4e34a3754c878be0191b103691fd088e3f3b91"],
+};

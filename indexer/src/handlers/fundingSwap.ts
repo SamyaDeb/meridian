@@ -21,7 +21,7 @@ indexer.onEvent({ contract: "FundingSwapMarket", event: "Deposited", fields: FIE
   await getSwapStats(context, event.srcAddress).then((s) => context.SwapStats.set(s));
   const sp = await getSwapPosition(context, event.srcAddress, account, block);
   context.SwapPosition.set({ ...sp, collateralWad: sp.collateralWad + amountWad, updatedBlock: block });
-  await updateProtocol(context, (s) => ({ swapCollateralToken: s.swapCollateralToken + amountToken }));
+  await updateProtocol(context, (s) => ({ swapCollateralToken: s.swapCollateralToken + amountToken }), { block });
 });
 
 indexer.onEvent({ contract: "FundingSwapMarket", event: "Withdrawn", fields: FIELDS }, async ({ event, context }) => {
@@ -29,7 +29,7 @@ indexer.onEvent({ contract: "FundingSwapMarket", event: "Withdrawn", fields: FIE
   const block = blockOf(event);
   const sp = await getSwapPosition(context, event.srcAddress, account, block);
   context.SwapPosition.set({ ...sp, collateralWad: sp.collateralWad - amountWad, updatedBlock: block });
-  await updateProtocol(context, (s) => ({ swapCollateralToken: s.swapCollateralToken - amountToken }));
+  await updateProtocol(context, (s) => ({ swapCollateralToken: s.swapCollateralToken - amountToken }), { block });
 });
 
 indexer.onEvent({ contract: "FundingSwapMarket", event: "SwapPositionChanged", fields: FIELDS }, async ({ event, context }) => {
@@ -71,7 +71,7 @@ indexer.onEvent({ contract: "FundingSwapMarket", event: "SwapPositionChanged", f
     openInterestWad: st.openInterestWad + max(p.newSize, 0n) - max(oldSize, 0n),
     feesWad: st.feesWad + p.fee,
   });
-  await updateProtocol(context, (s) => ({ feesWad: s.feesWad + p.fee }));
+  await updateProtocol(context, (s) => ({ feesWad: s.feesWad + p.fee }), { block: blockOf(event) });
 });
 
 indexer.onEvent({ contract: "FundingSwapMarket", event: "SwapAccrualSettled", fields: FIELDS }, async ({ event, context }) => {
@@ -116,7 +116,7 @@ indexer.onEvent({ contract: "FundingSwapMarket", event: "SwapLiquidated", fields
     liquidationCount: sp.liquidationCount + 1,
     updatedBlock: block,
   });
-  await updateProtocol(context, (s) => ({ liquidations: s.liquidations + 1 }));
+  await updateProtocol(context, (s) => ({ liquidations: s.liquidations + 1 }), { block: blockOf(event) });
 });
 
 indexer.onEvent({ contract: "FundingSwapMarket", event: "MaturitySettled", fields: FIELDS }, async ({ event, context }) => {

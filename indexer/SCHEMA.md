@@ -25,7 +25,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 | `Order` | `<book>-<orderId>` | `kind` (Perp/Swap), `market`, `maker`, `isBid`, `tick`, `lots`, `remainingLots`, `filledLots`, `status` (Open/PartiallyFilled/Filled/Cancelled/Evicted) | open orders |
 | `Trade` | `<block>-<logIndex>` | `kind`, `market` (perp) / `swapMarket`, `maker`, `taker`, `takerIsBid`, `priceWad`, `sizeWad`, `notionalWad`, `aprWad` (swap), `timestamp`, `txHash` | trade tape |
 | `Candle1m`, `Candle1h` | `<market>-<bucketStart>` | `open/high/low/close` (WAD), `volumeBaseWad`, `volumeQuoteWad`, `trades` | price chart (perp only) |
-| `Account` | address | `firstSeenBlock`, `tradeCount`, `volumeQuoteWad` | — |
+| `Account` | address | `firstSeenBlock`, `tradeCount`, `volumeQuoteWad`, `countedExternal` | — |
 | `AccountMarket` | `<market>-<account>` | `size`, `openNotional`, `entryPrice`, `collateralWad`, `fundingPaid`, `realizedPnl`, `feesPaid`, `reservedOrderMargin`, `lastCumFunding`, `liquidationCount` | Positions |
 | `Liquidation` | `<block>-<logIndex>` | `kind`, `account`, `liquidator`, `sizeTransferred`, `markPriceWad` / `markAprWad`, `penalty`, `badDebt` | Positions history, Stats |
 | `Vault` | vault address | `navToken`, `totalShares`, `sharePriceWad`, `hedged`, `apy24hWad`, `apy7dWad`, `lastRebalanceReason`, `userCount` | Earn |
@@ -37,7 +37,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 | `SwapTrade` | `<block>-<logIndex>` | `sizeDelta`, `newSize`, `aprWad`, `fee`, `isMaker` | Fix history |
 | `OraclePrice`, `OracleGuardTrip` | `<block>-<logIndex>` | index price pushes, deviation trips | Stats / ops |
 | `InsuranceFund`, `BadDebtEvent` | address / `<block>-<logIndex>` | `fundedToken`, `coveredToken` | Stats |
-| `ProtocolStats` | `"protocol"` | `users`, `perpVolumeQuoteWad`, `swapVolumeWad`, `feesWad`, `tvlToken`, `trades`, `liquidations`, `fundingTicks` | Stats |
+| `ProtocolStats` | `"protocol"` | **product stats** (test markets excluded): `externalUsers`, `users`, `perpVolumeQuoteWad`, `perpVolumeMmQuoteWad`, `swapVolumeWad`, `feesWad`, `tvlToken`, `trades`, `liquidations`, `fundingTicks`, `updatedBlock` | Stats (metrics dashboard) |
 | `KeeperReport` | `<block>-<logIndex>` | CRE `action`, `success`, `workflowId` | ops |
 | `AdminEvent` | `<block>-<logIndex>` | `name`, `data` (JSON, bigints as strings) | ops |
 
@@ -48,6 +48,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 - **Swaps:** `aprWad = priceWad − 1e18`. `K += Δq·A/1e18`. `avgFixedAprWad = K·1e18/q`. **`lockedSpread = (q == 0 && K != 0)`**: show "locked +x AUSD until maturity", not zero.
 - **Perp mirror:** `openNotional` follows MATH_SPEC §3.1 (released rounds toward +∞). `entryPrice = |ON|·1e18/|q|`.
 - **TVL** (`tvlToken`) = net AUSD deposited into the perp ClearingHouse + swap market + the vault's last NAV (event-derived).
+- **Product stats (C5, RISKS E9).** Events of a labelled test market never change `ProtocolStats` (they stay on that `Market`). `externalUsers` counts an account once, at its first product-market activity, unless it is the vault or an operator account. Operators come only from the deploy record: `deployments/<chain>.json` optional `mmAccounts` and `keeperAccounts` arrays, plus `owner` (`scripts/gen-config.mjs` → `OPERATOR_ACCOUNTS`). `perpVolumeMmQuoteWad` is the part of `perpVolumeQuoteWad` where an `mmAccounts` address was maker or taker (counted once), so the dashboard can show "MM share". `updatedBlock` = the last block that changed any of these numbers.
 
 ## Example queries
 ```graphql
@@ -81,7 +82,7 @@ query Earn($chainId: Int!) {
 }
 # Stats
 query Stats($chainId: Int!) {
-  ProtocolStats(where: { chainId: { _eq: $chainId } }) { users perpVolumeQuoteWad swapVolumeWad feesWad tvlToken trades liquidations fundingTicks }
+  ProtocolStats(where: { chainId: { _eq: $chainId } }) { externalUsers users perpVolumeQuoteWad perpVolumeMmQuoteWad swapVolumeWad feesWad tvlToken trades liquidations fundingTicks updatedBlock }
 }
 ```
 > VERIFY: the exact Hasura root-field names (`Market` vs `Market_by_pk`, `chainId` column) against the local `pnpm dev` console before WS-07 wires them (CP1, Day 5).

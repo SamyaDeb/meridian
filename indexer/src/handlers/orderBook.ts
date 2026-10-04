@@ -11,6 +11,9 @@ import {
   getSwapStats,
   touchAccount,
   updateProtocol,
+  mmAccounts,
+  mmShareOf,
+  isTestClearingHouse,
   resolveBookMarket,
   underlyingPerpMarket,
 } from "../lib/common.js";
@@ -51,12 +54,14 @@ const orderId = (book: string, id: bigint) => `${book}-${id}`;
 async function onPlaced(event: Placed, context: Ctx, kind: BookKind) {
   const p = event.params;
   const block = blockOf(event);
-  await touchAccount(context, p.maker, block, tsOf(event));
+  const bookMarket = await resolveBookMarket(context, event.srcAddress, kind);
+  const testMarket = kind === "Perp" && bookMarket !== undefined && (await isTestClearingHouse(context, bookMarket));
+  await touchAccount(context, p.maker, block, tsOf(event), { block, testMarket });
   context.Order.set({
     id: orderId(event.srcAddress, p.orderId),
     book: event.srcAddress,
     kind,
-    market: await resolveBookMarket(context, event.srcAddress, kind),
+    market: bookMarket,
     orderId: p.orderId,
     maker: p.maker,
     isBid: p.isBid,
@@ -156,8 +161,9 @@ async function onTrade(event: TradeEv, context: Ctx, kind: BookKind) {
     txHash: event.transaction.hash,
   });
 
+  const testMarket = kind === "Perp" && market !== undefined && (await isTestClearingHouse(context, market));
   for (const who of p.maker === p.taker ? [p.maker] : [p.maker, p.taker]) {
-    const acc = await touchAccount(context, who, block, ts);
+    const acc = await touchAccount(context, who, block, ts, { block, testMarket });
     context.Account.set({ ...acc, volumeQuoteWad: acc.volumeQuoteWad + notional });
   }
 
@@ -172,7 +178,17 @@ async function onTrade(event: TradeEv, context: Ctx, kind: BookKind) {
     });
     await upsertCandle(context, "Candle1m", market, bucketStart(ts, 60n), p.priceWad, p.sizeWad, notional);
     await upsertCandle(context, "Candle1h", market, bucketStart(ts, 3_600n), p.priceWad, p.sizeWad, notional);
-    await updateProtocol(context, (s) => ({ perpVolumeQuoteWad: s.perpVolumeQuoteWad + notional, trades: s.trades + 1 }));
+    // RISKS E9: our MM's side of the volume is disclosed separately (counted once when it is maker or taker)
+    const mm = mmShareOf(p.maker, p.taker, notional, mmAccounts(context.chain.id));
+    await updateProtocol(
+      context,
+      (s) => ({
+        perpVolumeQuoteWad: s.perpVolumeQuoteWad + notional,
+        perpVolumeMmQuoteWad: s.perpVolumeMmQuoteWad + mm,
+        trades: s.trades + 1,
+      }),
+      { block, testMarket },
+    );
   } else {
     const st = await getSwapStats(context, market);
     const perp = underlyingPerpMarket(context);
@@ -185,7 +201,7 @@ async function onTrade(event: TradeEv, context: Ctx, kind: BookKind) {
       volumeWad: st.volumeWad + p.sizeWad, // MON notional units (MATH_SPEC §6.1)
       tradeCount: st.tradeCount + 1,
     });
-    await updateProtocol(context, (s) => ({ swapVolumeWad: s.swapVolumeWad + p.sizeWad, trades: s.trades + 1 }));
+    await updateProtocol(context, (s) => ({ swapVolumeWad: s.swapVolumeWad + p.sizeWad, trades: s.trades + 1 }), { block });
   }
 }
 

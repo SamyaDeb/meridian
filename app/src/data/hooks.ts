@@ -5,6 +5,7 @@ import { useDataSource } from "./context";
 import type { Address } from "./types";
 import { BLOCK_TIME_MS } from "@/lib/units";
 import { MOCK } from "./mock/fixtures";
+import { fetchIndexerStats } from "./indexer/stats";
 
 // Per-block data refreshes every block (300 ms); the rest every few seconds.
 // WS-07 task 2: on testnet/mainnet useFundingTicker switches to a WSS newHeads subscription + previewFundingState().
@@ -79,4 +80,16 @@ export function useSwap(account: Address) {
 export function useProtocolStats() {
   const ds = useDataSource();
   return useQuery({ queryKey: ["protocolStats", ds.kind], queryFn: () => ds.protocolStats(), refetchInterval: SLOW });
+}
+
+/** Metrics dashboard (C5): indexer only. Undefined URL ⇒ the query is off and the Stats page says so. */
+export const INDEXER_URL = process.env.NEXT_PUBLIC_INDEXER_URL || undefined;
+export function useIndexerStats() {
+  return useQuery({
+    queryKey: ["indexerStats", INDEXER_URL],
+    queryFn: ({ signal }) => fetchIndexerStats(INDEXER_URL!, signal),
+    enabled: INDEXER_URL !== undefined,
+    refetchInterval: SLOW,
+    retry: 1,
+  });
 }

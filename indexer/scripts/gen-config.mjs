@@ -130,7 +130,37 @@ export function renderDeploymentsTs(deployments) {
     if (ch) L.push(`  ${Number(d.chainId)}: ["${ch.toLowerCase()}"],`);
   }
   L.push("};");
+  // Operator accounts (never external users): optional `mmAccounts` / `keeperAccounts` arrays + `owner` in the record.
+  L.push("/** Our market-maker accounts (deployments `mmAccounts`): their volume is disclosed separately (RISKS E9). */");
+  L.push("export const MM_ACCOUNTS: Readonly<Record<number, readonly string[]>> = {");
+  for (const d of [...deployments].sort((a, b) => Number(a.chainId) - Number(b.chainId))) {
+    const mm = operatorList(d.mmAccounts, d.chainId, "mmAccounts");
+    if (mm.length) L.push(`  ${Number(d.chainId)}: [${mm.map((a) => `"${a}"`).join(", ")}],`);
+  }
+  L.push("};");
+  L.push("/** Accounts that are ours (MM, keeper, owner): excluded from ProtocolStats.externalUsers. */");
+  L.push("export const OPERATOR_ACCOUNTS: Readonly<Record<number, readonly string[]>> = {");
+  for (const d of [...deployments].sort((a, b) => Number(a.chainId) - Number(b.chainId))) {
+    const ops = [
+      ...operatorList(d.mmAccounts, d.chainId, "mmAccounts"),
+      ...operatorList(d.keeperAccounts, d.chainId, "keeperAccounts"),
+      ...(typeof d.owner === "string" && ADDRESS_RE.test(d.owner) ? [d.owner.toLowerCase()] : []),
+    ];
+    const uniq = [...new Set(ops)];
+    if (uniq.length) L.push(`  ${Number(d.chainId)}: [${uniq.map((a) => `"${a}"`).join(", ")}],`);
+  }
+  L.push("};");
   return L.join("\n") + "\n";
+}
+
+/** Lower-cased operator addresses; anything that isn't an address is a hard error (never guess). */
+export function operatorList(value, chainId, key) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error(`deployments/${chainId}.json: ${key} must be an array of addresses`);
+  return value.map((a) => {
+    if (typeof a !== "string" || !ADDRESS_RE.test(a)) throw new Error(`deployments/${chainId}.json: bad address in ${key}: ${a}`);
+    return a.toLowerCase();
+  });
 }
 
 function writeDeploymentsTs() {

@@ -111,7 +111,7 @@ indexer.onEvent({ contract: "PulseKeeperReceiver", event: "ReportExecuted", fiel
   await updateProtocol(context, (s) => ({
     keeperReports: s.keeperReports + 1,
     keeperReportFailures: s.keeperReportFailures + (p.success ? 0 : 1),
-  }));
+  }), { block: blockOf(event) });
 });
 
 indexer.onEvent({ contract: "PulseKeeperReceiver", event: "ForwarderUpdated", fields: FIELDS }, async ({ event, context }) => {

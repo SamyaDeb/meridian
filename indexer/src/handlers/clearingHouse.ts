@@ -10,6 +10,7 @@ import {
   getAccountMarket,
   touchAccount,
   updateProtocol,
+  isTestClearingHouse,
   logAdmin,
   toJson,
 } from "../lib/common.js";
@@ -92,7 +93,7 @@ indexer.onEvent({ contract: "ClearingHouse", event: "FundingUpdated", fields: FI
     lastMarkPrice: p.markPriceWad,
     fundingTickCount: market.fundingTickCount + 1,
   });
-  await updateProtocol(context, (s) => ({ fundingTicks: s.fundingTicks + 1 }));
+  await updateProtocol(context, (s) => ({ fundingTicks: s.fundingTicks + 1 }), { block, testMarket: market.testMarket });
 });
 
 indexer.onEvent({ contract: "ClearingHouse", event: "FundingCheckpoint", fields: FIELDS }, async ({ event, context }) => {
@@ -116,8 +117,10 @@ indexer.onEvent({ contract: "ClearingHouse", event: "FundingCheckpoint", fields:
 indexer.onEvent({ contract: "ClearingHouse", event: "Deposited", fields: FIELDS }, async ({ event, context }) => {
   const { account, amountToken, amountWad } = event.params;
   const block = blockOf(event);
-  await getMarket(context, event.srcAddress).then((m) => context.Market.set(m));
-  await touchAccount(context, account, block, tsOf(event));
+  const m = await getMarket(context, event.srcAddress);
+  context.Market.set(m);
+  const stat = { block, testMarket: m.testMarket };
+  await touchAccount(context, account, block, tsOf(event), stat);
   const am = await getAccountMarket(context, event.srcAddress, account, block);
   context.AccountMarket.set({
     ...am,
@@ -125,7 +128,7 @@ indexer.onEvent({ contract: "ClearingHouse", event: "Deposited", fields: FIELDS 
     depositedToken: am.depositedToken + amountToken,
     updatedBlock: block,
   });
-  await updateProtocol(context, (s) => ({ perpCollateralToken: s.perpCollateralToken + amountToken }));
+  await updateProtocol(context, (s) => ({ perpCollateralToken: s.perpCollateralToken + amountToken }), stat);
 });
 
 indexer.onEvent({ contract: "ClearingHouse", event: "Withdrawn", fields: FIELDS }, async ({ event, context }) => {
@@ -138,7 +141,10 @@ indexer.onEvent({ contract: "ClearingHouse", event: "Withdrawn", fields: FIELDS 
     withdrawnToken: am.withdrawnToken + amountToken,
     updatedBlock: block,
   });
-  await updateProtocol(context, (s) => ({ perpCollateralToken: s.perpCollateralToken - amountToken }));
+  await updateProtocol(context, (s) => ({ perpCollateralToken: s.perpCollateralToken - amountToken }), {
+    block,
+    testMarket: await isTestClearingHouse(context, event.srcAddress),
+  });
 });
 
 indexer.onEvent({ contract: "ClearingHouse", event: "FundingSettled", fields: FIELDS }, async ({ event, context }) => {
@@ -157,7 +163,8 @@ indexer.onEvent({ contract: "ClearingHouse", event: "FundingSettled", fields: FI
 indexer.onEvent({ contract: "ClearingHouse", event: "PositionChanged", fields: FIELDS }, async ({ event, context }) => {
   const { account, sizeDelta, newSize, priceWad, realizedPnl, fee } = event.params;
   const block = blockOf(event);
-  const acc = await touchAccount(context, account, block, tsOf(event));
+  const testMarket = await isTestClearingHouse(context, event.srcAddress);
+  const acc = await touchAccount(context, account, block, tsOf(event), { block, testMarket });
   const am = await getAccountMarket(context, event.srcAddress, account, block);
   const oldSize = newSize - sizeDelta;
   // MATH_SPEC §3.1 mirror; if the mirror drifted from the contract (e.g. indexing started mid-life), re-anchor at P.
@@ -185,7 +192,7 @@ indexer.onEvent({ contract: "ClearingHouse", event: "PositionChanged", fields: F
     openInterestLongWad: market.openInterestLongWad + d.long,
     openInterestShortWad: market.openInterestShortWad + d.short,
   });
-  await updateProtocol(context, (s) => ({ feesWad: s.feesWad + fee }));
+  await updateProtocol(context, (s) => ({ feesWad: s.feesWad + fee }), { block, testMarket });
 });
 
 indexer.onEvent({ contract: "ClearingHouse", event: "Liquidated", fields: FIELDS }, async ({ event, context }) => {
@@ -217,7 +224,10 @@ indexer.onEvent({ contract: "ClearingHouse", event: "Liquidated", fields: FIELDS
     liquidationCount: am.liquidationCount + 1,
     updatedBlock: block,
   });
-  await updateProtocol(context, (s) => ({ liquidations: s.liquidations + 1 }));
+  await updateProtocol(context, (s) => ({ liquidations: s.liquidations + 1 }), {
+    block,
+    testMarket: await isTestClearingHouse(context, event.srcAddress),
+  });
 });
 
 indexer.onEvent({ contract: "ClearingHouse", event: "BadDebtSocialized", fields: FIELDS }, async ({ event, context }) => {

@@ -9,7 +9,7 @@ import type {
   Vault,
   VaultUser,
 } from "envio";
-import { DEPLOYMENTS, TEST_MARKETS } from "../deployments.gen.js";
+import { DEPLOYMENTS, MM_ACCOUNTS, OPERATOR_ACCOUNTS, TEST_MARKETS } from "../deployments.gen.js";
 import { DEFAULT_BLOCK_TIME_MS } from "./math.js";
 
 export type Ctx = EvmOnEventContext;
@@ -41,7 +41,9 @@ export async function getProtocol(context: Ctx): Promise<ProtocolStats> {
   return context.ProtocolStats.getOrCreate({
     id: PROTOCOL_ID,
     users: 0,
+    externalUsers: 0,
     perpVolumeQuoteWad: 0n,
+    perpVolumeMmQuoteWad: 0n,
     swapVolumeWad: 0n,
     feesWad: 0n,
     tvlToken: 0n,
@@ -53,27 +55,67 @@ export async function getProtocol(context: Ctx): Promise<ProtocolStats> {
     fundingTicks: 0,
     keeperReports: 0,
     keeperReportFailures: 0,
+    updatedBlock: 0n,
   });
 }
 
+/** Where a stat change comes from: its block (shown next to the numbers) and whether it's a labelled test market. */
+export type StatOpts = { readonly block?: bigint; readonly testMarket?: boolean };
+
 /** Read-modify-write the per-chain ProtocolStats singleton (tvl recomputed from its parts). */
-export async function updateProtocol(context: Ctx, patch: (p: ProtocolStats) => Partial<ProtocolStats>): Promise<void> {
+/** Test-market events never reach the product stats (their numbers stay on their Market entity). */
+export async function updateProtocol(
+  context: Ctx,
+  patch: (p: ProtocolStats) => Partial<ProtocolStats>,
+  opts: StatOpts = {},
+): Promise<void> {
+  if (opts.testMarket) return;
   const p = await getProtocol(context);
   const next = { ...p, ...patch(p) };
   context.ProtocolStats.set({
     ...next,
     tvlToken: next.perpCollateralToken + next.swapCollateralToken + next.vaultNavToken,
+    updatedBlock: opts.block !== undefined && opts.block > p.updatedBlock ? opts.block : p.updatedBlock,
   });
 }
 
-/** Get or create an Account; a new non-protocol account counts as a user. */
-export async function touchAccount(context: Ctx, address: string, block: bigint, ts: bigint): Promise<Account> {
+const lc = (a: string) => a.toLowerCase();
+export const isOperator = (chainId: number, address: string): boolean => (OPERATOR_ACCOUNTS[chainId] ?? []).includes(lc(address));
+export const mmAccounts = (chainId: number): readonly string[] => MM_ACCOUNTS[chainId] ?? [];
+
+/** Pure: the part of a trade's notional that our MM took part in (maker or taker; counted once). */
+export function mmShareOf(maker: string, taker: string, notional: bigint, mm: readonly string[]): bigint {
+  return mm.includes(lc(maker)) || mm.includes(lc(taker)) ? notional : 0n;
+}
+
+/** Is this clearing house a labelled test market (entity label first, deployments list otherwise)? */
+export async function isTestClearingHouse(context: Ctx, clearingHouse: string): Promise<boolean> {
+  const m = await context.Market.get(clearingHouse);
+  return m?.testMarket ?? isTestMarket(context.chain.id, clearingHouse);
+}
+
+/**
+ * Get or create an Account; a new non-vault account counts as a user. Its first activity on a product market (not a
+ * test market) by an account that isn't ours (OPERATOR_ACCOUNTS) also counts it once as an external user.
+ */
+export async function touchAccount(context: Ctx, address: string, block: bigint, ts: bigint, opts: StatOpts = {}): Promise<Account> {
   const existing = await context.Account.get(address);
-  if (existing) return existing;
-  const acc: Account = { id: address, firstSeenBlock: block, firstSeenTimestamp: ts, tradeCount: 0, volumeQuoteWad: 0n };
-  context.Account.set(acc);
+  let acc: Account = existing ?? {
+    id: address,
+    firstSeenBlock: block,
+    firstSeenTimestamp: ts,
+    tradeCount: 0,
+    volumeQuoteWad: 0n,
+    countedExternal: false,
+  };
   // The vault trades as a normal account (INTERFACES §2.4) but is not a user.
-  if (!(await context.Vault.get(address))) await updateProtocol(context, (p) => ({ users: p.users + 1 }));
+  const isVault = Boolean(await context.Vault.get(address));
+  if (!existing && !isVault) await updateProtocol(context, (p) => ({ users: p.users + 1 }), { block });
+  if (!acc.countedExternal && !opts.testMarket && !isVault && !isOperator(context.chain.id, address)) {
+    acc = { ...acc, countedExternal: true };
+    await updateProtocol(context, (p) => ({ externalUsers: p.externalUsers + 1 }), { block });
+  }
+  if (!existing || acc !== existing) context.Account.set(acc);
   return acc;
 }
 

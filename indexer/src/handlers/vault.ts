@@ -99,7 +99,7 @@ indexer.onEvent({ contract: "PulseVault", event: "NavSnapshot", fields: FIELDS }
     apy24hWad: d1 ? annualizedChangeWad(d1.sharePriceWad, p.sharePriceWad, ts - d1.timestamp) : v.apy24hWad,
     apy7dWad: d7 ? annualizedChangeWad(d7.sharePriceWad, p.sharePriceWad, ts - d7.timestamp) : v.apy7dWad,
   });
-  await updateProtocol(context, () => ({ vaultNavToken: p.nav }));
+  await updateProtocol(context, () => ({ vaultNavToken: p.nav }), { block: blockOf(event) });
 });
 
 indexer.onEvent({ contract: "PulseVault", event: "Rebalanced", fields: FIELDS }, async ({ event, context }) => {

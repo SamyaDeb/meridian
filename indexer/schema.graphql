@@ -186,6 +186,7 @@ type Account {
   firstSeenTimestamp: BigInt!
   tradeCount: Int!
   volumeQuoteWad: BigInt!
+  countedExternal: Boolean! # already counted in ProtocolStats.externalUsers (first product-market activity, not an operator)
   markets: [AccountMarket!]! @derivedFrom(field: "account")
   swapPositions: [SwapPosition!]! @derivedFrom(field: "account")
 }
@@ -400,10 +401,13 @@ type SwapTrade @index(fields: ["account", ["block", "DESC"]]) {
 # ─── Protocol ──────────────────────────────────────────────────────────────────
 
 # Singleton per chain (id = "protocol").
+# Product stats: labelled TEST markets are excluded from every field (their numbers stay on their Market entity).
 type ProtocolStats {
   id: ID!
-  users: Int! # distinct accounts that deposited, traded or used the vault/swaps
+  users: Int! # distinct accounts that deposited, traded or used the vault/swaps (incl. our own bots; see externalUsers)
+  externalUsers: Int! # same, excluding the operator accounts in deployments (mmAccounts, keeperAccounts, owner) and the vault
   perpVolumeQuoteWad: BigInt!
+  perpVolumeMmQuoteWad: BigInt! # part of perpVolumeQuoteWad where one of our MM accounts was maker or taker (RISKS E9 disclosure)
   swapVolumeWad: BigInt!
   feesWad: BigInt! # perp + swap fees (net of rebates)
   tvlToken: BigInt! # AUSD 6 dp: perp collateral + swap collateral + vault NAV (event-derived)
@@ -415,6 +419,7 @@ type ProtocolStats {
   fundingTicks: Int!
   keeperReports: Int!
   keeperReportFailures: Int!
+  updatedBlock: BigInt! # last block whose events changed these numbers (the dashboard shows it next to them)
 }
 
 # Low-frequency admin/config events (params updates, pause, keeper/forwarder changes, IF authorizations).
