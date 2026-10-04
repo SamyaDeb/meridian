@@ -12,12 +12,13 @@ import {RiskParams, FundingParams, SwapParams, SwapAccountView} from "../../src/
 
 /// @notice Founder B's security review (docs/outputs/security/review-B.md): proof-of-concept tests for the
 ///         High/Medium findings in A's contracts. Each test asserts the CORRECT behaviour, so it FAILS on the
-///         current code and passes once the finding is fixed. B-01 is FIXED (per-block bound on the swap
-///         mark) and runs always as a regression test. B-02 is still open: its test is skipped unless REVIEW_B_POC=true:
+///         current code and passes once the finding is fixed. B-01 and B-02 are FIXED (per-block bound on
+///         the swap mark; a reduction may not create or worsen a maintenance shortfall) and both run always as
+///         regression tests (the env flag below is no longer needed):
 ///           REVIEW_B_POC=true forge test --match-path test/security/ReviewB.t.sol -vv
 ///         Fixture: the real perp ClearingHouse + OrderBook and the real FundingSwapMarket + its own OrderBook
 ///         (tick 1e14 = 1 bp APR, lot 1,000 MON), MATH_SPEC defaults (same as FundingSwapIntegration.t.sol).
-contract ReviewBTest is Test {
+abstract contract ReviewBFixture is Test {
     uint256 constant I0 = 0.029e18;
     uint32 constant MID0 = 29_000; // perp tick (1e12) of 0.029
 
@@ -109,7 +110,9 @@ contract ReviewBTest is Test {
         sob.placeLimitOrder(false, 11_110, 5, 0); // MM: ask 11.10%
         vm.stopPrank();
     }
+}
 
+contract ReviewBTest is ReviewBFixture {
     // ═══ B-01 (High): the swap mark can be moved ±50 APR points inside ONE transaction ═══════════════════
     /// markApr is recomputed live on every call (no per-block cache, unlike the perp mark, decision 2) and is
     /// clamped only to realizedApr ± 50 APR points. Two attacker accounts sweep the thin MM bid, print a 1-lot
@@ -154,7 +157,6 @@ contract ReviewBTest is Test {
     /// colluding counterparty keeps the mirror stream (a free option paid by the IF). Correct behaviour: a
     /// voluntary trade must not leave an account below maintenance (or must not increase MM).
     function test_B02_swapReductionAtOffMarketAprLeavesAccountBelowMM() public {
-        if (!vm.envOr("REVIEW_B_POC", false)) vm.skip(true);
         _victimLong();
         _fund(address(fs), y, 10_000e6);
         vm.prank(sam);

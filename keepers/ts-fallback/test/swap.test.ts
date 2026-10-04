@@ -1,7 +1,7 @@
 // Phase 4 step 2: funding-swap keeper duties (pure decisions).
 import { describe, expect, it } from "vitest";
 import type { Address } from "viem";
-import { type SwapSnapshot, shouldSettleMaturity, swapAccountIsInert, swapAccountsToCheck, swapIsHot, swapLiquidationCandidates } from "../src/swap.js";
+import { type SwapSnapshot, shouldPokeSwapMark, shouldSettleMaturity, swapAccountIsInert, swapAccountsToCheck, swapIsHot, swapLiquidationCandidates } from "../src/swap.js";
 
 const A = "0x000000000000000000000000000000000000000a" as Address;
 const B = "0x000000000000000000000000000000000000000b" as Address;
@@ -70,5 +70,26 @@ describe("shouldSettleMaturity: exactly once", () => {
     expect(shouldSettleMaturity({ ...i, nowSec: 999n })).toBe(false);
     expect(shouldSettleMaturity({ ...i, snapped: true })).toBe(false); // lazily snapped by a trade, or ours landed
     expect(shouldSettleMaturity({ ...i, pending: true })).toBe(false);
+  });
+});
+
+describe("shouldPokeSwapMark: B-01 bounded mark keeps converging while an account is near MM", () => {
+  const base = { block: 1000n, anyHot: true, lastTouchBlock: 970n, everyBlocks: 20n };
+  it("pokes after a quiet window while an account is hot", () => {
+    expect(shouldPokeSwapMark(base)).toBe(true);
+    expect(shouldPokeSwapMark({ ...base, lastTouchBlock: 980n })).toBe(true); // exactly the window
+  });
+  it("does not poke inside the window (another touch already moved the mark)", () => {
+    expect(shouldPokeSwapMark({ ...base, lastTouchBlock: 981n })).toBe(false);
+    expect(shouldPokeSwapMark({ ...base, lastTouchBlock: 1000n })).toBe(false);
+  });
+  it("never pokes when no account is near its maintenance line (no gas spent while healthy)", () => {
+    expect(shouldPokeSwapMark({ ...base, anyHot: false, lastTouchBlock: -1n })).toBe(false);
+  });
+  it("pokes at once if the market was never touched since start", () => {
+    expect(shouldPokeSwapMark({ ...base, lastTouchBlock: -1n })).toBe(true);
+  });
+  it("0 disables", () => {
+    expect(shouldPokeSwapMark({ ...base, everyBlocks: 0n })).toBe(false);
   });
 });

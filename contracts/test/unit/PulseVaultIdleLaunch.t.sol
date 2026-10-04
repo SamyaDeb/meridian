@@ -46,11 +46,12 @@ contract PulseVaultIdleLaunchTest is IdleLaunchBase {
     function test_idle_keeperCannotHedge() public {
         _deposit(alice, 700e6);
         vm.startPrank(keeper);
-        vm.expectRevert(); // NothingToDo
+        // NothingToDo is raised before any trade (`_deploySlice`: add == 0), so no route is ever called
+        vm.expectRevert(IPulseVault.NothingToDo.selector);
         vault.rebalance();
-        vm.expectRevert();
+        vm.expectRevert(IPulseVault.NothingToDo.selector);
         vault.rebalanceWithRoute(FLOW);
-        vm.expectRevert();
+        vm.expectRevert(IPulseVault.NothingToDo.selector);
         vault.enterHedge();
         vm.stopPrank();
         assertFalse(vault.hedgeState().hedged, "still idle");

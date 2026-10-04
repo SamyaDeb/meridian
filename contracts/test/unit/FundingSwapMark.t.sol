@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {ReviewBTest} from "../security/ReviewB.t.sol";
+import {ReviewBFixture} from "../security/ReviewB.t.sol";
 
 /// @notice B-01 regression and bound tests for the swap mark (MATH_SPEC §6.3): the first touch of a block fixes the
 ///         mark for that block, and across blocks it follows the live mark by at most MARK_MAX_STEP_PER_BLOCK per
 ///         elapsed block, capped at MARK_MAX_ELAPSED_BLOCKS.
-abstract contract MarkAttackBase is ReviewBTest {
+abstract contract MarkAttackBase is ReviewBFixture {
     /// The B-01 attack: sweep the MM bid, print a self-trade at −38%, rest a −40%/−38% book (one block).
     function _attack() internal {
         _fund(address(fs), x, 10_000e6);

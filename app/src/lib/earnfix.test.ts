@@ -7,6 +7,7 @@ import {
   swapAprToTick,
   swapPositionFromViews,
   swapTickToAprWad,
+  vaultRoutePending,
   vaultStatus,
   vaultWithdrawFeeToken,
   vaultWithdrawPath,
@@ -93,3 +94,17 @@ describe("parsers", () => {
 function WAD_(): bigint {
   return 10n ** 18n;
 }
+
+describe("vaultRoutePending: idle launch read from the chain (PHASES 17)", () => {
+  it("skewCapacity 0 means waiting for route even without the env flag", () => {
+    expect(vaultRoutePending(undefined, 0n)).toBe(true);
+    expect(vaultRoutePending("", 0n)).toBe(true);
+  });
+  it("the env flag still forces it", () => {
+    expect(vaultRoutePending("1", 800000000000000000n)).toBe(true);
+  });
+  it("a hedging-capable vault with no flag is not pending; unknown params (indexer/mock) fall back to the flag", () => {
+    expect(vaultRoutePending(undefined, 800000000000000000n)).toBe(false);
+    expect(vaultRoutePending(undefined, undefined)).toBe(false);
+  });
+});

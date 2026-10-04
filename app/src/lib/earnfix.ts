@@ -29,6 +29,15 @@ export function vaultWithdrawPath(idleToken: bigint, assetsToken: bigint): "idle
  * `routePending` (NEXT_PUBLIC_VAULT_ROUTE_PENDING=1, set by ops while the mainnet Kuru Flow spot route isn't live,
  * B4 / review A-01): an unhedged vault is "waiting-route" whatever the keeper's rule says, since it can't hedge.
  */
+/**
+ * The vault is waiting for its spot route when ops says so (NEXT_PUBLIC_VAULT_ROUTE_PENDING=1) or when the chain says
+ * so: `skewCapacity == 0` makes the hedge target 0 (mainnet idle launch, PHASES 17), so the vault can't hedge whatever
+ * the funding rule says. Reading the chain means a forgotten env var can't make an idle vault look like it will earn.
+ */
+export function vaultRoutePending(envFlag: string | undefined, skewCapacityWad: bigint | undefined): boolean {
+  return envFlag === "1" || skewCapacityWad === 0n;
+}
+
 export function vaultStatus(
   hedged: boolean,
   needsRebalance: number,

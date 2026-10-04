@@ -347,7 +347,9 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
     }
 
     /// @dev Risk-increasing (|q| grows or flips): not matured, not paused, position cap, OI cap on the order's net
-    ///      result, equity ≥ IM. Pure reduction: equity ≥ 0 after (a voluntary trade may never create bad debt).
+    ///      result, equity ≥ IM. Pure reduction: equity ≥ 0 after (a voluntary trade may never create bad debt) and,
+    ///      B-02, the maintenance slack (equity − MM, the `isLiquidatable` measure) is not created negative or made
+    ///      worse: an off-market close that grows |K| can't leave the account liquidatable at the IF's risk.
     function _check(Account memory a, Account memory b, int256 dq, int256 kd, int256 fee, Obs memory o, uint256 oiRef)
         internal
         view
@@ -357,7 +359,15 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
         b.size = q.toInt128();
         b.k = k.toInt128();
         b.collateral = a.collateral - fee;
-        if (!_increases(a.size, q)) return _equity(b, o) < 0 ? InsufficientMargin.selector : bytes4(0);
+        if (!_increases(a.size, q)) {
+            int256 eqAfter = _equity(b, o);
+            if (eqAfter < 0) return InsufficientMargin.selector;
+            // MATH_SPEC §6.4 (B-02), MM rounds up as in `_mm`, so the slack rounds down (against the account)
+            int256 slackAfter = eqAfter - int256(_mm(q, k, o));
+            if (slackAfter >= 0) return bytes4(0);
+            int256 slackBefore = _equity(a, o) - int256(_mm(a.size, a.k, o));
+            return slackAfter >= slackBefore ? bytes4(0) : InsufficientMargin.selector;
+        }
         if (_snapped || block.timestamp >= maturity) return Matured.selector;
         if (paused) return Paused.selector;
         SwapParams memory p = _p;

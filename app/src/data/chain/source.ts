@@ -235,13 +235,14 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
   }
   async function vault(): Promise<Vault> {
     if (!vt) return fallback.vault();
-    const [nav, supply, price, h, needs, cap, snaps, deposits, withdraws, rebal, ts, head] = await Promise.all([
+    const [nav, supply, price, h, needs, cap, params, snaps, deposits, withdraws, rebal, ts, head] = await Promise.all([
       client.readContract({ ...vt, functionName: "totalAssets" }),
       client.readContract({ ...vt, functionName: "totalSupply" }),
       client.readContract({ ...vt, functionName: "sharePrice" }),
       client.readContract({ ...vt, functionName: "hedgeState" }),
       client.readContract({ ...vt, functionName: "needsRebalance" }),
       client.readContract({ ...vt, functionName: "shortCapacity" }),
+      client.readContract({ ...vt, functionName: "vaultParams" }),
       vaultSnapshots(1_000),
       recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Deposit", fromBlock, toBlock, strict: true })),
       recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Withdraw", fromBlock, toBlock, strict: true })),
@@ -271,6 +272,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
       needsRebalance: needs,
       idleToken: h.idleAssets,
       shortCapacityWad: cap,
+      skewCapacityWad: params.skewCapacity,
       spotBaseWad: h.spotBase,
       perpSizeWad: h.perpSize,
       netDeltaWad: h.netDelta,

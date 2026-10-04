@@ -4,14 +4,14 @@
 **Commit reviewed:** `main` @ `158aa8c` (interfaces-v1.5). **Reviewer:** B. **Date:** 30 Sep 2026.
 **PoC tests:** `contracts/test/security/ReviewB.t.sol` (real CH + OB + FundingSwapMarket + swap OB, MATH_SPEC defaults). Each test asserts the *correct* behaviour, so it **fails on today's code** and passes once the finding is fixed. The tests are gated so `forge test` stays green until A lands the fix and removes the gate:
 ```
-cd contracts && REVIEW_B_POC=true forge test --match-path test/security/ReviewB.t.sol -vv   # B-01 now runs always (fixed); this flag only enables the open B-02 PoC
+cd contracts && REVIEW_B_POC=true forge test --match-path test/security/ReviewB.t.sol -vv   # no longer needed: B-01 and B-02 are fixed and both PoCs run always
 ```
 
 ## Summary
 | ID | Sev | Where | Title | Status |
 |---|---|---|---|---|
 | B-01 | **High** | `FundingSwapMarket.sol:514-532`, `:374` | Swap `markApr` can be moved ±50 APR points inside one transaction ⇒ healthy accounts liquidated | **Closed** `3d5b898`: per-block mark bound; PoC now a regression test (STATUS.md) |
-| B-02 | **Medium** | `FundingSwapMarket.sol:339-348` | Swap "reduction" judged by \|q\| only: an off-market close grows \|K\| and leaves 0 ≤ equity < MM (IF-funded free option) | Open (A), PoC fails today |
+| B-02 | **Medium** | `FundingSwapMarket.sol:339-348` | Swap "reduction" judged by \|q\| only: an off-market close grows \|K\| and leaves 0 ≤ equity < MM (IF-funded free option) | **Closed** `bbe16b5`: a reduction may not create or worsen a maintenance shortfall; PoC now a regression test (STATUS.md) |
 | B-03 | Low | `ClearingHouse.sol:485-487` | Perp voluntary reduction at an off-market price can leave equity < MM (decision 4 only requires ≥ 0) | Open (A decides) |
 | B-04 | Low | `OrderBook.sol:359-361`, `ClearingHouse.sol:489-490` | **CR-007:** a taker evicts ≤ 32 increasing makers per tx while paused / oracle stale, at no cost | **Rated Low; recommend not applying CR-007 before the freeze** |
 | B-05 | Low | `ClearingHouse.sol:534`, `FundingSwapMarket.sol:386` | Liquidation size isn't lot-aligned ⇒ unclosable dust positions | Open (A) |

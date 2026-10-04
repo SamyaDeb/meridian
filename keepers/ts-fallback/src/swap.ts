@@ -82,3 +82,25 @@ export function swapAccountsToCheck(i: SwapAccountsToCheckInput): { accounts: Ad
 export function swapIsHot(s: Pick<SwapSnapshot, "equity" | "maintenanceMargin" | "liquidatable">): boolean {
   return s.liquidatable || (s.maintenanceMargin > 0n && s.equity < 2n * s.maintenanceMargin);
 }
+
+export interface SwapMarkPokeInput {
+  block: bigint;
+  /** any tracked swap account eligible or within 2× MM at its last read */
+  anyHot: boolean;
+  /** last block the market was touched (a SwapPositionChanged seen, or our own poke/liquidation landed); −1 = never */
+  lastTouchBlock: bigint;
+  /** SWAP_MARK_POKE_EVERY_BLOCKS; 0 disables */
+  everyBlocks: bigint;
+}
+
+/**
+ * B-01 (PHASES 18, MATH_SPEC §6.3): the swap mark follows the live mark by ≤ 0.5 APR pt per block, credited for at
+ * most 20 blocks per refresh, and only a touch stores it. In a quiet market a genuine move therefore reaches the
+ * liquidation mark only as fast as someone touches the market, and a reverted `liquidate` stores nothing. While an
+ * account is near its maintenance line, the keeper touches the market (`settle` of its own account) once every
+ * `everyBlocks` blocks without other activity: with everyBlocks = 20 the mark converges at the full 0.5 pt/block.
+ */
+export function shouldPokeSwapMark(i: SwapMarkPokeInput): boolean {
+  if (i.everyBlocks <= 0n || !i.anyHot) return false;
+  return i.lastTouchBlock < 0n || i.block - i.lastTouchBlock >= i.everyBlocks;
+}

@@ -132,6 +132,8 @@ export interface Vault {
   needsRebalance?: number;
   idleToken?: bigint;
   shortCapacityWad?: bigint;
+  /** chain source: vaultParams().skewCapacity; 0 = idle launch (PHASES 17: the vault can't hedge, "waiting for route") */
+  skewCapacityWad?: bigint;
   spotBaseWad?: bigint;
   perpSizeWad?: bigint;
   netDeltaWad?: bigint;

@@ -45,6 +45,7 @@ export const fundingSwapAbi = parseAbi([
   "struct SwapAccountView { uint256 collateral; int256 size; int256 avgFixedApr; int256 accruedNet; int256 unrealizedPnl; int256 equity; uint256 initialMargin; uint256 maintenanceMargin; uint256 reservedOrderMargin; bool liquidatable; }",
   "function getAccount(address account) view returns (SwapAccountView)",
   "function liquidate(address account, uint256 maxSizeWad) returns (int256 sizeTransferred)",
+  "function settle(address account)",
   "function settleMaturity()",
   "function maturity() view returns (uint256 timestamp)",
   "event SwapPositionChanged(address indexed account, int256 sizeDelta, int256 newSize, int256 aprWad, int256 realizedPnl, int256 fee, bool isMaker)",

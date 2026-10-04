@@ -30,7 +30,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { RateWindow, burnPerHourWei, createCountingFetch, newRpcStats, pruneSamples, type BalanceSample } from "@pulse/bot-rpc";
 import { clearingHouseAbi, fundingSwapAbi, fundingSwapImplAbi, kuruHedgerAbi, oracleAdapterAbi, pulseVaultAbi } from "./abi.js";
 import { type CallFrame, FlowClient, findHedgerCalls, parseQuote, quoteRequest, routeAmount } from "./kuruflow.js";
-import { type SwapSnapshot, shouldSettleMaturity, swapAccountIsInert, swapAccountsToCheck, swapIsHot, swapLiquidationCandidates } from "./swap.js";
+import { type SwapSnapshot, shouldPokeSwapMark, shouldSettleMaturity, swapAccountIsInert, swapAccountsToCheck, swapIsHot, swapLiquidationCandidates } from "./swap.js";
 import {
   type AccountSnapshot,
   type CheckedAccount,
@@ -144,6 +144,9 @@ if (PRICE_FACTOR_FILE !== undefined && MARKET !== "demo") throw new Error("PRICE
 const SWAP: Address | undefined = MARKET === "main" && env("SWAP_DUTIES") !== "0" ? dep.contracts.FundingSwapMarket : undefined;
 const SWAP_FULL_EVERY_BLOCKS = BigInt(env("SWAP_FULL_EVERY_BLOCKS") ?? "10");
 // Size-bounded swap liquidation (the keeper takes the position and must pass IM afterwards); default = whole position.
+// B-01 (PHASES 18): touch the swap market every N quiet blocks while an account is near MM, so the bounded mark keeps
+// converging (20 = the contract's MARK_MAX_ELAPSED_BLOCKS ⇒ full 0.5 APR pt/block); 0 disables.
+const SWAP_MARK_POKE_EVERY_BLOCKS = BigInt(env("SWAP_MARK_POKE_EVERY_BLOCKS") ?? "20");
 const SWAP_LIQ_MAX_SIZE = env("SWAP_LIQ_MAX_SIZE_WAD") === undefined ? maxUint256 : BigInt(env("SWAP_LIQ_MAX_SIZE_WAD") as string);
 const SCAN_EVENTS = [...clearingHouseAbi, ...oracleAdapterAbi, ...fundingSwapAbi].filter(
   (x): x is Extract<(typeof clearingHouseAbi)[number] | (typeof oracleAdapterAbi)[number] | (typeof fundingSwapAbi)[number], { type: "event" }> =>
@@ -202,6 +205,7 @@ const health = {
   swapTracked: 0,
   swapAccountReads: 0,
   swapLiquidations: 0,
+  swapMarkPokes: 0,
   swapLiquidationLatency: new LiquidationLatency().summary(),
   maturity: 0n,
   maturitySettled: false, // snapshot exists (ours or lazy)
@@ -212,6 +216,7 @@ let swapChanged = new Set<Address>();
 const swapHot = new Set<Address>();
 let swapLastFull = -1n;
 const swapLatency = new LiquidationLatency();
+let swapLastTouch = -1n; // last block the swap market was touched (B-01 mark poke)
 let maturityPending = false;
 // chain time ≈ local time + offset (refreshed from a block read every CLOCK_EVERY_BLOCKS): the maturity pre-check must
 // not trust the local clock (skew; anvil evm_increaseTime in the rehearsal).
@@ -356,6 +361,7 @@ async function scanStep(block: bigint): Promise<void> {
         const a = l.args.account.toLowerCase() as Address;
         swapTracked.add(a); // tracked until a read proves it inert (newSize 0 may still carry a K stream)
         swapChanged.add(a);
+        if (l.blockNumber !== null && l.blockNumber > swapLastTouch) swapLastTouch = l.blockNumber;
       } else if (l.eventName === "MaturitySettled") {
         health.maturitySettled = true;
         maturityPending = false;
@@ -506,6 +512,15 @@ async function swapLiquidationStep(block: bigint): Promise<void> {
     }
     swapChanged.add(s.account);
     swapTracked.add(account.address.toLowerCase() as Address); // the keeper now holds (part of) the position
+  }
+  if (shouldPokeSwapMark({ block, anyHot: swapHot.size > 0, lastTouchBlock: swapLastTouch, everyBlocks: SWAP_MARK_POKE_EVERY_BLOCKS })) {
+    swapLastTouch = block; // one attempt per window, landed or not
+    try {
+      const landed = await send("swap mark poke", SWAP, encodeFunctionData({ abi: fundingSwapAbi, functionName: "settle", args: [account.address] }));
+      if (landed !== null) health.swapMarkPokes++;
+    } catch (e) {
+      fail("swap mark poke", e);
+    }
   }
 }
 

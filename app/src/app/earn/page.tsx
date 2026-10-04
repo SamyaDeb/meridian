@@ -6,7 +6,7 @@ import { Card, Row, Skeleton, Sparkline } from "@/components/ui";
 import { useTx } from "@/components/Wallet";
 import { contractAddress } from "@/config/deployments";
 import { formatAprWad, formatAusdToken, formatAusdWad, formatBaseWad, formatDuration, formatFixed, parseFixed } from "@/lib/format";
-import { vaultStatus, vaultWithdrawFeeToken, vaultWithdrawPath } from "@/lib/earnfix";
+import { vaultRoutePending, vaultStatus, vaultWithdrawFeeToken, vaultWithdrawPath } from "@/lib/earnfix";
 import { vaultDeposit, vaultRedeem } from "@/lib/tx";
 import { WAD } from "@/lib/units";
 
@@ -24,7 +24,7 @@ export default function EarnPage() {
   const ausd = contractAddress(chainId, "AUSD");
 
   const myValueWad = v && u ? (u.shares * v.sharePriceWad) / WAD : undefined;
-  const routePending = process.env.NEXT_PUBLIC_VAULT_ROUTE_PENDING === "1";
+  const routePending = vaultRoutePending(process.env.NEXT_PUBLIC_VAULT_ROUTE_PENDING, v?.skewCapacityWad);
   const status = v ? vaultStatus(v.hedged, v.needsRebalance ?? 0, routePending) : undefined;
   // redeem preview: shares × price (token units) − the 5 bps fee; the path decides whether an unwind cost applies
   const redeemShares = u ? (u.shares * BigInt(pct)) / 100n : 0n;

@@ -71,6 +71,8 @@ export const vaultAbi = parseAbi([
   "function balanceOf(address) view returns (uint256)",
   "function sharePrice() view returns (uint256)",
   "function hedgeState() view returns (HedgeState)",
+  "struct VaultParams { uint256 leverage; uint256 driftBand; uint256 targetMarginRatio; uint256 minMarginRatio; uint256 exitHorizonSec; uint256 roundTripFee; uint256 maxSlippage; uint256 idleBuffer; uint256 depositCap; uint256 skewCapacity; uint256 entryHorizonSec; uint256 maxSliceAssets; }",
+  "function vaultParams() view returns (VaultParams)",
   "function needsRebalance() view returns (uint8)",
   "function shortCapacity() view returns (uint256)",
   "function maxDeposit(address) view returns (uint256)",

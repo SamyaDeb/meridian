@@ -290,6 +290,7 @@ IM = MM · imMultiplier                                            // all ↑
 ```
 Defaults at inception (q = 1, Ā = 12%, 30 d): cap_apr = 0.2%/h × 8,760 = 1,752% APR ⇒ (17.52 + 0.12)/365 = 4.83%; + 0.05 × 30/365 = 0.41%; + 0 ⇒ **MM ≈ 5.24%, IM ≈ 7.87% of notional (≈ 12.7x)**.
 Full worst-case collateralization to maturity would need ≈ 144% of notional (17.52 × 30/365), which is why this is a margined product with liquidation.
+**Voluntary reductions (B-02):** a trade that does not grow |q| needs equity ≥ 0 after it and must not create or worsen a maintenance shortfall: `slack = equity − MM` (MM ↑, so slack rounds against the account) must satisfy `slack_after ≥ min(0, slack_before)`. An off-market close that turns q into a large locked |K| is refused; a close near the mark (and any reduction that improves an existing shortfall) passes. Makers: the fill is skipped and the order evicted, as for any failed maker check.
 **Liquidation:** the liquidator receives `x` and the proportional `K·x/q`. A cash transfer `V_x = x·I·τ/YEAR·(markApr − K/q)` goes from liquidator to liquidatee (negative = the other way). The amount is equal and opposite, so conservation is exact. Then penalty = liqPenalty·MM_x: keeperShare to liquidator, rest to the IF; bad debt via IF. Accounts with q = 0 (locked spread only) are never liquidated if the stream is positive; otherwise their MM is the price-shock term only.
 
 ### 6.5 Fees
