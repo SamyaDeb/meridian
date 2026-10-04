@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "check-source": "tsx scripts/check-source.ts",
     "evidence": "tsx scripts/evidence.ts",
-    "watch": "tsx scripts/watch.ts"
+    "watch": "tsx scripts/watch.ts",
+    "oracle-deviation": "tsx scripts/oracle-deviation.ts"
   },
   "dependencies": {
     "@pulse/abis": "workspace:*",

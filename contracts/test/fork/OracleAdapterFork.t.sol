@@ -40,4 +40,47 @@ contract OracleAdapterForkTest is Test {
             assertLt(p, 10e18);
         }
     }
+
+    // ─── Phase 5 B3: the chosen mainnet parameters (docs/standup/B.md, keepers/ts-fallback/evidence/) ────────────
+    /// maxStalenessSec = 60 (no Pyth API key ⇒ sponsored pushes, R24; 72 h sample: sponsored age p99 50 s, max 66 s)
+    uint256 constant STALENESS_143 = 60;
+    /// maxDeviationWad = 3% (72 h sample of 8,581 blocks: p99 0.50%, p99.9 1.02%, max 1.42% with BOTH feeds fresh)
+    uint256 constant DEVIATION_143 = 0.03e18;
+    /// Worst sampled block: Pyth 0.02935634 (1 s old) vs Chainlink 0.0289459 (4 s old) = 1.418% apart.
+    uint256 constant WORST_BLOCK = 108_753_387;
+
+    function _adapter(uint256 staleness, uint256 dev) internal returns (PythChainlinkOracleAdapter) {
+        return
+            new PythChainlinkOracleAdapter(
+                address(this), PYTH, MON_USD, CL_MON_USD, staleness, dev, 1 hours, "MON / USD"
+            );
+    }
+
+    /// The chosen guard keeps the worst real disagreement of the window usable; a 1% guard would have frozen the
+    /// market (stale ⇒ reduce-only) at that block although neither feed was broken.
+    function test_fork_chosenParams_worstObservedDeviation() public {
+        string memory rpc = vm.envOr("MONAD_RPC_URL", string(""));
+        if (bytes(rpc).length == 0) return;
+        vm.createSelectFork(rpc, WORST_BLOCK);
+        PythChainlinkOracleAdapter o = _adapter(STALENESS_143, DEVIATION_143);
+        (bool ok, uint256 p,) = o.tryGetIndexPrice();
+        assertTrue(ok, "3% guard accepts the worst observed disagreement");
+        assertEq(p, 0.02935634e18, "Pyth primary, expo -8 scaled to WAD");
+        (bool ok1,,) = _adapter(STALENESS_143, 0.01e18).tryGetIndexPrice();
+        assertFalse(ok1, "a 1% guard trips on healthy feeds");
+    }
+
+    /// Live head with the chosen parameters: usable whenever the sponsored price is ≤ 60 s old.
+    function test_fork_chosenParams_head() public {
+        string memory rpc = vm.envOr("MONAD_RPC_URL", string(""));
+        if (bytes(rpc).length == 0) return;
+        vm.createSelectFork(rpc);
+        PythChainlinkOracleAdapter o = _adapter(STALENESS_143, DEVIATION_143);
+        IPythMinimal.Price memory px = PYTH.getPriceUnsafe(MON_USD);
+        (bool ok,,) = o.tryGetIndexPrice();
+        emit log_named_uint("pyth age s", block.timestamp - px.publishTime);
+        assertEq(ok, block.timestamp - px.publishTime <= STALENESS_143);
+        assertEq(o.maxStaleness(), 60);
+        assertEq(o.maxDeviation(), 0.03e18);
+    }
 }
