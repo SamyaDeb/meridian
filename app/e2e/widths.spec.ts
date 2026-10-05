@@ -4,7 +4,7 @@
 import { expect, test } from "@playwright/test";
 
 const SHOTS = process.env.SHOTS_DIR ?? "e2e/screenshots/widths";
-const PAGES = (process.env.PAGES ?? "/trade,/positions,/earn,/fix,/stats,/terms").split(",");
+const PAGES = (process.env.PAGES ?? "/trade,/positions,/earn,/fix,/stats,/rates,/terms").split(",");
 const WIDTHS = [
   { w: 390, h: 844 },
   { w: 768, h: 1024 },

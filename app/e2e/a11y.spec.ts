@@ -3,7 +3,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-const PAGES = (process.env.PAGES ?? "/trade,/positions,/earn,/fix,/stats,/terms,/design").split(",");
+const PAGES = (process.env.PAGES ?? "/trade,/positions,/earn,/fix,/stats,/rates,/terms,/design").split(",");
 
 for (const width of [390, 1440]) {
   for (const path of PAGES) {

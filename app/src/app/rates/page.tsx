@@ -6,6 +6,7 @@ import { Card, EmptyState, Notice, Skeleton } from "@/components/ds";
 import { formatAprWad, formatAusdToken, formatBaseWad, formatSignedAprWad } from "@/lib/format";
 import { histogram } from "@/lib/liqDistance";
 import { DEFAULT_MMR_WAD } from "@/lib/units";
+import { MfiCard } from "@/features/rates/MfiCard";
 
 function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub?: string }) {
   return (
@@ -18,9 +19,9 @@ function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub
 }
 
 /**
- * Rates & Risk (WIN_PLAN T8, FRONTEND_TRADE_PLAN §7). Real sources only: the funding-rate oracle (chain) for the APR
- * table, the indexer for liquidation distance and the insurance fund. The Meridian Funding Index (Meridian vs Perpl)
- * needs the MFI service (lane D), which does not exist yet: shown as an empty state, never simulated.
+ * Rates & Risk (WIN_PLAN T8, FRONTEND_TRADE_PLAN §7, decision D3). Real sources only: the funding-rate oracle (chain)
+ * for the APR table, the MFI service for the Meridian Funding Index (MfiCard), the indexer for liquidation distance and
+ * the insurance fund. A missing source is an empty state, never simulated.
  */
 export default function RatesPage() {
   const { data: m } = useMarket();
@@ -50,9 +51,7 @@ export default function RatesPage() {
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-2 lg:grid-cols-2">
-        <Card title="Meridian Funding Index (Meridian vs Perpl)">
-          <EmptyState title="Not published yet" body="The MFI combines Meridian's per-block rate with Perpl's funding. Its service and Perpl API client are not built yet, so no index is shown rather than a simulated one." />
-        </Card>
+        <MfiCard />
 
         <Card title="Liquidation distance (open positions)">
           {INDEXER_URL === undefined ? (
