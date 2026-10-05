@@ -1,7 +1,7 @@
 // Terms acceptance (C3). Stored per viewer (this browser) and keyed by version: a new version asks again.
 
 /** Bump when the text in src/content/terms.ts changes materially. */
-export const TERMS_VERSION = "2026-09-30-draft";
+export const TERMS_VERSION = "2026-10-05-meridian-draft"; // bumped for the Pulse → Meridian rename (decision D5)
 export const TERMS_STORAGE_KEY = "pulse.terms.accepted";
 
 export type TermsRecord = { version: string; acceptedAt: number };

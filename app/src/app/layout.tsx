@@ -15,11 +15,15 @@ import { CommandPalette } from "@/components/CommandPalette";
 const interTight = Inter_Tight({ variable: "--font-inter-tight", subsets: ["latin", "latin-ext"], weight: ["400", "500", "600", "700"], display: "swap" });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
+// Absolute og:image URLs need the public origin; set NEXT_PUBLIC_SITE_URL on the hosted build (unset ⇒ Next's default).
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL;
+
 export const metadata: Metadata = {
-  title: "Pulse: per-block funding on Monad",
+  ...(SITE_URL ? { metadataBase: new URL(SITE_URL) } : {}),
+  title: "Meridian: per-block funding on Monad",
   description: "Trade MON-PERP with funding every block, earn the basis, or fix your funding rate. All in AUSD.",
-  applicationName: "Pulse",
-  appleWebApp: { capable: true, title: "Pulse", statusBarStyle: "black-translucent" },
+  applicationName: "Meridian",
+  appleWebApp: { capable: true, title: "Meridian", statusBarStyle: "black-translucent" },
   icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
 };
 

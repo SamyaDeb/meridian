@@ -1,4 +1,4 @@
-# Pulse (placeholder name)
+# Meridian (internal name: Pulse)
 
 **Monad's funding-rate layer: per-block funding perps, a public funding-rate oracle, a basis vault and fixed-rate funding swaps. Trade it, earn it, fix it.**
 
@@ -7,7 +7,7 @@
 | Trade it | MON-PERP: fully onchain CLOB, isolated margin (5x), funding accrued every block via O(1) indices, median mark, liquidations + insurance fund. Collateral: Agora AUSD | `contracts/src/{orderbook,clearing,libs,oracle}` |
 | Rate oracle | Public, per-block funding-rate oracle: average rate over any window = ΔF/ΔG | `contracts/src/clearing` |
 | Earn it | "Skew absorber" basis vault (ERC-4626): spot MON + short perp, capped by net long skew | `contracts/src/vault` |
-| Fix it | 30-day fixed-for-floating funding swaps on Pulse's own order book | `contracts/src/swaps` |
+| Fix it | 30-day fixed-for-floating funding swaps on Meridian's own order book | `contracts/src/swaps` |
 
 Offchain: Chainlink CRE + TS keepers (`keepers/`), Avellaneda–Stoikov MM bot (`mm-bot/`), Envio indexer (`indexer/`), Next.js mobile PWA with Privy (`app/`).
 

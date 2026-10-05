@@ -7,7 +7,7 @@ export const TERMS_STATUS: "draft" | "signed-off" = "draft";
 export type TermsSection = { heading: string; body: string[] };
 
 export const TERMS_SUMMARY = [
-  "Pulse is experimental, non-custodial software on Monad. You keep your keys; transactions are final.",
+  "Meridian is experimental, non-custodial software on Monad. You keep your keys; transactions are final.",
   "Perpetuals use leverage: positions can be liquidated and you can lose all deposited collateral.",
   "Funding is paid or received every block and can move against you.",
   "Vault and swap returns are not guaranteed; the vault can lose value and withdrawals may wait for an unwind.",
@@ -16,17 +16,17 @@ export const TERMS_SUMMARY = [
 
 export const TERMS_SECTIONS: TermsSection[] = [
   {
-    heading: "1. What Pulse is",
+    heading: "1. What Meridian is",
     body: [
-      "Pulse is a set of smart contracts on the Monad blockchain (a perpetual futures market with per-block funding, a basis vault and funding-rate swaps) and this web interface to them. The interface only prepares transactions; your wallet signs them and the contracts execute them.",
-      "Pulse is operated by [legal entity / founders' names, to be set by the founders]. It was built for the Monad Metropolis hackathon and is early-stage software. The contracts are not upgradeable and have not had an external audit (see the security review published with the project).",
+      "Meridian is a set of smart contracts on the Monad blockchain (a perpetual futures market with per-block funding, a basis vault and funding-rate swaps) and this web interface to them. The interface only prepares transactions; your wallet signs them and the contracts execute them.",
+      "Meridian is operated by [legal entity / founders' names, to be set by the founders]. It was built for the Monad Metropolis hackathon and is early-stage software. The contracts are not upgradeable and have not had an external audit (see the security review published with the project).",
     ],
   },
   {
     heading: "2. Eligibility and restricted jurisdictions",
     body: [
-      "You may use Pulse only if you are legally able to enter into these terms and to use leveraged derivatives and on-chain financial software where you live and where you access it from.",
-      "You may not use Pulse if you are located in, resident in, or a national of a restricted jurisdiction, or if you are subject to sanctions. The list of restricted jurisdictions is: [to be decided by the founders]. The interface may refuse access or write actions based on your location; do not try to get around it (for example with a VPN).",
+      "You may use Meridian only if you are legally able to enter into these terms and to use leveraged derivatives and on-chain financial software where you live and where you access it from.",
+      "You may not use Meridian if you are located in, resident in, or a national of a restricted jurisdiction, or if you are subject to sanctions. The list of restricted jurisdictions is: [to be decided by the founders]. The interface may refuse access or write actions based on your location; do not try to get around it (for example with a VPN).",
     ],
   },
   {
@@ -51,7 +51,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
   {
     heading: "5. No advice",
     body: [
-      "Nothing in Pulse is investment, financial, legal or tax advice. Numbers shown in the app (APRs, liquidation prices, previews) are estimates computed from on-chain data and may differ from what executes.",
+      "Nothing in Meridian is investment, financial, legal or tax advice. Numbers shown in the app (APRs, liquidation prices, previews) are estimates computed from on-chain data and may differ from what executes.",
     ],
   },
   {
@@ -61,7 +61,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
   {
     heading: "7. No warranty; limitation of liability",
     body: [
-      "Pulse is provided \"as is\" and \"as available\", without warranties of any kind. To the maximum extent the law allows, the founders are not liable for losses from using Pulse, including losses from liquidations, funding, oracle failures, bugs or network issues. [Founders: confirm wording and governing law.]",
+      "Meridian is provided \"as is\" and \"as available\", without warranties of any kind. To the maximum extent the law allows, the founders are not liable for losses from using Meridian, including losses from liquidations, funding, oracle failures, bugs or network issues. [Founders: confirm wording and governing law.]",
     ],
   },
   {

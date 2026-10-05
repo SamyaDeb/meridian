@@ -1,8 +1,8 @@
-# Get started with Pulse (Monad mainnet)
+# Get started with Meridian (Monad mainnet)
 
-> Status: **draft**. Pulse isn't on mainnet yet (deploy target: Sat 10 Oct 2026). Items marked `> VERIFY` must be checked against the linked official source before this guide is shared. The app URL and contract addresses come from `deployments/143.json` once A commits it.
+> Status: **draft**. Meridian isn't on mainnet yet (deploy target: Sat 10 Oct 2026). Items marked `> VERIFY` must be checked against the linked official source before this guide is shared. The app URL and contract addresses come from `deployments/143.json` once A commits it.
 
-Pulse runs on **Monad mainnet (chain id 143)**. Everything is settled in **AUSD** (Agora Dollar, 6 decimals, token `0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a`, ARCHITECTURE R9). You need:
+Meridian runs on **Monad mainnet (chain id 143)**. Everything is settled in **AUSD** (Agora Dollar, 6 decimals, token `0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a`, ARCHITECTURE R9). You need:
 - **MON** for gas. Monad charges the gas *limit*, so keep a small buffer (the app sets each limit to estimate × 1.2).
 - **AUSD** for collateral, vault deposits and swap margin.
 

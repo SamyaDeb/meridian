@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Pulse: per-block funding on Monad",
-    short_name: "Pulse",
+    name: "Meridian: per-block funding on Monad",
+    short_name: "Meridian",
     description: "Per-block funding perp, funding-rate oracle, basis vault and fixed-rate funding swaps. All in AUSD.",
     id: "/",
     start_url: "/trade",
