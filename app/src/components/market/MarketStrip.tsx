@@ -7,7 +7,15 @@ import { stats24h } from "@/lib/market24h";
 import { signGlyph } from "@/components/ds/logic";
 import { useNow } from "@/lib/useNow";
 
-function Stat({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+/** Long label on wide strips, short one on narrow strips (container width), so the stats stay on one line. */
+const L = (long: string, short: string) => (
+  <>
+    <span className="@3xl:hidden">{short}</span>
+    <span className="hidden @3xl:inline">{long}</span>
+  </>
+);
+
+function Stat({ label, children, hint }: { label: ReactNode; children: ReactNode; hint?: string }) {
   const body = (
     <div className="min-w-0 shrink-0">
       <div className="whitespace-nowrap text-[11px] text-muted">{label}</div>
@@ -47,45 +55,45 @@ export function MarketStrip() {
           : undefined;
   const fundTone = m && m.lastRateAprWad < 0n ? "text-short" : m && m.lastRateAprWad > 0n ? "text-long" : "";
   return (
-    <Card as="section" aria-label="Market" className="p-3! sm:p-4!" bodyClassName="@container">
-      <div className="flex flex-col gap-3 @3xl:flex-row @3xl:items-center @3xl:gap-6">
-      <div className="flex items-end justify-between gap-3 @3xl:items-center @3xl:justify-start @3xl:gap-4">
+    <Card as="section" aria-label="Market" className="p-3! sm:p-4! xl:px-3! xl:py-2!" bodyClassName="@container">
+      <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4">
+      <div className="flex items-end justify-between gap-3 @2xl:items-center @2xl:justify-start @2xl:gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-muted">
             <span className="whitespace-nowrap font-semibold text-text">{m?.symbol ?? "MON-PERP"}</span>
-            <span className="whitespace-nowrap">· AUSD · cross margin</span>
+            <span className="whitespace-nowrap @2xl:max-@3xl:hidden">· AUSD · cross margin</span>
             {m?.testMarket && <Chip tone="warn">test market</Chip>}
           </div>
           {/* same-metric text placeholder: the LCP element paints in the first frame */}
-          <div className="text-2xl font-semibold sm:text-3xl" data-testid="mark-price">
+          <div className="text-2xl font-semibold sm:text-3xl @2xl:text-xl @2xl:leading-tight" data-testid="mark-price">
             {m ? <NumberCell value={m.lastMarkPrice} format={(v) => formatPriceWad(v)} /> : <span className="num text-muted">—.——————</span>}
           </div>
         </div>
-        <div className="text-right text-[11px] text-muted @3xl:hidden">
+        <div className="text-right text-[11px] text-muted @2xl:hidden">
           <div className="num">Index {m ? formatPriceWad(m.lastIndexPrice) : "—"}</div>
           <div className="num">OI {m ? formatBaseWad(m.openInterestLongWad, 0) : "—"} MON</div>
         </div>
       </div>
 
-      <div className="-mx-1 flex items-center gap-5 overflow-x-auto px-1 pb-1 @3xl:pb-0" tabIndex={0} aria-label="Market statistics">
-        <span className="hidden @3xl:contents">
+      <div className="-mx-1 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 @2xl:max-@3xl:gap-x-3 @2xl:flex-nowrap @2xl:overflow-x-auto @2xl:[scrollbar-width:none]" aria-label="Market statistics">
+        <span className="hidden @2xl:contents">
           <Stat label="Index" hint="Oracle index price">
             {m ? formatPriceWad(m.lastIndexPrice) : dash}
           </Stat>
         </span>
-        <Stat label="24h change" hint={hint24}>
+        <Stat label={L("24h change", "24h")} hint={hint24}>
           {s ? <span className={s.change > 0n ? "text-long" : s.change < 0n ? "text-short" : ""}>{pct(s.changeWad)}</span> : dash}
         </Stat>
-        <Stat label="24h high" hint={hint24}>
+        <Stat label={L("24h high", "High")} hint={hint24}>
           {s ? formatPriceWad(s.high) : dash}
         </Stat>
-        <Stat label="24h low" hint={hint24}>
+        <Stat label={L("24h low", "Low")} hint={hint24}>
           {s ? formatPriceWad(s.low) : dash}
         </Stat>
-        <Stat label="24h volume" hint={hint24}>
+        <Stat label={L("24h volume", "Vol 24h")} hint={hint24}>
           {s ? `${formatAusdWad(s.volumeQuoteWad)} AUSD` : dash}
         </Stat>
-        <Stat label="Open interest" hint="Long / short open interest (MON)">
+        <Stat label={L("Open interest", "OI")} hint="Long / short open interest (MON)">
           {m ? (
             <>
               <span className="text-long">▲{formatBaseWad(m.openInterestLongWad, 0)}</span> / <span className="text-short">▼{formatBaseWad(m.openInterestShortWad, 0)}</span>
@@ -94,11 +102,14 @@ export function MarketStrip() {
             dash
           )}
         </Stat>
-        <Stat label="Funding APR, every block" hint="Positive: longs pay shorts. Settles every block (~300 ms).">
+        <Stat
+          label={L("Funding APR, every block", "Funding APR")}
+          hint={`Positive: longs pay shorts. Settles every block (~300 ms). Realized (funding-rate oracle): 1h ${m?.realizedApr1hWad !== undefined ? formatAprWad(m.realizedApr1hWad) : "—"} · 8h ${m?.realizedApr8hWad !== undefined ? formatAprWad(m.realizedApr8hWad) : "—"} · 24h ${m?.realizedApr24hWad !== undefined ? formatAprWad(m.realizedApr24hWad) : "—"}`}
+        >
           {m ? (
             <span className="inline-flex items-baseline gap-2">
               <span className={fundTone}>{formatSignedAprWad(m.lastRateAprWad, 3)}</span>
-              <span className="text-[11px] text-muted" data-testid="funding-next">
+              <span className="hidden text-[11px] text-muted 2xl:inline" data-testid="funding-next">
                 next #{formatFixed(m.lastFundingBlock + 1n, 0, 0)}
               </span>
             </span>
@@ -106,21 +117,6 @@ export function MarketStrip() {
             dash
           )}
         </Stat>
-        <div className="flex shrink-0 items-center gap-1.5" aria-label="Realized funding APR">
-          {(
-            [
-              ["1h", m?.realizedApr1hWad],
-              ["8h", m?.realizedApr8hWad],
-              ["24h", m?.realizedApr24hWad],
-            ] as const
-          ).map(([label, v]) => (
-            <Chip key={label} tone={v === undefined ? "neutral" : "brand"} title={v === undefined ? `Not enough history for ${label} yet` : `Realized funding APR over ${label}`}>
-              <span className="num">
-                {label} {m && v !== undefined ? formatAprWad(v) : "—"}
-              </span>
-            </Chip>
-          ))}
-        </div>
       </div>
       </div>
     </Card>

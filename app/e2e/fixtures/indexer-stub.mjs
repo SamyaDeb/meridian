@@ -60,6 +60,16 @@ http
           return { size: String(size), entryPrice: String(entry), collateralWad: String((notional * BigInt(2 + i * 2.5 | 0)) / 100n) };
         });
       }
+      if (query.includes("OraclePrice(")) {
+        // synthetic oracle updates every 5 min over 2 days, newest first
+        const end = Math.floor(Date.now() / 1000);
+        data.OraclePrice = Array.from({ length: Math.min(limit, 576) }, (_, i) => ({ priceWad: String((26_000n + BigInt(Math.round(Math.sin(i / 9) * 120))) * 10n ** 12n), publishTime: String(end - i * 300) }));
+      }
+      if (query.includes("FundingTick(")) {
+        // synthetic mark per block (300 ms) for the most recent `limit` blocks, newest first
+        const endMs = Date.now();
+        data.FundingTick = Array.from({ length: limit }, (_, i) => ({ mark: String((26_010n + BigInt(Math.round(Math.cos(i / 40) * 30))) * 10n ** 12n), timestamp: String(Math.floor((endMs - i * 300) / 1000)) }));
+      }
       if (query.includes("InsuranceFund")) data.InsuranceFund = [{ fundedToken: "1000000000", coveredToken: "1232864" }];
       res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*", "access-control-allow-headers": "content-type" });
       res.end(JSON.stringify({ data }));

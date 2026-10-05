@@ -22,6 +22,12 @@ export type ChartCoords = {
   paneSize: () => { width: number; height: number };
   /** bar spacing in seconds (bars are uniform: gap-filled) */
   barSec: () => number;
+  /** show [from, to] (unix seconds) on the time axis */
+  setVisibleSeconds: (from: number, to: number) => void;
+  /** zoom the time axis around its centre (factor < 1 zooms in) */
+  zoom: (factor: number) => void;
+  /** PNG of the chart (all panes, price and time axes) */
+  screenshot: () => HTMLCanvasElement;
 };
 
 export type EngineProps = {
@@ -36,6 +42,8 @@ export type EngineProps = {
   /** click on the price pane → price at the cursor (WAD); used for click-to-set-limit */
   onPriceClick?: (priceWad: bigint) => void;
   className?: string;
+  /** crosshair over a bar of the main series (null when the pointer leaves); for the OHLC legend */
+  onCrosshair?: (bar: { time: number; open: number; high: number; low: number; close: number } | null) => void;
   /** receives the coordinate API once the chart exists (null on unmount) */
   onCoords?: (c: ChartCoords | null) => void;
 };

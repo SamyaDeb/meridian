@@ -1,13 +1,28 @@
 // F4.1 drawing layer on the chart (stub indexer for candles; see chart.spec.ts for the setup).
 import { expect, test, type Page } from "@playwright/test";
 
+/** Meridian's tool rail: a tool is either the visible button of its group or inside the group's flyout. */
 async function pick(page: Page, tool: string) {
-  await page.getByRole("button", { name: "Drawing tools" }).click();
-  await page.getByRole("button", { name: tool, exact: true }).click();
+  const rail = page.getByRole("toolbar", { name: "Drawing tools" });
+  const direct = rail.getByRole("button", { name: tool, exact: true });
+  if (await direct.count()) return direct.first().click();
+  for (const more of ["More Lines", "More Shapes", "More Position planner (not an order)"]) {
+    await rail.getByRole("button", { name: more }).click();
+    const inFly = rail.getByRole("button", { name: tool, exact: true });
+    if (await inFly.count()) return inFly.first().click();
+    await rail.getByRole("button", { name: more }).click(); // close
+  }
+  throw new Error(`tool not found: ${tool}`);
 }
 async function clickAt(page: Page, fx: number, fy: number) {
   const b = (await page.getByTestId("drawing-layer").boundingBox())!;
   await page.mouse.click(b.x + b.width * fx, b.y + b.height * fy);
+}
+/** Lock / erase / clear sit in the rail's "Manage drawings" flyout. */
+async function manage(page: Page, name: string | RegExp) {
+  const item = page.getByRole("button", { name, exact: typeof name === "string" });
+  if (!(await item.isVisible().catch(() => false))) await page.getByRole("button", { name: "Manage drawings" }).click();
+  return item;
 }
 const count = (page: Page) => page.getByTestId("drawing-layer").getAttribute("aria-label");
 
@@ -25,7 +40,7 @@ test("place hline, trend, rect, fib, ruler, position plans; persist; erase; lock
   await clickAt(page, 0.5, 0.5);
   await expect.poll(() => count(page)).toBe("1 drawing on the chart");
   // erase right away, at the line's own position (before any rescale)
-  await page.getByRole("button", { name: /^Erase/ }).click();
+  await (await manage(page, /^Erase/)).click();
   await clickAt(page, 0.5, 0.5);
   await expect.poll(() => count(page)).toBe("0 drawings on the chart");
 
@@ -50,11 +65,11 @@ test("place hline, trend, rect, fib, ruler, position plans; persist; erase; lock
   await expect.poll(() => count(page), { timeout: 20_000 }).toBe("7 drawings on the chart");
 
   // lock blocks erase and clear; unlock and clear all
-  await page.getByRole("button", { name: "Lock drawings" }).click();
-  await expect(page.getByRole("button", { name: "Clear all drawings" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: /^Erase/ })).toBeDisabled();
-  await page.getByRole("button", { name: "Lock drawings" }).click();
-  await page.getByRole("button", { name: "Clear all drawings" }).click();
+  await (await manage(page, "Lock drawings")).click();
+  await expect(await manage(page, "Clear all drawings")).toBeDisabled();
+  await expect(await manage(page, /^Erase/)).toBeDisabled();
+  await (await manage(page, "Lock drawings")).click();
+  await (await manage(page, "Clear all drawings")).click();
   await expect.poll(() => count(page)).toBe("0 drawings on the chart");
 });
 
@@ -70,7 +85,7 @@ test("brush drag draws a path; magnet toggles", async ({ page }) => {
   await expect(magnet).toHaveAttribute("aria-pressed", "true");
   await magnet.click();
   await expect(magnet).toHaveAttribute("aria-pressed", "false");
-  await page.getByRole("button", { name: "Clear all drawings" }).click();
+  await (await manage(page, "Clear all drawings")).click();
 });
 
 test("text label and vertical line", async ({ page }) => {
@@ -82,5 +97,17 @@ test("text label and vertical line", async ({ page }) => {
   await clickAt(page, 0.7, 0.5);
   await expect.poll(() => count(page)).toBe("2 drawings on the chart");
   await page.screenshot({ path: `${process.env.SHOTS_DIR ?? "e2e/screenshots"}/drawings.png` });
-  await page.getByRole("button", { name: "Clear all drawings" }).click();
+  await (await manage(page, "Clear all drawings")).click();
+});
+
+test("undo / redo a drawing", async ({ page }) => {
+  await page.getByRole("button", { name: "Magnet: snap to OHLC" }).click();
+  await pick(page, "Horizontal line");
+  await clickAt(page, 0.5, 0.5);
+  await expect.poll(() => count(page)).toBe("1 drawing on the chart");
+  await page.getByRole("button", { name: "Undo drawing" }).click();
+  await expect.poll(() => count(page)).toBe("0 drawings on the chart");
+  await page.getByRole("button", { name: "Redo drawing" }).click();
+  await expect.poll(() => count(page)).toBe("1 drawing on the chart");
+  await (await manage(page, "Clear all drawings")).click();
 });

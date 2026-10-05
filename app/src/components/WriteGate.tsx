@@ -71,7 +71,7 @@ export function WriteGateProvider({ children }: { children: ReactNode }) {
               <>
                 <h2 id="gate-title" className="text-base font-semibold">Not available in your region</h2>
                 <p className="mt-2 text-sm text-muted">Trading, deposits and other write actions aren&apos;t available from your location. You can still browse markets and stats.</p>
-                <button type="button" onClick={() => close(false)} className="mt-4 h-12 w-full rounded-xl bg-surface-2 font-semibold">
+                <button type="button" onClick={() => close(false)} className="mt-4 h-12 w-full rounded-control bg-surface-2 font-semibold">
                   OK
                 </button>
               </>
@@ -91,10 +91,10 @@ export function WriteGateProvider({ children }: { children: ReactNode }) {
                   <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="h-5 w-5 accent-[var(--accent)]" />I have read and accept the terms and risks
                 </label>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => close(false)} className="h-12 rounded-xl bg-surface-2 text-sm">
+                  <button type="button" onClick={() => close(false)} className="h-12 rounded-control bg-surface-2 text-sm">
                     Cancel
                   </button>
-                  <button type="button" disabled={!checked} onClick={() => close(true)} className="h-12 rounded-xl bg-accent text-sm font-semibold text-bg disabled:opacity-50">
+                  <button type="button" disabled={!checked} onClick={() => close(true)} className="h-12 rounded-control bg-accent text-sm font-semibold text-bg disabled:opacity-50">
                     Accept
                   </button>
                 </div>

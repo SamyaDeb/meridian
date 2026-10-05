@@ -154,9 +154,9 @@ export function Gallery() {
 
       <Card title="Radius and gap scale">
         <div className="flex flex-wrap items-end gap-2 text-[11px] text-muted">
-          <div className="flex h-20 w-28 items-center justify-center rounded-card border border-border bg-card-2">card 24</div>
-          <div className="flex h-16 w-24 items-center justify-center rounded-inner bg-card-2">inner 16</div>
-          <div className="flex h-11 w-24 items-center justify-center rounded-control bg-card-2">control 12</div>
+          <div className="flex h-20 w-28 items-center justify-center rounded-card border border-border bg-card-2">card 14</div>
+          <div className="flex h-16 w-24 items-center justify-center rounded-inner bg-card-2">inner 10</div>
+          <div className="flex h-11 w-24 items-center justify-center rounded-control bg-card-2">control 8</div>
           <div className="flex h-8 w-20 items-center justify-center rounded-full bg-card-2">pill</div>
         </div>
       </Card>

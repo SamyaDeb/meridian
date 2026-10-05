@@ -218,7 +218,9 @@ export function LightweightEngine(props: EngineProps) {
   const lastReset = useRef(-1);
   const onClick = useRef(props.onPriceClick);
   const onCoordsRef = useRef(props.onCoords);
+  const onCrossRef = useRef(props.onCrosshair);
   useEffect(() => {
+    onCrossRef.current = props.onCrosshair;
     latest.current = props;
     onClick.current = props.onPriceClick;
     onCoordsRef.current = props.onCoords;
@@ -231,7 +233,8 @@ export function LightweightEngine(props: EngineProps) {
     const chart = createChart(el, {
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: t.card }, textColor: t.muted, fontFamily: "var(--font-geist-mono), ui-monospace, monospace", fontSize: 11, panes: { separatorColor: t.border } },
-      grid: { vertLines: { color: alpha(t.border, 0.6) }, horzLines: { color: alpha(t.border, 0.6) } },
+      // Meridian look: dotted grid
+      grid: { vertLines: { color: alpha(t.border, 0.9), style: LineStyle.Dotted }, horzLines: { color: alpha(t.border, 0.9), style: LineStyle.Dotted } },
       rightPriceScale: { borderColor: t.border },
       timeScale: { borderColor: t.border, timeVisible: true, secondsVisible: false },
       crosshair: { vertLine: { color: t.muted, labelBackgroundColor: t.brand }, horzLine: { color: t.muted, labelBackgroundColor: t.brand } },
@@ -256,6 +259,14 @@ export function LightweightEngine(props: EngineProps) {
       const price = s.main.coordinateToPrice(y);
       if (price !== null) onClick.current(numToWad(price));
     };
+    const cross = (p: { time?: unknown; seriesData: Map<unknown, unknown> }) => {
+      const s = st.current;
+      const d = s?.main ? (p.seriesData.get(s.main) as { open?: number; high?: number; low?: number; close?: number; value?: number } | undefined) : undefined;
+      if (!d || typeof p.time !== "number") return onCrossRef.current?.(null);
+      const c = d.close ?? d.value ?? 0;
+      onCrossRef.current?.({ time: p.time, open: d.open ?? c, high: d.high ?? c, low: d.low ?? c, close: c });
+    };
+    chart.subscribeCrosshairMove(cross);
     el.addEventListener("pointerdown", onDown, true);
     el.addEventListener("pointerup", onUp, true);
     const span = () => {
@@ -277,11 +288,25 @@ export function LightweightEngine(props: EngineProps) {
       priceOfY: (y) => st.current?.main?.coordinateToPrice(y) ?? null,
       paneSize: () => chart.paneSize(0),
       barSec: () => span().step,
+      setVisibleSeconds: (from, to) => {
+        const { t0, step } = span();
+        if (!latest.current.bars.length || to <= from) return;
+        chart.timeScale().setVisibleLogicalRange({ from: (from - t0) / step, to: (to - t0) / step });
+      },
+      zoom: (factor) => {
+        const r = chart.timeScale().getVisibleLogicalRange();
+        if (!r) return;
+        const mid = (r.from + r.to) / 2;
+        const half = Math.max(5, ((r.to - r.from) / 2) * factor);
+        chart.timeScale().setVisibleLogicalRange({ from: mid - half, to: mid + half });
+      },
+      screenshot: () => chart.takeScreenshot(),
     };
     onCoordsRef.current?.(coords);
     return () => {
       onCoordsRef.current?.(null);
       cancelAnimationFrame(frame.current);
+      chart.unsubscribeCrosshairMove(cross);
       el.removeEventListener("pointerdown", onDown, true);
       el.removeEventListener("pointerup", onUp, true);
       chart.remove();

@@ -15,19 +15,19 @@ export const toBar = (c: Candle): Bar => ({
   trades: c.trades,
 });
 
-const floorTo = (t: number, sec: number) => t - (((t % sec) + sec) % sec);
+const floorTo = (t: number, sec: number, offset = 0) => t - ((((t - offset) % sec) + sec) % sec);
 
 /**
  * Aggregates bars (any order, same or finer bucket) into `targetSec` buckets aligned to UTC. Input gap-fill bars
  * keep contributing their (carried) prices but no volume. Output sorted, without gaps unless `gapFill`.
  */
-export function aggregate(bars: readonly Bar[], targetSec: number, gapFill = false): Bar[] {
+export function aggregate(bars: readonly Bar[], targetSec: number, gapFill = false, offsetSec = 0): Bar[] {
   if (targetSec <= 0) throw new RangeError("targetSec must be > 0");
   const sorted = [...bars].sort((a, b) => a.time - b.time);
   const out: Bar[] = [];
   let cur: Bar | undefined;
   for (const b of sorted) {
-    const t = floorTo(b.time, targetSec);
+    const t = floorTo(b.time, targetSec, offsetSec);
     if (!cur || cur.time !== t) {
       if (cur) out.push(cur);
       cur = { time: t, open: b.open, high: b.high, low: b.low, close: b.close, volumeBaseWad: b.volumeBaseWad, volumeQuoteWad: b.volumeQuoteWad, trades: b.trades, ...(b.gapFill ? { gapFill: true as const } : {}) };
@@ -85,4 +85,23 @@ export function applyTrade(bars: readonly Bar[], sec: number, timeSec: number, p
     return [...bars.slice(0, -1), u];
   }
   return [...bars, { time: t, open: priceWad, high: priceWad, low: priceWad, close: priceWad, volumeBaseWad: sizeWad, volumeQuoteWad: notionalWad, trades: countTrade ? 1 : 0 }];
+}
+
+/**
+ * Candles from a price series (oracle index or mark points): open = first point in the bucket, close = last,
+ * high / low = extremes; no volume (these prices are not trades). Points in any order; buckets UTC aligned.
+ */
+export function pointsToBars(points: readonly { time: number; price: bigint }[], sec: number, offsetSec = 0): Bar[] {
+  const sorted = [...points].sort((a, b) => a.time - b.time);
+  const out: Bar[] = [];
+  for (const p of sorted) {
+    const t = floorTo(p.time, sec, offsetSec);
+    const cur = out[out.length - 1];
+    if (cur && cur.time === t) {
+      if (p.price > cur.high) cur.high = p.price;
+      if (p.price < cur.low) cur.low = p.price;
+      cur.close = p.price;
+    } else out.push({ time: t, open: p.price, high: p.price, low: p.price, close: p.price, volumeBaseWad: 0n, volumeQuoteWad: 0n, trades: 0 });
+  }
+  return out;
 }

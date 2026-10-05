@@ -1,6 +1,7 @@
 "use client";
 import { Private } from "@/components/Private";
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useAccount, useChainId } from "wagmi";
 import { useAccountAddress, useAccountView, useDepth, useMarket, useRiskParams } from "@/data/hooks";
 import { Button, Card, Chip, Notice, PillTabs, Tooltip } from "@/components/ds";
@@ -181,7 +182,7 @@ export function OrderTicket() {
 
   return (
     <Card className="flex h-full min-h-0 flex-col" aria-label="Order ticket" bodyClassName="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="-mx-1 min-h-0 flex-1 space-y-3 overflow-auto px-1 pb-1">
+      <div className="-mx-1 min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-1 pb-1">
       <div className="grid grid-cols-2 gap-1 rounded-full bg-card-2 p-1" role="radiogroup" aria-label="Side">
         {(["long", "short"] as const).map((s) => (
           <button
@@ -273,7 +274,7 @@ export function OrderTicket() {
 
       {kind === "market" && (
         <div className="flex items-center justify-between gap-2 text-xs">
-          <span className="text-muted">Max slippage</span>
+          <span className="whitespace-nowrap text-muted">Slippage</span>
           <div className="flex gap-1" role="radiogroup" aria-label="Max slippage">
             {SLIPPAGES.map((s) => (
               <button key={s.toString()} type="button" role="radio" aria-checked={slip === s} onClick={() => setSlip(s)} className={`num h-7 rounded-full px-2 text-[11px] pointer-coarse:h-11 pointer-coarse:min-w-11 ${slip === s ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted"}`}>
@@ -325,6 +326,10 @@ export function OrderTicket() {
           </Button>
         </div>
       )}
+      {/* the layout footer is hidden on the full-height terminal: the Terms link stays reachable here */}
+      <Link href="/terms" className="hidden min-h-6 items-center justify-center text-[11px] text-muted underline xl:flex">
+        Terms &amp; risks
+      </Link>
       {tx.status && (
         <Notice tone={tx.status.includes("failed") ? "danger" : "info"}>
           <span className="num break-all" data-testid="tx-status">

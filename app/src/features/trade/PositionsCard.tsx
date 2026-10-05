@@ -31,7 +31,7 @@ const flagText = (f: number) => {
 const time = (ts: bigint) => (ts > 0n ? new Date(Number(ts) * 1_000).toISOString().replace("T", " ").slice(5, 19) : "—");
 
 function NeedsIndexer() {
-  return <EmptyState title="Needs the indexer" body="History comes from the Meridian indexer, which isn't connected here. Live positions and orders above are read from the chain." />;
+  return <EmptyState compact title="Needs the indexer" body="History comes from the Meridian indexer, which isn't connected here. Live positions and orders above are read from the chain." />;
 }
 
 /** Bottom card of the terminal (FRONTEND_TRADE_PLAN §6.5): positions, open orders and history, each action a real call. */
@@ -161,9 +161,9 @@ export function PositionsCard() {
   ];
 
   const history = (() => {
-    if (disconnected) return <EmptyState title="Not connected" body="Connect a wallet to see your history." />;
+    if (disconnected) return <EmptyState compact title="Not connected" body="Connect a wallet to see your history." />;
     if (INDEXER_URL === undefined) return <NeedsIndexer />;
-    if (hist.isError) return <EmptyState title="Indexer unavailable" body="Retrying." />;
+    if (hist.isError) return <EmptyState compact title="Indexer unavailable" body="Retrying." />;
     return undefined;
   })();
 
@@ -204,24 +204,24 @@ export function PositionsCard() {
         </Notice>
       )}
       {tab === "positions" && (
-        <DataTable caption="Positions" columns={posCols} rows={positions} rowKey={() => "perp"} minWidth={760} empty={<EmptyState title={disconnected ? "Not connected" : "No open position"} body={disconnected ? "Connect a wallet to see your position." : "Place an order from the ticket."} />} />
+        <DataTable caption="Positions" columns={posCols} rows={positions} rowKey={() => "perp"} minWidth={760} empty={<EmptyState compact title={disconnected ? "Not connected" : "No open position"} body={disconnected ? "Connect a wallet to see your position." : "Place an order from the ticket."} />} />
       )}
       {tab === "orders" && (
-        <DataTable caption="Open orders" columns={orderCols} rows={disconnected && ds.kind === "chain" ? [] : orders} rowKey={(o) => o.id.toString()} minWidth={620} empty={<EmptyState title={disconnected ? "Not connected" : "No open orders"} />} />
+        <DataTable caption="Open orders" columns={orderCols} rows={disconnected && ds.kind === "chain" ? [] : orders} rowKey={(o) => o.id.toString()} minWidth={620} empty={<EmptyState compact title={disconnected ? "Not connected" : "No open orders"} />} />
       )}
       {tab === "triggers" && <TriggersTable />}
-      {tab === "trades" && (history ?? <DataTable caption="Trade history" columns={tradeCols} rows={hist.data?.trades} rowKey={(t) => t.id} minWidth={640} empty={<EmptyState title="No trades yet" />} />)}
-      {tab === "history" && (history ?? <DataTable caption="Order history" columns={histCols} rows={hist.data?.orders} rowKey={(o) => o.id} minWidth={560} empty={<EmptyState title="No orders yet" />} />)}
-      {tab === "liquidations" && (history ?? <DataTable caption="Liquidations" columns={liqCols} rows={hist.data?.liquidations} rowKey={(l) => l.id} minWidth={520} empty={<EmptyState title="No liquidations" body="None on this account." />} />)}
+      {tab === "trades" && (history ?? <DataTable caption="Trade history" columns={tradeCols} rows={hist.data?.trades} rowKey={(t) => t.id} minWidth={640} empty={<EmptyState compact title="No trades yet" />} />)}
+      {tab === "history" && (history ?? <DataTable caption="Order history" columns={histCols} rows={hist.data?.orders} rowKey={(o) => o.id} minWidth={560} empty={<EmptyState compact title="No orders yet" />} />)}
+      {tab === "liquidations" && (history ?? <DataTable caption="Liquidations" columns={liqCols} rows={hist.data?.liquidations} rowKey={(l) => l.id} minWidth={520} empty={<EmptyState compact title="No liquidations" body="None on this account." />} />)}
       {tab === "funding" &&
         (disconnected ? (
-          <EmptyState title="Not connected" body="Connect a wallet to see funding payments." />
+          <EmptyState compact title="Not connected" body="Connect a wallet to see funding payments." />
         ) : ds.kind !== "chain" ? (
-          <EmptyState title="Chain data only" body="Per-block funding payments are read from FundingSettled events on the chain; the sample data layer has none." />
+          <EmptyState compact title="Chain data only" body="Per-block funding payments are read from FundingSettled events on the chain; the sample data layer has none." />
         ) : (
           <>
             {fund.data && <p className="mb-1 text-[11px] text-muted">FundingSettled events since block #{fund.data.fromBlock.toString()} (the app&apos;s log window). Older payments are in your cumulative funding.</p>}
-            <DataTable caption="Funding payments" columns={fundCols} rows={fund.data?.items} rowKey={(f) => `${f.block}-${f.payment}`} empty={<EmptyState title="No funding settled in the window" body="Funding settles when your account is touched (trade, deposit, withdraw)." />} />
+            <DataTable caption="Funding payments" columns={fundCols} rows={fund.data?.items} rowKey={(f) => `${f.block}-${f.payment}`} empty={<EmptyState compact title="No funding settled in the window" body="Funding settles when your account is touched (trade, deposit, withdraw)." />} />
           </>
         ))}
     </Card>

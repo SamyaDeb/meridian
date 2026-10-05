@@ -1,11 +1,10 @@
 "use client";
-import Link from "next/link";
 import { GetStarted } from "@/components/GetStarted";
 import { MarketStrip } from "@/components/market/MarketStrip";
 import { ChartCard } from "@/features/trade/ChartCard";
 import { OrderBookCard } from "@/features/trade/OrderBookCard";
 import { OrderTicket } from "@/features/trade/OrderTicket";
-import { AccountCard } from "@/features/trade/AccountCard";
+import { AccountStrip } from "@/features/trade/AccountStrip";
 import { PositionsCard } from "@/features/trade/PositionsCard";
 import { TradeHotkeys } from "@/features/trade/TradeHotkeys";
 import { Splitter } from "@/features/trade/Splitter";
@@ -36,12 +35,8 @@ export default function TradePage() {
         <Splitter orientation="horizontal" label="Resize positions panel" value={layout.posH} min={LAYOUT_BOUNDS.posH[0]} max={LAYOUT_BOUNDS.posH[1]} grow={-1} onChange={(v) => setLayout({ posH: v })} />
         <PositionsCard />
       </div>
-      <div data-area="account" className="flex flex-col gap-2">
-        <AccountCard />
-        {/* the layout footer is hidden on the terminal at ≥ 1280 px; the Terms link stays reachable here */}
-        <Link href="/terms" className="hidden min-h-8 items-center justify-center text-[11px] text-muted underline xl:inline-flex">
-          Terms &amp; risks
-        </Link>
+      <div data-area="account">
+        <AccountStrip />
       </div>
       <div data-area="extra">
         <GetStarted />

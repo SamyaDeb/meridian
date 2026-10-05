@@ -4,7 +4,7 @@ import { DEFAULT_VIEW, parseView, setView } from "./store";
 describe("chart view store", () => {
   it("parses valid state and drops unknown / malformed fields", () => {
     expect(parseView(JSON.stringify({ timeframe: "4h", chartType: "heikin", volume: false, indicators: ["rsi14", "rsi14", "bogus"] }))).toEqual({ ...DEFAULT_VIEW, timeframe: "4h", chartType: "heikin", volume: false, indicators: ["rsi14"] });
-    expect(parseView(JSON.stringify({ timeframe: "3m", chartType: 7, markLine: "yes" }))).toEqual(DEFAULT_VIEW);
+    expect(parseView(JSON.stringify({ timeframe: "7m", chartType: 7, markLine: "yes" }))).toEqual(DEFAULT_VIEW);
     expect(parseView("{not json")).toEqual(DEFAULT_VIEW);
     expect(parseView(null)).toEqual(DEFAULT_VIEW);
   });

@@ -9,7 +9,7 @@ export function FundingTicker() {
   const { data: ticks } = useFundingTicks(200);
   const tone = m && m.lastRateAprWad < 0n ? "text-short" : "text-long";
   return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
+    <div className="rounded-card border border-border bg-surface p-4">
       <div className="flex items-baseline justify-between">
         <span className="text-xs text-muted">Funding, every block</span>
         <span className="num text-[11px] text-muted">{m ? `block #${m.lastFundingBlock.toString()}` : "block #—"}</span>

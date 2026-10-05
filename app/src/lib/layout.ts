@@ -3,9 +3,10 @@
 import { useSyncExternalStore } from "react";
 
 export type Layout = { bookW: number; posH: number };
-export const LAYOUT_BOUNDS = { bookW: [220, 480], posH: [180, 480] } as const;
-export const DEFAULT_LAYOUT: Layout = { bookW: 300, posH: 280 };
-const KEY = "meridian.layout";
+export const LAYOUT_BOUNDS = { bookW: [220, 480], posH: [150, 420] } as const;
+// chart-forward defaults (5 Oct redesign): book 280, positions 200; the chart takes the rest
+export const DEFAULT_LAYOUT: Layout = { bookW: 280, posH: 200 };
+const KEY = "meridian.layout.v2"; // v2: new defaults; sizes saved under v1 (taller positions) are not reused
 
 export const clampLayout = (l: Partial<Layout>): Layout => ({
   bookW: Math.round(Math.min(LAYOUT_BOUNDS.bookW[1], Math.max(LAYOUT_BOUNDS.bookW[0], Number.isFinite(l.bookW) ? l.bookW! : DEFAULT_LAYOUT.bookW))),

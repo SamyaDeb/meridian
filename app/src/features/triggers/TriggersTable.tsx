@@ -44,7 +44,7 @@ export function TriggersTable() {
   return (
     <>
       {tx.status && <p className="num mb-1 break-all text-[11px] text-muted" data-testid="triggers-tx-status">{tx.status}</p>}
-      <DataTable caption="Triggers" columns={cols} rows={triggers} rowKey={(t) => t.id.toString()} minWidth={620} empty={<EmptyState title="No triggers" body="Add a stop-loss or take-profit from the ticket. A stop is not liquidation protection." />} />
+      <DataTable caption="Triggers" columns={cols} rows={triggers} rowKey={(t) => t.id.toString()} minWidth={620} empty={<EmptyState compact title="No triggers" body="Add a stop-loss or take-profit from the ticket. A stop is not liquidation protection." />} />
     </>
   );
 }

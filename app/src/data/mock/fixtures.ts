@@ -25,6 +25,7 @@ export const MOCK = {
   chainId: CHAIN,
   clearingHouse: contractAddress(CHAIN, "ClearingHouse") ?? ZERO,
   orderBook: contractAddress(CHAIN, "OrderBook") ?? ZERO,
+  oracle: contractAddress(CHAIN, "OracleAdapter"),
   vault: contractAddress(CHAIN, "PulseVault") ?? ZERO,
   swapMarket: "0x00000000000000000000000000000000000000F2" as Address, // not deployed yet (mock-only id)
   user: "0xa11ce00000000000000000000000000000000001" as Address,
@@ -100,7 +101,7 @@ export function market(head: bigint): Market {
     symbol: "MON-PERP",
     clearingHouse: MOCK.clearingHouse,
     orderBook: MOCK.orderBook,
-    oracle: undefined,
+    oracle: MOCK.oracle,
     active: true,
     paused: false,
     lastFundingBlock: head,

@@ -2,7 +2,7 @@
 // Per-market chart view state (timeframe, type, toggles, indicators), persisted per viewer in localStorage.
 // Every storage access is guarded (private mode / blocked storage ⇒ in-memory defaults, never a crash).
 import { useSyncExternalStore } from "react";
-import type { Timeframe } from "./datafeed/types";
+import { TIMEFRAMES, type PriceSource, type Timeframe } from "./datafeed/types";
 import type { ChartType } from "./engine/types";
 
 export type IndicatorId = "sma20" | "ema50" | "bb20" | "rsi14" | "macd" | "vwap" | "atr14" | "stoch" | "adx14" | "ichimoku" | "obv" | "supertrend";
@@ -14,10 +14,11 @@ export type ChartView = {
   indexLine: boolean;
   fundingPane: boolean;
   indicators: IndicatorId[];
+  /** main series: trades on the book (default), mark, or the oracle index */
+  source: PriceSource;
 };
-export const DEFAULT_VIEW: ChartView = { timeframe: "15m", chartType: "candles", volume: true, markLine: true, indexLine: false, fundingPane: true, indicators: [] };
+export const DEFAULT_VIEW: ChartView = { timeframe: "15m", chartType: "candles", volume: true, markLine: true, indexLine: false, fundingPane: false, indicators: [], source: "last" }; // single price pane by default; funding panes via the gear menu
 
-const TIMEFRAMES: readonly Timeframe[] = ["1m", "5m", "15m", "1h", "4h", "1D"];
 const TYPES: readonly ChartType[] = ["candles", "hollow", "bars", "line", "area", "heikin"];
 const INDICATORS: readonly IndicatorId[] = ["sma20", "ema50", "bb20", "rsi14", "macd", "vwap", "atr14", "stoch", "adx14", "ichimoku", "obv", "supertrend"];
 
@@ -34,6 +35,7 @@ export function parseView(raw: string | null): ChartView {
       markLine: bool(o.markLine, DEFAULT_VIEW.markLine),
       indexLine: bool(o.indexLine, DEFAULT_VIEW.indexLine),
       fundingPane: bool(o.fundingPane, DEFAULT_VIEW.fundingPane),
+      source: o.source === "mark" || o.source === "index" ? o.source : "last",
       indicators: Array.isArray(o.indicators) ? [...new Set(o.indicators.filter((x): x is IndicatorId => INDICATORS.includes(x as IndicatorId)))] : [],
     };
   } catch {
@@ -41,7 +43,7 @@ export function parseView(raw: string | null): ChartView {
   }
 }
 
-const key = (market: string) => `meridian.chart.${market.toLowerCase()}`;
+const key = (market: string) => `meridian.chart.v2.${market.toLowerCase()}`; // v2: funding panes default off
 const memory = new Map<string, ChartView>();
 const listeners = new Set<() => void>();
 

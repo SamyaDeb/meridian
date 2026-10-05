@@ -120,3 +120,43 @@ describe("price-only live overlay", () => {
     expect(once[0]).toMatchObject({ high: 13n, low: 8n, close: 10n, volumeBaseWad: 5n, trades: 3 });
   });
 });
+
+describe("new timeframes and week alignment", () => {
+  it("3m / 30m / 2h / 6h / 12h keep invariants and conservation", async () => {
+    const { aggregate: ag } = await import("./candles");
+    for (const target of [180, 1_800, 7_200, 21_600, 43_200]) {
+      const src = randomBars(5, 300);
+      const out = ag(src, target);
+      expect(sum(out, "volumeBaseWad")).toBe(sum(src, "volumeBaseWad"));
+      for (const b of out) expect(b.time % target).toBe(0);
+    }
+  });
+  it("weeks start Monday 00:00 UTC", async () => {
+    const { aggregate: ag } = await import("./candles");
+    const mon = Date.UTC(2026, 9, 5) / 1_000; // Mon 5 Oct 2026
+    const bars: Bar[] = [mon + 3_600, mon + 6 * 86_400, mon + 7 * 86_400 + 60].map((t) => ({ time: t, open: 1n, high: 1n, low: 1n, close: 1n, volumeBaseWad: 1n, volumeQuoteWad: 1n, trades: 1 }));
+    const w = ag(bars, 604_800, false, 4 * 86_400);
+    expect(w.map((b) => b.time)).toEqual([mon, mon + 7 * 86_400]);
+    expect(w[0]!.trades).toBe(2);
+  });
+});
+
+describe("pointsToBars (index / mark candles)", () => {
+  it("first / last / extremes per bucket, no volume, any input order", async () => {
+    const { pointsToBars } = await import("./candles");
+    const out = pointsToBars(
+      [
+        { time: 70, price: 5n },
+        { time: 61, price: 3n },
+        { time: 119, price: 4n },
+        { time: 125, price: 9n },
+      ],
+      60,
+    );
+    expect(out).toEqual([
+      { time: 60, open: 3n, high: 5n, low: 3n, close: 4n, volumeBaseWad: 0n, volumeQuoteWad: 0n, trades: 0 },
+      { time: 120, open: 9n, high: 9n, low: 9n, close: 9n, volumeBaseWad: 0n, volumeQuoteWad: 0n, trades: 0 },
+    ]);
+    expect(pointsToBars([], 60)).toEqual([]);
+  });
+});

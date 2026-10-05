@@ -48,10 +48,10 @@
   --color-warn: var(--warn);
   --font-sans: var(--font-inter-tight);
   --font-mono: var(--font-geist-mono);
-  /* radius scale: card 24 · inner panel 16 · control 12 · pill = rounded-full */
-  --radius-card: 24px;
-  --radius-inner: 16px;
-  --radius-control: 12px;
+  /* radius scale (softened 5 Oct): card 14 · inner panel 10 · control 8 · pill = rounded-full */
+  --radius-card: 14px;
+  --radius-inner: 10px;
+  --radius-control: 8px;
 }
 
 html,
@@ -131,7 +131,7 @@ input[type="range"] {
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "strip" "chart" "ticket" "book" "pos" "account" "extra";
+  grid-template-areas: "strip" "account" "chart" "ticket" "book" "pos" "extra";
 }
 .terminal > [data-area="strip"] { grid-area: strip; }
 .terminal > [data-area="chart"] { grid-area: chart; }
@@ -142,28 +142,30 @@ input[type="range"] {
 .terminal > [data-area="extra"] { grid-area: extra; }
 @media (min-width: 1024px) {
   .terminal {
-    grid-template-columns: minmax(0, 1fr) 340px;
-    grid-template-areas: "strip strip" "chart ticket" "book ticket" "pos account" "extra extra";
+    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-areas: "strip ticket" "chart ticket" "book account" "pos pos" "extra extra";
   }
-  .terminal > [data-area="chart"] { min-height: 420px; }
+  .terminal > [data-area="chart"] { min-height: 480px; }
 }
 @media (min-width: 1280px) {
   .terminal {
-    /* 100dvh − navbar (8 + 56) − main top padding (8) − main bottom padding (24) */
-    height: calc(100dvh - 96px);
+    /* 100dvh − navbar (56 + 1 px border, flush with the top) − main top padding (8) − main bottom padding (24) */
+    height: calc(100dvh - 89px);
     min-height: 640px;
     /* --book-w / --pos-h: resizable, saved per viewer (lib/layout.ts) */
-    grid-template-columns: minmax(0, 1fr) var(--book-w, 260px) 340px;
-    grid-template-rows: auto minmax(0, 1fr) var(--pos-h, 260px);
-    grid-template-areas: "strip strip strip" "chart book ticket" "pos account ticket";
+    grid-template-columns: minmax(0, 1fr) var(--book-w, 260px) 270px;
+    grid-template-rows: auto minmax(0, 1fr) var(--pos-h, 200px);
+    /* strip as wide as the chart; book and ticket run from the top to the chart's bottom edge; positions span chart
+       + book; the account summary sits under the ticket */
+    grid-template-areas: "strip book ticket" "chart book ticket" "pos pos account";
   }
   .terminal > [data-area] { min-height: 0; }
   .terminal > [data-area="extra"] { display: none; }
 }
 @media (min-width: 1440px) {
   .terminal {
-    grid-template-columns: minmax(0, 1fr) var(--book-w, 300px) 360px;
-    grid-template-rows: auto minmax(0, 1fr) var(--pos-h, 280px);
+    grid-template-columns: minmax(0, 1fr) var(--book-w, 280px) 290px;
+    grid-template-rows: auto minmax(0, 1fr) var(--pos-h, 200px);
   }
 }
 

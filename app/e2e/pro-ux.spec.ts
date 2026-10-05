@@ -42,12 +42,12 @@ test("⌘K palette navigates and toggles settings", async ({ page }) => {
 
 test("privacy: hide balances / PnL mask the account card", async ({ page }) => {
   const account = page.locator('[data-area="account"]');
-  await expect(account).toContainText("AUSD", { timeout: 20_000 }); // mock sample account
-  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(account).toContainText("Equity", { timeout: 20_000 }); // mock sample account (account strip, 3c26902)
+  await page.getByRole("button", { name: "Settings", exact: true }).click(); // navbar gear (the chart has its own "Chart settings")
   await page.getByLabel(/Hide balances/).check();
   await page.getByLabel(/Hide PnL/).check();
   await expect(account.getByLabel("hidden").first()).toBeVisible();
-  expect(await account.getByLabel("hidden").count()).toBeGreaterThanOrEqual(6);
+  expect(await account.getByLabel("hidden").count()).toBeGreaterThanOrEqual(2); // strip: equity + free collateral (margin ratio is not a balance)
   await page.reload();
   await expect(account.getByLabel("hidden").first()).toBeVisible(); // persisted per viewer
 });

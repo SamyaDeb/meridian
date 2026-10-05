@@ -3,7 +3,17 @@
 //   node e2e/fixtures/indexer-stub.mjs 8799 &
 //   NEXT_PUBLIC_DATA_SOURCE=mock NEXT_PUBLIC_INDEXER_URL=http://127.0.0.1:8799 next dev -p 3124
 //   APP_URL=http://localhost:3124 npx playwright test e2e/chart.spec.ts      (SOAK_MIN=10 for the full soak)
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+/** Timeframe menu of Meridian's chart top bar (top-left). */
+async function pickTf(page: Page, tf: string) {
+  await page.getByRole("button", { name: "Timeframe" }).click();
+  await page.getByRole("menuitemradio", { name: tf, exact: true }).click();
+}
+async function pickMenu(page: Page, menu: string, item: string) {
+  await page.getByRole("button", { name: menu }).click();
+  await page.getByRole("menuitemradio", { name: new RegExp(`^${item}`) }).click();
+}
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -13,20 +23,21 @@ test("candles render with a history-start label; every timeframe loads", async (
   await page.goto("/trade");
   await expect(page.getByTestId("history-start")).toContainText("History starts at", { timeout: 20_000 });
   await expect(page.getByTestId("chart-engine")).toHaveAttribute("data-ready", "true"); // data applied (next frame)
-  const tf = page.getByRole("tablist", { name: "Timeframe" });
-  for (const t of ["1m", "5m", "15m", "1h", "4h", "1D"]) {
-    await tf.getByRole("tab", { name: t, exact: true }).click();
+  for (const t of ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1D", "1W"]) {
+    await pickTf(page, t);
+    await expect(page.getByTestId("ohlc-legend")).toContainText(new RegExp(`·${t}·Meridian(Last|Mark)`));
     await expect(page.getByTestId("history-start")).toContainText("History starts at");
   }
 });
 
 test("view state persists per market across reloads", async ({ page }) => {
   await page.goto("/trade");
-  await page.getByRole("tablist", { name: "Timeframe" }).getByRole("tab", { name: "4h" }).click();
-  await page.getByLabel("Chart type").selectOption("heikin");
+  await pickTf(page, "4h");
+  await pickMenu(page, "Chart type", "Heikin-Ashi");
   await page.reload();
-  await expect(page.getByRole("tablist", { name: "Timeframe" }).getByRole("tab", { name: "4h" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByLabel("Chart type")).toHaveValue("heikin");
+  await expect(page.getByRole("button", { name: "Timeframe" })).toContainText("4h");
+  await page.getByRole("button", { name: "Chart type" }).click();
+  await expect(page.getByRole("menuitemradio", { name: /^Heikin-Ashi/ })).toHaveAttribute("aria-checked", "true");
 });
 
 test("indicators add panes; turning them off removes them", async ({ page }) => {
@@ -90,11 +101,39 @@ test("depth tab draws both sides; funding toggle adds the funding and premium pa
   await page.getByRole("tablist", { name: "Book view" }).getByRole("tab", { name: "Depth" }).click();
   await expect(page.getByTestId("depth-chart").getByRole("img")).toHaveAttribute("aria-label", /MON bid, .* MON ask/);
   const panes = () => page.getByTestId("chart-engine").locator("table tr td canvas").count();
-  const funding = page.getByRole("button", { name: "Funding rate pane" });
-  await expect(funding).toHaveAttribute("aria-pressed", "true"); // default view
-  const on = await panes();
-  await funding.click();
-  await expect.poll(panes).toBeLessThan(on); // funding + premium panes removed
-  await funding.click();
-  await expect.poll(panes).toBe(on);
+  await page.getByRole("button", { name: "Chart settings" }).click();
+  const funding = page.getByLabel("Funding rate pane");
+  await expect(funding).not.toBeChecked(); // default: one price pane
+  const off = await panes();
+  await funding.check();
+  await expect.poll(panes).toBeGreaterThan(off); // funding + premium panes added
+  await funding.uncheck();
+  await expect.poll(panes).toBe(off);
+});
+
+test("price source: Last (book trades), Mark (per funding block), Index (oracle) each draw their own candles", async ({ page }) => {
+  await page.goto("/trade");
+  await expect(page.getByTestId("chart-engine")).toHaveAttribute("data-ready", "true", { timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "Price source" })).toContainText("Last"); // default = what is traded
+  await pickMenu(page, "Price source", "Index");
+  await expect(page.getByTestId("ohlc-legend")).toContainText("MeridianIndex", { timeout: 20_000 });
+  await expect(page.getByTestId("history-start")).toContainText("History starts at");
+  await pickMenu(page, "Price source", "Mark");
+  await expect(page.getByTestId("ohlc-legend")).toContainText("MeridianMark", { timeout: 20_000 });
+  await expect(page.getByTestId("history-start")).toContainText("mark: last 2,000 funding blocks");
+});
+
+test("range bar, zoom, undo / redo, screenshot", async ({ page }) => {
+  await page.goto("/trade");
+  await expect(page.getByTestId("chart-engine")).toHaveAttribute("data-ready", "true", { timeout: 20_000 });
+  await page.getByRole("group", { name: "Range" }).getByRole("button", { name: "5D" }).click();
+  await expect(page.getByRole("button", { name: "Timeframe" })).toContainText("5m");
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  // undo / redo a drawing
+  await page.getByRole("toolbar", { name: "Drawing tools" }).getByRole("button", { name: "Text" }).waitFor();
+  const undo = page.getByRole("button", { name: "Undo drawing" });
+  await expect(undo).toBeDisabled();
+  const dl = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save chart image" }).click();
+  expect((await dl).suggestedFilename()).toMatch(/^meridian-mon-perp-5m-.*\.png$/);
 });
