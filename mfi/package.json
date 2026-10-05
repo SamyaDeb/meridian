@@ -1,0 +1,23 @@
+{
+  "name": "@pulse/mfi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Meridian Funding Index v0: Perpl API client + index service (lane D, docs/MFI.md)",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "record:perpl": "tsx scripts/record-perpl.ts"
+  },
+  "devDependencies": {
+    "@pulse/abis": "workspace:*",
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "viem": "^2.57.0"
+  }
+}

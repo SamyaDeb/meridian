@@ -32,3 +32,6 @@ deployments/fork-test-*.json
 # teaser video sources/renders
 teaser/assets/raw/
 teaser/renders/
+
+# MFI service history (decision D7), runtime data
+mfi/data/

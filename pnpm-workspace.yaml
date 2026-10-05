@@ -5,3 +5,4 @@ packages:
   - indexer
   - app
   - bench
+  - mfi

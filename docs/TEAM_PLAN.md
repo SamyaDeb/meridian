@@ -17,6 +17,8 @@ Specs: PRD · ARCHITECTURE · MATH_SPEC · INTERFACES · MILESTONES. This file c
 
 Skills swap: if B is the stronger frontend engineer and C the stronger Solidity engineer, swap WS-04 ↔ WS-07 and keep everything else.
 
+**Lane D: WS-09 MFI (Meridian Funding Index), added 4–5 Oct (CR-013, owner decision D8).** Owned paths: `mfi/` (`@pulse/mfi`: Perpl client + index service, in `pnpm-workspace.yaml`), `docs/MFI.md`, `docs/mfi/`, `docs/outputs/MFI_HOSTING.md`. Offchain only, read-only; it never touches `contracts/src`. Consumers: the app's `/rates` page (`NEXT_PUBLIC_MFI_URL`, WS-07).
+
 ## 2. Critical path (what blocks whom)
 
 ```

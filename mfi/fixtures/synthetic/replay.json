@@ -1,0 +1,153 @@
+{
+ "_synthetic": true,
+ "_note": "Synthetic 8-cycle sequence (60 s apart); expectations computed independently in Python (fractions, 1 h min-OI). Not recorded data.",
+ "rows": [
+  {
+   "t": 1791234600000,
+   "meridian": {
+    "aprWad": "109499999992992000",
+    "oiWad": "93173850000000000000000"
+   },
+   "perpl": {
+    "rateMicros": 12,
+    "intervalSec": 3600,
+    "oiWad": "1184000000000000000000000",
+    "fundingAtMs": 1791234000000
+   },
+   "expect": {
+    "aprWad": "105439534777780673",
+    "included": [
+     "meridian",
+     "perpl"
+    ]
+   }
+  },
+  {
+   "t": 1791234660000,
+   "meridian": {
+    "aprWad": "115000000000000000",
+    "oiWad": "93173850000000000000000"
+   },
+   "perpl": {
+    "rateMicros": 13,
+    "intervalSec": 3600,
+    "oiWad": "1184000000000000000000000",
+    "fundingAtMs": 1791234060000
+   },
+   "expect": {
+    "aprWad": "113961707523216201",
+    "included": [
+     "meridian",
+     "perpl"
+    ]
+   }
+  },
+  {
+   "t": 1791234720000,
+   "meridian": {
+    "aprWad": "120000000000000000",
+    "oiWad": "186347700000000000000000"
+   },
+   "perpl": {
+    "rateMicros": 13,
+    "intervalSec": 3600,
+    "oiWad": "1184000000000000000000000",
+    "fundingAtMs": 1791234120000
+   },
+   "expect": {
+    "aprWad": "114326473251859956",
+    "included": [
+     "meridian",
+     "perpl"
+    ]
+   }
+  },
+  {
+   "t": 1791234780000,
+   "meridian": {
+    "aprWad": "120000000000000000",
+    "oiWad": "186347700000000000000000"
+   },
+   "perpl": {
+    "rateMicros": 13,
+    "intervalSec": 3600,
+    "oiWad": "59200000000000000000000000",
+    "fundingAtMs": 1791234180000
+   },
+   "expect": {
+    "aprWad": "114326473251859956",
+    "included": [
+     "meridian",
+     "perpl"
+    ]
+   }
+  },
+  {
+   "t": 1791234840000,
+   "meridian": {
+    "aprWad": "118000000000000000",
+    "oiWad": "93173850000000000000000"
+   },
+   "perpl": {
+    "error": "timeout"
+   },
+   "expect": {
+    "aprWad": "118000000000000000",
+    "included": [
+     "meridian"
+    ]
+   }
+  },
+  {
+   "t": 1791234900000,
+   "meridian": {
+    "status": "oracle-stale"
+   },
+   "perpl": {
+    "rateMicros": -4,
+    "intervalSec": 3600,
+    "oiWad": "1184000000000000000000000",
+    "fundingAtMs": 1791234300000
+   },
+   "expect": {
+    "aprWad": "-35040000000000000",
+    "included": [
+     "perpl"
+    ]
+   }
+  },
+  {
+   "t": 1791234960000,
+   "meridian": {
+    "status": "unavailable"
+   },
+   "perpl": {
+    "error": "timeout"
+   },
+   "expect": {
+    "aprWad": null,
+    "included": []
+   }
+  },
+  {
+   "t": 1791235020000,
+   "meridian": {
+    "aprWad": "100000000000000000",
+    "oiWad": "93173850000000000000000"
+   },
+   "perpl": {
+    "rateMicros": -7,
+    "intervalSec": 2571,
+    "oiWad": "1184000000000000000000000",
+    "fundingAtMs": 1791234420000
+   },
+   "expect": {
+    "aprWad": "-72303070170060235",
+    "included": [
+     "meridian",
+     "perpl"
+    ]
+   }
+  }
+ ]
+}
