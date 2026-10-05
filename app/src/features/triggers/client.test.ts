@@ -12,6 +12,7 @@ describe("trigger feature flag", () => {
     expect(triggerMode(31337, "0")).toBe("off");
     expect(triggerMode(31337, "1")).toBe("mock");
     expect(triggerMode(143, undefined)).toBe("off");
+    expect(triggerMode(143, "1")).toBe("off"); // D9: never the mock on mainnet
   });
 });
 

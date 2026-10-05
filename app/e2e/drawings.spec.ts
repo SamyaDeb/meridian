@@ -15,13 +15,22 @@ test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/trade");
   await expect(page.getByTestId("history-start")).toContainText("History starts at", { timeout: 20_000 });
+  await expect(page.getByTestId("chart-engine")).toHaveAttribute("data-ready", "true"); // data applied (next frame)
 });
 
 test("place hline, trend, rect, fib, ruler, position plans; persist; erase; lock", async ({ page }) => {
+  // magnet off so a click lands exactly where it was made (erase hits the same screen point)
+  await page.getByRole("button", { name: "Magnet: snap to OHLC" }).click();
   await pick(page, "Horizontal line");
   await clickAt(page, 0.5, 0.5);
   await expect.poll(() => count(page)).toBe("1 drawing on the chart");
+  // erase right away, at the line's own position (before any rescale)
+  await page.getByRole("button", { name: /^Erase/ }).click();
+  await clickAt(page, 0.5, 0.5);
+  await expect.poll(() => count(page)).toBe("0 drawings on the chart");
 
+  await pick(page, "Horizontal line");
+  await clickAt(page, 0.5, 0.5);
   for (const tool of ["Trend line", "Ray", "Rectangle", "Fibonacci retracement", "Ruler"]) {
     await pick(page, tool);
     await clickAt(page, 0.3, 0.3);
@@ -40,13 +49,11 @@ test("place hline, trend, rect, fib, ruler, position plans; persist; erase; lock
   await page.reload();
   await expect.poll(() => count(page), { timeout: 20_000 }).toBe("7 drawings on the chart");
 
-  // lock blocks erase and clear; unlocked erase removes the horizontal line
+  // lock blocks erase and clear; unlock and clear all
   await page.getByRole("button", { name: "Lock drawings" }).click();
   await expect(page.getByRole("button", { name: "Clear all drawings" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Erase/ })).toBeDisabled();
   await page.getByRole("button", { name: "Lock drawings" }).click();
-  await page.getByRole("button", { name: /^Erase/ }).click();
-  await page.getByTestId("drawing-layer").locator("line").first().click({ force: true });
-  await expect.poll(() => count(page)).toBe("6 drawings on the chart");
   await page.getByRole("button", { name: "Clear all drawings" }).click();
   await expect.poll(() => count(page)).toBe("0 drawings on the chart");
 });

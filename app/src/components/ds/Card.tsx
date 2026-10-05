@@ -33,7 +33,10 @@ export function Card({ title, right, header, children, className = "", bodyClass
           {right}
         </div>
       )}
-      <div className={`${scroll ? "min-h-0 flex-1 overflow-auto" : ""} ${bodyClassName}`}>{children}</div>
+      {/* a scrolling body must be reachable by keyboard (axe scrollable-region-focusable) */}
+      <div tabIndex={scroll ? 0 : undefined} className={`${scroll ? "min-h-0 flex-1 overflow-auto rounded-control" : ""} ${bodyClassName}`}>
+        {children}
+      </div>
     </Tag>
   );
 }

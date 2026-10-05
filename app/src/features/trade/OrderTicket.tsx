@@ -276,7 +276,7 @@ export function OrderTicket() {
           <span className="text-muted">Max slippage</span>
           <div className="flex gap-1" role="radiogroup" aria-label="Max slippage">
             {SLIPPAGES.map((s) => (
-              <button key={s.toString()} type="button" role="radio" aria-checked={slip === s} onClick={() => setSlip(s)} className={`num h-7 rounded-full px-2 text-[11px] pointer-coarse:h-11 ${slip === s ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted"}`}>
+              <button key={s.toString()} type="button" role="radio" aria-checked={slip === s} onClick={() => setSlip(s)} className={`num h-7 rounded-full px-2 text-[11px] pointer-coarse:h-11 pointer-coarse:min-w-11 ${slip === s ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted"}`}>
                 {formatFixed(s * 10n ** 16n, 18, 1)}%
               </button>
             ))}

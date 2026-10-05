@@ -26,7 +26,7 @@ function Level({ r, side, unit }: { r: LadderRow; side: "bid" | "ask"; unit: Uni
         onClick={() => setDraft({ kind: "limit", limitPx: formatPriceWad(r.priceWad).replace(/,/g, "") })}
         title={`Sweep to here: ${formatBaseWad(r.cumSizeWad, 0)} MON at avg ${formatPriceWad(r.avgPriceWad)}. Click to use this price.`}
         aria-label={`${side === "bid" ? "Bid" : "Ask"} ${formatPriceWad(r.priceWad)}, ${sizeText(r, unit)} ${unit}. Use as limit price.`}
-        className="num relative grid h-6 w-full grid-cols-3 items-center rounded-[6px] px-2 text-[11px] hover:bg-card-2 pointer-coarse:h-9"
+        className="num relative grid h-6 w-full grid-cols-3 items-center rounded-[6px] px-2 text-[11px] hover:bg-card-2 pointer-coarse:h-11"
       >
         <span className={`absolute inset-y-0 right-0 rounded-[6px] ${side === "bid" ? "bg-long/12" : "bg-short/12"}`} style={{ width: `${r.depthBps / 100}%` }} aria-hidden />
         <span className={`relative text-left ${side === "bid" ? "text-long" : "text-short"}`}>{formatPriceWad(r.priceWad)}</span>

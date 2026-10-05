@@ -29,7 +29,7 @@ const TYPES: { id: ChartType; label: string }[] = [
 
 function ToggleChip({ on, onClick, children, label }: { on: boolean; onClick: () => void; children: ReactNode; label: string }) {
   return (
-    <button type="button" aria-pressed={on} aria-label={label} onClick={onClick} className={`h-7 rounded-full px-2.5 text-[11px] pointer-coarse:h-11 ${on ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted hover:text-text"}`}>
+    <button type="button" aria-pressed={on} aria-label={label} onClick={onClick} className={`h-7 rounded-full px-2.5 text-[11px] pointer-coarse:h-11 pointer-coarse:min-w-11 ${on ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted hover:text-text"}`}>
       {children}
     </button>
   );
@@ -174,10 +174,10 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
           <DrawingToolbar api={draw} />
           {toolbarExtra}
           <span className="ml-auto flex items-center gap-1.5">
-            <button type="button" onClick={() => setResetKey((k) => k + 1)} className="h-7 rounded-full bg-card-2 px-2.5 text-[11px] text-muted hover:text-text pointer-coarse:h-11">
+            <button type="button" onClick={() => setResetKey((k) => k + 1)} className="h-7 rounded-full bg-card-2 px-2.5 text-[11px] text-muted hover:text-text pointer-coarse:h-11 pointer-coarse:min-w-11">
               Reset
             </button>
-            <button type="button" aria-pressed={fs} onClick={() => setFs((f) => !f)} className="h-7 rounded-full bg-card-2 px-2.5 text-[11px] text-muted hover:text-text pointer-coarse:h-11">
+            <button type="button" aria-pressed={fs} onClick={() => setFs((f) => !f)} className="h-7 rounded-full bg-card-2 px-2.5 text-[11px] text-muted hover:text-text pointer-coarse:h-11 pointer-coarse:min-w-11">
               {fs ? "Exit full" : "Full"}
             </button>
             <span className="num text-[11px] text-muted" aria-label="UTC time">

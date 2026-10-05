@@ -4,7 +4,7 @@ import { TOOL_LABEL, type Tool } from "./model";
 import type { DrawingsApi } from "./useDrawings";
 
 const TOOLS: Tool[] = ["hline", "vline", "trend", "ray", "rect", "fib", "text", "ruler", "brush", "long", "short"];
-const chip = (on: boolean) => `h-7 rounded-full px-2.5 text-[11px] pointer-coarse:h-11 ${on ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted hover:text-text"}`;
+const chip = (on: boolean) => `h-7 rounded-full px-2.5 text-[11px] pointer-coarse:h-11 pointer-coarse:min-w-11 ${on ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted hover:text-text"}`;
 
 /** Draw menu + magnet / erase / lock / clear. Drawings are a local planning aid: nothing here sends anything. */
 export function DrawingToolbar({ api }: { api: DrawingsApi }) {

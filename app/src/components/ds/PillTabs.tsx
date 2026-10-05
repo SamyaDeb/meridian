@@ -38,7 +38,7 @@ export function PillTabs<T extends string>({
     onChange(t.id);
     refs.current[i]?.focus();
   };
-  const h = size === "sm" ? "h-7 px-3 text-xs pointer-coarse:min-h-11" : "min-h-9 px-3.5 text-sm pointer-coarse:min-h-11";
+  const h = size === "sm" ? "h-7 px-3 text-xs pointer-coarse:min-h-11 pointer-coarse:min-w-11 justify-center" : "min-h-9 px-3.5 text-sm pointer-coarse:min-h-11 pointer-coarse:min-w-11 justify-center";
   return (
     <div role="tablist" aria-label={ariaLabel} onKeyDown={onKey} className={`inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-card-2 p-1 ${className}`}>
       {tabs.map((t, i) => {

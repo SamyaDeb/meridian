@@ -16,6 +16,8 @@ describe("Card", () => {
   it("inner variant is a 16 px well; scroll makes the body scroll inside", () => {
     expect(html(<Card variant="inner">x</Card>)).toContain("rounded-inner");
     expect(html(<Card scroll>x</Card>)).toContain("overflow-auto");
+    expect(html(<Card scroll>x</Card>)).toContain('tabindex="0"');
+    expect(html(<Card>x</Card>)).not.toContain("tabindex");
   });
   it("custom header replaces the title row", () => {
     const h = html(<Card header={<span>tabs</span>}>x</Card>);

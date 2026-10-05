@@ -22,7 +22,7 @@ export function NavBar() {
       <header className="sticky top-0 z-30 px-2 pt-[calc(8px+env(safe-area-inset-top))]">
         <div className="mx-auto flex h-14 w-full max-w-[414px] items-center justify-between gap-2 rounded-full border border-border bg-card/90 pl-3 pr-2 backdrop-blur card-elev lg:max-w-[1680px]">
           <div className="flex min-w-0 items-center gap-2">
-            <Link href="/trade" className="flex shrink-0 items-center gap-2 rounded-full" aria-label="Meridian home">
+            <Link href="/trade" className="flex shrink-0 items-center gap-2 rounded-full pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center" aria-label="Meridian home">
               <Image src="/meridian-logo.png" alt="" width={24} height={24} priority />
               {/* below 420 px the logo carries the brand so the network chip and controls fit */}
               <span className="text-base font-semibold tracking-tight max-[419px]:sr-only">Meridian</span>

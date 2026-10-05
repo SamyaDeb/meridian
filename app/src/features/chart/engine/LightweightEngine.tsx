@@ -35,14 +35,44 @@ const alpha = (hex: string, a: number) => {
 };
 const ts = (t: number) => t as UTCTimestamp as Time;
 
+/** Cheap rolling hash of a point list (all fields), so unchanged data is never re-applied. */
+function hashPoints(pts: readonly Record<string, unknown>[], upTo = pts.length): number {
+  let h = 2166136261;
+  for (let i = 0; i < upTo; i++) {
+    const s = JSON.stringify(pts[i]);
+    for (let j = 0; j < s.length; j++) h = Math.imul(h ^ s.charCodeAt(j), 16777619);
+  }
+  return h >>> 0;
+}
+type Applied = { full: number; prefix: number; len: number };
+/**
+ * Applies data to a series only when it changed: nothing when identical, update() of the last point when only the
+ * newest bar moved or a bar was appended, setData otherwise. Re-applying every frame reset the chart's pointer state
+ * (clicks spanning a reset were dropped) and wasted work at one render per 300 ms block.
+ */
+function applyData(ser: ISeriesApi<SeriesType>, data: Record<string, unknown>[], seen: Map<unknown, Applied>) {
+  const full = hashPoints(data);
+  const prev = seen.get(ser);
+  if (prev && prev.full === full && prev.len === data.length) return;
+  const last = data[data.length - 1];
+  const sameHistory = prev && last && ((data.length === prev.len && hashPoints(data, data.length - 1) === prev.prefix) || (data.length === prev.len + 1 && hashPoints(data, data.length - 1) === prev.full));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (sameHistory) (ser as any).update(last);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  else (ser as any).setData(data);
+  seen.set(ser, { full, prefix: data.length ? hashPoints(data, data.length - 1) : 0, len: data.length });
+}
+
 type State = {
   chart: IChartApi;
   main?: ISeriesApi<SeriesType>;
   mainType?: EngineProps["chartType"];
   volume?: ISeriesApi<"Histogram">;
   lines: IPriceLine[];
+  linesSig: string;
+  seen: Map<unknown, Applied>;
   overlays: Map<string, ISeriesApi<"Line">>;
-  panes: Map<string, { series: Map<string, ISeriesApi<"Line" | "Histogram">>; guides: IPriceLine[] }>;
+  panes: Map<string, { series: Map<string, ISeriesApi<"Line" | "Histogram">>; guides: IPriceLine[]; guidesSig: string }>;
   t: Tokens;
 };
 
@@ -54,6 +84,7 @@ function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
   if (!s.main || s.mainType !== p.chartType) {
     if (s.main) chart.removeSeries(s.main);
     s.lines = [];
+    s.linesSig = "";
     const common = { priceFormat, lastValueVisible: true, priceLineVisible: true };
     s.main =
       p.chartType === "line"
@@ -74,24 +105,28 @@ function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
     s.mainType = p.chartType;
   }
   const src = p.chartType === "heikin" ? heikinAshi(p.bars) : p.bars;
-  if (p.chartType === "line" || p.chartType === "area") s.main.setData(src.map((b) => ({ time: ts(b.time), value: wadToNum(b.close) })));
-  else s.main.setData(src.map((b) => ({ time: ts(b.time), open: wadToNum(b.open), high: wadToNum(b.high), low: wadToNum(b.low), close: wadToNum(b.close) })));
+  if (p.chartType === "line" || p.chartType === "area") applyData(s.main, src.map((b) => ({ time: ts(b.time), value: wadToNum(b.close) })), s.seen);
+  else applyData(s.main, src.map((b) => ({ time: ts(b.time), open: wadToNum(b.open), high: wadToNum(b.high), low: wadToNum(b.low), close: wadToNum(b.close) })), s.seen);
 
   // volume histogram on its own overlay scale at the bottom of the price pane
   if (p.showVolume) {
     s.volume ??= chart.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-    s.volume.setData(p.bars.map((b) => ({ time: ts(b.time), value: wadToNum(b.volumeBaseWad), color: alpha(b.close >= b.open ? t.long : t.short, b.gapFill ? 0 : 0.35) })));
+    applyData(s.volume as ISeriesApi<SeriesType>, p.bars.map((b) => ({ time: ts(b.time), value: wadToNum(b.volumeBaseWad), color: alpha(b.close >= b.open ? t.long : t.short, b.gapFill ? 0 : 0.35) })), s.seen);
   } else if (s.volume) {
     chart.removeSeries(s.volume);
     s.volume = undefined;
   }
 
   // price lines: mark, index, position entry / liquidation, resting orders
+  const linesSig = p.priceLines.map((l) => `${l.id}:${l.priceWad}:${l.tone}:${l.title}:${l.dashed ?? ""}`).join("|");
+  if (linesSig !== s.linesSig) {
+  s.linesSig = linesSig;
   for (const l of s.lines) s.main.removePriceLine(l);
   s.lines = p.priceLines.map((l) =>
     s.main!.createPriceLine({ price: wadToNum(l.priceWad), color: toneColor(t, l.tone), lineWidth: 1, lineStyle: l.dashed ? LineStyle.Dashed : LineStyle.Solid, axisLabelVisible: true, title: l.title }),
   );
+  }
 
   // overlays on the price pane (indicators)
   const keepO = new Set(p.overlays.map((o) => o.id));
@@ -106,7 +141,7 @@ function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
       ser = chart.addSeries(LineSeries, { color: toneColor(t, o.tone), lineWidth: o.width ?? 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, priceFormat });
       s.overlays.set(o.id, ser);
     }
-    ser.setData(o.points.map((x) => ({ time: ts(x.time), value: x.value })));
+    applyData(ser as ISeriesApi<SeriesType>, o.points.map((x) => ({ time: ts(x.time), value: x.value })), s.seen);
   }
 
   // extra panes (funding rate, RSI, MACD …), indices 1..n in the order given
@@ -119,7 +154,7 @@ function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
   p.panes.forEach((spec, i) => {
     let pane = s.panes.get(spec.id);
     if (!pane) {
-      pane = { series: new Map(), guides: [] };
+      pane = { series: new Map(), guides: [], guidesSig: "" };
       s.panes.set(spec.id, pane);
     }
     for (const [id, ser] of pane.series)
@@ -137,12 +172,18 @@ function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
             : chart.addSeries(LineSeries, { color: toneColor(t, ps.tone), lineWidth: 1, lastValueVisible: k === 0, priceLineVisible: false, crosshairMarkerVisible: false }, i + 1);
         pane!.series.set(ps.id, ser);
       }
-      ser.setData(
+      applyData(
+        ser as ISeriesApi<SeriesType>,
         ps.points.map((x) => ({ time: ts(x.time), value: x.value, ...(ps.kind === "histogram" && ps.signedColors ? { color: alpha(x.value >= 0 ? t.long : t.short, 0.6) } : {}) })),
+        s.seen,
       );
       if (k === 0) {
-        for (const g of pane!.guides) ser.removePriceLine(g);
-        pane!.guides = (spec.guides ?? []).map((g) => ser!.createPriceLine({ price: g, color: t.muted, lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "" }));
+        const gsig = (spec.guides ?? []).join(",");
+        if (gsig !== pane!.guidesSig) {
+          pane!.guidesSig = gsig;
+          for (const g of pane!.guides) ser.removePriceLine(g);
+          pane!.guides = (spec.guides ?? []).map((g) => ser!.createPriceLine({ price: g, color: t.muted, lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: "" }));
+        }
       }
     });
   });
@@ -188,7 +229,7 @@ export function LightweightEngine(props: EngineProps) {
       timeScale: { borderColor: t.border, timeVisible: true, secondsVisible: false },
       crosshair: { vertLine: { color: t.muted, labelBackgroundColor: t.brand }, horzLine: { color: t.muted, labelBackgroundColor: t.brand } },
     });
-    st.current = { chart, lines: [], overlays: new Map(), panes: new Map(), t };
+    st.current = { chart, lines: [], linesSig: "", seen: new Map(), overlays: new Map(), panes: new Map(), t };
     const click = (p: { point?: { x: number; y: number }; paneIndex?: number }) => {
       const s = st.current;
       if (!s?.main || !p.point || (p.paneIndex ?? 0) !== 0 || !onClick.current) return;
@@ -229,7 +270,10 @@ export function LightweightEngine(props: EngineProps) {
   useEffect(() => {
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(() => {
-      if (st.current) applyProps(st.current, latest.current, lastReset);
+      if (!st.current) return;
+      applyProps(st.current, latest.current, lastReset);
+      // data and scales are applied: overlays and tests may now convert coordinates
+      host.current?.setAttribute("data-ready", latest.current.bars.length > 0 ? "true" : "false");
     });
   });
 

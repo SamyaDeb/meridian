@@ -12,6 +12,7 @@ test.beforeEach(async ({ page }) => {
 test("candles render with a history-start label; every timeframe loads", async ({ page }) => {
   await page.goto("/trade");
   await expect(page.getByTestId("history-start")).toContainText("History starts at", { timeout: 20_000 });
+  await expect(page.getByTestId("chart-engine")).toHaveAttribute("data-ready", "true"); // data applied (next frame)
   const tf = page.getByRole("tablist", { name: "Timeframe" });
   for (const t of ["1m", "5m", "15m", "1h", "4h", "1D"]) {
     await tf.getByRole("tab", { name: t, exact: true }).click();
@@ -31,6 +32,7 @@ test("view state persists per market across reloads", async ({ page }) => {
 test("indicators add panes; turning them off removes them", async ({ page }) => {
   await page.goto("/trade");
   await expect(page.getByTestId("history-start")).toContainText("History starts at", { timeout: 20_000 });
+  await expect(page.getByTestId("chart-engine")).toHaveAttribute("data-ready", "true"); // data applied (next frame)
   const engine = page.getByTestId("chart-engine");
   const panes = () => engine.locator("table tr td canvas").count(); // LWC draws each pane in its own table row
   const before = await panes();
@@ -48,6 +50,7 @@ test("indicators add panes; turning them off removes them", async ({ page }) => 
 test("click on the price pane loads that price into the ticket as a limit", async ({ page }) => {
   await page.goto("/trade");
   await expect(page.getByTestId("history-start")).toContainText("History starts at", { timeout: 20_000 });
+  await expect(page.getByTestId("chart-engine")).toHaveAttribute("data-ready", "true"); // data applied (next frame)
   const box = (await page.getByTestId("chart-engine").boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.25);
   const v = await page.getByRole("textbox", { name: "Limit price" }).inputValue();
@@ -59,6 +62,7 @@ test("soak: no unbounded JS heap growth while blocks stream", async ({ page }) =
   test.setTimeout((minutes + 2) * 60_000);
   await page.goto("/trade");
   await expect(page.getByTestId("history-start")).toContainText("History starts at", { timeout: 20_000 });
+  await expect(page.getByTestId("chart-engine")).toHaveAttribute("data-ready", "true"); // data applied (next frame)
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Performance.enable");
   const heap = async () => {

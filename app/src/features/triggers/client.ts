@@ -7,8 +7,11 @@ import { approveOrPermit, sendTx } from "@/lib/tx";
 import { TRIGGER_KIND, triggerManagerAbi, type TriggerKind, type TriggerView } from "./abi";
 
 export type TriggerMode = "live" | "mock" | "off";
+const MAINNET_CHAIN_ID = 143;
 export function triggerMode(chainId: number, mockFlag = process.env.NEXT_PUBLIC_TRIGGERS_MOCK): TriggerMode {
   if (contractAddress(chainId, "TriggerOrderManager")) return "live";
+  // decision D9: mainnet ships without a TriggerOrderManager and never with the mock, whatever the build flags say
+  if (chainId === MAINNET_CHAIN_ID) return "off";
   return mockFlag === "1" ? "mock" : "off";
 }
 

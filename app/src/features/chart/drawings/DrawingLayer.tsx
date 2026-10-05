@@ -32,6 +32,9 @@ export function DrawingLayer({ coords, bars, api }: { coords: ChartCoords | null
   }, [busy, coords]);
   if (!coords || bars.length === 0) return null;
   const { width: W, height: H } = coords.paneSize();
+  // the chart applies data and scales on the next animation frame: until both conversions work, no layer (a click
+  // would otherwise be dropped silently)
+  if (W === 0 || H === 0 || coords.priceOfY(H / 2) === null || coords.timeOfX(W / 2) === null) return null;
   const X = (t: number) => coords.xOfTime(t) ?? -9999;
   const Y = (p: number) => coords.yOfPrice(p) ?? -9999;
   const span = (() => {
