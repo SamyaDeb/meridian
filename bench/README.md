@@ -15,3 +15,6 @@ Anvil receipts use the Ethereum gas schedule, not Monad's MIP-8 page pricing: on
 | Report | `cd contracts && forge test --match-contract RealEngineGasBench && cd ../bench && pnpm report` | `docs/outputs/BENCHMARKS.md` (placeholders for runs not done) |
 
 Output files from an anvil node are named `*_anvil-<chain>_*` (`networkLabel`, from `web3_clientVersion`), so a local chain started with `--chain-id 10143` can never pass for testnet evidence.
+| Dry run (no key, no send) | `DRY_RUN=1 CHAIN_ID=… RPC_URL=… LOAD_WALLETS=4 TXS=60 K=1,2 pnpm load` · `DRY_RUN=1 CHAIN_ID=… RPC_URL=… pnpm gas` | checks the RPC's chain id and prints the planned txs and projected MON from measured billed gas (`BILLED_CSV`, default the 30 Sep testnet receipts); setup txs (approve, deposit) are counted but unpriced |
+
+Outputs and reports name the **RPC tier** (`local` / `public` / `private`, `src/dryrun.ts`), never the URL: a paid URL carries its API key.

@@ -27,6 +27,7 @@ import { DEFAULTS, buildLadder, inventoryRatio, quoteBps, sigmaForQuoting } from
 import { type AnchorSource, aprSigma, aprWadToBps, blocksFor, buildAprLadder, chooseAnchor, movedAprBps } from "./aprbook.js";
 import { type Resting, idsToRefresh, needsRequote, planRequote, shouldTick } from "./plan.js";
 import { gasLimitFor, gasLimitsForBatch, sendBatch } from "./send.js";
+import { launchGuard } from "./launch.js";
 
 const env = (k: string): string | undefined => {
   const v = process.env[k];
@@ -88,6 +89,10 @@ const MARKET = env("MARKET") ?? "main";
 // MARKET=swap quotes the funding-swap book (SwapOrderBook, margin engine FundingSwapMarket) on the APR axis; the perp
 // CH/oracle of the main market give the anchor fallback and the stale-oracle kill switch.
 const IS_SWAP = MARKET === "swap";
+{
+  const refusal = launchGuard({ chainId: CHAIN_ID, market: MARKET, requoteBps: REQUOTE_BPS, allowHighBurn: env("ALLOW_HIGH_BURN") === "1" });
+  if (refusal !== null) throw new Error(refusal);
+}
 const market = MARKET === "demo" ? dep.demoMarket : dep.contracts;
 const SWAP: Address | undefined = IS_SWAP ? dep.contracts.FundingSwapMarket : undefined;
 if (IS_SWAP && (SWAP === undefined || dep.contracts.SwapOrderBook === undefined)) throw new Error(`${DEPLOYMENTS}: no FundingSwapMarket/SwapOrderBook`);

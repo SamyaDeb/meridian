@@ -4,10 +4,14 @@
 //   CHAIN_ID=10143 RPC_URL=http://127.0.0.1:8546 DEPLOYMENTS=… LOAD_PKS=0x…,0x… TXS=60 K=1,2 pnpm load
 // Markets: deployments `contracts` (+ `demoMarket`), or MARKETS_FILE = JSON [{ClearingHouse, OrderBook}] for K > 2.
 // Every wallet must hold tAUSD (it deposits LOAD_DEPOSIT_TOKEN into each market once).
+// DRY_RUN=1 (Phase 3 P6): no key, no send. Checks the RPC's chain id, reads its gas price and prints what the run would
+// send and its projected MON from measured billed gas (bench/out/gas_onchain_10143_*.csv; BILLED_CSV overrides).
+// LOAD_WALLETS=<n> replaces LOAD_PKS. Outputs record the RPC tier (local | public | private), never the URL.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { type Address, type Hex, createPublicClient, createWalletClient, decodeEventLog, defineChain, encodeFunctionData, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { billedGasFromCsv, planLoad, rpcTier } from "./src/dryrun.js";
 import { gasLimitFor, hasSide, loadMix, networkLabel, summarizeLoad } from "./src/stats.js";
 
 const need = (k: string): string => {
@@ -42,6 +46,23 @@ const erc20 = parseAbi(["function approve(address, uint256) returns (bool)"]);
 
 const chain = defineChain({ id: CHAIN_ID, name: `pulse-${CHAIN_ID}`, nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 }, rpcUrls: { default: { http: [RPC_URL] } } });
 const pub = createPublicClient({ chain, transport: http(RPC_URL) });
+
+if (process.env.DRY_RUN === "1") {
+  const rpcChain = await pub.getChainId();
+  if (rpcChain !== CHAIN_ID) throw new Error(`RPC chain id ${rpcChain} != CHAIN_ID ${CHAIN_ID}`);
+  const gasPrice = await pub.getGasPrice();
+  const csv = process.env.BILLED_CSV ?? `${HERE}out/gas_onchain_10143_2026-09-30.csv`;
+  const nW = process.env.LOAD_WALLETS ? Number(process.env.LOAD_WALLETS) : need("LOAD_PKS").split(",").length;
+  const maxK = Math.max(...KS);
+  if (maxK > markets.length) console.log(`note: K=${maxK} needs ${maxK} markets, deployments has ${markets.length} (MARKETS_FILE)`);
+  const plan = planLoad({ ks: KS, txs: TXS, wallets: nW, billed: billedGasFromCsv(readFileSync(csv, "utf8")), gasPriceWei: gasPrice });
+  console.log(`DRY RUN (nothing sent): chain ${CHAIN_ID}, RPC tier ${rpcTier(RPC_URL)}, gas price ${gasPrice} wei, ${nW} wallets, K=${KS.join(",")}, ${TXS} txs per K`);
+  console.table(plan.perK.map((r) => ({ ...r, gasLimit: r.gasLimit.toString() })));
+  console.log(`load txs ${plan.loadTxs}, Σ gas limit ${plan.loadGasLimit} ⇒ ≈ ${Number(plan.loadMonMilli) / 1000} MON (billed limits from ${csv.split("/").pop()}, ×2 as load.ts sets them)`);
+  console.log(`setup txs ${plan.setupTxs} (approve + deposit, not measured on testnet: unpriced, > VERIFY before a budget)`);
+  process.exit(0);
+}
+
 const wallets = need("LOAD_PKS")
   .split(",")
   .map((pk) => {
@@ -133,6 +154,7 @@ for (const k of KS) {
 mkdirSync(`${HERE}out`, { recursive: true });
 const net = networkLabel(CHAIN_ID, await pub.request({ method: "web3_clientVersion" }));
 const file = `${HERE}out/load_${net}_${new Date().toISOString().slice(0, 10)}.json`;
-writeFileSync(file, JSON.stringify({ chainId: CHAIN_ID, rpc: RPC_URL, txs: TXS, wallets: wallets.length, results }, null, 2));
+// the RPC tier only: a paid URL carries its API key and must never land in bench/out
+writeFileSync(file, JSON.stringify({ chainId: CHAIN_ID, rpcTier: rpcTier(RPC_URL), txs: TXS, wallets: wallets.length, results }, null, 2));
 console.table(results);
 console.log(`→ ${file} (skeleton: latency uses 1 s block timestamps; B4 proper = testnet + paid RPC)`);

@@ -12,7 +12,10 @@
     "evidence": "tsx scripts/evidence.ts",
     "watch": "tsx scripts/watch.ts",
     "oracle-deviation": "tsx scripts/oracle-deviation.ts",
-    "flow-quote": "tsx scripts/flow-quote.ts"
+    "flow-quote": "tsx scripts/flow-quote.ts",
+    "fork-pyth-relay": "tsx scripts/fork-pyth-relay.ts",
+    "page-receiver": "tsx scripts/page-receiver.ts",
+    "tx-cost": "tsx scripts/tx-cost.ts"
   },
   "dependencies": {
     "@pulse/abis": "workspace:*",

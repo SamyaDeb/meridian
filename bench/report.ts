@@ -44,6 +44,8 @@ if (gasFiles.length === 0) {
     s.push("");
   }
   s.push("Reading: the < 100k place + cancel target is met on the Foundry (Cancun) schedule (96,478). On Monad testnet the billed limit is ≈ 3.85× that (371,291) and the estimate ≈ 3.2× (≈ 309k): MIP-8 charges 8,100 per cold storage page read, and the 1.2 limit margin is billed on top. The per-market funding touch is O(1) and flat in the number of positions (`test/unit/ClearingHouseGas.t.sol`).");
+  s.push("");
+  s.push("5 Oct rerun (decision D12): aborted after 18 receipts, not used in the table above. The testnet endpoint was a free tier (BLOCKED #5) and the bench wallet ran out of MON; a `replaceOrder` at ⌈estimate × 1.2⌉ ran out of gas (the `latest` estimate misses the block's first funding touch), so `gasLimitFor` now adds `TOUCH_ALLOWANCE_GAS` (70,000 on live chains). Rebuilt read-only: `bench/out/partial_gas_onchain_10143_2026-10-05.csv`.");
 }
 if (foundry) {
   const f = new Map(foundry.map((r) => [r.op, r]));
@@ -54,11 +56,11 @@ if (foundry) {
 if (anvilGas.length) s.push(`\nLocal-only receipts (not evidence): ${anvilGas.map((x) => `\`${x}\``).join(", ")}.`);
 s.push("");
 s.push("## B3: MIP-8 storage layout effect");
-s.push("_Pending: needs the same MM cycle with a level-array vs mapping layout on testnet (BENCHMARKS_PLAN B3)._");
+s.push("_**Cut** (owner decision D12, 5 Oct): B3 needs the same MM cycle on a level-array vs a mapping-layout OrderBook, measured on testnet (BENCHMARKS_PLAN B3). The mapping-layout variant would be a bench-only contract to write, deploy and fund before the 8 Oct freeze, for a claim the Foundry B1 numbers and MIP-8 page pricing already explain. Not run; no number is claimed._");
 s.push("");
 s.push("## B4: multi-market parallel load");
 if (loadFiles.length === 0) {
-  s.push("_Not run on testnet: needs a paid RPC and a MON budget (Phase 4 had a free RPC and ≈ 6.4 MON). `bench/load.ts` is ready (K markets, pipelined nonces, anvil-labelled outputs)._" + (anvilLoad.length ? ` Local-only runs: ${anvilLoad.map((x) => `\`${x}\``).join(", ")}.` : ""));
+  s.push("_Not run on testnet: **BLOCKED #5 paid RPC** (HUMAN_CHECKLIST #5). Decision D12 approved a reduced B4 on 10143 within ≤ 2.0 testnet MON on a non-public RPC; on 5 Oct the configured testnet endpoint turned out to be a **free tier** (`eth_getLogs` ≤ 10 blocks, HTTP 429 under a short scan), and the keys hold ≈ 1.25 testnet MON after the aborted B1/B2 rerun (`bench/out/partial_gas_onchain_10143_2026-10-05.csv`, not used here). Smallest meaningful B4 (`DRY_RUN=1`, 2 wallets × 15 txs × K = 1, 2) projects ≈ 1.38 MON + 12 unpriced setup txs; full B4 (4 × 60) ≈ 5.2 MON. `bench/load.ts` is ready (K markets, pipelined nonces; outputs record the RPC tier, never the URL)._" + (anvilLoad.length ? ` Local-only runs: ${anvilLoad.map((x) => `\`${x}\``).join(", ")}.` : ""));
 } else {
   for (const f of loadFiles) {
     const j = JSON.parse(readFileSync(`${OUT}${f}`, "utf8")) as { chainId: number; results: Array<Record<string, number>> };

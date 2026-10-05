@@ -9,7 +9,8 @@
     "load": "tsx load.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "report": "tsx report.ts"
+    "report": "tsx report.ts",
+    "crash-sanity": "tsx crash_sanity.ts"
   },
   "dependencies": {
     "@pulse/abis": "workspace:*",

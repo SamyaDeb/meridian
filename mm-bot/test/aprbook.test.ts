@@ -103,6 +103,20 @@ describe("buildAprLadder (A–S on the APR axis, MATH_SPEC §4)", () => {
     expect(buildAprLadder({ ...base, q: 1 }).bids).toEqual([]);
     expect(buildAprLadder({ ...base, q: -1 }).asks).toEqual([]);
   });
+  it("never emits a tick < 1 when the anchor is at or below −100% APR (price = 1 + APR ≤ 0)", () => {
+    // P3/P4 mainnet fork, 5 Oct: no 8 h history ⇒ anchor = perp rate × YEAR = −113.5% APR; the ask side used to emit
+    // tick 0 and every requote reverted InvalidTick() (0xce8ef7fc) on the OrderBook (tick == 0 is invalid).
+    const base = { tickSize: TICK, bidBps: -2, askBps: 2, levels: 3, levelSpacingBps: 5, lotsPerLevel: 1n, q: 0 };
+    for (const anchorAprBps of [-11_350, -10_000, -10_004]) {
+      const l = buildAprLadder({ ...base, anchorAprBps });
+      for (const lv of [...l.bids, ...l.asks]) expect(lv.tick).toBeGreaterThanOrEqual(1);
+    }
+    // just above −100% (−99.95%): price = 1 + APR > 0 for the asks (−99.93/−99.88/−99.83% ⇒ ticks 7/12/17) and the
+    // inner bid (−99.97% ⇒ tick 3); the outer bids would price ≤ 0 and are dropped
+    const near = buildAprLadder({ ...base, anchorAprBps: -9_995 });
+    expect(near.asks.map((a) => a.tick)).toEqual([7, 12, 17]);
+    expect(near.bids.map((b) => b.tick)).toEqual([3]);
+  });
   it("inner bid < inner ask even when the spread is under one tick", () => {
     const l = buildAprLadder({ anchorAprBps: 1200, tickSize: TICK, bidBps: -0.1, askBps: 0.1, levels: 1, levelSpacingBps: 5, lotsPerLevel: 1n, q: 0 });
     expect(l.bids[0]!.tick).toBe(11_199);

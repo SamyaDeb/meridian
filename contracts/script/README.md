@@ -96,3 +96,20 @@ REUSE_DEPLOYMENT=10143.json DEPLOY_VAULT=1 DEPLOY_SWAPS=1 SWAP_MATURITY_IN_SEC=3
 # mainnet-fork check of the whole config (no broadcast); needs MONAD_RPC_URL
 cd contracts && forge test --match-path test/fork/DeployPulseMainnet.t.sol -vv
 ```
+
+## Mainnet-fork rehearsal (Phase 3 P2; no public broadcast)
+Everything below broadcasts **only to a local anvil fork** of 143. Each tool refuses a non-localhost URL or a node that does not answer `anvil_nodeInfo`.
+```bash
+anvil --fork-url $MONAD_RPC_URL --fork-block-number <N> --host 127.0.0.1 --port 8545 --code-size-limit 131072 &
+# anvil dev accounts carry mainnet EIP-7702 delegations (sweepers): clear them on the fork only
+for a in <dev #0..#9>; do cast rpc anvil_setCode $a 0x --rpc-url http://127.0.0.1:8545; done
+(cd ../keepers/ts-fallback && FORK_RPC_URL=http://127.0.0.1:8545 pnpm fork-pyth-relay &)  # real signed mainnet Pyth updates
+bash script/fork/rehearse-143.sh                         # DeployPulse, owner = FORK STAND-IN (dev #9) → deployments/dry-run/143-fork.json
+DEPLOYMENTS_FILE=dry-run/143-fork.json EXPECTED_OWNER=<stand-in> DEPLOYER_ADDRESS=<dev #0> KEEPER_ADDRESS=<dev #1> MM_ADDRESS=<dev #2> \
+  forge script script/VerifyDeployment.s.sol --rpc-url http://127.0.0.1:8545      # read-only, 44 checks
+# fund dev accounts with AUSD by impersonating a holder (fork only), then:
+forge script script/fork/SmokeFork143.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --slow --gas-estimate-multiplier 200
+```
+- **Gas multiplier:** forge simulates the whole deploy in one EVM session, so later one-shot setters are under-estimated. At ×1.20, `CH.setOrderBook` ran out of gas (limit 51,228) on the fork. ×2.00 passed (24 txs, 55.1 M gas limit, anvil-fork estimate). Monad bills the limit, so ×2 costs ≈ 2.8 MON more at 102 gwei than ×1. Use the same multiplier on mainnet day.
+- `VerifyDeployment.s.sol` is chain-agnostic and read-only. Use it on 143 after the real broadcast with `DEPLOYMENTS_FILE=143.json EXPECTED_OWNER=<Safe>`.
+- `deployments/dry-run/143-fork.json` carries `"fork": true` and a `_label`. Consumers must never treat it as a mainnet record.

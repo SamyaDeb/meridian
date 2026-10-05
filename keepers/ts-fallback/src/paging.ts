@@ -77,6 +77,7 @@ export function planPages(st: PagerState, alerts: Alert[], nowSec: number, cfg: 
 export type Channel =
   | { kind: "discord"; webhookUrl: string }
   | { kind: "telegram"; botToken: string; chatId: string }
+  | { kind: "local"; url: string }
   | { kind: "none" };
 
 /** Channel from env; a half-configured Telegram, or both channels at once, is an error (pick ONE). */
@@ -84,7 +85,17 @@ export function channelFromEnv(e: Record<string, string | undefined>): Channel {
   const d = e.PAGE_DISCORD_WEBHOOK_URL;
   const tok = e.PAGE_TELEGRAM_BOT_TOKEN;
   const chat = e.PAGE_TELEGRAM_CHAT_ID;
+  const local = e.PAGE_LOCAL_WEBHOOK_URL;
   if (d && (tok || chat)) throw new Error("configure ONE paging channel: Discord or Telegram, not both");
+  if (local) {
+    // REHEARSAL STAND-IN (Phase 3 P4): a localhost receiver (scripts/page-receiver.ts) proves an alert is delivered
+    // end to end without the team's real channel. Never on a public host; never together with a real channel.
+    if (d || tok || chat) throw new Error("PAGE_LOCAL_WEBHOOK_URL is a rehearsal stand-in: unset it when a real channel is configured");
+    if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/[\w./-]*)?$/.test(local)) {
+      throw new Error("PAGE_LOCAL_WEBHOOK_URL must be http://127.0.0.1 or http://localhost");
+    }
+    return { kind: "local", url: local };
+  }
   if (d) {
     if (!/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/.test(d)) {
       throw new Error("PAGE_DISCORD_WEBHOOK_URL is not a Discord webhook URL");
@@ -107,6 +118,7 @@ export interface HttpRequest {
 export function buildRequest(ch: Channel, text: string): HttpRequest | null {
   const cap = (n: number): string => (text.length <= n ? text : `${text.slice(0, n - 1)}…`);
   if (ch.kind === "discord") return { url: ch.webhookUrl, body: { content: cap(2_000) } };
+  if (ch.kind === "local") return { url: ch.url, body: { content: cap(2_000) } }; // Discord-shaped
   if (ch.kind === "telegram") {
     return { url: `https://api.telegram.org/bot${ch.botToken}/sendMessage`, body: { chat_id: ch.chatId, text: cap(4_000) } };
   }

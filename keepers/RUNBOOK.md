@@ -3,6 +3,7 @@
 Two processes per market: the **keeper** (`keepers/ts-fallback`: oracle pushes, funding pokes, liquidations, `/health`) and the **MM** (`mm-bot`: Avellaneda–Stoikov, 3 levels per side, kill switch). Testnet also has the labelled **MON-PERP-DEMO** test market (`MARKET=demo`), used only for the crash/liquidation demo.
 
 ## 1. Environment (`.env`, never committed)
+**The bots read only their process environment (no dotenv).** Give each process its own gitignored env file built from `keepers/143.env.example` (names only), with its own key and its own RPC endpoint, and load it in that process's shell with `set -a; source <file>; set +a`. To make sure nothing leaks in from your login shell, start each process with `env -i PATH="$PATH" HOME="$HOME" … pnpm start` (fork rehearsal, 5 Oct).
 | Var | Keeper | MM | Notes |
 |---|---|---|---|
 | `CHAIN_ID` | ✓ | ✓ | 10143 testnet, 143 mainnet, 31337 anvil |
@@ -33,7 +34,8 @@ Two processes per market: the **keeper** (`keepers/ts-fallback`: oracle pushes, 
 | `FULL_REFRESH_TICKS` | — | opt | default 20: `getOrder` on every resting id every N ticks (otherwise only ids a `Trade`/`OrderEvicted` log mentioned) |
 | `ESTIMATE_BLOCK_TAG` | — | opt | `pending` (default; anvil includes the block's first funding touch in every estimate) or `latest`. > VERIFY Monad's `eth_estimateGas` "pending" semantics; with `latest` the MM adds `TOUCH_ALLOWANCE_GAS` (default 60k) per tx |
 | `CONFLICT_BUFFER_GAS` | — | opt | default 45,000: added to a tx whose side an earlier tx of the batch wrote (capped at the old batch-max rule) |
-| `REQUOTE_BPS` / `LEVELS` / `LOTS_PER_LEVEL` | — | opt | index-move threshold (2), levels per side (3), lots (20). Budget runs: `LEVELS=1 REQUOTE_BPS=10` |
+| `REQUOTE_BPS` / `LEVELS` / `LOTS_PER_LEVEL` | — | opt | index-move threshold (2), levels per side (3), lots (20). Budget runs: `LEVELS=1 REQUOTE_BPS=10`. **`MARKET=swap`: the threshold is in APR bps, and the anchor (perp rate × YEAR before 8 h of history) moves up to δ·YEAR = 175 APR bps per block, so the default 2 requotes every block: 4,464 txs in 23 min on the fork ≈ 441 MON/h at 102 gwei on 1 s blocks. Set `REQUOTE_BPS=100` or more for the swap MM (§4c measurement)** |
+| `MAX_INVENTORY_LOTS` | — | opt | default 200 lots = 20,000 MON. Keep it **below `maxPositionSize` / lot (250 at the launch caps)**: past the cap the MM's asks are evicted when hit, and at its limit the MM quotes one side only (the book goes bid-only, the premium goes negative and funding heads to −cap). Never seed the MM's own inventory to the cap (fork rehearsal: a smoke left it at 25,000 MON) |
 | `RECOVER_LOOKBACK_BLOCKS` | — | opt | restart re-adoption scan (default 5,000; small on a fresh key) |
 | `SWAP_DUTIES` | opt | — | funding-swap duties run inside the MAIN keeper whenever deployments has `FundingSwapMarket` (`0` = off) |
 | `SWAP_FULL_EVERY_BLOCKS` | opt | — | default 10: read every tracked swap account every N blocks (changed and "hot" accounts, equity < 2·MM, every block) |
@@ -41,8 +43,10 @@ Two processes per market: the **keeper** (`keepers/ts-fallback`: oracle pushes, 
 | `SWAP_MARK_POKE_EVERY_BLOCKS` | opt | — | default 20 (= the contract's `MARK_MAX_ELAPSED_BLOCKS`); `0` = off. While any swap account is hot, `settle(keeper)` once per N blocks without other swap activity, so the bounded mark keeps converging (B-01, PHASES 18) |
 | `POLL_MS` | opt | opt | new-block polling interval: keeper 250 (sees every block), MM 250 × `TICK_EVERY_BLOCKS`. `eth_blockNumber` polling is the largest single RPC cost left |
 | `KILL_FILE` | — | opt | MM kill switch file |
+| `PAGE_LOCAL_WEBHOOK_URL` | watcher | — | **rehearsal stand-in only**: a localhost receiver (`pnpm page-receiver`) that proves pages are delivered. Refused together with a real channel; never set on mainnet day |
 
 ## 2. Start / stop
+**Order:** keeper → perp MM → swap MM → wait ≥ 30 s → watcher. A watcher started in the same second as the keeper pages `keeper_stalled` (no tick yet) and then `RESOLVED` 15 s later (fork rehearsal, 5 Oct).
 ```bash
 cd keepers/ts-fallback && pnpm start          # keeper (main market)
 MARKET=demo PRICE_FACTOR_FILE=/tmp/demo-factor HEALTH_PORT=8788 KEEPER_PK=… pnpm start   # demo keeper (other key)
@@ -75,6 +79,16 @@ Where the RPC went: keeper `eth_call` 229 → 95/min (account reads only on chan
 
 **RPC notes.** Alchemy free tier: `eth_getLogs` ≤ **10 blocks** (`LOG_SPAN=10`), bursts throttled (HTTP 429 / "HTTP request failed"). Public `https://testnet-rpc.monad.xyz`: ≤ 100 blocks, ~25 rps. Both bots now retry 429/5xx with capped exponential back-off + jitter (reads also after network errors; a send only after a 429, never after an ambiguous failure) and count everything (`rpcErrors`, `rpcRateLimited`). Give each bot its own endpoint/key. Never put a keyed RPC in the app's `NEXT_PUBLIC_*`.
 
+**Mainnet-fork rehearsal, 5 Oct** (anvil fork of 143 @ block 110,560,579, 1 s interval mining, idle vault; measured from blocks + receipts by `pnpm tx-cost`; gas price 102 gwei = `cast gas-price` on 143 at 21:17Z; **anvil-fork estimate, not Monad-metered**):
+| bot (config) | window | txs | Σ limit / Σ used | MON/h on the fork (1 s blocks) | Monad projection (300 ms blocks) |
+|---|---|---|---|---|---|
+| keeper (defaults, no Hermes key) | 23.2 min | 53 | 1.20 | 1.78 | ≈ 5.9 (funding pokes are per-block: × 3.33); + ≈ 0.9 with Hermes pushes (testnet feed-only, §11); testnet measured 9.2 at lag 6 |
+| perp MM (3 levels, `REQUOTE_BPS=2`) | 23.2 min | 300 | 2.10 | 21.3 (19.1 and 12.8 in the later 5 min windows) | ≈ 20–25 (requotes follow index moves, not blocks); testnet measured ≈ 24 |
+| swap MM (2 levels, **defaults**) | 23.2 min | 4,464 | 1.65 | **440.8** | ≈ 1,470: unaffordable |
+| swap MM, `REQUOTE_BPS=100` | 5.1 min | 564 | 1.74 | 273.5 | ≈ 910: unaffordable |
+| swap MM, `REQUOTE_BPS=1000 TICK_EVERY_BLOCKS=10` | 5.6 min | 100 | 1.84 | **47.6** | ≈ 158 at 10 blocks; **≈ 48 with `TICK_EVERY_BLOCKS=33`** (same ≈ 10 s cadence) |
+Launch settings for the swap MM (decision D13): `REQUOTE_BPS=1000 TICK_EVERY_BLOCKS=33`, and `LEVELS=1` to halve it again; the env file is `keepers/143.swap-mm.env.example`. **Guard:** on chain 143 the MM refuses `MARKET=swap` with `REQUOTE_BPS` < 1000 unless `ALLOW_HIGH_BURN=1` (`mm-bot/src/launch.ts`, test `launch.test.ts`). That's a projection, not a measurement. Re-measure in the first hour on 143 (`pnpm tx-cost`), and set the balance floors (§8) from the measured MON/h.
+
 ## 4b. Funding swaps (keeper, Phase 4)
 - **One process:** swap liquidations and `settleMaturity` are an extra step of the main keeper (shared tick, log scan, nonce, polling). The keeper key needs **collateral in the swap market** too (`FundingSwapMarket.depositFor(keeper, …)` from the deployer), since the liquidator takes over the position (and its K stream) and must pass IM. Without it, every swap liquidation reverts `InsufficientMargin` (`lastError`).
 - Accounts are tracked from `SwapPositionChanged` and kept after `newSize = 0` (a closed position at another APR keeps a K ≠ 0 locked-spread stream that can still be liquidated, MATH_SPEC §6.4). They're dropped only when a read shows size 0, no stream value, MM 0 and no collateral.
@@ -88,7 +102,9 @@ Where the RPC went: keeper `eth_call` 229 → 95/min (account reads only on chan
 - Quotes `SwapOrderBook` with `FundingSwapMarket` as the margin engine. The same A–S model runs in **absolute APR bps** around the anchor (MATH_SPEC §4): anchor = `realizedApr(8 h)` (8 h = 96,000 blocks at the CH's `blockTimeMs`). Until the perp has 8 h of checkpoints (`realizedApr` reverts), the anchor is the perp's current funding rate × YEAR, and the MM logs `anchor: perp current funding APR (no 8 h history yet)`. Price = 1 + APR, tick 1e14 = 1 bp; bid snaps ↓, ask ↑.
 - Inventory limit = swap `maxPositionSize × SWAP_INVENTORY_FRACTION_BPS` (default 80%); one-sided at the limits. σ comes from the anchor's own series (absolute changes, 8 h window), fallback `SWAP_SIGMA_BPS` = 1 APR bp/√s ⇒ δ ≈ 4.56 APR bps at the §4 defaults (the spec gives no APR-axis σ default; operator choice). `LEVEL_SPACING_BPS` is in APR bps here. `REQUOTE_BPS` compares the anchor in whole APR bps.
 - Kill switch, SIGINT drain and stale-oracle pull work as on the perp (the stale check uses the main perp oracle). **At maturity the MM pulls all quotes** (the market is reduce-only). The MM key needs collateral in the swap market (`FundingSwapMarket.depositFor(mm, …)`).
-- Start: `MARKET=swap MM_PK=<own key> LEVELS=2 LOTS_PER_LEVEL=3 KILL_FILE=/tmp/KILL-swap pnpm start` (1 lot = 1,000 MON).
+- **Anchor at or below −100% APR (price = 1 + APR ≤ 0):** no level can be priced, so the MM quotes nothing and the watcher pages `mm_empty` for the swap MM until the anchor recovers. This happens right after launch: the perp has no 8 h history, so the anchor is the perp's *current* rate × YEAR, which ranges over ±cap (±1,752% APR). On the fork it read −131% after a one-sided perp book. Before the fix (`mm-bot` `buildAprLadder`, 5 Oct), the ask side then sent tick 0 and every requote reverted `InvalidTick()` (`0xce8ef7fc`).
+- **Requote threshold:** `REQUOTE_BPS` is in APR bps here. Use **≥ 100** (see the `REQUOTE_BPS` row in §1 and the cost table in §4).
+- Start: `MARKET=swap MM_PK=<own key> LEVELS=2 LOTS_PER_LEVEL=3 REQUOTE_BPS=100 KILL_FILE=/tmp/KILL-swap pnpm start` (1 lot = 1,000 MON).
 
 ## 5. Kill switch (MM)
 `touch $KILL_FILE` → the MM cancels all its orders and stops quoting; `rm $KILL_FILE` → it quotes again on the next block. It also cancels everything by itself when the oracle is stale.
@@ -158,6 +174,27 @@ One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`,
 3. **Communicate:** status line in the app + the team channel: what is paused, what still works (withdrawals, closing), next update time. Write the timeline into `docs/standup/<you>.md`.
 4. **Resume:** `setPaused(false)` after the cause is fixed and the oracle is fresh; `rm $KILL_FILE`; watch `pnpm watch` for 30 min.
 
+## 10b. Seeding on 143 (rehearsed on the mainnet fork, 5 Oct)
+Permissionless, after `DeployPulse` and `VerifyDeployment` pass. Addresses come from `deployments/143.json` (`jq -r .contracts.<Name>`). AUSD has 6 dp (R9), so `1000000000` = 1,000 AUSD. **Approve exact amounts, never `max`, on mainnet.** Each line runs from the key named, in that process's own shell; gas limit = estimate × 1.2 (cast does this with `--gas-limit $(( $(cast estimate …) * 12 / 10 ))`).
+```bash
+A=$(jq -r .contracts.AUSD $D); IF=$(jq -r .contracts.InsuranceFund $D); CH=$(jq -r .contracts.ClearingHouse $D)
+SW=$(jq -r .contracts.FundingSwapMarket $D); V=$(jq -r .contracts.PulseVault $D)      # D=deployments/143.json
+# 1. insurance fund (any funded key; capital plan: 1–2k AUSD)
+cast send $A "approve(address,uint256)" $IF <amt>;  cast send $IF "fund(uint256)" <amt>
+# 2. keeper: perp collateral (it takes liquidated positions) + swap collateral (§4b)
+cast send $A "approve(address,uint256)" $CH <amt>;  cast send $CH "deposit(uint256)" <amt>          # keeper key
+cast send $A "approve(address,uint256)" $SW <amt>;  cast send $SW "deposit(uint256)" <amt>          # keeper key
+# 3. perp MM collateral (MM key = MM_ADDRESS, the registered skew provider); 4. swap MM collateral (swap MM key)
+cast send $A "approve(address,uint256)" $CH <amt>;  cast send $CH "deposit(uint256)" <amt>          # perp MM key
+cast send $A "approve(address,uint256)" $SW <amt>;  cast send $SW "deposit(uint256)" <amt>          # swap MM key
+# 5. vault (idle launch): total deposits ≤ depositCap 1,200 AUSD; maxDeposit(x) shows what is left
+cast send $A "approve(address,uint256)" $V <amt>;   cast send $V "deposit(uint256,address)" <amt> <receiver>
+# checks
+cast call $IF "balance()(uint256)"; cast call $CH "collateralOf(address)(int256)" <acct>; cast call $SW "collateralOf(address)(int256)" <acct>
+cast call $V "totalAssets()(uint256)"; cast call $V "maxDeposit(address)(uint256)" <any>          # 1,200 AUSD − deposits
+```
+Fork results with these calls (the keeper's swap collateral went in as `cast send $SW "depositFor(address,uint256)" <keeper> <amt>` from the deployer; both work): IF 1,500 AUSD; keeper 500 AUSD (CH) + 200 (swap); perp MM 3,000 (CH) + 1,000 (swap); swap MM 800 (swap); vault 1,000 AUSD with `maxDeposit` 200 left (the cap holds). The perp MM must start **flat** (no inventory) and stay under `MAX_INVENTORY_LOTS` (§1).
+
 ## 11. Lessons from Phases 3–4 (testnet, 30 Sep)
 - **Monad bills the gas limit, and its receipts report `gasUsed` = the limit** (also in `debug_traceTransaction`). Execution gas isn't observable; `eth_estimateGas` is the proxy. At the 100 gwei floor: keeper ≈ **9.2 MON/h** at lag 6 (67 pokes + 31 pushes in 6 min), feed-only ≈ 0.93 MON/h, MM ≈ 24 MON/h at 3 levels (the demo MM at 1 level burned 0.35 MON in ≈ 5 min). Per op (billed): place ≈ 231k, replace ≈ 210k, cancel ≈ 140k, perp liquidation ≈ 214k, swap place ≈ 472–485k, `settleMaturity` ≈ 239k, vault `enterHedge`/`rebalance` see standup A, feed push ≈ 54k, funding poke ≈ 108k (≈ 153k when it also writes a checkpoint).
 - **Oracle freshness on the main market:** the keeper-fed oracle stores the *source's* publish time (mainnet Pyth, often 20–30 s old at push time), so a heartbeat near `maxStaleness` (60 s) leaves stale windows. Keep `FEED_HEARTBEAT_SEC` ≤ 10 whenever anything trades. Budget runs with 40–50 s produced `OracleStale` reverts that looked like out-of-gas (`gasUsed == limit` on Monad for any failure). Replay the calldata at the parent block (`cast call --block N-1`) to see the real reason.
@@ -166,3 +203,9 @@ One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`,
 - **Liquidation latency on a free RPC:** 8 blocks after eligibility (estimate + send + receipt ≈ 3.2 s). The ≤ 3-block target needs the keeper on its own paid endpoint.
 - **Per-process keys** (nonces): a forge broadcast failed "EOA nonce changed" while another process used the deployer key, and forge had already written the deployments JSON during the simulation. Check `cast code` for every recorded address.
 - **Stop the MM only with SIGINT** and check `openOrderCount(mm) == 0`. Start bots from a directory that will still exist: `cast` panics ("could not determine project root") when its cwd was deleted, which silently killed a feeder loop.
+- **Fork rehearsal, 5 Oct (mainnet fork of 143, anvil, `docs/standup/PHASE3_LOOP.md` P4):**
+  - Anvil's public dev accounts carry **EIP-7702 delegations on Monad mainnet** (sweeper bots). On a fork, clear them with `anvil_setCode <addr> 0x`, and never use those keys on 143.
+  - A fork has no sponsored Pyth pushes and its clock follows wall time, so the adapter goes stale 60 s after the fork starts. `pnpm fork-pyth-relay` replays the real signed mainnet updates onto the fork.
+  - **One MM key = at most `maxPositionSize` of inventory** (25k MON). At the cap its asks are evicted, the book goes one-sided and funding swings toward −cap. With a stale bid wall left after an index move, the mark sits at index + 5% and liquidations wait (P3 crash demo).
+  - **The MM's inventory skew sets the published funding rate:** a sustained 1 bp premium is 87.6% APR (T = 3,600 s). With the perp MM short 10k MON (q = −0.5), its A–S reservation of +3.8 bps took the rate to ≈ +454% APR within 20 min. On launch day, start the MM flat and watch the realized APR.
+  - The deploy needs `--gas-estimate-multiplier 200`: ×1.20 ran `CH.setOrderBook` out of gas on the fork.

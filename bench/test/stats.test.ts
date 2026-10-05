@@ -15,6 +15,7 @@ describe("stats", () => {
   it("gas = estimate × 1.2 rounded up", () => {
     expect(gasLimitFor(100n)).toBe(120n);
     expect(gasLimitFor(7n)).toBe(9n);
+    expect(gasLimitFor(137_000n, 70_000n)).toBe(234_400n);
   });
   it("CSV rows carry network, commit, date and block time (BENCHMARKS_PLAN)", () => {
     const row = gasCsvRow({ op: "place", gasUsed: 68576n, gasLimit: 82292n, block: 12n, txHash: "0xab" }, { commit: "abc123", date: "2026-09-30", chainId: 10143, blockTimeMs: 300 });

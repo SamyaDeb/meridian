@@ -66,6 +66,18 @@ describe("channel + provider requests (shapes per provider docs)", () => {
   });
 });
 
+describe("local rehearsal channel (Phase 3 P4 stand-in)", () => {
+  it("localhost only, Discord-shaped body, never together with a real channel", () => {
+    const ch = channelFromEnv({ PAGE_LOCAL_WEBHOOK_URL: "http://127.0.0.1:8799/page" });
+    expect(ch).toEqual({ kind: "local", url: "http://127.0.0.1:8799/page" });
+    expect(buildRequest(ch, "x".repeat(2_500))!.body.content).toHaveLength(2_000);
+    expect(channelFromEnv({ PAGE_LOCAL_WEBHOOK_URL: "http://localhost:8799" }).kind).toBe("local");
+    expect(() => channelFromEnv({ PAGE_LOCAL_WEBHOOK_URL: "https://hooks.example.com/page" })).toThrow(/127\.0\.0\.1/);
+    expect(() => channelFromEnv({ PAGE_LOCAL_WEBHOOK_URL: "http://127.0.0.1.evil.com/page" })).toThrow();
+    expect(() => channelFromEnv({ PAGE_LOCAL_WEBHOOK_URL: "http://127.0.0.1:8799/page", PAGE_DISCORD_WEBHOOK_URL: DISCORD })).toThrow(/stand-in/);
+  });
+});
+
 describe("deliver", () => {
   it("2xx ok; errors reported with the secret redacted; a throw never escapes", async () => {
     const ch = channelFromEnv({ PAGE_TELEGRAM_BOT_TOKEN: "123:SECRET", PAGE_TELEGRAM_CHAT_ID: "1" });

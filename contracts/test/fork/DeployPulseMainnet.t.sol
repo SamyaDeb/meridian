@@ -11,7 +11,7 @@ import {InsuranceFund} from "../../src/clearing/InsuranceFund.sol";
 import {ClearingHouse} from "../../src/clearing/ClearingHouse.sol";
 
 /// @notice `DeployPulse` against a Monad MAINNET fork (chain 143) with the real `script/config/143.json`, patched only
-///         where the file is still open (owner = a test Safe stand-in, oracle.maxDeviationWad = a test value). Proves:
+///         where the file is still open (owner = a test Safe stand-in). Proves:
 ///         every Ownable ends with the owner (Safe), the deployer holds no role, the swap maturity is listing + 30 d,
 ///         the launch vault cap, and the mainnet refusals (no tAUSD, no demo market, no mocks, no keeper-fed oracle,
 ///         no deployer owner). Runs only with MONAD_RPC_URL (skips otherwise). Nothing is broadcast: forge test.
@@ -36,10 +36,10 @@ contract DeployPulseMainnetForkTest is Test {
         root = vm.projectRoot();
         base = vm.readFile(string.concat(root, "/script/config/143.json"));
         base = vm.replace(base, '"owner": null,', string.concat('"owner": "', vm.toString(SAFE), '",'));
-        base = vm.replace(base, '"maxDeviationWad": null', '"maxDeviationWad": "20000000000000000"');
     }
 
     function _env(string memory json, bool vault, bool swaps) internal {
+        vm.createDir(string.concat(root, "/script/config/tmp"), true); // gitignored: absent in a fresh checkout
         vm.writeFile(string.concat(root, "/script/config/", TMP), json);
         vm.setEnv("DEPLOY_CONFIG", TMP);
         vm.setEnv("DEPLOYER_PK", vm.toString(PK));
@@ -96,6 +96,8 @@ contract DeployPulseMainnetForkTest is Test {
         assertEq(v.skewProviders(0), mm);
         assertEq(KuruHedger(payable(d.hedger)).vault(), d.vault, "hedger wired once");
         assertEq(v.vaultParams().depositCap, 1200e6, "PHASES decision 12");
+        assertEq(v.vaultParams().skewCapacity, 0, "idle launch (PHASES decision 17)");
+        assertEq(v.shortCapacity(), 0, "idle vault cannot hedge");
         // MATH_SPEC §6.1: one 30-day contract from listing
         assertEq(FundingSwapMarket(d.swapMarket).maturity(), t0 + 30 days);
         // IF authorises both markets; CH is wired to its OB

@@ -87,6 +87,8 @@ export function buildAprLadder(p: AprLadderParams): { bids: Level[]; asks: Level
   }
   for (let i = 0; i < p.levels && p.q > -1; i++) {
     let t = aprBpsToTick(p.anchorAprBps + p.askBps + i * p.levelSpacingBps, p.tickSize, "ask");
+    // APR ≤ −100% ⇒ price ≤ 0 ⇒ tick 0, which the OrderBook rejects (InvalidTick); a wider level may still price > 0
+    if (t < 1) continue;
     if (i === 0 && innerBid !== 0 && t <= innerBid) t = innerBid + 1;
     if (t > 2 ** 24 - 1) break;
     if (!asks.some((a) => a.tick === t)) asks.push({ tick: t, lots: p.lotsPerLevel });

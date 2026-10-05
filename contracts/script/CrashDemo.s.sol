@@ -21,6 +21,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 ///   Local rehearsal (fork of the step-4 anvil, labelled "local fork"):
 ///     DEPLOYMENTS_OUT=anvil-10143.json forge script script/CrashDemo.s.sol --fork-url http://127.0.0.1:8546
 ///   Phase 5 (mainnet fork, disclosed on screen): same command with --fork-url $MONAD_RPC_URL and deployments/143.json.
+///   Phase 3 P3 (fork of the rehearsal anvil): DEPLOYMENTS_OUT=dry-run/143-fork.json CRASH_FUNDER=<holder of AUSD on the fork>.
 /// @dev Price move: a keeper-fed test oracle (testnet/local) is pushed by its owner (a feeder) inside the simulation;
 ///      any other oracle (mainnet Pyth adapter; the CH's oracle is immutable) is overridden with vm.mockCall ON THE
 ///      FORK ONLY. Refuses to run as a broadcast on any chain, so nothing here can ever reach 143.
@@ -80,6 +81,7 @@ contract CrashDemo is Script, StdCheats {
             }
             if (i == 1) {
                 _setPrice(p1); // one oracle update: −15%
+                _cancelStale(); // a second MM's bot pulls its quotes on the index move (optional, see below)
                 _requote(p1); // the MM follows the index (the mark is a median incl. the book mid)
                 pushed = true;
             } else if (pushed) {
@@ -105,21 +107,32 @@ contract CrashDemo is Script, StdCheats {
     ///      per side 3 ticks around the index inside the simulation, so the trader can open and the mark has a book mid.
     function _seedBookIfEmpty(uint256 p0) internal {
         uint32 t = uint32(p0 / ob.tickSize());
-        bool noBid = ob.bestBid() == 0;
-        bool noAsk = ob.bestAsk() == type(uint32).max || ob.bestAsk() == 0;
+        // CRASH_SEED_ALWAYS: also quote when the book is not empty but its makers cannot fill (P3 on the mainnet fork:
+        // the smoke left MM #2 short 25,000 MON = maxPositionSize, so its resting ask is evicted when hit)
+        bool always = vm.envOr("CRASH_SEED_ALWAYS", false);
+        bool noBid = always || ob.bestBid() == 0;
+        bool noAsk = always || ob.bestAsk() == type(uint32).max || ob.bestAsk() == 0;
         if (!noBid && !noAsk) return;
         vm.startPrank(mm);
         if (noAsk) ob.placeLimitOrder(false, t + 3, 60, 0);
         if (noBid) ob.placeLimitOrder(true, t - 3, 60, 0);
         vm.stopPrank();
-        console2.log("seeded an empty book as the MM (simulation only)");
+        console2.log("seeded the book as CRASH_MM (simulation only)");
     }
 
     /// @dev A fresh trader deposits 30 AUSD and buys ≈ 4.9x notional at the best ask (the imr 20% = 5x cap).
     function _openTrader(uint256 p0) internal returns (address trader) {
         trader = makeAddr("crash-trader");
         uint256 amt = 30e6;
-        deal(address(ausd), trader, amt);
+        // real AUSD (mainnet fork) defeats stdStorage's slot search, so `deal` reverts: CRASH_FUNDER (an account that
+        // holds AUSD on the fork) transfers it inside the simulation instead
+        address funder = vm.envOr("CRASH_FUNDER", address(0));
+        if (funder != address(0)) {
+            vm.prank(funder);
+            require(ausd.transfer(trader, amt), "CrashDemo: funder transfer failed");
+        } else {
+            deal(address(ausd), trader, amt);
+        }
         vm.startPrank(trader);
         ausd.approve(address(ch), amt);
         ch.deposit(amt);
@@ -162,6 +175,24 @@ contract CrashDemo is Script, StdCheats {
                 abi.encode(true, p, block.timestamp)
             );
         }
+    }
+
+    /// @dev CRASH_STALE_MAKER + CRASH_STALE_ORDERS (comma-separated ids): resting orders of another maker that its bot
+    ///      would cancel on the index move. Without it a stale wall at the old price keeps the book mid and the last
+    ///      trade there, so the mark sits at the +5% band edge (P3 finding on the mainnet fork, PHASE3_LOOP).
+    function _cancelStale() internal {
+        address maker = vm.envOr("CRASH_STALE_MAKER", address(0));
+        if (maker == address(0)) return;
+        uint256[] memory raw = vm.envUint("CRASH_STALE_ORDERS", ",");
+        uint256 n;
+        for (uint256 j; j < raw.length; ++j) {
+            // skip ids already filled or evicted (e.g. its capped ask, evicted by the trader's buy)
+            if (ob.getOrder(uint64(raw[j])).maker != maker) continue;
+            vm.prank(maker);
+            ob.cancelOrder(uint64(raw[j]));
+            ++n;
+        }
+        console2.log("stale maker cancelled its resting orders:", n);
     }
 
     function _requote(uint256 p) internal {

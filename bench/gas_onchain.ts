@@ -19,6 +19,7 @@ import {
   parseAbi,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { billedGasFromCsv, rpcTier } from "./src/dryrun.js";
 import { GAS_CSV_HEADER, type GasRow, gasCsvRow, gasLimitFor, meanBlockTimeMs, networkLabel, parseFoundryCsv } from "./src/stats.js";
 
 const need = (k: string): string => {
@@ -55,13 +56,33 @@ const chAbi = parseAbi([
 const erc20 = parseAbi(["function approve(address, uint256) returns (bool)", "function balanceOf(address) view returns (uint256)"]);
 
 const chain = defineChain({ id: CHAIN_ID, name: `pulse-${CHAIN_ID}`, nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 }, rpcUrls: { default: { http: [RPC_URL] } } });
-const account = privateKeyToAccount(need("BENCH_PK") as Hex, { nonceManager });
 const pub = createPublicClient({ chain, transport: http(RPC_URL) });
+
+// DRY_RUN=1 (Phase 3 P6): no key, no send. Checks the RPC's chain id and prints the planned txs and their projected MON
+// from measured billed gas (BILLED_CSV, default the 30 Sep testnet run). The RPC is named by tier, never by URL.
+if (process.env.DRY_RUN === "1") {
+  const rpcChain = await pub.getChainId();
+  if (rpcChain !== CHAIN_ID) throw new Error(`RPC chain id ${rpcChain} != CHAIN_ID ${CHAIN_ID}`);
+  const gasPrice = await pub.getGasPrice();
+  const billed = billedGasFromCsv(readFileSync(process.env.BILLED_CSV ?? `${HERE}out/gas_onchain_10143_2026-09-30.csv`, "utf8"));
+  // the same sequence as below: REPS × (place, replace, cancel), one match + one close, REPS × updateFunding
+  const plan: Array<[string, number]> = [["place", REPS], ["replace", REPS], ["cancel", REPS], ["match_1_fill", 1], ["close_1_fill", 1], ["funding_first_touch_tx", REPS]];
+  let gas = 0n;
+  for (const [op, n] of plan) gas += BigInt(n) * (billed.get(op) ?? 0n);
+  console.log(`DRY RUN (nothing sent): chain ${CHAIN_ID}, RPC tier ${rpcTier(RPC_URL)}, gas price ${gasPrice} wei, REPS ${REPS}`);
+  console.table(plan.map(([op, n]) => ({ op, txs: n, billedEach: String(billed.get(op) ?? "unmeasured") })));
+  console.log(`≈ ${Number((gas * gasPrice * 1000n) / 10n ** 18n) / 1000} MON for ${plan.reduce((a, [, n]) => a + n, 0)} txs, + up to 2 setup txs (approve, deposit: unmeasured)`);
+  process.exit(0);
+}
+
+const account = privateKeyToAccount(need("BENCH_PK") as Hex, { nonceManager });
 const wallet = createWalletClient({ chain, account, transport: http(RPC_URL) });
 const rows: GasRow[] = [];
+// "latest" estimates miss the block's first funding touch: add it on live chains (anvil estimates on pending)
+const TOUCH_ALLOWANCE_GAS = BigInt(process.env.TOUCH_ALLOWANCE_GAS ?? (CHAIN_ID === 31337 ? "0" : "70000"));
 
 async function send(op: string, to: Address, data: Hex) {
-  const gas = gasLimitFor(await pub.estimateGas({ account, to, data }));
+  const gas = gasLimitFor(await pub.estimateGas({ account, to, data }), TOUCH_ALLOWANCE_GAS);
   const hash = await wallet.sendTransaction({ to, data, gas });
   const r = await pub.waitForTransactionReceipt({ hash });
   if (r.status !== "success") throw new Error(`${op} reverted: ${hash}`);

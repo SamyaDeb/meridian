@@ -41,8 +41,13 @@ export function parseFoundryCsv(csv: string): Map<string, { gas: number; target:
 }
 
 /** Monad bills the gas limit (ARCHITECTURE R6): limit = ceil(estimate × 1.2). */
-export function gasLimitFor(estimate: bigint): bigint {
-  return (estimate * 12n + 9n) / 10n;
+/**
+ * Gas limit = ⌈estimate × 1.2⌉ + touchAllowance. Estimates against "latest" miss the block's first funding touch
+ * (≈ 70k, paid by whichever tx lands first in a block), so a tx sent on a live chain needs the allowance or it can run
+ * out of gas (10143, 5 Oct: replaceOrder used its whole 164,388 limit). Same rule as mm-bot TOUCH_ALLOWANCE_GAS.
+ */
+export function gasLimitFor(estimate: bigint, touchAllowance = 0n): bigint {
+  return (estimate * 12n + 9n) / 10n + touchAllowance;
 }
 
 export interface LoadResult {
