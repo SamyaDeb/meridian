@@ -15,7 +15,7 @@ export function BottomTabs() {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[430px] border-t border-border bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-20 lg:hidden mx-auto w-full max-w-[430px] border-t border-border bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
       <ul className="grid grid-cols-5">
         {TABS.map((t) => {

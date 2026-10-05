@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAccount, useConnect, usePublicClient, useWalletClient } from "wagmi";
 import type { PublicClient, WalletClient } from "viem";
 import { useWriteGate } from "./WriteGate";
+import { pushNotification } from "@/lib/notify";
 
 /** Connect: injected wallet (login decision pending) or, on anvil, the dev account connector. */
 export function ConnectButton() {
@@ -13,7 +14,7 @@ export function ConnectButton() {
   return (
     <div className="flex gap-2">
       {connectors.map((c) => (
-        <button key={c.uid} type="button" onClick={() => connect({ connector: c })} className="h-11 rounded-lg bg-surface-2 px-3 text-xs">
+        <button key={c.uid} type="button" onClick={() => connect({ connector: c })} className="inline-flex h-9 items-center whitespace-nowrap rounded-full bg-brand px-4 text-xs font-semibold text-on-brand hover:bg-brand-hover pointer-coarse:h-11">
           {c.type === "mock" ? "Dev account" : "Connect wallet"}
         </button>
       ))}
@@ -37,10 +38,19 @@ export function useTx() {
     setStatus(`${label}…`);
     try {
       const r = await fn(pub as PublicClient, wallet as WalletClient);
-      setStatus(`${label} ✓ block ${r.block} · gas ${r.gasUsed}/${r.gasLimit}`);
+      // block 0 = nothing was sent (a mocked client); never word it like an onchain confirmation
+      if (r.block === 0n) {
+        setStatus(`${label} ✓ (no transaction sent)`);
+        pushNotification("info", `${label}: done locally, no transaction sent`);
+      } else {
+        setStatus(`${label} ✓ block ${r.block} · gas ${r.gasUsed}/${r.gasLimit}`);
+        pushNotification("ok", `${label} confirmed in block ${r.block}`);
+      }
       await qc.invalidateQueries();
     } catch (e) {
-      setStatus(`${label} failed: ${(e instanceof Error ? e.message : String(e)).split("\n")[0]}`);
+      const msg = `${label} failed: ${(e instanceof Error ? e.message : String(e)).split("\n")[0]}`;
+      setStatus(msg);
+      pushNotification("error", msg);
     } finally {
       setBusy(false);
     }

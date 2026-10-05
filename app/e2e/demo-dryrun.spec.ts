@@ -10,7 +10,9 @@ const SHOTS = process.env.SHOTS_DIR ?? "e2e/screenshots";
 test("0:35 Trade: MON-PERP on testnet, per-block funding ticker", async ({ page }) => {
   await page.goto("/trade");
   await expect(page.getByText("monad testnet", { exact: false }).first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/block #\d+/)).toBeVisible({ timeout: 30_000 });
+  // the funding ticker (the navbar counter also shows the block since F1)
+  await expect(page.getByTestId("funding-ticker").getByText(/block #\d+/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("block-counter")).toHaveAttribute("data-state", "live", { timeout: 30_000 });
   await page.screenshot({ path: `${SHOTS}/demo-trade.png`, fullPage: true });
 });
 

@@ -7,14 +7,18 @@ import { expect, test } from "@playwright/test";
 test("terms gate: first write asks, cancel keeps the tx from running, footer links to /terms", async ({ page }) => {
   await page.goto("/trade");
   await page.getByRole("button", { name: "Dev account" }).click();
-  await page.getByLabel("Deposit amount").fill("1");
-  await page.getByRole("button", { name: "Deposit AUSD" }).click();
-  const gate = page.getByRole("dialog");
+  // F2: deposit is a dialog opened from the ticket; the gate stacks on top of it (both native modal dialogs)
+  await page.getByRole("button", { name: "Deposit", exact: true }).click();
+  const funds = page.getByRole("dialog", { name: "Deposit AUSD" });
+  await funds.getByLabel("Deposit amount").fill("1");
+  await funds.getByRole("button", { name: "Deposit AUSD" }).click();
+  const gate = page.getByRole("dialog").filter({ hasText: "Before your first transaction" });
   await expect(gate).toContainText("Before your first transaction");
   await expect(gate.getByRole("button", { name: "Accept" })).toBeDisabled();
   await gate.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByTestId("tx-status")).toContainText("cancelled");
-  await page.getByRole("link", { name: "Terms & risks" }).click();
+  await expect(funds.getByTestId("tx-status")).toContainText("cancelled");
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "Terms & risks" }).first().click();
   await expect(page.getByRole("heading", { name: "Terms of use and risk disclosure" })).toBeVisible();
 });
 
@@ -32,6 +36,6 @@ test("geoblock: other countries are unaffected", async ({ browser }) => {
   const ctx = await browser.newContext({ extraHTTPHeaders: { "x-test-country": "ZZ" }, viewport: { width: 390, height: 844 } });
   const page = await ctx.newPage();
   await page.goto("/trade");
-  await expect(page.getByRole("button", { name: "Deposit AUSD" })).toBeVisible();
+  await expect(page.getByTestId("place-order")).toBeVisible();
   await ctx.close();
 });

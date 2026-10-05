@@ -319,3 +319,44 @@ export function protocolStats(head: bigint): ProtocolStats {
     keeperReportFailures: 0,
   };
 }
+
+/** Mock risk params: the launch ratios the UI already assumes (units.ts); fees are mock-only values. */
+export function riskParams(): import("../types").RiskParamsView {
+  return {
+    imr: 2n * 10n ** 17n,
+    mmr: 10n ** 17n,
+    takerFee: 5n * 10n ** 14n,
+    makerFee: 0n,
+    liqPenalty: 10n ** 16n,
+    maxOpenInterest: 10_000_000n * WAD,
+    maxPositionSize: 1_000_000n * WAD,
+  };
+}
+
+/** Mock getAccount derived from the mock position with the same formulas the contract uses (MATH_SPEC §1.4, §3.2). */
+export function accountView(head: bigint, account: Address): import("../types").AccountSummary | undefined {
+  const p = positions(head, account)[0];
+  if (!p) return undefined;
+  const m = market(head);
+  const r = riskParams();
+  const absSize = p.size < 0n ? -p.size : p.size;
+  const upnl = (p.size * m.lastMarkPrice) / WAD - p.openNotional;
+  const prod = p.size * (m.lastCumFunding - p.lastCumFunding);
+  const pending = prod / WAD + (prod % WAD !== 0n && prod > 0n ? 1n : 0n); // ceil
+  const notional = (absSize * m.lastMarkPrice) / WAD;
+  const mm = (notional * r.mmr) / WAD;
+  const equity = p.collateralWad + upnl - pending;
+  return {
+    collateral: p.collateralWad,
+    size: p.size,
+    entryPrice: p.entryPrice,
+    unrealizedPnl: upnl,
+    pendingFunding: pending,
+    equity,
+    initialMargin: (notional * r.imr) / WAD + p.reservedOrderMargin,
+    maintenanceMargin: mm,
+    reservedOrderMargin: p.reservedOrderMargin,
+    liquidationPrice: 0n,
+    liquidatable: equity < mm,
+  };
+}

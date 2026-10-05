@@ -2,6 +2,8 @@
 import type {
   Address,
   AccountMarket,
+  AccountSummary,
+  RiskParamsView,
   Candle,
   DepthLevel,
   FundingTick,
@@ -24,6 +26,9 @@ export interface PulseDataSource {
   trades(limit: number): Promise<Trade[]>;
   depth(levels: number): Promise<{ bids: DepthLevel[]; asks: DepthLevel[] }>;
   positions(account: Address): Promise<AccountMarket[]>;
+  /** Live account view (getAccount); undefined when the account has never touched the market. */
+  accountView(account: Address): Promise<AccountSummary | undefined>;
+  riskParams(): Promise<RiskParamsView>;
   vault(): Promise<Vault>;
   vaultSnapshots(limit: number): Promise<VaultSnapshot[]>;
   vaultUser(account: Address): Promise<VaultUser | undefined>;

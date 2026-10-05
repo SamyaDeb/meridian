@@ -1,14 +1,18 @@
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Inter_Tight } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { BottomTabs } from "@/components/BottomTabs";
-import { TopBar } from "@/components/TopBar";
+import { NavBar } from "@/components/nav/NavBar";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import Link from "next/link";
+import { Shell } from "@/components/Shell";
+import { Toaster } from "@/components/Toaster";
+import { CommandPalette } from "@/components/CommandPalette";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+// Inter Tight = landing-page parity (UI); Geist Mono = tabular numbers.
+const interTight = Inter_Tight({ variable: "--font-inter-tight", subsets: ["latin", "latin-ext"], weight: ["400", "500", "600", "700"], display: "swap" });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -20,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0b10",
+  themeColor: "#050507", // = --bg in globals.css (metadata needs a literal)
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -28,21 +32,28 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${interTight.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-bg font-sans text-text">
         <Providers>
-          {/* 390×844 first; centered column on larger screens */}
-          <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col">
-            <TopBar />
-            <main className="flex-1 px-4 pb-[calc(76px+env(safe-area-inset-bottom))] pt-2">
-              {children}
-              <footer className="mt-6 flex justify-center gap-4 text-[11px] text-muted">
-                <Link href="/terms" className="inline-flex min-h-11 items-center underline">
-                  Terms &amp; risks
-                </Link>
-              </footer>
+          {/* 390×844 first; phone column centred on larger screens, desktop container on wide routes (Shell) */}
+          <div className="flex min-h-dvh w-full flex-col">
+            <NavBar />
+            <main className="flex-1 px-4 pb-[calc(76px+env(safe-area-inset-bottom))] pt-2 lg:px-2 lg:pb-6">
+              <Shell
+                footer={
+                  <footer className="mt-6 flex justify-center gap-4 text-[11px] text-muted">
+                    <Link href="/terms" className="inline-flex min-h-11 items-center underline">
+                      Terms &amp; risks
+                    </Link>
+                  </footer>
+                }
+              >
+                {children}
+              </Shell>
             </main>
             <BottomTabs />
+            <Toaster />
+            <CommandPalette />
           </div>
         </Providers>
         <ServiceWorker />

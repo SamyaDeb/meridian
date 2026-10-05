@@ -19,7 +19,9 @@ export type ContractKey =
   | "MarketFactory"
   | "FundingSwapMarket"
   | "SwapOrderBook"
-  | "PulseKeeperReceiver";
+  | "PulseKeeperReceiver"
+  /** CR-012 (Proposed): present only once the trigger manager is deployed; the trigger UI is hidden without it */
+  | "TriggerOrderManager";
 
 /** A second perp market that exists only for the crash/liquidation demo; the UI must label it "test market". */
 export interface TestMarket {

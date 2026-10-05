@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useChainId, usePublicClient } from "wagmi";
 import { useAccountAddress, useMarket, useSwap } from "@/data/hooks";
-import { Card, Row, Skeleton, toneOf } from "@/components/ui";
+import { Row, toneOf } from "@/components/ui";
+import { Button, Card, Chip, Notice, Skeleton } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
 import { contractAddress } from "@/config/deployments";
 import { orderBookAbi } from "@/lib/abi";
 import { closeOrder, marketLimitTick, swapAprToTick, swapTickToAprWad } from "@/lib/earnfix";
-import { formatAprWad, formatAusdWad, formatDuration, formatFixed, formatSignedAusdWad, parseFixed } from "@/lib/format";
+import { formatAprWad, formatAusdWad, formatBaseWad, formatDuration, formatFixed, formatSignedAusdWad, parseFixed } from "@/lib/format";
 
 /** Per-block accrual on small notionals is ~1e-8 AUSD: show 8 dp so it visibly ticks. */
 const fmtAccrual = (wad: bigint): string => `${wad < 0n ? "−" : wad > 0n ? "+" : ""}${formatFixed(wad < 0n ? -wad : wad, 18, 8)}`;
@@ -91,9 +92,14 @@ export default function FixPage() {
     });
 
   return (
-    <div className="space-y-3">
-      <h1 className="text-xl font-semibold">Fix your funding</h1>
-      <Card>
+    <div className="space-y-2">
+      <header className="px-1 pt-1">
+        <h1 className="text-xl font-semibold">Fix your funding</h1>
+        <p className="text-xs text-muted">Funding swaps: trade the per-block floating rate for a fixed APR until maturity.</p>
+      </header>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="min-w-0 space-y-2">
+      <Card title="Swap market" right={swap ? <Chip tone={matured ? "warn" : "brand"}>{matured ? "matured" : "open"}</Chip> : undefined}>
         {!swap || !m ? (
           // same height as the loaded card at 390 px (stats + order entry), so the margin card doesn't jump (CLS)
           <Skeleton className="h-[376px] w-full" />
@@ -123,30 +129,30 @@ export default function FixPage() {
                     : "—"
                 }
               />
-              <Row label="Open interest" value={`${(Number(swap.stats.openInterestWad) / 1e21).toFixed(1)}k MON`} />
+              <Row label="Open interest" value={`${formatBaseWad(swap.stats.openInterestWad, 0)} MON`} />
             </div>
             <div className="mt-3 flex items-center gap-2">
               <label htmlFor="swap-lots" className="text-xs text-muted">
                 Size (lots of {SWAP_LOT_MON.toString()} MON)
               </label>
-              <input id="swap-lots" inputMode="numeric" value={lots} onChange={(e) => setLots(e.target.value)} className="num h-11 w-20 rounded-lg bg-surface-2 px-3 text-sm" />
+              <input id="swap-lots" inputMode="numeric" value={lots} onChange={(e) => setLots(e.target.value)} className="num h-11 w-20 rounded-control bg-card-2 px-3 text-sm" />
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <button type="button" disabled={!isConnected || matured || tx.busy || !book?.bestAsk} onClick={() => order(true, "market")} className="h-12 rounded-xl bg-long/80 text-sm font-semibold text-bg disabled:opacity-60">
+              <Button variant="long" size="lg" disabled={!isConnected || matured || tx.busy || !book?.bestAsk} onClick={() => order(true, "market")}>
                 Pay fixed {book?.bestAsk ? formatAprWad(swapTickToAprWad(book.bestAsk, SWAP_TICK)) : ""}
-              </button>
-              <button type="button" disabled={!isConnected || matured || tx.busy || !book?.bestBid} onClick={() => order(false, "market")} className="h-12 rounded-xl bg-short/80 text-sm font-semibold text-bg disabled:opacity-60">
+              </Button>
+              <Button variant="short" size="lg" disabled={!isConnected || matured || tx.busy || !book?.bestBid} onClick={() => order(false, "market")}>
                 Receive fixed {book?.bestBid ? formatAprWad(swapTickToAprWad(book.bestBid, SWAP_TICK)) : ""}
-              </button>
+              </Button>
             </div>
             <div className="mt-2 flex gap-2">
-              <input aria-label="Limit fixed APR (%)" inputMode="decimal" placeholder="Limit APR %" value={limitApr} onChange={(e) => setLimitApr(e.target.value)} className="num h-11 min-w-0 flex-1 rounded-lg bg-surface-2 px-3 text-sm" />
-              <button type="button" disabled={!isConnected || matured || tx.busy} onClick={() => order(true, "limit")} className="h-11 rounded-lg bg-surface-2 px-3 text-xs">
+              <input aria-label="Limit fixed APR (%)" inputMode="decimal" placeholder="Limit APR %" value={limitApr} onChange={(e) => setLimitApr(e.target.value)} className="num h-11 min-w-0 flex-1 rounded-control bg-card-2 px-3 text-sm" />
+              <Button disabled={!isConnected || matured || tx.busy} onClick={() => order(true, "limit")}>
                 Bid
-              </button>
-              <button type="button" disabled={!isConnected || matured || tx.busy} onClick={() => order(false, "limit")} className="h-11 rounded-lg bg-surface-2 px-3 text-xs">
+              </Button>
+              <Button disabled={!isConnected || matured || tx.busy} onClick={() => order(false, "limit")}>
                 Offer
-              </button>
+              </Button>
             </div>
             <p className="mt-2 text-[11px] text-muted">Pay fixed = receive the floating MON-PERP funding: a long perp&apos;s funding cost becomes fixed.</p>
           </>
@@ -165,7 +171,7 @@ export default function FixPage() {
             ) : (
               <>
                 <Row label="Side" value={pos.size > 0n ? "Pay fixed (long)" : "Receive fixed (short)"} />
-                <Row label="Size" value={`${(Number(pos.size < 0n ? -pos.size : pos.size) / 1e18).toLocaleString()} MON`} />
+                <Row label="Size" value={`${formatBaseWad(pos.size < 0n ? -pos.size : pos.size, 0)} MON`} />
                 <Row label="Your fixed APR" value={pos.avgFixedAprWad === undefined ? "—" : formatAprWad(pos.avgFixedAprWad)} />
                 <Row label="Accrued net (unsettled)" value={<span data-testid="swap-accrued">{fmtAccrual(pos.netAccrued)}</span>} tone={toneOf(pos.netAccrued)} />
                 <Row label="Value to maturity" value={formatSignedAusdWad(value)} tone={toneOf(value)} />
@@ -173,30 +179,35 @@ export default function FixPage() {
             );
           })()}
           {pos.size !== 0n && (
-            <button type="button" disabled={!isConnected || tx.busy} onClick={close} className="mt-2 h-12 w-full rounded-xl bg-surface-2 font-semibold disabled:opacity-60">
+            <Button size="lg" block className="mt-2" disabled={!isConnected || tx.busy} onClick={close}>
               Close (reduce-only)
-            </button>
+            </Button>
           )}
         </Card>
       )}
 
-      <Card title="Swap margin">
+      </div>
+      <Card title="Swap margin" className="h-fit">
         <Row label="Collateral" value={pos ? `${formatAusdWad(pos.collateralWad)} AUSD` : "—"} />
         <div className="mt-2 flex gap-2">
-          <input aria-label="Swap collateral amount" inputMode="decimal" value={collat} onChange={(e) => setCollat(e.target.value)} className="num h-12 min-w-0 flex-1 rounded-xl bg-surface-2 px-3 text-sm" />
-          <button type="button" disabled={!isConnected || !swapMarket || tx.busy} onClick={() => moveCollateral("deposit")} className="h-12 rounded-xl bg-accent px-4 text-sm font-semibold text-bg disabled:opacity-60">
+          <input aria-label="Swap collateral amount" inputMode="decimal" value={collat} onChange={(e) => setCollat(e.target.value)} className="num h-12 min-w-0 flex-1 rounded-control bg-card-2 px-3 text-sm" />
+          <Button variant="brand" size="lg" disabled={!isConnected || !swapMarket || tx.busy} onClick={() => moveCollateral("deposit")}>
             Deposit
-          </button>
-          <button type="button" disabled={!isConnected || !swapMarket || tx.busy} onClick={() => moveCollateral("withdraw")} className="h-12 rounded-xl bg-surface-2 px-4 text-sm disabled:opacity-60">
+          </Button>
+          <Button size="lg" disabled={!isConnected || !swapMarket || tx.busy} onClick={() => moveCollateral("withdraw")}>
             Withdraw
-          </button>
+          </Button>
         </div>
+        <p className="mt-2 text-[11px] text-muted">Swap margin is separate from the perp account (same AUSD units).</p>
         {tx.status && (
-          <p className="num mt-2 break-all text-[11px] text-muted" data-testid="tx-status">
-            {tx.status}
-          </p>
+          <Notice tone={tx.status.includes("failed") ? "danger" : "info"} className="mt-2">
+            <span className="num break-all" data-testid="tx-status">
+              {tx.status}
+            </span>
+          </Notice>
         )}
       </Card>
+      </div>
     </div>
   );
 }

@@ -13,3 +13,6 @@ export const PERP_TICK_SIZE_WAD = 10n ** 12n;
 export const PERP_LOT_SIZE_WAD = 100n * WAD;
 /** Default interest floor 10.95% APR (MATH_SPEC §1.3); vault earns when funding > ~15.6% APR (lane brief). */
 export const INTEREST_FLOOR_APR_WAD = 1095n * 10n ** 14n;
+/** PulseConstants (PulseTypes.sol): batch cap for cancelOrders / getDepth, open-order cap per account. */
+export const MAX_BATCH = 32;
+export const MAX_OPEN_ORDERS_PER_ACCOUNT = 64;

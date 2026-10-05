@@ -224,3 +224,32 @@ export interface SwapMarketInfo {
   /** chain source: the swap OrderBook (orders go there) */
   orderBook?: Address;
 }
+
+/** IClearingHouse.getAccount (AccountView), all quote/base WAD. Live, exact: pending funding at mark included. */
+export interface AccountSummary {
+  collateral: bigint;
+  size: bigint;
+  entryPrice: bigint;
+  unrealizedPnl: bigint;
+  /** + = the account owes, − = is owed */
+  pendingFunding: bigint;
+  equity: bigint;
+  initialMargin: bigint;
+  maintenanceMargin: bigint;
+  reservedOrderMargin: bigint;
+  /** 0 = flat / not computable */
+  liquidationPrice: bigint;
+  liquidatable: boolean;
+}
+
+/** IClearingHouse.riskParams (RiskParams), WAD fractions / base WAD caps. */
+export interface RiskParamsView {
+  imr: bigint;
+  mmr: bigint;
+  takerFee: bigint;
+  /** negative = rebate */
+  makerFee: bigint;
+  liqPenalty: bigint;
+  maxOpenInterest: bigint;
+  maxPositionSize: bigint;
+}

@@ -1,18 +1,7 @@
 import type { ReactNode } from "react";
 
-export function Card({ title, right, children, className = "" }: { title?: ReactNode; right?: ReactNode; children: ReactNode; className?: string }) {
-  return (
-    <section className={`rounded-2xl border border-border bg-surface p-4 ${className}`}>
-      {(title || right) && (
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-medium text-muted">{title}</h2>
-          {right}
-        </div>
-      )}
-      {children}
-    </section>
-  );
-}
+// Card and Skeleton live in the design system now; re-exported so existing screens keep their imports.
+export { Card, Skeleton } from "./ds";
 
 export function Stat({ label, value, sub, tone }: { label: ReactNode; value: ReactNode; sub?: ReactNode; tone?: "long" | "short" | "warn" }) {
   const color = tone === "long" ? "text-long" : tone === "short" ? "text-short" : tone === "warn" ? "text-warn" : "text-text";
@@ -33,10 +22,6 @@ export function Row({ label, value, tone }: { label: ReactNode; value: ReactNode
       <span className={`num ${color}`}>{value}</span>
     </div>
   );
-}
-
-export function Skeleton({ className = "h-5 w-24" }: { className?: string }) {
-  return <span className={`inline-block animate-pulse rounded bg-surface-2 ${className}`} />;
 }
 
 export const toneOf = (x: bigint): "long" | "short" | undefined => (x > 0n ? "long" : x < 0n ? "short" : undefined);

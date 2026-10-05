@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { TERMS_STATUS, TERMS_SUMMARY } from "@/content/terms";
 import { isGeoRestricted } from "@/lib/geo";
 import { isAccepted, readAcceptance, writeAcceptance } from "@/lib/terms";
@@ -20,6 +20,15 @@ export function WriteGateProvider({ children }: { children: ReactNode }) {
   const [checked, setChecked] = useState(false);
   const acceptedThisSession = useRef(false);
   const pending = useRef<((ok: boolean) => void) | null>(null);
+  // Native modal <dialog>: it joins the top layer above any other open modal (e.g. the deposit dialog), traps focus
+  // and makes the page inert; a fixed div would sit underneath another modal and be unclickable.
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (dialog && !d.open) d.showModal();
+    if (!dialog && d.open) d.close();
+  }, [dialog]);
 
   const ensure = useCallback(async () => {
     if (isGeoRestricted(typeof document === "undefined" ? undefined : document.cookie)) {
@@ -47,9 +56,17 @@ export function WriteGateProvider({ children }: { children: ReactNode }) {
   return (
     <GateContext.Provider value={{ ensure }}>
       {children}
+      <dialog
+        ref={ref}
+        aria-labelledby="gate-title"
+        onCancel={(e) => {
+          e.preventDefault();
+          close(false);
+        }}
+        className="m-0 mt-auto w-full max-w-none bg-transparent p-0 text-text backdrop:bg-black/60 sm:m-auto sm:max-w-[430px]"
+      >
       {dialog && (
-        <div role="dialog" aria-modal="true" aria-labelledby="gate-title" className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
-          <div className="max-h-[85dvh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl border border-border bg-surface p-4 pb-[calc(16px+env(safe-area-inset-bottom))] sm:rounded-2xl">
+          <div className="max-h-[85dvh] w-full overflow-y-auto rounded-t-card border border-border bg-card p-4 pb-[calc(16px+env(safe-area-inset-bottom))] card-elev sm:rounded-card">
             {dialog === "restricted" ? (
               <>
                 <h2 id="gate-title" className="text-base font-semibold">Not available in your region</h2>
@@ -84,8 +101,8 @@ export function WriteGateProvider({ children }: { children: ReactNode }) {
               </>
             )}
           </div>
-        </div>
       )}
+      </dialog>
     </GateContext.Provider>
   );
 }

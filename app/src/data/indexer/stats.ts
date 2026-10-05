@@ -29,14 +29,14 @@ export interface IndexerStats {
 type Raw = Record<string, unknown>;
 
 /** Hasura returns numeric columns as strings or numbers; anything else is a schema mismatch, not a zero. */
-function big(v: unknown, field: string): bigint {
+export function big(v: unknown, field: string): bigint {
   if (typeof v === "string" && /^-?\d+$/.test(v)) return BigInt(v);
   if (typeof v === "number" && Number.isSafeInteger(v)) return BigInt(v);
   if (typeof v === "bigint") return v;
   throw new Error(`indexer: bad ${field}`);
 }
-const optBig = (v: unknown, field: string) => (v === null || v === undefined ? undefined : big(v, field));
-const int = (v: unknown, field: string) => Number(big(v, field));
+export const optBig = (v: unknown, field: string) => (v === null || v === undefined ? undefined : big(v, field));
+export const int = (v: unknown, field: string) => Number(big(v, field));
 
 /** Pure: GraphQL `data` → IndexerStats. Throws on a missing/garbled ProtocolStats (the UI then says "unavailable"). */
 export function parseIndexerStats(data: unknown): IndexerStats {
@@ -77,15 +77,20 @@ export function mmShareBps(totalWad: bigint, mmWad: bigint): number {
   return Number((mmWad * 10_000n) / totalWad);
 }
 
-export async function fetchIndexerStats(url: string, signal?: AbortSignal): Promise<IndexerStats> {
+/** POST a GraphQL query to the indexer; returns `data` or throws (HTTP error, GraphQL error). */
+export async function postGql(url: string, query: string, variables: Record<string, unknown> | undefined, signal?: AbortSignal): Promise<unknown> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ query: STATS_QUERY }),
+    body: JSON.stringify(variables ? { query, variables } : { query }),
     signal,
   });
   if (!res.ok) throw new Error(`indexer: HTTP ${res.status}`);
   const body = (await res.json()) as { data?: unknown; errors?: { message: string }[] };
   if (body.errors?.length) throw new Error(`indexer: ${body.errors[0]!.message}`);
-  return parseIndexerStats(body.data);
+  return body.data;
+}
+
+export async function fetchIndexerStats(url: string, signal?: AbortSignal): Promise<IndexerStats> {
+  return parseIndexerStats(await postGql(url, STATS_QUERY, undefined, signal));
 }

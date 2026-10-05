@@ -6,7 +6,7 @@ import { snapshotsFromLogs, swapPositionFromViews } from "@/lib/earnfix";
 import { rateToAprWad, vaultApyWad } from "@/lib/math";
 import { SECONDS_PER_YEAR } from "@/lib/units";
 import type { PulseDataSource } from "../source";
-import type { AccountMarket, Address, FundingTick, Market, SwapMarketInfo, SwapPosition, SwapStats, Trade, Vault, VaultSnapshot, VaultUser } from "../types";
+import type { AccountMarket, AccountSummary, Address, FundingTick, Market, RiskParamsView, SwapMarketInfo, SwapPosition, SwapStats, Trade, Vault, VaultSnapshot, VaultUser } from "../types";
 
 export interface ChainAddresses {
   chainId: number;
@@ -28,10 +28,21 @@ export interface OpenOrder {
   tick: number;
   priceWad: bigint;
   lots: bigint;
+  /** placement flags (post-only 1, IOC 2, reduce-only 4), from OrderPlaced; replaceOrder keeps them */
+  flags: number;
+  placedBlock: bigint;
+}
+
+/** One FundingSettled event: + = the account paid, − = received (quote WAD). */
+export interface FundingSettlement {
+  block: bigint;
+  payment: bigint;
 }
 
 export interface ChainSource extends PulseDataSource {
   openOrders(account: Address): Promise<OpenOrder[]>;
+  /** FundingSettled of `account` over the log lookback window (newest first) and the window's first block. */
+  fundingSettlements(account: Address): Promise<{ fromBlock: bigint; items: FundingSettlement[] }>;
 }
 
 const LOG_LOOKBACK = 2_000n; // default blocks scanned for trades / ticks / orders (anvil or a paid RPC)
@@ -217,8 +228,19 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     const views = await Promise.all(placed.map((l) => client.readContract({ ...ob, functionName: "getOrder", args: [l.args.orderId] })));
     return placed.flatMap((l, i) => {
       const o = views[i]!;
-      return o.remainingLots === 0n ? [] : [{ id: l.args.orderId, isBid: o.isBid, tick: o.tick, priceWad: BigInt(o.tick) * tick, lots: o.remainingLots }];
+      return o.remainingLots === 0n ? [] : [{ id: l.args.orderId, isBid: o.isBid, tick: o.tick, priceWad: BigInt(o.tick) * tick, lots: o.remainingLots, flags: l.args.flags, placedBlock: o.placedBlock }];
     });
+  }
+
+  async function fundingSettlements(account: Address) {
+    const head = await client.getBlockNumber();
+    const logs = await recent((fromBlock, toBlock) =>
+      client.getContractEvents({ ...ch, eventName: "FundingSettled", args: { account }, fromBlock, toBlock, strict: true }),
+    );
+    return {
+      fromBlock: head > lookback ? head - lookback : 0n,
+      items: logs.map((l) => ({ block: l.blockNumber, payment: l.args.payment })).reverse(),
+    };
   }
 
   // ─── vault (PulseVault) ───
@@ -340,15 +362,30 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     return [swapPositionFromViews(sw.address, account, p, v, head)];
   }
 
+  async function accountView(account: Address): Promise<AccountSummary | undefined> {
+    const v = await client.readContract({ ...ch, functionName: "getAccount", args: [account] });
+    if (v.collateral === 0n && v.size === 0n && v.reservedOrderMargin === 0n) return undefined;
+    return { ...v };
+  }
+  async function riskParams(): Promise<RiskParamsView> {
+    const r = await client.readContract({ ...ch, functionName: "riskParams" });
+    return { imr: r.imr, mmr: r.mmr, takerFee: r.takerFee, makerFee: r.makerFee, liqPenalty: r.liqPenalty, maxOpenInterest: r.maxOpenInterest, maxPositionSize: r.maxPositionSize };
+  }
+
   return {
     ...fallback,
     kind: "chain",
+    // candles come from the indexer only (data/indexer/candles.ts): never the mock's candles in chain mode
+    candles1m: async () => [],
+    accountView,
+    riskParams,
     market,
     fundingTicks,
     trades,
     depth,
     positions,
     openOrders,
+    fundingSettlements,
     vault,
     vaultSnapshots,
     vaultUser,

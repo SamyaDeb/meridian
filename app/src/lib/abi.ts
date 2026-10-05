@@ -29,6 +29,8 @@ export const orderBookAbi = parseAbi([
   "function placeLimitOrder(bool isBid, uint32 tick, uint64 lots, uint8 flags) returns (uint64 orderId, uint64 filledLots)",
   "function placeMarketOrder(bool isBid, uint64 lots, uint32 limitTick, uint64 minFilledLots, bool reduceOnly) returns (uint64 filledLots, uint256 avgPriceWad)",
   "function cancelOrder(uint64 orderId)",
+  "function cancelOrders(uint64[] orderIds)",
+  "function replaceOrder(uint64 orderId, uint32 newTick, uint64 newLots, uint8 flags) returns (uint64 newOrderId, uint64 filledLots)",
   "function getOrder(uint64 orderId) view returns (OrderView)",
   "function getDepth(bool isBid, uint256 maxLevels) view returns (uint32[] ticks, uint64[] lots)",
   "function tickSize() view returns (uint256)",

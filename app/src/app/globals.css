@@ -1,32 +1,57 @@
 @import "tailwindcss";
 
-/* Pulse is dark-first (demo video, trading at night). */
+/* Meridian theme (FRONTEND_TRADE_PLAN §3; landing page `client/Landing page/meridian-next`). Dark only.
+   The ONLY place colours are defined: components use the utilities below (bg-card, text-brand, …), never hex.
+   AA contrast of every text/background pair is asserted by src/lib/contrast.test.ts (`pnpm contrast`). */
 :root {
-  --bg: #0a0b10;
-  --surface: #13151d;
-  --surface-2: #1b1e29;
-  --border: #262a38;
+  --bg: #050507;
+  --card: #0e0e13;
+  --card-2: #16161d;
+  --border: #23232d;
   --text: #eceef4;
   --muted: #8b90a3;
-  --accent: #3ddc97;
+  /* brand = Monad violet: active tab, primary CTA, focus ring, brand chips. Never a direction cue. */
+  --brand: #836ef9;
+  --brand-hover: #8f7cfa;
+  --brand-soft: #a08ffb;
+  --brand-tint: #180b2b;
+  /* text on a filled brand / long / short / warn surface (white fails AA on all four) */
+  --on-brand: #050507;
+  /* direction only */
   --long: #3ddc97;
   --short: #ff5c7a;
   --warn: #f5b84a;
+
+  /* legacy names kept so existing screens restyle without edits */
+  --surface: var(--card);
+  --surface-2: var(--card-2);
+  --accent: var(--brand);
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-border: var(--border);
   --color-text: var(--text);
   --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-tint: var(--brand-tint);
+  --color-on-brand: var(--on-brand);
   --color-accent: var(--accent);
   --color-long: var(--long);
   --color-short: var(--short);
   --color-warn: var(--warn);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter-tight);
   --font-mono: var(--font-geist-mono);
+  /* radius scale: card 24 · inner panel 16 · control 12 · pill = rounded-full */
+  --radius-card: 24px;
+  --radius-inner: 16px;
+  --radius-control: 12px;
 }
 
 html,
@@ -43,20 +68,101 @@ body {
 }
 
 @keyframes tick-flash {
-  from { color: var(--accent); }
+  from { color: var(--brand-soft); }
   to { color: inherit; }
+}
+@keyframes tick-up {
+  from { background: color-mix(in srgb, var(--long) 22%, transparent); }
+  to { background: transparent; }
+}
+@keyframes tick-down {
+  from { background: color-mix(in srgb, var(--short) 22%, transparent); }
+  to { background: transparent; }
 }
 .tick-flash {
   animation: tick-flash 280ms ease-out;
 }
-
-input[type="range"] {
-  accent-color: var(--accent);
+.tick-up {
+  animation: tick-up 420ms ease-out;
+}
+.tick-down {
+  animation: tick-down 420ms ease-out;
 }
 
-/* Pinch-zoom stays enabled (WCAG 1.4.4); 16 px inputs keep iOS Safari from zooming in on focus. */
-input:not([type="range"]):not([type="checkbox"]),
-select,
-textarea {
-  font-size: 16px;
+/* Cards: 1 px hairline plus a faint top inner highlight, no heavy shadow (§3 elevation). */
+.card-elev {
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+input[type="range"] {
+  accent-color: var(--brand);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tick-flash,
+  .tick-up,
+  .tick-down,
+  .animate-pulse,
+  .animate-ping {
+    animation: none !important;
+  }
+}
+
+/* Pinch-zoom stays enabled (WCAG 1.4.4); 16 px inputs keep iOS Safari from zooming in on focus (touch screens only,
+   so dense desktop controls keep their own size). */
+@media (pointer: coarse) {
+  input:not([type="range"]):not([type="checkbox"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Trade terminal grid (FRONTEND_TRADE_PLAN §6). Phones: one column in reading order (strip, chart, ticket, book,
+   positions, account). 1024–1279: chart | ticket, book | ticket, positions | account, page scrolls.
+   ≥ 1280: chart | book | ticket (full height), positions under the chart and the account card under the book, sized
+   to the viewport (no page scroll). The ticket gets the whole right column so its CTA is never below a scroll fold. */
+.terminal {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "strip" "chart" "ticket" "book" "pos" "account" "extra";
+}
+.terminal > [data-area="strip"] { grid-area: strip; }
+.terminal > [data-area="chart"] { grid-area: chart; }
+.terminal > [data-area="book"] { grid-area: book; }
+.terminal > [data-area="ticket"] { grid-area: ticket; }
+.terminal > [data-area="account"] { grid-area: account; }
+.terminal > [data-area="pos"] { grid-area: pos; }
+.terminal > [data-area="extra"] { grid-area: extra; }
+@media (min-width: 1024px) {
+  .terminal {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-areas: "strip strip" "chart ticket" "book ticket" "pos account" "extra extra";
+  }
+  .terminal > [data-area="chart"] { min-height: 420px; }
+}
+@media (min-width: 1280px) {
+  .terminal {
+    /* 100dvh − navbar (8 + 56) − main top padding (8) − main bottom padding (24) */
+    height: calc(100dvh - 96px);
+    min-height: 640px;
+    /* --book-w / --pos-h: resizable, saved per viewer (lib/layout.ts) */
+    grid-template-columns: minmax(0, 1fr) var(--book-w, 260px) 340px;
+    grid-template-rows: auto minmax(0, 1fr) var(--pos-h, 260px);
+    grid-template-areas: "strip strip strip" "chart book ticket" "pos account ticket";
+  }
+  .terminal > [data-area] { min-height: 0; }
+  .terminal > [data-area="extra"] { display: none; }
+}
+@media (min-width: 1440px) {
+  .terminal {
+    grid-template-columns: minmax(0, 1fr) var(--book-w, 300px) 360px;
+    grid-template-rows: auto minmax(0, 1fr) var(--pos-h, 280px);
+  }
 }

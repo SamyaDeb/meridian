@@ -12,6 +12,8 @@ export function createMockSource(now: () => number = Date.now): PulseDataSource 
     trades: async (limit) => fx.trades(head(), limit),
     depth: async (levels) => fx.depth(head(), levels),
     positions: async (account) => fx.positions(head(), account),
+    accountView: async (account) => fx.accountView(head(), account),
+    riskParams: async () => fx.riskParams(),
     vault: async () => fx.vault(head()),
     vaultSnapshots: async (limit) => fx.vaultSnapshots(head(), limit),
     vaultUser: async (account) => fx.vaultUser(head(), account),
