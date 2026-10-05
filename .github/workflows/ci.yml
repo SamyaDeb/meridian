@@ -22,7 +22,10 @@ jobs:
 
       - uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: stable
+          # pinned: every gas ceiling, size check and fork rehearsal was produced with forge 1.5.1; `stable` moved to
+          # 1.8.4 on 1 Oct and fails the gas-ceiling tests (place 69,090 ≥ 60,001) and CreateContractSizeLimit on main.
+          # Bump deliberately after the 8 Oct freeze, with the gas tests re-baselined.
+          version: v1.5.1
 
       - name: forge fmt --check
         working-directory: contracts
@@ -30,11 +33,20 @@ jobs:
 
       - name: forge build
         working-directory: contracts
-        run: forge build --sizes
+        # forge 1.5.1 `--sizes` exits 1 on EIP-170 (24,576 B); ClearingHouse is ~26.5 KB by design (Monad allows 128 KB,
+        # ARCHITECTURE R7, foundry.toml code_size_limit). The build itself must pass; the size table is informational,
+        # and the test suite deploys every contract under the 131,072 B limit.
+        run: |
+          forge build
+          forge build --sizes || echo "::notice::contracts exceed EIP-170 by design (Monad limit 128 KB, ARCHITECTURE R7)"
 
       - name: forge test
         working-directory: contracts
-        run: forge test -vvv
+        # forge 1.5.1 + FOUNDRY_PROFILE=ci: suites with inline `forge-config` (Vault, FundingSwap invariants) may append
+        # to an existing file under the fs_permissions path but not create one; bench-out/ is gitignored, so create them.
+        run: |
+          mkdir -p bench-out && touch bench-out/fs_invariant_coverage.csv bench-out/vault_invariant_coverage.csv
+          forge test -vvv
 
       # A PR that edits contracts/src/interfaces/** without regenerating docs/INTERFACES.md fails here.
       - name: INTERFACES.md in sync
