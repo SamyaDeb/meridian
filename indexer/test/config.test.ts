@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { CONTRACTS, renderConfig, renderDeploymentsTs } from "../scripts/gen-config.mjs";
+import { ABI_FILES, CONTRACTS, renderConfig, renderDeploymentsTs, renderHostedConfig } from "../scripts/gen-config.mjs";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const abiEvents = (name: string): string[] =>
@@ -116,5 +116,21 @@ describe("renderConfig", () => {
     const ts = renderDeploymentsTs([fake(143), fake(10143)]);
     expect(ts.indexOf("  143:")).toBeLessThan(ts.indexOf("10143:")); // sorted by chainId
     expect(ts).toContain('ClearingHouse: "0x1000000000000000000000000000000000000001"');
+  });
+});
+
+describe("renderHostedConfig (Envio Cloud, docs/outputs/HOSTED_ENVIO.md)", () => {
+  it("references ABIs only inside the indexer dir and otherwise equals the plain config", () => {
+    const plain = renderConfig(10143, fake(10143));
+    const hosted = renderHostedConfig(10143, fake(10143));
+    expect(hosted).not.toContain("../");
+    expect(hosted).toContain("abi_file_path: ./abis/IClearingHouse.json");
+    expect(hosted).toContain("url: https://10143.hypersync.xyz");
+    const body = (y: string) => y.split("\n").slice(2).join("\n").replaceAll("../abis/", "./abis/");
+    expect(body(hosted)).toBe(body(plain));
+  });
+  it("vendors exactly the ABIs the contracts use", () => {
+    expect(ABI_FILES).toEqual([...new Set(CONTRACTS.map((c) => `${c.abi}.json`))]);
+    expect(ABI_FILES).toHaveLength(new Set(ABI_FILES).size);
   });
 });

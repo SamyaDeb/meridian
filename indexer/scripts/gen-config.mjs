@@ -3,9 +3,11 @@
 //   node scripts/gen-config.mjs 31337   -> config.yaml          (local anvil via DeployLocal; RPC, no HyperSync)
 //   node scripts/gen-config.mjs 10143   -> config.testnet.yaml  (HyperSync, no RPC mode)
 //   node scripts/gen-config.mjs 143     -> config.mainnet.yaml  (HyperSync, no RPC mode)
+//   node scripts/gen-config.mjs 10143 --hosted -> config.hosted.testnet.yaml + abis/*.json copied in (Envio Cloud: Root
+//     Directory = indexer/, nothing referenced outside it; docs/outputs/HOSTED_ENVIO.md)
 // Contract keys match DeployPulse.s.sol / DeployLocal.s.sol. Keys missing from a deployment are skipped
 // (e.g. the Day-1 mock stack has no MarketFactory / FundingSwapMarket yet).
-import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, copyFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -56,6 +58,17 @@ export const CHAINS = {
 };
 
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+
+/** Pure: hosted variant of renderConfig: ABIs resolved inside the indexer dir (./abis), so Envio Cloud's Root Directory
+ *  can be `indexer/` (its docs: keep every import inside the indexer directory). */
+export function renderHostedConfig(chainId, deployment) {
+  return renderConfig(chainId, deployment)
+    .replaceAll("abi_file_path: ../abis/", "abi_file_path: ./abis/")
+    .replace("). Do not edit.", ", Envio Cloud: ABIs vendored in indexer/abis). Do not edit.");
+}
+
+/** ABI files a config references (deduplicated). */
+export const ABI_FILES = [...new Set(CONTRACTS.map((c) => `${c.abi}.json`))];
 
 /** Pure: deployment JSON -> config.yaml text. */
 export function renderConfig(chainId, deployment) {
@@ -190,12 +203,24 @@ function main() {
     return;
   }
   const chainId = Number(process.argv[2] ?? 31337);
+  const hosted = process.argv.includes("--hosted");
   const path = resolve(REPO_DIR, "deployments", `${chainId}.json`);
   if (!existsSync(path)) {
     console.error(`deployments/${chainId}.json not found. It is written by DeployPulse.s.sol (B deploys testnet daily 21:00; mainnet at CP3).`);
     process.exit(1);
   }
-  const out = renderConfig(chainId, JSON.parse(readFileSync(path, "utf8")));
+  const dep = JSON.parse(readFileSync(path, "utf8"));
+  if (hosted) {
+    if (!CHAINS[chainId]?.hypersync) throw new Error("--hosted needs a HyperSync chain (10143 or 143)");
+    mkdirSync(resolve(INDEXER_DIR, "abis"), { recursive: true });
+    for (const f of ABI_FILES) copyFileSync(resolve(REPO_DIR, "abis", f), resolve(INDEXER_DIR, "abis", f));
+    const file = CHAINS[chainId].file.replace("config.", "config.hosted.");
+    writeFileSync(resolve(INDEXER_DIR, file), renderHostedConfig(chainId, dep));
+    writeDeploymentsTs();
+    console.log(`wrote ${file} + abis/ (${ABI_FILES.length} files)`);
+    return;
+  }
+  const out = renderConfig(chainId, dep);
   writeFileSync(resolve(INDEXER_DIR, CHAINS[chainId].file), out);
   writeDeploymentsTs();
   console.log(`wrote ${CHAINS[chainId].file} and src/deployments.gen.ts`);
