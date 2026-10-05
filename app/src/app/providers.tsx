@@ -1,7 +1,9 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import { WagmiProvider } from "wagmi";
+import { privyEnabled } from "@/lib/privy";
 import { wagmiConfig } from "@/lib/wagmi";
 import { DataSourceProvider } from "@/data/context";
 import { createMockSource } from "@/data/mock/source";
@@ -10,6 +12,9 @@ import { type PublicClient, createPublicClient, http } from "viem";
 import { READ_CHAIN_ID, readChain } from "@/lib/wagmi";
 import { contractAddress } from "@/config/deployments";
 import { WriteGateProvider } from "@/components/WriteGate";
+
+// Privy SDK only in builds with NEXT_PUBLIC_PRIVY_APP_ID (decision D6): its own chunk, never fetched otherwise.
+const PrivyProviders = privyEnabled ? dynamic(() => import("./PrivyProviders")) : null;
 
 /** NEXT_PUBLIC_DATA_SOURCE=chain reads the perp from deployments/<NEXT_PUBLIC_CHAIN_ID>.json (default 31337 = anvil);
  *  default = mock layer. NEXT_PUBLIC_LOG_SPAN / NEXT_PUBLIC_LOG_LOOKBACK fit the RPC's eth_getLogs cap on testnet. */
@@ -47,13 +52,15 @@ function makeSource() {
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { staleTime: 250 } } }));
   const [source] = useState(makeSource);
+  const tree = (
+    <DataSourceProvider value={source}>
+      <WriteGateProvider>{children}</WriteGateProvider>
+    </DataSourceProvider>
+  );
+  if (PrivyProviders) return <PrivyProviders queryClient={queryClient}>{tree}</PrivyProviders>;
   return (
     <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <DataSourceProvider value={source}>
-          <WriteGateProvider>{children}</WriteGateProvider>
-        </DataSourceProvider>
-      </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{tree}</QueryClientProvider>
     </WagmiProvider>
   );
 }

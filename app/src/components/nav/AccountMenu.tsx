@@ -1,12 +1,16 @@
 "use client";
 import { useState } from "react";
 import { useAccount, useDisconnect } from "wagmi";
+import dynamic from "next/dynamic";
 import { Popover } from "@/components/ds";
 import { ConnectButton } from "@/components/Wallet";
 import { readChain } from "@/lib/wagmi";
 import { shortAddress } from "@/lib/format";
+import { privyEnabled } from "@/lib/privy";
 
-const item = "flex min-h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-card-2 pointer-coarse:min-h-11";
+const PrivyLogout = privyEnabled ? dynamic(() => import("@/components/PrivyControls").then((m) => m.PrivyLogout)) : null;
+
+export const item = "flex min-h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-card-2 pointer-coarse:min-h-11";
 
 /** Address pill → copy, explorer (viem's chain record; none ⇒ no link), disconnect. Not connected ⇒ connect button. */
 export function AccountMenu() {
@@ -47,18 +51,23 @@ export function AccountMenu() {
               View on explorer ↗
             </a>
           )}
-          <button
-            type="button"
-            className={`${item} text-short`}
-            onClick={() => {
-              disconnect();
-              close();
-            }}
-          >
-            Disconnect
-          </button>
+          {PrivyLogout ? (
+            <PrivyLogout onDone={close} />
+          ) : (
+            <button
+              type="button"
+              className={`${item} text-short`}
+              onClick={() => {
+                disconnect();
+                close();
+              }}
+            >
+              Disconnect
+            </button>
+          )}
         </div>
       )}
     </Popover>
   );
 }
+

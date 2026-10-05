@@ -18,11 +18,13 @@ export const localChain = defineChain({
 const LOCAL_SHADOWS_TESTNET = LOCAL_CHAIN_ID === monadTestnet.id;
 
 // RPC URLs come from env (never hard-coded). Monad bills the gas *limit*: every tx sets estimateGas × 1.2 (see lib/gas.ts).
-// Login (Privy vs Mera) is PENDING (BOUNTY_MAP; not yet recorded in docs/standup/C.md): injected wallet for now.
+// Login: Privy (email → embedded wallet) when NEXT_PUBLIC_PRIVY_APP_ID is set, else the injected wallet (decision D6).
+// Privy's createConfig (src/app/PrivyProviders.tsx, loaded only with an app ID) builds its config from the same
+// wagmiParameters, so the Privy SDK never ships in a build without NEXT_PUBLIC_PRIVY_APP_ID.
 // Local dev only: NEXT_PUBLIC_DEV_ACCOUNT adds a connector for an unlocked anvil account (anvil signs
 // eth_sendTransaction itself), so the app can trade on 31337 without a browser wallet.
 const DEV_ACCOUNT = process.env.NEXT_PUBLIC_DEV_ACCOUNT as `0x${string}` | undefined;
-export const wagmiConfig = createConfig({
+export const wagmiParameters = {
   chains: LOCAL_SHADOWS_TESTNET ? [localChain, monad] : [localChain, monadTestnet, monad],
   connectors: DEV_ACCOUNT ? [injected(), mock({ accounts: [DEV_ACCOUNT], features: { reconnect: true } })] : [injected()],
   // With LOCAL_SHADOWS_TESTNET the local entry (same id 10143) is written last, so it wins.
@@ -32,7 +34,8 @@ export const wagmiConfig = createConfig({
     [localChain.id]: http(LOCAL_RPC_URL),
   },
   ssr: true,
-});
+} satisfies Parameters<typeof createConfig>[0];
+export const wagmiConfig = createConfig(wagmiParameters);
 
 /** Chain the read path (data source) follows: NEXT_PUBLIC_CHAIN_ID = 31337 (default, anvil) | 10143 | 143. */
 export const READ_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? String(localChain.id));

@@ -2,6 +2,7 @@
 import type { Abi, Address, ContractFunctionArgs, ContractFunctionName, PublicClient, WalletClient } from "viem";
 import { clearingHouseAbi, erc20Abi, swapAbi, vaultAbi } from "./abi";
 import { gasLimitFromEstimate } from "./gas";
+import { assertPermitUsable, buildPermitTypedData, permitDeadline, splitSignature } from "./permit";
 
 export async function sendTx<const abi extends Abi, fn extends ContractFunctionName<abi, "nonpayable" | "payable">>(
   pub: PublicClient,
@@ -72,18 +73,14 @@ export async function approveOrPermit(pub: PublicClient, wallet: WalletClient, t
   if (allowance < amountToken) {
     if (await supportsPermit(pub, token, owner)) {
       const nonce = await pub.readContract({ address: token, abi: erc20Abi, functionName: "nonces", args: [owner] });
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800);
+      const deadline = permitDeadline(Date.now());
       const chainId = await pub.getChainId();
+      assertPermitUsable({ walletChainId: wallet.chain?.id, nodeChainId: chainId, deadline, nowMs: Date.now() });
       const sig = await wallet.signTypedData({
         account: wallet.account!,
-        domain: { name: "Agora Dollar", version: "1", chainId, verifyingContract: token },
-        types: { Permit: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }, { name: "value", type: "uint256" }, { name: "nonce", type: "uint256" }, { name: "deadline", type: "uint256" }] },
-        primaryType: "Permit",
-        message: { owner, spender: ch, value: amountToken, nonce, deadline },
+        ...buildPermitTypedData({ token, owner, spender: ch, value: amountToken, nonce, deadline, chainId }),
       });
-      const r = `0x${sig.slice(2, 66)}` as `0x${string}`;
-      const s = `0x${sig.slice(66, 130)}` as `0x${string}`;
-      const v = Number.parseInt(sig.slice(130, 132), 16);
+      const { v, r, s } = splitSignature(sig);
       await sendTx(pub, wallet, { address: token, abi: erc20Abi, functionName: "permit", args: [owner, ch, amountToken, deadline, v, r, s] });
     } else {
       await sendTx(pub, wallet, { address: token, abi: erc20Abi, functionName: "approve", args: [ch, amountToken] });
