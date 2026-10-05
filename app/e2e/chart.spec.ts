@@ -51,8 +51,11 @@ test("click on the price pane loads that price into the ticket as a limit", asyn
   await page.goto("/trade");
   await expect(page.getByTestId("history-start")).toContainText("History starts at", { timeout: 20_000 });
   await expect(page.getByTestId("chart-engine")).toHaveAttribute("data-ready", "true"); // data applied (next frame)
-  const box = (await page.getByTestId("chart-engine").boundingBox())!;
-  await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.25);
+  // click relative to the element at click time: Playwright re-resolves it and waits until it is stable, so a layout
+  // shift between measuring and clicking (data landing in the market strip) can't move the click off the price pane
+  const engine = page.getByTestId("chart-engine");
+  const box = (await engine.boundingBox())!;
+  await engine.click({ position: { x: Math.round(box.width * 0.4), y: Math.round(box.height * 0.25) } });
   const v = await page.getByRole("textbox", { name: "Limit price" }).inputValue();
   expect(v).toMatch(/^0\.0\d{4}/);
 });

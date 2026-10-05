@@ -71,6 +71,8 @@ type State = {
   lines: IPriceLine[];
   linesSig: string;
   seen: Map<unknown, Applied>;
+  /** a fit has been made while candles existed */
+  fittedWithBars: boolean;
   overlays: Map<string, ISeriesApi<"Line">>;
   panes: Map<string, { series: Map<string, ISeriesApi<"Line" | "Histogram">>; guides: IPriceLine[]; guidesSig: string }>;
   t: Tokens;
@@ -193,7 +195,12 @@ function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
   const sub = p.panes.length >= 3 ? 70 : p.panes.length === 2 ? 90 : 110;
   p.panes.forEach((_, i) => chart.panes()[i + 1]?.setHeight(sub));
 
-  if (lastReset.current !== p.resetKey) {
+  // fit on a reset AND the first time candles exist: a fit made before the candles arrived (e.g. only funding-pane
+  // points) frames a range with no bars, the price pane looks empty and price ↔ y conversions return null
+  const firstBars = p.bars.length > 0 && !s.fittedWithBars;
+  if (firstBars) s.fittedWithBars = true;
+  if (p.bars.length === 0) s.fittedWithBars = false;
+  if (lastReset.current !== p.resetKey || firstBars) {
     chart.timeScale().fitContent();
     lastReset.current = p.resetKey;
   }
@@ -229,14 +236,28 @@ export function LightweightEngine(props: EngineProps) {
       timeScale: { borderColor: t.border, timeVisible: true, secondsVisible: false },
       crosshair: { vertLine: { color: t.muted, labelBackgroundColor: t.brand }, horzLine: { color: t.muted, labelBackgroundColor: t.brand } },
     });
-    st.current = { chart, lines: [], linesSig: "", seen: new Map(), overlays: new Map(), panes: new Map(), t };
-    const click = (p: { point?: { x: number; y: number }; paneIndex?: number }) => {
+    st.current = { chart, lines: [], linesSig: "", seen: new Map(), fittedWithBars: false, overlays: new Map(), panes: new Map(), t };
+    // Click-to-price from our own pointer events: a click = press and release within 4 px, inside the price pane
+    // (not the price axis, the time axis or a lower pane). Independent of the library's click/scroll heuristics.
+    let down: { x: number; y: number } | null = null;
+    const onDown = (e: PointerEvent) => {
+      down = e.button === 0 ? { x: e.clientX, y: e.clientY } : null;
+    };
+    const onUp = (e: PointerEvent) => {
       const s = st.current;
-      if (!s?.main || !p.point || (p.paneIndex ?? 0) !== 0 || !onClick.current) return;
-      const price = s.main.coordinateToPrice(p.point.y);
+      const start = down;
+      down = null;
+      if (!s?.main || !start || !onClick.current || Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) return;
+      const r = el.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const y = e.clientY - r.top;
+      const pane = chart.paneSize(0);
+      if (x < 0 || y < 0 || x > pane.width || y > pane.height) return;
+      const price = s.main.coordinateToPrice(y);
       if (price !== null) onClick.current(numToWad(price));
     };
-    chart.subscribeClick(click);
+    el.addEventListener("pointerdown", onDown, true);
+    el.addEventListener("pointerup", onUp, true);
     const span = () => {
       const b = latest.current.bars;
       const t0 = b[0]?.time ?? 0;
@@ -261,7 +282,8 @@ export function LightweightEngine(props: EngineProps) {
     return () => {
       onCoordsRef.current?.(null);
       cancelAnimationFrame(frame.current);
-      chart.unsubscribeClick(click);
+      el.removeEventListener("pointerdown", onDown, true);
+      el.removeEventListener("pointerup", onUp, true);
       chart.remove();
       st.current = null;
     };
