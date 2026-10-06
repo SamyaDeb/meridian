@@ -9,7 +9,9 @@
     "OracleAdapter": "0xC77882E7024D8B71F414eDc1a8708b939920A9E2",
     "OrderBook": "0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207",
     "SwapOrderBook": "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db",
-    "WMON": "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541"
+    "WMON": "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541",
+    "MeridianVault": "0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6",
+    "KuruHedger": "0xdB9Bc1996dE5A338c7F2B7b7f5f56B9047567191"
   },
   "demoMarket": {
     "ClearingHouse": "0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01",
@@ -22,7 +24,8 @@
   },
   "deployed": true,
   "mockContracts": [
-    "AUSD"
+    "AUSD",
+    "KuruHedger"
   ],
   "mocks": false,
   "oracleKind": "keeper-fed",
@@ -38,5 +41,9 @@
     "0x814DB3f310CCB192acaab4a6908A0Cf33323b981",
     "0xB1a78a9cB3FE3aB4f0c49ad0dBC080EF18305bd1",
     "0x6E02939822507a5f3e0Ad90CE7cd68dC5d49303A"
-  ]
+  ],
+  "vaultStartBlock": 68775102,
+  "vaultVersion": "2 (CR-014: async withdrawals, interfaces-v1.7)",
+  "vaultMockSpotToken": "0xeCaEAE023ddFC44Fa2c77B8Fd290907a76689fa0",
+  "vaultSourceCommit": "b38c6ba (ws-00r-testnet-vault, stacked on ws-04c-vault-v2 4ecf7c7; not on main yet: rebase --onto origin/main ws-04c-vault-v2 ws-00r-testnet-vault after P3-P5 merge)"
 }

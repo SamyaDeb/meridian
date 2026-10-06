@@ -2,7 +2,7 @@
 // Static wiring used when MarketFactory.MarketRegistered has not (yet) been indexed.
 export type DeploymentWiring = { readonly [K in "ClearingHouse" | "OrderBook" | "FundingSwapMarket" | "SwapOrderBook" | "MeridianVault"]?: string };
 export const DEPLOYMENTS: Readonly<Record<number, DeploymentWiring>> = {
-  10143: { ClearingHouse: "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA", OrderBook: "0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207", FundingSwapMarket: "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33", SwapOrderBook: "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db" },
+  10143: { ClearingHouse: "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA", OrderBook: "0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207", FundingSwapMarket: "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33", SwapOrderBook: "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db", MeridianVault: "0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6" },
   31337: { ClearingHouse: "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9", OrderBook: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707", MeridianVault: "0x610178dA211FEF7D417bC0e6FeD39F05609AD788" },
 };
 /** Labelled TEST markets (deployments demoMarket): the crash/liquidation demo market, never the product. */

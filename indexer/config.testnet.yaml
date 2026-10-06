@@ -107,9 +107,13 @@ chains:
         address: "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db"
       - name: FundingSwapMarket
         address: "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33"
+      - name: MeridianVault
+        address: "0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6"
       - name: OracleAdapter
         address: "0xC77882E7024D8B71F414eDc1a8708b939920A9E2"
       - name: InsuranceFund
         address: "0xCcd97285dD2fca8D028D880Ed754039118437b48"
       - name: MarketFactory
         address: "0xEB3f3956AC3c13BC9b61a383590F5eEb4Ff6e541"
+      - name: KuruHedger
+        address: "0xdB9Bc1996dE5A338c7F2B7b7f5f56B9047567191"

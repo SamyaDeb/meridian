@@ -192,6 +192,22 @@ Total top-up ≈ **12 MON** (+ 4 with the swap MM window).
 7. Crash + Skip demo (P4.7), one window on `MARKET=demo` with demo keeper + demo MM (§2, §7): ≈ 5x long sized **below the keeper's absorb headroom** (the keeper takes the position: `maxPositionSize` 25,000 MON and IM on its demo-CH collateral, audit H-1; record the collateral used), `echo 0.85 > $PRICE_FACTOR_FILE`, expect liquidation ≤ 3 blocks after eligibility (`/health` `liquidationLatency`). Then Skip: deployer `setPaused(true)` on the demo CH, a reduce-only taker crosses an MM order that would increase the MM ⇒ `MakerFillSkipped`, the order still rests (`getOrder`), `setPaused(false)`. Same sequence as `SmokeFork143.skipDemo()` on the fork.
 8. Gas bench (P4.8): `cd bench && CHAIN_ID=10143 RPC_URL=… BENCH_PK=… DEPLOYMENTS=../deployments/10143.json pnpm gas` (dry-run 6 Oct: ≈ 0.40 MON for 22 txs + 2 setup).
 
+## 7c. Demo day on the frozen deployment (PHASES 42; no contract changes)
+MON per 30 min, measured on testnet 7 Oct (P6) unless noted; Monad bills the gas limit:
+| Bot (key) | Start (from §2 / §7b, `env -i …`) | MON / 30 min | Held after P6 | Needed for one 30-min window |
+|---|---|---|---|---|
+| main keeper (`KEEPER_PK`), `VAULT_REBALANCE=1`, fulfil on | `HEALTH_PORT=8797 LOG_SPAN=10` (Alchemy free tier) | ≈ 5 (9.8 MON/h measured incl. vault txs; floor alert at 5) | 4.69 | **top up ≈ +6** |
+| perp MM (`MM_PK`) `LEVELS=1 LOTS_PER_LEVEL=30 REQUOTE_BPS=10 TICK_EVERY_BLOCKS=3`, public RPC | | ≈ 1.3 (2.5 MON/h measured) | 3.56 | ok |
+| house flow (`FLOW_PK`), only for chart liquidity | `pnpm flow` (§2b) | ≈ 0.65 (P4 estimate) | 1.19 | ok |
+| swap MM (no key yet) `MARKET=swap LEVELS=1 REQUOTE_BPS=1000 TICK_EVERY_BLOCKS=33` | §4c | ≈ 12 (projection, §4) | — | **owner: new key + ≈ 4 MON for a 10-min segment** |
+| demo keeper (`DEMO_KEEPER_PK`) `MARKET=demo PRICE_FACTOR_FILE=…` | `HEALTH_PORT=8798 LOG_SPAN=10` | ≈ 4 (keeper rate; a 3-min crash run cost 0.43) | 1.08 | crash segment only (≈ 5 min): ok; 30 min: +3 |
+| demo MM (`DEMO_MM_PK`) `MARKET=demo LEVELS=1 LOTS_PER_LEVEL=60 REQUOTE_BPS=10 TICK_EVERY_BLOCKS=3` | | ≈ 2.9 (0.27 per 3 min) | 1.39 | crash segment only: ok; 30 min: +2 |
+
+**Order:** keeper → perp MM → (swap MM) → flow → wait ≥ 30 s → app/recording. Demo keeper + demo MM only for the crash segment, started ≥ 1 min before it (the MM needs one quote), stopped right after.
+**Before recording:** `cast call <oracle> "tryGetIndexPrice()"` fresh; MM `openOrderCount` > 0; `cast call <vault> "needsRebalance()"`; for the Earn queue segment the keeper's `/health` `pendingRedeems` 0. Sync the mock hedger (`setPrice(index)`, §9) before any hedge step.
+**Crash segment:** test wallet at ≈ 4.8x on MON-PERP-DEMO (30 tAUSD, 50 lots), `echo 0.85 > $PRICE_FACTOR_FILE`, watch `liquidation latency` in the demo keeper log, `echo 1 >` afterwards. Skip: deployer `setPaused(true)` on the demo CH, a reduce-only taker buys into an MM ask (the taker must be short), `MakerFillSkipped`, `setPaused(false)`.
+**Stop:** by PID only (§7b): `ps -axo pid,command | grep -E 'pulse-hard/(keepers|mm-bot)/.*tsx/dist/cli.mjs'`, then `kill -INT <pid>` **one PID per kill** (a zsh variable holding several PIDs is not word-split: `illegal pid`), wait for the MM's `cancel (shutdown)` lines, check `openOrderCount(mm) == 0` and `cast nonce` flat.
+
 ## 8. Monitoring and paging (TEAM_PLAN §7; paging Phase 5 B6)
 ```bash
 cd keepers/ts-fallback && CHAIN_ID=143 RPC_URL=<watcher's own endpoint> DEPLOYMENTS=../../deployments/143.json \
@@ -245,6 +261,7 @@ One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`,
   4. Check `hedgeState()`: `perpSize` 0, `spotBase` < 1 lot, collateral back in idle; users can then use the sync path.
 - **Cooldown (A-09):** `enterHedge`, `exitHedge`, `exitHedgeWithRoute` revert `CooldownActive` within 10 blocks of any rebalance. A compromised keeper can't alternate forced calls faster than that; revoke it with `setKeeper(k, false)` (owner).
 - **Testnet = labelled mock hedger:** on 10143 the vault's spot leg is `MockKuruHedger` over a mock `tWMON` (record: `mockContracts`, `vaultMockSpotToken`); the real-route proof is the 143 fork test `test/fork/VaultV2Fork.t.sol`.
+- **Testnet deployment (P6.1, 7 Oct):** `MeridianVault` `0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6`, `KuruHedger` (labelled `MockKuruHedger`) `0xdB9Bc1996dE5A338c7F2B7b7f5f56B9047567191`, tWMON `0xeCaEAE023ddFC44Fa2c77B8Fd290907a76689fa0`; deployed at blocks 68,775,168–68,775,192 (`vaultStartBlock` 68,775,102) from `b38c6ba`; owner = deployer key; keeper = `KEEPER_ADDRESS`; skew provider = perp MM. Params after the P6.3 demo: `skewCapacity` 0.8e18 (raised by the owner), `depositCap` 1,200 AUSD. The vault is flat after the demo (rule-path exit).
 
 ## 10. Incident flow
 1. **Contain:** `touch $KILL_FILE` on every MM (quotes pulled). If the market itself is unsafe (oracle wrong, exploit suspected), the owner calls `ClearingHouse.setPaused(true)` / `FundingSwapMarket.setPaused(true)`: increases are blocked, reduce-only, cancels, deposits and liquidations keep working (MATH_SPEC §1.6).

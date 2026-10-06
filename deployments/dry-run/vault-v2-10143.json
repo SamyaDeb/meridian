@@ -1,0 +1,49 @@
+{
+  "chainId": 10143,
+  "contracts": {
+    "AUSD": "0x9739682300022676FF867Ad289d20A8fC08566A1",
+    "ClearingHouse": "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA",
+    "FundingSwapMarket": "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33",
+    "InsuranceFund": "0xCcd97285dD2fca8D028D880Ed754039118437b48",
+    "MarketFactory": "0xEB3f3956AC3c13BC9b61a383590F5eEb4Ff6e541",
+    "OracleAdapter": "0xC77882E7024D8B71F414eDc1a8708b939920A9E2",
+    "OrderBook": "0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207",
+    "SwapOrderBook": "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db",
+    "WMON": "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541",
+    "MeridianVault": "0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6",
+    "KuruHedger": "0xdB9Bc1996dE5A338c7F2B7b7f5f56B9047567191"
+  },
+  "demoMarket": {
+    "ClearingHouse": "0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01",
+    "OracleAdapter": "0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826",
+    "OrderBook": "0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d",
+    "_label": "TEST MARKET: keeper-fed oracle, used only for the crash/liquidation demo",
+    "oracleKind": "keeper-fed",
+    "symbol": "MON-PERP-DEMO",
+    "testMarket": true
+  },
+  "deployed": true,
+  "mockContracts": [
+    "AUSD",
+    "KuruHedger"
+  ],
+  "mocks": false,
+  "oracleKind": "keeper-fed",
+  "owner": "0xEF4E34a3754c878BE0191B103691FD088e3F3b91",
+  "startBlock": 68739694,
+  "symbol": "MON-PERP",
+  "_operators": "mmAccounts = perp MM, demo MM, house taker flow (mm-bot pnpm flow); keeperAccounts = main + demo keeper. Excluded from ProtocolStats.externalUsers (indexer gen-config).",
+  "keeperAccounts": [
+    "0x0D3B07775a452155D8F1B243154b38f12FDD0fA9",
+    "0x8520FfB82e2c46EB1c7fA4e257A78d09f3708552"
+  ],
+  "mmAccounts": [
+    "0x814DB3f310CCB192acaab4a6908A0Cf33323b981",
+    "0xB1a78a9cB3FE3aB4f0c49ad0dBC080EF18305bd1",
+    "0x6E02939822507a5f3e0Ad90CE7cd68dC5d49303A"
+  ],
+  "_label": "SIMULATION (forge script without --broadcast): addresses are not deployed",
+  "vaultStartBlock": 68774980,
+  "vaultVersion": "2 (CR-014: async withdrawals, interfaces-v1.7)",
+  "vaultMockSpotToken": "0xeCaEAE023ddFC44Fa2c77B8Fd290907a76689fa0"
+}
