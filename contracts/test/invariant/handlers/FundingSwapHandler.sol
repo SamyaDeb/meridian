@@ -5,6 +5,7 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {ClearingHouse} from "../../../src/clearing/ClearingHouse.sol";
 import {OrderBook} from "../../../src/orderbook/OrderBook.sol";
 import {FundingSwapMarket} from "../../../src/swaps/FundingSwapMarket.sol";
+import {InsuranceFund} from "../../../src/clearing/InsuranceFund.sol";
 import {MockERC20} from "../../../src/mocks/MockERC20.sol";
 import {IFundingSwapMarket} from "../../../src/interfaces/IFundingSwapMarket.sol";
 import {IOrderBook} from "../../../src/interfaces/IOrderBook.sol";
@@ -33,6 +34,13 @@ contract FundingSwapHandler is Test {
     bool public matured;
     /// @dev An account whose settled collateral changed after the maturity snapshot (must stay false).
     bool public accrualAfterMaturity;
+
+    // PHASES 36 bad-debt waterfall (IF → fees → uncovered): coverage + ghost
+    InsuranceFund public fund; // set once by the suite; the handler is an authorized market so it can drain it
+    uint256 public badDebtLiquidations; // liquidations that closed an account with bad debt
+    uint256 public feesAbsorbed; // ... where accrued fees went down (the waterfall's second step ran)
+    uint256 public uncoveredWithFees; // a liquidation left uncovered debt while fees were > 0 before it
+    bool public waterfallViolation; // uncovered debt was added while positive fees remained
 
     uint64[] internal _perpIds;
     mapping(address => uint64[]) internal _ids;
@@ -156,16 +164,44 @@ contract FundingSwapHandler is Test {
         for (uint256 j; j < actors.length; ++j) {
             address t = actors[(start % actors.length + j) % actors.length]; // reduce the seed before adding
             if (!fs.isLiquidatable(t)) continue;
+            uint256 fees0 = fs.accruedFees();
+            uint256 bad0 = fs.totalBadDebt();
+            uint256 if0 = ausd.balanceOf(address(fs));
             vm.recordLogs();
             vm.prank(keeper);
             try fs.liquidate(t, bound(size, 1000e18, type(uint128).max)) {
                 ++liquidations;
+                _afterLiquidation(fees0, bad0, if0);
                 _count(vm.getRecordedLogs());
             } catch {
                 vm.getRecordedLogs();
             }
             return;
         }
+    }
+
+    /// A liquidation only adds fees (the IF share's sub-token remainder), so a drop means the waterfall's fee step ran.
+    function _afterLiquidation(uint256 fees0, uint256 bad0, uint256 bal0) internal {
+        uint256 fees1 = fs.accruedFees();
+        uint256 bad1 = fs.totalBadDebt();
+        if (fees1 < fees0) ++feesAbsorbed;
+        if (fees1 < fees0 || bad1 != bad0 || ausd.balanceOf(address(fs)) > bal0) ++badDebtLiquidations;
+        if (bad1 != bad0) {
+            if (fees1 != 0) waterfallViolation = true;
+            if (fees0 != 0) ++uncoveredWithFees;
+        }
+    }
+
+    function setInsuranceFund(InsuranceFund fund_) external {
+        fund = fund_;
+    }
+
+    /// Half the time it is called, empty the IF (shared with the perp; the handler is an authorized market), so
+    /// later swap bad debt runs through fees and then becomes uncovered (PHASES 36).
+    function drainInsurance(uint256 coin) external {
+        if (coin % 2 != 0 || address(fund) == address(0)) return;
+        uint256 bal = fund.balance();
+        if (bal != 0) fund.coverBadDebt(bal);
     }
 
     // ─── perp side: blocks, funding regime ───────────────────────────────

@@ -572,25 +572,33 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         if (amountToken != 0) IERC20(collateralToken).safeTransfer(insuranceFund, amountToken);
     }
 
-    /// @dev Pulls ⌈badDebt⌉ AUSD from the IF (measured by balance delta). Covered part zeroes the debt (any
-    ///      sub-token excess goes to fees); the uncovered part stays as negative collateral and is added to
-    ///      totalBadDebt (ADL is roadmap).
+    /// @dev Bad-debt waterfall (MATH_SPEC §3.3, PHASES 36): (1) pull ⌈badDebt⌉ AUSD from the IF, measured by
+    ///      balance delta (any sub-token excess goes to fees); (2) what the IF can't cover comes out of accrued
+    ///      protocol fees; (3) only the rest stays as negative collateral and is added to totalBadDebt (ADL is
+    ///      roadmap). Fees are junior to users, so `collectFees` never pays the protocol out of user collateral.
+    ///      `BadDebtSocialized(requested, coveredByInsurance, uncovered)` fires whenever the IF falls short, with
+    ///      requested = badDebt (WAD) and coveredByInsurance = the IF part only; the fee part is
+    ///      requested − coveredByInsurance − uncovered.
     function _coverBadDebt(address account, uint256 badDebt) internal {
         uint256 requested = FPM.divUp(badDebt, TO_WAD);
         IERC20 token = IERC20(collateralToken);
         uint256 before = token.balanceOf(address(this));
         IInsuranceFund(insuranceFund).coverBadDebt(requested);
         uint256 coveredWad = (token.balanceOf(address(this)) - before) * TO_WAD;
-        uint256 uncovered;
         if (coveredWad >= badDebt) {
             _accounts[account].collateral = 0;
             _fees += int256(coveredWad - badDebt);
-        } else {
-            uncovered = badDebt - coveredWad;
-            _accounts[account].collateral = -int256(uncovered);
-            totalBadDebt += uncovered;
-            emit BadDebtSocialized(badDebt, coveredWad, uncovered);
+            return;
         }
+        // MATH_SPEC §3.3, rounds neutral: fromFees = min(badDebt − coveredIF, max(fees, 0)); fees −= fromFees
+        uint256 uncovered = badDebt - coveredWad;
+        int256 fees = _fees;
+        uint256 fromFees = FPM.min(uncovered, fees > 0 ? uint256(fees) : 0);
+        _fees = fees - int256(fromFees);
+        uncovered -= fromFees;
+        _accounts[account].collateral = -int256(uncovered);
+        totalBadDebt += uncovered;
+        emit BadDebtSocialized(badDebt, coveredWad, uncovered);
     }
 
     function _setOI(int256 oldSize, int256 newSize) internal {

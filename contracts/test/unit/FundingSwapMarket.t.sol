@@ -497,28 +497,89 @@ contract FundingSwapMarketTest is FundingSwapBase {
         assertEq(_k(alice) + _k(bob) + _k(dave), 0);
     }
 
+    // ═══ bad debt: IF → accrued protocol fees → uncovered (MATH_SPEC §6.4, PHASES 36) ═══
+
+    /// Debt left once alice's whole position (and K) moves at the mark: −equity (no penalty when underwater).
+    function _swapDebt() internal view returns (uint256) {
+        int256 eq = _acct(alice).equity;
+        assertLt(eq, 0);
+        return uint256(-eq);
+    }
+
+    /// −3 APR: a deep hole (≈ 5,000 AUSD), far above the ≈ 3.6 of fees from the 12% trade.
+    function _deepHole() internal {
+        _underwaterLong(-3e18);
+        _deposit(dave, 10_000e6);
+    }
+
+    /// Alice tops up all but 1–2 AUSD of the hole, so the ≈ 3.6 of accrued fees can cover the rest.
+    function _shallowHole() internal {
+        _deepHole();
+        _deposit(alice, _swapDebt() / 1e12 - 1e6);
+        uint256 debt = _swapDebt();
+        assertGt(debt, 1e18);
+        assertLe(debt, 2e18);
+    }
+
+    /// (c) IF covers all: account at 0, fees untouched (only the sub-token excess of the ⌈debt⌉ pull is added).
     function test_liquidation_badDebtCoveredByInsurance() public {
         ausd.mint(address(this), 20_000e6);
         ausd.approve(address(fund), 20_000e6);
         fund.fund(20_000e6);
-        _underwaterLong(-3e18);
-        _deposit(dave, 10_000e6);
-        assertLt(_acct(alice).equity, 0);
+        _deepHole();
+        uint256 debt = _swapDebt();
+        uint256 fees0 = fs.accruedFees();
+        assertGt(fees0, 0);
         vm.prank(dave);
         fs.liquidate(alice, type(uint256).max);
         assertEq(fs.collateralOf(alice), 0, "IF covered the hole");
         assertEq(fs.totalBadDebt(), 0);
+        uint256 requested = (debt + 1e12 - 1) / 1e12;
+        assertEq(ausd.balanceOf(address(fund)), 20_000e6 - requested);
+        assertEq(fs.accruedFees(), fees0 + requested * 1e12 - debt, "fees untouched");
     }
 
+    /// (b) IF empty, fees < debt: fees go to 0 first, only the rest stays negative / in totalBadDebt.
     function test_liquidation_badDebtUncoveredStaysNegative() public {
-        _underwaterLong(-3e18);
-        _deposit(dave, 10_000e6);
+        _deepHole();
+        uint256 debt = _swapDebt();
+        uint256 fees0 = fs.accruedFees();
+        assertGt(fees0, 0);
+        assertLt(fees0, debt);
         vm.prank(dave);
         fs.liquidate(alice, type(uint256).max);
-        assertLt(fs.collateralOf(alice), 0);
-        assertEq(uint256(-fs.collateralOf(alice)), fs.totalBadDebt());
+        assertEq(fs.accruedFees(), 0, "fees exhausted first");
+        assertEq(fs.totalBadDebt(), debt - fees0);
+        assertEq(fs.collateralOf(alice), -int256(debt - fees0));
         _deposit(alice, 10_000e6); // a later deposit repays it first
         assertGt(fs.collateralOf(alice), 0);
+    }
+
+    /// (a) IF empty, fees ≥ debt: fees absorb all of it; nothing is socialized.
+    function test_liquidation_badDebt_feesAbsorbWhenInsuranceEmpty() public {
+        _shallowHole();
+        uint256 debt = _swapDebt();
+        uint256 fees0 = fs.accruedFees();
+        assertGe(fees0, debt);
+        vm.prank(dave);
+        fs.liquidate(alice, type(uint256).max);
+        assertEq(fs.collateralOf(alice), 0, "fees covered the hole");
+        assertEq(fs.accruedFees(), fees0 - debt, "fees reduced by the debt");
+        assertEq(fs.totalBadDebt(), 0);
+    }
+
+    /// (d) After (a), `collectFees` pays only what is left after the debt.
+    function test_liquidation_badDebt_collectFeesPaysOnlyRemainder() public {
+        _shallowHole();
+        uint256 debt = _swapDebt();
+        uint256 fees0 = fs.accruedFees();
+        vm.prank(dave);
+        fs.liquidate(alice, type(uint256).max);
+        address treasury = makeAddr("treasury");
+        vm.prank(owner);
+        uint256 paid = fs.collectFees(treasury);
+        assertEq(paid, (fees0 - debt) / 1e12);
+        assertEq(ausd.balanceOf(treasury), paid);
     }
 
     // ═══ maturity (1-hour maturity) ════════════════════════════════════════════

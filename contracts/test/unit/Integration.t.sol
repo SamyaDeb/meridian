@@ -371,6 +371,7 @@ contract IntegrationTest is IntegrationBase {
         _assertI1();
     }
 
+    /// PHASES 36 waterfall: IF empty ⇒ accrued protocol fees absorb what they can, only the rest is socialized.
     function test_badDebt_socializedWhenInsuranceFundEmpty() public {
         assertEq(ausd.balanceOf(address(fund)), 0);
         vm.recordLogs();
@@ -378,24 +379,30 @@ contract IntegrationTest is IntegrationBase {
         uint256 badDebt = uint256(-eq);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool seen;
+        uint256 uncovered;
+        uint256 fromFees;
         for (uint256 i; i < logs.length; ++i) {
             if (logs[i].topics[0] == IClearingHouse.BadDebtSocialized.selector) {
-                (uint256 req, uint256 covered, uint256 uncovered) =
-                    abi.decode(logs[i].data, (uint256, uint256, uint256));
+                uint256 req;
+                uint256 covered;
+                (req, covered, uncovered) = abi.decode(logs[i].data, (uint256, uint256, uint256));
                 assertEq(req, badDebt);
                 assertEq(covered, 0);
-                assertEq(uncovered, badDebt);
+                fromFees = req - covered - uncovered;
                 seen = true;
             }
         }
         assertTrue(seen, "BadDebtSocialized emitted");
-        assertEq(ch.collateralOf(bob), eq, "uncovered bad debt stays as negative collateral");
-        assertEq(ch.totalBadDebt(), badDebt);
+        assertGt(fromFees, 0, "the session's fees absorbed part of it");
+        assertGt(uncovered, 0, "fees < debt here");
+        assertEq(ch.accruedFees(), 0, "fees exhausted before socializing");
+        assertEq(ch.collateralOf(bob), -int256(uncovered), "uncovered bad debt stays as negative collateral");
+        assertEq(ch.totalBadDebt(), uncovered);
         _assertI2();
         _assertI1();
         // decision 5: a later deposit repays it first
         _fund(bob, 100e6);
-        assertEq(ch.collateralOf(bob), eq + 100e18);
+        assertEq(ch.collateralOf(bob), -int256(uncovered) + 100e18);
     }
 
     // ═══ 6. stale oracle ════════════════════════════════════════════════════

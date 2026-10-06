@@ -392,7 +392,7 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
     /// @dev MATH_SPEC §6.4. The liquidator takes x and K·x/|q| (all of K for a q = 0 locked stream), pays the
     ///      liquidatee the slice's value V_x at markApr (equal and opposite), then penalty = liqPenalty·MM_x ↑
     ///      capped by the liquidatee's equity: keeperShare ↓ to the liquidator, the rest to the IF. Bad debt of a
-    ///      fully closed account goes to the IF; uncovered stays as negative collateral.
+    ///      fully closed account goes to the IF, then accrued fees; only the rest stays as negative collateral.
     function liquidate(address account, uint256 maxSizeWad) external nonReentrant returns (int256 sizeTransferred) {
         if (account == msg.sender) revert InvalidParams();
         if (maxSizeWad == 0) revert ZeroAmount();
@@ -453,7 +453,11 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
         if (amountToken != 0) IERC20(collateralToken).safeTransfer(insuranceFund, amountToken);
     }
 
-    /// @dev Same as the perp: pull ⌈badDebt⌉ from the IF, measured by balance delta; uncovered stays negative.
+    /// @dev Same waterfall as the perp (MATH_SPEC §6.4, PHASES 36): IF first (⌈badDebt⌉ pulled, measured by
+    ///      balance delta, sub-token excess to fees), then accrued protocol fees, then the rest stays as negative
+    ///      collateral and in totalBadDebt. IFundingSwapMarket has no `BadDebtSocialized` event (P1 changes no
+    ///      interface; parity is noted for the CR-014 batch): the split is observable through `SwapLiquidated.badDebt`,
+    ///      the IF balance, `accruedFees()` and `totalBadDebt()`.
     function _coverBadDebt(address account, uint256 badDebt) internal {
         uint256 requested = FPM.divUp(badDebt, TO_WAD);
         IERC20 token = IERC20(collateralToken);
@@ -463,11 +467,16 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
         if (coveredWad >= badDebt) {
             _accounts[account].collateral = 0;
             _fees += int256(coveredWad - badDebt);
-        } else {
-            uint256 uncovered = badDebt - coveredWad;
-            _accounts[account].collateral = -int256(uncovered);
-            totalBadDebt += uncovered;
+            return;
         }
+        // MATH_SPEC §6.4, rounds neutral: fromFees = min(badDebt − coveredIF, max(fees, 0)); fees −= fromFees
+        uint256 uncovered = badDebt - coveredWad;
+        int256 fees = _fees;
+        uint256 fromFees = FPM.min(uncovered, fees > 0 ? uint256(fees) : 0);
+        _fees = fees - int256(fromFees);
+        uncovered -= fromFees;
+        _accounts[account].collateral = -int256(uncovered);
+        totalBadDebt += uncovered;
     }
 
     // ═══ Admin ═══════════════════════════════════════════════════════════════════

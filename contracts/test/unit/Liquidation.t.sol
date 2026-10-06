@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {Vm} from "forge-std/Test.sol";
 import {ClearingHouseBase} from "./ClearingHouseBase.t.sol";
 import {ClearingHouse} from "../../src/clearing/ClearingHouse.sol";
 import {IClearingHouse} from "../../src/interfaces/IClearingHouse.sol";
@@ -85,46 +86,137 @@ contract LiquidationTest is ClearingHouseBase {
         assertEq(lo, so);
     }
 
-    /// Underwater account: no penalty, IF covers the deficit, account ends at 0.
-    function test_liquidate_badDebtCoveredByInsurance() public {
-        ausd.mint(address(this), 100e6);
-        ausd.approve(address(fund), 100e6);
-        fund.fund(100e6);
+    // ═══ bad debt: IF → accrued protocol fees → uncovered (MATH_SPEC §3.3, PHASES 36) ═══
+
+    /// Carol round-trips `lots` against bob at the index: 2 × lots × 2 × (0.05% − 0.01%) of net protocol fees.
+    function _accrueFees(uint64 lots) internal {
+        _deposit(carol, 10_000e6);
+        _trade(carol, bob, true, lots, 2e18);
+        _trade(carol, bob, false, lots, 2e18);
+    }
+
+    /// −25% ⇒ alice's equity is negative; returns the debt left once her 100 long closes at 1.5.
+    function _debtAfterCrash() internal returns (uint256) {
         _drop(1.5e18);
         assertEq(ch.markPrice(), 1.5e18);
         int256 debt = -(ch.collateralOf(alice) - _acct(alice).pendingFunding - 50e18);
         assertGt(debt, 0);
+        return uint256(debt);
+    }
+
+    function _fundIF(uint256 amountToken) internal {
+        ausd.mint(address(this), amountToken);
+        ausd.approve(address(fund), amountToken);
+        fund.fund(amountToken);
+    }
+
+    /// I1 slack over every account of the fixture: balance·1e12 − (ΣC − ΣON − Σpending + fees) ≥ 0.
+    function _solvencySlack() internal view returns (int256 liabilities) {
+        address[4] memory who = [alice, bob, carol, keeper];
+        liabilities = int256(ch.accruedFees());
+        for (uint256 i; i < 4; ++i) {
+            liabilities += ch.collateralOf(who[i]) - _acct(who[i]).pendingFunding - ch.getPosition(who[i]).openNotional;
+        }
+        return int256(ausd.balanceOf(address(ch)) * 1e12) - liabilities;
+    }
+
+    /// (c) Underwater account: no penalty, IF covers the deficit, account ends at 0, fees untouched (only the
+    /// sub-token excess of the ⌈debt⌉ pull is added).
+    function test_liquidate_badDebtCoveredByInsurance() public {
+        _fundIF(100e6);
+        uint256 debt = _debtAfterCrash();
+        uint256 fees0 = ch.accruedFees();
+        assertGt(fees0, 0);
+        uint256 requested = (debt + 1e12 - 1) / 1e12;
+        vm.recordLogs();
         vm.prank(keeper);
         ch.liquidate(alice, type(uint256).max);
         assertEq(ch.collateralOf(alice), 0);
-        uint256 requested = (uint256(debt) + 1e12 - 1) / 1e12;
         assertEq(ausd.balanceOf(address(fund)), 100e6 - requested);
         assertEq(ch.totalBadDebt(), 0);
+        assertEq(ch.accruedFees(), fees0 + requested * 1e12 - debt, "fees untouched");
         assertEq(ch.collateralOf(keeper), 1000e18, "no penalty on an underwater account");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; ++i) {
+            assertTrue(logs[i].topics[0] != IClearingHouse.BadDebtSocialized.selector, "IF covered: no event");
+        }
     }
 
-    function test_liquidate_insuranceEmpty_socializes() public {
-        _drop(1.5e18);
-        int256 debt = -(ch.collateralOf(alice) - _acct(alice).pendingFunding - 50e18);
+    /// (a) IF empty, fees ≥ debt: fees absorb all of it; nothing is socialized.
+    function test_liquidate_badDebt_feesAbsorbWhenInsuranceEmpty() public {
+        _accrueFees(10_000);
+        uint256 debt = _debtAfterCrash();
+        uint256 fees0 = ch.accruedFees();
+        assertGe(fees0, debt);
+        int256 slack0 = _solvencySlack();
         vm.expectEmit(address(ch));
-        emit IClearingHouse.BadDebtSocialized(uint256(debt), 0, uint256(debt));
+        emit IClearingHouse.BadDebtSocialized(debt, 0, 0);
         vm.prank(keeper);
         ch.liquidate(alice, type(uint256).max);
-        assertEq(ch.totalBadDebt(), uint256(debt));
-        assertEq(ch.collateralOf(alice), -debt, "uncovered debt stays on the account (I1)");
+        assertEq(ch.collateralOf(alice), 0, "fees covered the hole");
+        assertEq(ch.accruedFees(), fees0 - debt, "fees reduced by the debt");
+        assertEq(ch.totalBadDebt(), 0);
+        assertEq(_solvencySlack(), slack0, "I1: -debt on fees, +debt on the account");
+    }
+
+    /// (b) IF empty, fees < debt: fees go to 0, only the rest is uncovered.
+    function test_liquidate_insuranceEmpty_feesThenSocializes() public {
+        uint256 debt = _debtAfterCrash();
+        uint256 fees0 = ch.accruedFees();
+        assertGt(fees0, 0);
+        assertLt(fees0, debt);
+        vm.expectEmit(address(ch));
+        emit IClearingHouse.BadDebtSocialized(debt, 0, debt - fees0);
+        vm.prank(keeper);
+        ch.liquidate(alice, type(uint256).max);
+        assertEq(ch.accruedFees(), 0, "fees exhausted first");
+        assertEq(ch.totalBadDebt(), debt - fees0);
+        assertEq(ch.collateralOf(alice), -int256(debt - fees0), "uncovered debt stays on the account (I1)");
         assertEq(_acct(alice).collateral, 0);
     }
 
+    /// IF partial, then fees, then uncovered.
     function test_liquidate_insurancePartial() public {
-        ausd.mint(address(this), 4e6);
-        ausd.approve(address(fund), 4e6);
-        fund.fund(4e6);
-        _drop(1.5e18);
-        int256 debt = -(ch.collateralOf(alice) - _acct(alice).pendingFunding - 50e18);
+        _fundIF(4e6);
+        uint256 debt = _debtAfterCrash();
+        uint256 fees0 = ch.accruedFees();
+        vm.expectEmit(address(ch));
+        emit IClearingHouse.BadDebtSocialized(debt, 4e18, debt - 4e18 - fees0);
         vm.prank(keeper);
         ch.liquidate(alice, type(uint256).max);
         assertEq(ausd.balanceOf(address(fund)), 0);
-        assertEq(ch.totalBadDebt(), uint256(debt) - 4e18);
+        assertEq(ch.accruedFees(), 0);
+        assertEq(ch.totalBadDebt(), debt - 4e18 - fees0);
+    }
+
+    /// IF partial, fees cover the rest: the event still fires (IF fell short) with uncovered 0.
+    function test_liquidate_badDebt_insurancePartialFeesCoverRest() public {
+        _accrueFees(10_000);
+        _fundIF(4e6);
+        uint256 debt = _debtAfterCrash();
+        uint256 fees0 = ch.accruedFees();
+        vm.expectEmit(address(ch));
+        emit IClearingHouse.BadDebtSocialized(debt, 4e18, 0);
+        vm.prank(keeper);
+        ch.liquidate(alice, type(uint256).max);
+        assertEq(ch.collateralOf(alice), 0);
+        assertEq(ch.accruedFees(), fees0 - (debt - 4e18));
+        assertEq(ch.totalBadDebt(), 0);
+    }
+
+    /// (d) After (a), `collectFees` pays only what is left after the debt; users stay whole.
+    function test_liquidate_badDebt_collectFeesPaysOnlyRemainder() public {
+        _accrueFees(10_000);
+        uint256 debt = _debtAfterCrash();
+        uint256 fees0 = ch.accruedFees();
+        vm.prank(keeper);
+        ch.liquidate(alice, type(uint256).max);
+        address treasury = makeAddr("treasury");
+        vm.prank(owner);
+        uint256 paid = ch.collectFees(treasury);
+        assertEq(paid, (fees0 - debt) / 1e12);
+        assertEq(ausd.balanceOf(treasury), paid);
+        assertGe(_solvencySlack(), 0, "I1 after the protocol is paid");
     }
 
     function test_liquidate_worksWhileStaleAndPaused() public {

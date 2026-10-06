@@ -64,6 +64,9 @@ contract FundingSwapInvariantsTest is StdInvariant, Test {
             actors[i] = makeAddr(string.concat("t", vm.toString(i)));
         }
         handler = new FundingSwapHandler(ch, ob, fs, sob, ausd, perpMm, actors, keeper);
+        handler.setInsuranceFund(fund);
+        vm.prank(owner);
+        fund.setMarketAuthorized(address(handler), true); // drainInsurance: bad debt reaches fees, then uncovered
         _fundSwap(actors[0], 200_000e6);
         for (uint256 i = 1; i < 5; ++i) {
             _fundSwap(actors[i], 3000e6); // thin margin: liquidations are reachable (coverage logged)
@@ -73,7 +76,7 @@ contract FundingSwapInvariantsTest is StdInvariant, Test {
         everyone = actors;
         everyone.push(keeper);
 
-        bytes4[] memory sel = new bytes4[](16);
+        bytes4[] memory sel = new bytes4[](17);
         sel[0] = handler.placeLimit.selector;
         sel[1] = handler.placeLimit.selector;
         sel[2] = handler.placeLimit.selector;
@@ -90,6 +93,7 @@ contract FundingSwapInvariantsTest is StdInvariant, Test {
         sel[13] = handler.regime.selector;
         sel[14] = handler.regime.selector;
         sel[15] = handler.goToMaturity.selector;
+        sel[16] = handler.drainInsurance.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: sel}));
         targetContract(address(handler));
     }
@@ -141,6 +145,11 @@ contract FundingSwapInvariantsTest is StdInvariant, Test {
         assertLe(dust, int256(handler.settlements() + everyone.length), "I9: >= -(#settlements + #accounts)");
     }
 
+    /// PHASES 36: uncovered bad debt is only ever added once accrued protocol fees are exhausted.
+    function invariant_I9_badDebtWaterfall() public view {
+        assertFalse(handler.waterfallViolation(), "uncovered bad debt while fees > 0");
+    }
+
     /// I9: after the maturity snapshot no account's accrual changes.
     function invariant_I9_noAccrualAfterMaturity() public view {
         assertFalse(handler.accrualAfterMaturity(), "I9: accrual after maturity");
@@ -163,7 +172,13 @@ contract FundingSwapInvariantsTest is StdInvariant, Test {
                 ",",
                 vm.toString(handler.settlements()),
                 ",",
-                vm.toString(handler.maturityFreezeChecks())
+                vm.toString(handler.maturityFreezeChecks()),
+                ",",
+                vm.toString(handler.badDebtLiquidations()),
+                ",",
+                vm.toString(handler.feesAbsorbed()),
+                ",",
+                vm.toString(handler.uncoveredWithFees())
             )
         );
     }

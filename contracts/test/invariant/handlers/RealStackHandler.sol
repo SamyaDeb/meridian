@@ -5,6 +5,7 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {FixedPointMathLib as FPM} from "solady/utils/FixedPointMathLib.sol";
 import {ClearingHouse} from "../../../src/clearing/ClearingHouse.sol";
 import {OrderBook} from "../../../src/orderbook/OrderBook.sol";
+import {InsuranceFund} from "../../../src/clearing/InsuranceFund.sol";
 import {MockERC20} from "../../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../../src/mocks/MockOracleAdapter.sol";
 import {IClearingHouse} from "../../../src/interfaces/IClearingHouse.sol";
@@ -56,6 +57,13 @@ contract RealStackHandler is Test {
     mapping(bytes4 => uint256) public liqFailures;
     bytes4 public lastLiqFailure;
 
+    // PHASES 36 bad-debt waterfall (IF → fees → uncovered): coverage + ghost
+    InsuranceFund public fund; // set once by the suite; the handler is an authorized market so it can drain it
+    uint256 public ghostBadDebtShortfalls; // BadDebtSocialized events (the IF fell short)
+    uint256 public ghostFeesAbsorbed; // ... where accrued fees covered a part
+    uint256 public ghostUncoveredWithFees; // a liquidation left uncovered debt while fees were > 0 before it
+    bool public ghostWaterfallViolation; // uncovered debt was added while positive fees remained
+
     bool internal _ok; // the current action's protocol call succeeded
     int256[N] internal _lastCumBefore;
 
@@ -91,6 +99,10 @@ contract RealStackHandler is Test {
             } else if (logs[i].emitter == address(ch) && t0 == IClearingHouse.FundingSettled.selector) {
                 (int256 payment,) = abi.decode(logs[i].data, (int256, int256));
                 ghostSettledOwed += payment;
+            } else if (logs[i].emitter == address(ch) && t0 == IClearingHouse.BadDebtSocialized.selector) {
+                (uint256 req, uint256 byIF, uint256 unc) = abi.decode(logs[i].data, (uint256, uint256, uint256));
+                ++ghostBadDebtShortfalls;
+                if (req - byIF - unc != 0) ++ghostFeesAbsorbed;
             } else if (logs[i].emitter == address(ob) && t0 == IOrderBook.Trade.selector) {
                 ++ghostMakerFills[address(uint160(uint256(logs[i].topics[2])))];
             }
@@ -215,9 +227,15 @@ contract RealStackHandler is Test {
             int256 f = v.equity - int256(v.initialMargin);
             if (f > best) (best, k) = (f, actors[i]);
         }
+        uint256 fees0 = ch.accruedFees();
+        uint256 bad0 = ch.totalBadDebt();
         vm.prank(k);
         try ch.liquidate(t, bound(size, 1e18, 1e24)) {
             _ok = true;
+            if (ch.totalBadDebt() != bad0) {
+                if (ch.accruedFees() != 0) ghostWaterfallViolation = true;
+                if (fees0 != 0) ++ghostUncoveredWithFees;
+            }
         } catch (bytes memory err) {
             ++liqFailures[bytes4(err)];
             lastLiqFailure = bytes4(err);
@@ -261,6 +279,19 @@ contract RealStackHandler is Test {
         vm.warp(block.timestamp + 1);
         ch.updateFunding();
         ++calls["crash"];
+    }
+
+    function setInsuranceFund(InsuranceFund fund_) external {
+        fund = fund_;
+    }
+
+    /// Half the time it is called, empty the IF (the handler is an authorized market), so later bad debt runs
+    /// through fees and then becomes uncovered (PHASES 36).
+    function drainInsurance(uint256 coin) external {
+        ++calls["drainIF"];
+        if (coin % 2 != 0 || address(fund) == address(0)) return;
+        uint256 bal = fund.balance();
+        if (bal != 0) fund.coverBadDebt(bal);
     }
 
     function setStale(uint256 seed) external {

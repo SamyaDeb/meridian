@@ -6,7 +6,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 | Network | Config | Public GraphQL URL |
 |---|---|---|
 | 31337 local | `config.yaml` | `http://localhost:8080/v1/graphql` (`pnpm dev`) |
-| 10143 testnet | `config.testnet.yaml`; Envio Cloud uses `config.hosted.testnet.yaml` (branch `ws-06-envio-live`, Root Directory `indexer`) | `https://indexer.dev.hyperindex.xyz/8ba06c6/v1/graphql` (Envio Cloud, Development plan, deployment `35ed19f`, read from the dashboard 6 Oct 2026; a new deployment may get a new id) |
+| 10143 testnet | `config.testnet.yaml`; Envio Cloud uses `config.hosted.testnet.yaml` (branch `ws-06-envio-live`, Root Directory `indexer`) | `https://indexer.dev.hyperindex.xyz/9395e07/v1/graphql` (Envio Cloud, Development plan, deployment `af7e9cf`, read from the dashboard 6 Oct 2026). **On this plan every deployment gets a new URL** (`35ed19f` was `…/8ba06c6/…`); a stable one needs "Promote to production", which is a paid-plan feature. Every push to `ws-06-envio-live` is a new deployment (3 per indexer on the free plan, 2 used): after one, update `NEXT_PUBLIC_INDEXER_URL` wherever the app runs |
 | 143 mainnet | `config.mainnet.yaml` (`pnpm gen-config 143`) | > VERIFY: hosted URL after CP3 |
 
 ## Conventions (read first)
@@ -42,6 +42,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 | `AdminEvent` | `<block>-<logIndex>` | `name`, `data` (JSON, bigints as strings) | ops |
 
 ## Derived values (bigint, unit-tested in `test/math.test.ts`)
+- **Bad-debt split (PHASES 36, 6 Oct).** Liquidation bad debt runs IF → accrued protocol fees → uncovered. Perp: `BadDebtSocialized(requested, coveredByInsurance, uncovered)` (WAD) fires whenever the IF falls short; **fee-covered part = `requested − coveredByInsurance − uncovered`** (no separate event; can be > 0 with `uncovered = 0`). No event ⇒ the IF covered all of `Liquidated.badDebt`. Swap: no `BadDebtSocialized` on `IFundingSwapMarket`; derive from `SwapLiquidated.badDebt` and the InsuranceFund's `BadDebtCovered(market, requestedToken, coveredToken)` in the same tx: IF part = `min(coveredToken·1e12, badDebt)`, fees + uncovered = the rest (split them by reading `totalBadDebt()` at that block if needed). `BadDebtEvent` should store `feeCoveredWad` for the perp.
 - **Realized funding APR (oracle), MATH_SPEC §1.8.** `avgRate = (F₂ − F₁)·1e18 / (G₂ − G₁)`, `aprWad = avgRate · 31,536,000`, display `aprWad / 1e18`. (F₂, G₂) comes from the latest `FundingUpdated`. (F₁, G₁) is the `FundingCheckpoint` at or before `block − window`, with `window = seconds·1000/blockTimeMs` (1 h = 12,000 blocks at 300 ms). This is the same semantics and operation order as `averageFundingApr(blocksAgo)`. It is `null` until the window has history.
 - **Rate APR:** `rateAprWad = rate · 31,536,000`.
 - **Vault APY:** simple annualized share-price change vs the hourly price 24 h / 7 d back: `(sp₁ − sp₀)·1e18·YEAR / (sp₀·Δt)`. `null` means not enough history, so the app shows "Waiting for funding…" (never a fake APY).

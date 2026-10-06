@@ -133,10 +133,14 @@ notional = x·M
 penalty  = min(notional·liqPenalty ↑, max(equity_after_close, 0))
 keeper   = penalty·keeperShare ↓ ;  toIF = penalty − keeper
 position x transferred to liquidator at M (liquidatee realizes pnl at M)
-if C_liquidatee < 0: badDebt = −C ; IF.coverBadDebt(badDebt) ; uncovered ⇒ totalBadDebt (ADL roadmap)
+if C_liquidatee < 0 (position closed): badDebt = −C
+    coveredIF = min(IF balance, ⌈badDebt⌉ AUSD)·1e12   // sub-token excess of the pull → fees
+    fromFees  = min(badDebt − coveredIF, max(fees, 0)) ; fees −= fromFees      // rounds neutral
+    uncovered = badDebt − coveredIF − fromFees ⇒ C = −uncovered ; totalBadDebt += uncovered (ADL roadmap)
 liquidator must satisfy equity ≥ IM after
 ```
 The liquidatee keeps any equity left after the penalty (as collateral in its account). The insurance fund receives only `toIF`.
+*(Amended 6 Oct, PHASES 36, audit M-3.)* **Bad debt: IF first, then accrued protocol fees, then uncovered** (negative collateral, `totalBadDebt`). Fees are junior to users, so `collectFees` can never pay the protocol out of user collateral; I1 is unchanged (−x on fees, +x on the account). `BadDebtSocialized(requested, coveredByInsurance, uncovered)` fires whenever the IF falls short; `coveredByInsurance` is the IF part only and the fee part is `requested − coveredByInsurance − uncovered`.
 Check (crash demo): 5x long, −15% ⇒ equity 20% − 15% = 5% of entry notional < MM = 10% × 0.85 = 8.5% ⇒ liquidatable ✓.
 | Param | Default |
 |---|---|
@@ -291,7 +295,7 @@ IM = MM · imMultiplier                                            // all ↑
 Defaults at inception (q = 1, Ā = 12%, 30 d): cap_apr = 0.2%/h × 8,760 = 1,752% APR ⇒ (17.52 + 0.12)/365 = 4.83%; + 0.05 × 30/365 = 0.41%; + 0 ⇒ **MM ≈ 5.24%, IM ≈ 7.87% of notional (≈ 12.7x)**.
 Full worst-case collateralization to maturity would need ≈ 144% of notional (17.52 × 30/365), which is why this is a margined product with liquidation.
 **Voluntary reductions (B-02):** a trade that does not grow |q| needs equity ≥ 0 after it and must not create or worsen a maintenance shortfall: `slack = equity − MM` (MM ↑, so slack rounds against the account) must satisfy `slack_after ≥ min(0, slack_before)`. An off-market close that turns q into a large locked |K| is refused; a close near the mark (and any reduction that improves an existing shortfall) passes. Makers: the fill is skipped and the order evicted, as for any failed maker check.
-**Liquidation:** the liquidator receives `x` and the proportional `K·x/q`. A cash transfer `V_x = x·I·τ/YEAR·(markApr − K/q)` goes from liquidator to liquidatee (negative = the other way). The amount is equal and opposite, so conservation is exact. Then penalty = liqPenalty·MM_x: keeperShare to liquidator, rest to the IF; bad debt via IF. Accounts with q = 0 (locked spread only) are never liquidated if the stream is positive; otherwise their MM is the price-shock term only.
+**Liquidation:** the liquidator receives `x` and the proportional `K·x/q`. A cash transfer `V_x = x·I·τ/YEAR·(markApr − K/q)` goes from liquidator to liquidatee (negative = the other way). The amount is equal and opposite, so conservation is exact. Then penalty = liqPenalty·MM_x: keeperShare to liquidator, rest to the IF; bad debt via the same waterfall as §3.3: IF first, then accrued protocol fees, then uncovered (negative collateral, `totalBadDebt`) *(amended 6 Oct, PHASES 36; the swap interface has no `BadDebtSocialized` event, so the split is read from `SwapLiquidated.badDebt`, the IF's `BadDebtCovered`, `accruedFees()` and `totalBadDebt()`)*. Accounts with q = 0 (locked spread only) are never liquidated if the stream is positive; otherwise their MM is the price-shock term only.
 
 ### 6.5 Fees
 `fee = |Δq|·I·feeApr·τ/YEAR` ↑ per fill (taker 0.2% APR; maker −0.05% APR rebate ↓). Fees in APR·time are fair across time-to-maturity.
@@ -308,7 +312,7 @@ The book price is the APR itself (p − 1), simple (non-compounded) APR. UI show
 ## 7. Invariants (WS-08 implements; each WS supplies handlers)
 | ID | Invariant |
 |---|---|
-| I1 Solvency / conservation | `AUSD.balanceOf(CH)·1e12 ≥ Σ_i C_i − Σ_i ON_i − Σ_i pending_i + accruedFees` with equality up to non-negative dust (Σq = 0 ⇒ Σ upnl = −Σ ON at any mark; pending_i = owed funding not yet settled, §1.4, so Σ pending ≥ 0 is the rounding dust in the protocol's favour). Uncovered bad debt appears as a negative C_i that is zeroed only via IF inflow. *(Amended Phase 2, decision 7: −Σpending term.)* |
+| I1 Solvency / conservation | `AUSD.balanceOf(CH)·1e12 ≥ Σ_i C_i − Σ_i ON_i − Σ_i pending_i + accruedFees` with equality up to non-negative dust (Σq = 0 ⇒ Σ upnl = −Σ ON at any mark; pending_i = owed funding not yet settled, §1.4, so Σ pending ≥ 0 is the rounding dust in the protocol's favour). Uncovered bad debt appears as a negative C_i (what the IF and then accrued fees could not cover at liquidation, §3.3). *(Amended Phase 2, decision 7: −Σpending term.)* |
 | I2 OI balance | `longOI == shortOI == Σ max(q_i,0) == Σ max(−q_i,0)` (ghost sums in handler) |
 | I3 Funding conservation | for any run with all accounts settled: `0 ≤ Σ owed_i ≤ N_accounts` wei |
 | I4 Funding once per block | `FundingUpdated` emitted ≤ 1 per block per market; F unchanged by 2nd touch |

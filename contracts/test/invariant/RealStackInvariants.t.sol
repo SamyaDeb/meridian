@@ -44,12 +44,15 @@ contract RealStackInvariantsTest is StdInvariant, Test {
         ausd.mint(address(fund), 1000e6);
 
         handler = new RealStackHandler(ch, ob, oracle, ausd);
+        handler.setInsuranceFund(fund);
+        vm.prank(owner);
+        fund.setMarketAuthorized(address(handler), true); // drainInsurance: bad debt reaches fees, then uncovered
         for (uint256 i; i < 6; ++i) {
             handler.deposit(i, 100e6);
             handler.deposit(i, 50e6); // 150 tAUSD each: the position cap allows ~4.8x, so liquidations are reachable
         }
         // weights: limit ×4, market ×3, price ×3, liquidate ×3, roll ×2, crash ×2, the rest ×1 (deposits rare so leverage builds)
-        bytes4[] memory sel = new bytes4[](24);
+        bytes4[] memory sel = new bytes4[](25);
         sel[0] = handler.deposit.selector;
         sel[1] = handler.withdraw.selector;
         sel[2] = handler.placeLimit.selector;
@@ -74,6 +77,7 @@ contract RealStackInvariantsTest is StdInvariant, Test {
         sel[21] = handler.setStale.selector;
         sel[22] = handler.crash.selector;
         sel[23] = handler.crash.selector;
+        sel[24] = handler.drainInsurance.selector;
         targetSelector(FuzzSelector(address(handler), sel));
         targetContract(address(handler));
     }
@@ -135,13 +139,24 @@ contract RealStackInvariantsTest is StdInvariant, Test {
                 ",",
                 vm.toString(handler.ghostLiquidatableSeen()),
                 ",",
-                vm.toString(handler.lastLiqFailure())
+                vm.toString(handler.lastLiqFailure()),
+                ",",
+                vm.toString(handler.ghostBadDebtShortfalls()),
+                ",",
+                vm.toString(handler.ghostFeesAbsorbed()),
+                ",",
+                vm.toString(handler.ghostUncoveredWithFees())
             )
         );
     }
 
     function invariant_I1_solvency() public view {
         assertGe(handler.checkSolvencySlack(), 0, "I1");
+    }
+
+    /// PHASES 36: uncovered bad debt is only ever added once accrued protocol fees are exhausted.
+    function invariant_I1_badDebtWaterfall() public view {
+        assertFalse(handler.ghostWaterfallViolation(), "uncovered bad debt while fees > 0");
     }
 
     function invariant_I2_oiBalance() public view {
