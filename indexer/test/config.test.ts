@@ -112,6 +112,19 @@ describe("renderConfig", () => {
     expect(readFileSync(resolve(import.meta.dirname, "../config.yaml"), "utf8")).toBe(renderConfig(31337, dep));
   });
 
+  it("committed testnet configs and deployments.gen.ts are up to date with deployments/10143.json", () => {
+    const dep = JSON.parse(readFileSync(resolve(ROOT, "deployments/10143.json"), "utf8"));
+    const y = readFileSync(resolve(import.meta.dirname, "../config.testnet.yaml"), "utf8");
+    expect(y).toBe(renderConfig(10143, dep));
+    for (const k of ["ClearingHouse", "OrderBook", "OracleAdapter", "PulseVault", "FundingSwapMarket", "SwapOrderBook"]) {
+      expect(y, k).toContain(`address: "${dep.contracts[k]}"`);
+    }
+    // The MM, demo MM and the house taker flow are operators: never external users (chart-liquidity prompt, task 2).
+    const gen = readFileSync(resolve(import.meta.dirname, "../src/deployments.gen.ts"), "utf8");
+    const ops = gen.split("OPERATOR_ACCOUNTS")[1]!.split("10143:")[1]!.split("\n")[0]!;
+    for (const a of [...dep.mmAccounts, ...dep.keeperAccounts, dep.owner]) expect(ops, a).toContain(a.toLowerCase());
+  });
+
   it("deployments.gen.ts wiring", () => {
     const ts = renderDeploymentsTs([fake(143), fake(10143)]);
     expect(ts.indexOf("  143:")).toBeLessThan(ts.indexOf("10143:")); // sorted by chainId

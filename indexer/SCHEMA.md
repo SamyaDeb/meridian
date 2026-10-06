@@ -6,7 +6,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 | Network | Config | Public GraphQL URL |
 |---|---|---|
 | 31337 local | `config.yaml` | `http://localhost:8080/v1/graphql` (`pnpm dev`) |
-| 10143 testnet | `config.testnet.yaml` (`pnpm gen-config 10143` once `deployments/10143.json` exists) | > VERIFY: hosted URL after the CP2 deploy |
+| 10143 testnet | `config.testnet.yaml`; Envio Cloud uses `config.hosted.testnet.yaml` (branch `ws-06-envio-live`, Root Directory `indexer`) | `https://indexer.dev.hyperindex.xyz/8ba06c6/v1/graphql` (Envio Cloud, Development plan, deployment `35ed19f`, read from the dashboard 6 Oct 2026; a new deployment may get a new id) |
 | 143 mainnet | `config.mainnet.yaml` (`pnpm gen-config 143`) | > VERIFY: hosted URL after CP3 |
 
 ## Conventions (read first)
@@ -85,7 +85,7 @@ query Stats($chainId: Int!) {
   ProtocolStats(where: { chainId: { _eq: $chainId } }) { externalUsers users perpVolumeQuoteWad perpVolumeMmQuoteWad swapVolumeWad feesWad tvlToken trades liquidations fundingTicks updatedBlock }
 }
 ```
-> VERIFY: the exact Hasura root-field names (`Market` vs `Market_by_pk`, `chainId` column) against the local `pnpm dev` console before WS-07 wires them (CP1, Day 5).
+Root fields (introspected on the 10143 Envio Cloud endpoint, 6 Oct 2026): one list field per entity (`Market`, `Trade`, `Candle1m`, …) plus `<Entity>_by_pk`; **no `_aggregate` fields**. Every entity has `chainId`. Relations are exposed as `<field>_id` on `FundingTick`, `Trade` (`market_id`), `AccountMarket`; `Candle1m` / `Candle1h` store the market as a plain `market` string (no `market_id`).
 
 ## Event coverage checklist (acceptance: every interface event is handled)
 Enforced by `test/config.test.ts`, which diffs `abis/*.json` and `contracts/src/interfaces/*.sol` against the config, and every configured event against a handler.
