@@ -117,8 +117,11 @@ describe("renderConfig", () => {
     const y = readFileSync(resolve(import.meta.dirname, "../config.testnet.yaml"), "utf8");
     expect(y).toBe(renderConfig(10143, dep));
     for (const k of ["ClearingHouse", "OrderBook", "OracleAdapter", "MeridianVault", "FundingSwapMarket", "SwapOrderBook"]) {
+      // the P4 relaunch ships no vault (vault v2 joins in P6): gen-config emits no address for an absent key
+      if (dep.contracts[k] === undefined) continue;
       expect(y, k).toContain(`address: "${dep.contracts[k]}"`);
     }
+    expect(y).not.toContain('address: "undefined"');
     // The MM, demo MM and the house taker flow are operators: never external users (chart-liquidity prompt, task 2).
     const gen = readFileSync(resolve(import.meta.dirname, "../src/deployments.gen.ts"), "utf8");
     const ops = gen.split("OPERATOR_ACCOUNTS")[1]!.split("10143:")[1]!.split("\n")[0]!;

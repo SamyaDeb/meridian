@@ -3,3 +3,4 @@ anvil-10143,MON-PERP-DEMO,perp,13315,13317,13318,1,3,,local,n/a (Phase 3; docs/s
 anvil-10143,funding swap,swap,96,96,97,1,1,0xec00e429f407169c4ee52d014fe5ba824ae1d7a3d6d7548ad4a758d0f7cab693,local,2e81edf + ws-03f-keeper-swaps,2026-09-30,Phase 4 step 2 keeper (1 s blocks)
 anvil-10143,MON-PERP,perp,98773,98773,98774,1,1,0x0a79141ff7722205d494208c53fab90092b918d9f8d4db554719ede6ab9b8bc7,local,0977b7b,2026-09-30,Phase 4 step 4 live keeper (1 s blocks)
 10143,MON-PERP-DEMO,perp,66933004,66933015,66933023,8,19,0xac7d67c8d600ba64af1c13538a07eadba7b6288f7665c0663c09f3e45001f23f,public testnet RPC (free),6d98182,2026-09-30,Phase 4 step 7.2 (400 ms blocks)
+10143,MON-PERP-DEMO,perp,68741705,68741705,68741709,4,4,0x565dadfd386342176e2170f9bf7e797ba2ff8778354d6ecc0e25e0053e22736b,private RPC (free tier),064f327,2026-10-06,P4.7 hardened relaunch (304 ms blocks)

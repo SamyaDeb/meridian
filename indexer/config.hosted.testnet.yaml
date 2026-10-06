@@ -90,25 +90,21 @@ contracts:
       - event: ForwarderUpdated
 chains:
   - id: 10143
-    start_block: 66875788
+    start_block: 68739694
     hypersync_config:
       url: https://10143.hypersync.xyz
     contracts:
       - name: ClearingHouse
-        address: "0x4c5fB2762986D15Bb626e15867Fc2385f3a4802f"
+        address: "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA"
       - name: OrderBook
-        address: "0x5d0650551588b92b2Efe3f8d34Ca1f1FDf1F7498"
+        address: "0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207"
       - name: SwapOrderBook
-        address: "0x880CA664c6083A7038ddE1B221b123475D1288F1"
+        address: "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db"
       - name: FundingSwapMarket
-        address: "0xA29D1C6264F0351dc04E9638993354152C71CcDc"
-      - name: MeridianVault
-        address: "0x067F60303bc7fc988d19150e48BBA5Cf6E0919CC"
+        address: "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33"
       - name: OracleAdapter
-        address: "0x7f10816dD85eF7B851Ff7c04E03A98a945B907c1"
+        address: "0xC77882E7024D8B71F414eDc1a8708b939920A9E2"
       - name: InsuranceFund
-        address: "0x75A3Dbdd37b4e27B4C6cCaf1767d393ccaE63A20"
+        address: "0xCcd97285dD2fca8D028D880Ed754039118437b48"
       - name: MarketFactory
-        address: "0xCe0163631adB9866A9902F453E4f23F0ac83bA14"
-      - name: KuruHedger
-        address: "0xC58F3668bb6182c05B4B13e340351B72CB823348"
+        address: "0xEB3f3956AC3c13BC9b61a383590F5eEb4Ff6e541"

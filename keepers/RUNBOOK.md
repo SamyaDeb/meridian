@@ -164,11 +164,13 @@ Launch settings for the swap MM (decision D13): `REQUOTE_BPS=1000 TICK_EVERY_BLO
    The mark's basis over the index moves ≤ 10 bps per block; an index move passes through at once (MATH_SPEC §2.1, PHASES 37), so the −15% reaches the mark in the same block even before the MM re-quotes.
 4. `echo 1 > $PRICE_FACTOR_FILE` to recover. Never touch the main market's price or parameters for a demo.
 
-## 7b. Testnet relaunch with the hardened contracts (HARDENING_PLAN P4.5–P4.8; **blocked on MON, 6 Oct**)
-PHASES 40: testnet 10143 is the demo deployment. Status 6 Oct: P2 + P3 code fork-rehearsed (§ mainnet-fork in `contracts/script/README.md`, Verify 52/52, Skip on the fork); **not yet deployed to 10143**: the deployer holds 0.026 MON.
+## 7b. Testnet relaunch with the hardened contracts (HARDENING_PLAN P4.5–P4.8; **done 6 Oct**)
+PHASES 40/41: testnet 10143 is the demo deployment, built from `DeployMeridian` (`3611352`) at blocks 68,739,988–68,740,143 (startBlock 68,739,694): CH `0x1F90…a6eA`, OB `0xCFB0…b207`, swap `0xACFc…Fe33` (maturity unix 1,793,898,278 = 30 d), swap OB `0xb7D7…E6Db`, IF `0xCcd9…7b48`, tAUSD `0x9739…66A1`, demo CH `0xB2D4…dC01`, demo OB `0xa3fA…2f1d`, demo oracle `0x93fb…9826` (full list: `deployments/10143.json`; v1 kept in `10143-v1.json`). Verify 55/55. Evidence: HARDENING_LOOP P4.
+
+**Stopping the bots: by PID, never by a `pkill -f` pattern.** The running command is `node …/tsx/dist/cli.mjs src/main.ts`, so a pattern like `tsx src/main.ts` matches nothing and the bot keeps spending (6 Oct: ≈ 0.5 MON). `ps -axo pid,command | grep -E 'pulse-hard/(keepers|mm-bot)'` (or your checkout path), then `kill -INT <pids>`; check `cast nonce` is flat and `openOrderCount(mm) == 0`.
 
 **MON per key** (102 gwei; dry-run 6 Oct: deploy = 62.69 M gas limit at `--gas-estimate-multiplier 200` ⇒ **6.39 MON**; window costs from §2b/§4):
-| Key (`.env` name) | Holds 6 Oct | Needs for deploy + one 30-min window + crash/Skip demo + gas bench | Top up |
+| Key (`.env` name) | Held 6 Oct (before) | Needs for deploy + one 30-min window + crash/Skip demo + gas bench | Top up |
 |---|---|---|---|
 | deployer `DEPLOYER_PK` `0xEF4E…3b91` | 0.026 | deploy 6.39 + setup (tAUSD mints, IF seed, collateral, `setFeeder(demo keeper)`, pause/unpause for the Skip demo) ≈ 0.5 + gas bench B1/B2 ≈ 0.45 ⇒ **≈ 7.4** | **+7.5** |
 | keeper `KEEPER_PK` `0x0D3B…0fA9` | 10.57 | 30 min ≈ 4.0, floor 5 | 0 |
