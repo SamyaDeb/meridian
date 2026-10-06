@@ -48,35 +48,53 @@ export interface GasSources {
   /** bench/out/gas_onchain_<network>_<date>.csv rows of ONE non-anvil network */
   onchain: Csv;
   network: string;
+  /** Allowance baked into this file's limits when the CSV predates the touchAllowance column (Found #19). */
+  legacyTouchAllowance?: number;
 }
 
 /**
- * Gas table: Foundry execution gas vs the testnet's billed limit (= estimate × 1.2; Monad receipts report the limit as
- * gasUsed) and the estimate derived from it, per op; targets from the Foundry CSV. Place + cancel is summed.
+ * Gas table: Foundry execution gas vs the testnet's execution estimate and billed limit (Monad receipts report the limit
+ * as gasUsed; limit = ⌈estimate × 1.2⌉ + touch allowance). The estimate is the recorded `gasEstimate` column, else
+ * derived as (limit − allowance) / 1.2 with the allowance from the `touchAllowance` column or `legacyTouchAllowance`.
+ * Targets from the Foundry CSV. Place + cancel is summed.
  */
 export function renderGasTable(g: GasSources): string {
   const foundry = new Map((g.foundry ?? []).map((r) => [r.op ?? "", r]));
-  const byOp = new Map<string, number[]>();
-  for (const r of g.onchain) byOp.set(r.op ?? "", [...(byOp.get(r.op ?? "") ?? []), Number(r.gasLimit)]);
-  const med = (op: string) => median(byOp.get(op) ?? []);
-  const place = med("place");
-  const cancel = med("cancel");
-  const rows: Array<[string, string, number | undefined]> = [
-    ["place", "place", place],
-    ["cancel", "cancel", cancel],
-    ["place+cancel", "place+cancel", place !== undefined && cancel !== undefined ? place + cancel : undefined],
-    ["replace", "replace", med("replace")],
-    ["match 1 fill", "match_1_fill", med("match_1_fill")],
-    ["close 1 fill", "close_1", med("close_1_fill")],
-    ["funding first-touch tx", "funding_first_touch_tx", med("funding_first_touch_tx")],
+  const lim = new Map<string, number[]>();
+  const est = new Map<string, number[]>();
+  const touch = new Map<string, number[]>();
+  for (const r of g.onchain) {
+    const op = r.op ?? "";
+    const l = Number(r.gasLimit);
+    const t = r.touchAllowance !== undefined && r.touchAllowance !== "" ? Number(r.touchAllowance) : (g.legacyTouchAllowance ?? 0);
+    const e = r.gasEstimate !== undefined && r.gasEstimate !== "" ? Number(r.gasEstimate) : (l - t) / 1.2;
+    lim.set(op, [...(lim.get(op) ?? []), l]);
+    est.set(op, [...(est.get(op) ?? []), e]);
+    touch.set(op, [...(touch.get(op) ?? []), t]);
+  }
+  const m = (src: Map<string, number[]>, op: string) => median(src.get(op) ?? []);
+  const sum = (src: Map<string, number[]>) => {
+    const a = m(src, "place");
+    const b = m(src, "cancel");
+    return a !== undefined && b !== undefined ? a + b : undefined;
+  };
+  const ops: Array<[string, string, string]> = [
+    ["place", "place", "place"],
+    ["cancel", "cancel", "cancel"],
+    ["place+cancel", "place+cancel", "+"],
+    ["replace", "replace", "replace"],
+    ["match 1 fill", "match_1_fill", "match_1_fill"],
+    ["close 1 fill", "close_1", "close_1_fill"],
+    ["funding first-touch tx", "funding_first_touch_tx", "funding_first_touch_tx"],
   ];
   const out = [
-    `| op | Foundry execution gas (Cancun schedule) | ${g.network} billed limit (median) | ≈ estimate (limit / 1.2) | target |`,
-    "|---|---|---|---|---|",
+    `| op | Foundry execution gas (Cancun schedule) | ${g.network} execution estimate (median) | touch allowance | ${g.network} billed limit (median) | target |`,
+    "|---|---|---|---|---|---|",
   ];
-  for (const [label, fkey, lim] of rows) {
+  for (const [label, fkey, op] of ops) {
     const f = foundry.get(fkey);
-    out.push(`| ${label} | ${fmt(f ? Number(f.gas) : undefined)} | ${fmt(lim)} | ${fmt(lim === undefined ? undefined : lim / 1.2)} | ${f?.target ? `< ${fmt(Number(f.target))}` : ""} |`);
+    const [e, t, l] = op === "+" ? [sum(est), sum(touch), sum(lim)] : [m(est, op), m(touch, op), m(lim, op)];
+    out.push(`| ${label} | ${fmt(f ? Number(f.gas) : undefined)} | ${fmt(e)} | ${fmt(t)} | ${fmt(l)} | ${f?.target ? `< ${fmt(Number(f.target))}` : ""} |`);
   }
   return out.join("\n");
 }

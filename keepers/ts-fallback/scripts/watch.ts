@@ -67,8 +67,8 @@ async function snapshot(): Promise<Snapshot> {
       health.map(async (url) => {
         try {
           const r = await fetch(url, { signal: AbortSignal.timeout(3_000) });
-          const j = (await r.json()) as { ok?: boolean; errors?: number };
-          return { url, ok: j.ok === true, ...(j.errors !== undefined ? { errors: j.errors } : {}) };
+          const j = (await r.json()) as { ok?: boolean; errors?: number; unwindPage?: string | null };
+          return { url, ok: j.ok === true, ...(j.errors !== undefined ? { errors: j.errors } : {}), unwindPage: j.unwindPage ?? null };
         } catch {
           return { url, ok: null };
         }

@@ -19,8 +19,11 @@ describe("stats", () => {
   });
   it("CSV rows carry network, commit, date and block time (BENCHMARKS_PLAN)", () => {
     const row = gasCsvRow({ op: "place", gasUsed: 68576n, gasLimit: 82292n, block: 12n, txHash: "0xab" }, { commit: "abc123", date: "2026-09-30", chainId: 10143, blockTimeMs: 300 });
-    expect(row).toBe("place,68576,82292,12,0xab,abc123,2026-09-30,10143,300.0");
+    expect(row).toBe("place,68576,82292,12,0xab,abc123,2026-09-30,10143,300.0,,");
     expect(GAS_CSV_HEADER.split(",")).toHaveLength(row.split(",").length);
+    // P7 (Found #19): estimate + allowance recorded next to the billed limit
+    const p7 = gasCsvRow({ op: "cancel", gasUsed: 210_720n, gasLimit: 210_720n, block: 1n, txHash: "0x1", estimate: 117_267n, touchAllowance: 70_000n }, { commit: "c", date: "d", chainId: 10143, blockTimeMs: 300 });
+    expect(p7.endsWith(",117267,70000")).toBe(true);
   });
   it("parses the Foundry reference CSV", () => {
     const m = parseFoundryCsv("op,gas,target\nplace,68576,\nplace+cancel,96478,100000\n");

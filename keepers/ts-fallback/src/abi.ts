@@ -8,6 +8,8 @@ export const clearingHouseAbi = parseAbi([
   "function fundingState() view returns (FundingState)",
   "function markPrice() view returns (uint256 priceWad)",
   "function getAccount(address account) view returns (AccountView)",
+  "struct RiskParams { uint256 imr; uint256 mmr; uint256 takerFee; int256 makerFee; uint256 liqPenalty; uint256 keeperShare; uint256 maxOpenInterest; uint256 maxPositionSize; }",
+  "function riskParams() view returns (RiskParams)",
   "function updateFunding() returns (int256 cumFunding)",
   "function liquidate(address account, uint256 maxSizeWad) returns (int256 sizeTransferred)",
   "event PositionChanged(address indexed account, int256 sizeDelta, int256 newSize, uint256 priceWad, int256 realizedPnl, int256 fee, bool isMaker)",
@@ -62,6 +64,23 @@ export const fundingSwapAbi = parseAbi([
 // the "snapshot taken" flag. isMatured() is only `block.timestamp >= maturity`, true before any snapshot.
 export const fundingSwapImplAbi = parseAbi([
   "function maturitySnapshot() view returns (bool snapped, int256 cumFunding, int256 cumIndexTime)",
+]);
+
+// H-1 keeper unwind (IOrderBook): the keeper closes what a liquidation handed it with a reduce-only IOC market order, on
+// the perp book and (when it has liquidity) the funding-swap book (same OrderBook contract, price = 1 + APR).
+export const orderBookAbi = parseAbi([
+  "function placeMarketOrder(bool isBid, uint64 lots, uint32 limitTick, uint64 minFilledLots, bool reduceOnly) returns (uint64 filledLots, uint256 avgPriceWad)",
+  "function lotSize() view returns (uint256)",
+  "function tickSize() view returns (uint256)",
+  "function bestBid() view returns (uint32 tick)",
+  "function bestAsk() view returns (uint32 tick)",
+]);
+
+// H-1 swap side: cap check and the reference price for the swap unwind bound (IFundingSwapMarket).
+export const fundingSwapUnwindAbi = parseAbi([
+  "struct SwapParams { uint256 aprMoveBuffer; uint256 liqHorizonSec; uint256 imMultiplier; uint256 takerFeeApr; int256 makerFeeApr; uint256 liqPenalty; uint256 keeperShare; uint256 maxOpenInterest; uint256 maxPositionSize; }",
+  "function swapParams() view returns (SwapParams)",
+  "function markApr() view returns (int256 aprWad)",
 ]);
 
 export const insuranceFundAbi = parseAbi(["function balance() view returns (uint256 amountToken)"]);

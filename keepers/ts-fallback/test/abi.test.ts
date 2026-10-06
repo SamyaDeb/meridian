@@ -18,7 +18,9 @@ import {
   insuranceFundAbi,
   kuruHedgerAbi,
   oracleAdapterAbi,
+  orderBookAbi,
   orderBookWatchAbi,
+  fundingSwapUnwindAbi,
   meridianVaultAbi,
 } from "../src/abi.js";
 
@@ -42,6 +44,8 @@ describe("keeper ABI fragments match abis/*.json", () => {
     ["IInsuranceFund", insuranceFundAbi, insurance as Abi],
     ["IKuruHedger", kuruHedgerAbi, hedger as Abi],
     ["IOrderBook", orderBookWatchAbi, ob as Abi],
+    ["IOrderBook (unwind)", orderBookAbi, ob as Abi],
+    ["IFundingSwapMarket (unwind)", fundingSwapUnwindAbi, swap as Abi],
     ["IFundingSwapMarket (watch)", fundingSwapWatchAbi, swap as Abi],
     ["AggregatorV3Interface", aggregatorAbi, agg as Abi],
   ] as const)("%s", (_, mine, frozen) => {

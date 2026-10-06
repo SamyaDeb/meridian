@@ -43,6 +43,9 @@ describe("evaluateAlerts (TEAM_PLAN §7 thresholds)", () => {
     expect(codes({ ...ok, keeperBalances: [{ label: "keeper", wei: 5n * E - 1n }] })).toEqual(["warn:keeper_balance"]);
     expect(codes({ ...ok, keeperHealth: [{ url: "u", ok: null }] })).toEqual(["critical:keeper_down"]);
     expect(codes({ ...ok, keeperHealth: [{ url: "u", ok: false }] })).toEqual(["critical:keeper_stalled"]);
+    // H-1: the keeper reports a held position / failed unwinds / no liquidation headroom
+    expect(codes({ ...ok, keeperHealth: [{ url: "u", ok: true, unwindPage: "3 consecutive failed unwinds" }] })).toEqual(["critical:keeper_unwind"]);
+    expect(codes({ ...ok, keeperHealth: [{ url: "u", ok: true, unwindPage: null }] })).toEqual([]);
     expect(codes({ ...ok, indexerLagSec: 31 })).toEqual(["warn:indexer_lag"]);
   });
   it("unknown parts (null) never alert", () => {

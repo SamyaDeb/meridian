@@ -11,6 +11,10 @@
 // log scan, the nonce and the block polling), on when deployments has FundingSwapMarket (SWAP_DUTIES=0 turns it off):
 // swap liquidations (SwapPositionChanged → getAccount → liquidate, size-bounded; the keeper must hold collateral in the
 // swap market because the liquidator takes the position) and settleMaturity() exactly once at maturity.
+// H-1 (audit, P7): every liquidation is sized to what the keeper can absorb (src/unwind.ts liquidationHeadroom: position
+// cap + IM after the take), and whatever the keeper inherits is closed with a reduce-only IOC market order bounded at
+// index ± UNWIND_MAX_SLIPPAGE_BPS (unwindStep; swap: swapUnwindStep against markApr). Stale oracle ⇒ wait. /health
+// reports keeperPosition / unwindPending / unwindFailures / unwindPage; scripts/watch.ts pages on unwindPage.
 import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
@@ -28,7 +32,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RateWindow, burnPerHourWei, createCountingFetch, newRpcStats, pruneSamples, type BalanceSample } from "@meridian/bot-rpc";
-import { clearingHouseAbi, fundingSwapAbi, fundingSwapImplAbi, kuruHedgerAbi, oracleAdapterAbi, meridianVaultAbi } from "./abi.js";
+import { clearingHouseAbi, fundingSwapAbi, fundingSwapImplAbi, fundingSwapUnwindAbi, kuruHedgerAbi, oracleAdapterAbi, orderBookAbi, meridianVaultAbi } from "./abi.js";
 import { type CallFrame, FlowClient, findHedgerCalls, parseQuote, quoteRequest, routeAmount } from "./kuruflow.js";
 import { type SwapSnapshot, shouldPokeSwapMark, shouldSettleMaturity, swapAccountIsInert, swapAccountsToCheck, swapIsHot, swapLiquidationCandidates } from "./swap.js";
 import {
@@ -55,6 +59,7 @@ import {
 import { DEFAULT_HERMES_URL, fetchHermesLatest } from "./hermes.js";
 import { type SourcedPrice, decimalToWad, encodeTestOracleUpdate, feedPoint, latestKeylessPrice } from "./pricesource.js";
 import { LiquidationLatency } from "./latency.js";
+import { UnwindTracker, bookHasCounterparty, capHeadroom, liquidationHeadroom, sizeAfterTake, unwindGasLimit, unwindPlan } from "./unwind.js";
 import { FulfilRetry, MAX_BATCH, RedeemQueue, classifyFulfilError, fulfilRoutePlan, nextLogRange } from "./redeem.js";
 
 // ───────────────────────────── config ─────────────────────────────
@@ -113,6 +118,15 @@ const MAX_LIQUIDATIONS_PER_BLOCK = 5;
 const READ_BATCH = 20; // concurrent getAccount calls (public RPC: 25 rps, R2)
 const LOG_SPAN = BigInt(env("LOG_SPAN") ?? "100"); // public RPC eth_getLogs cap (ARCHITECTURE R2); Alchemy free tier: 10
 const LOOKBACK_BLOCKS = BigInt(env("LOOKBACK_BLOCKS") ?? "10000"); // initial PositionChanged scan when startBlock is far back
+// H-1 unwind (P7). UNWIND=0 turns it off (then liquidations are still sized, and a held position still pages).
+const UNWIND = env("UNWIND") !== "0";
+const UNWIND_MAX_SLIPPAGE_BPS = BigInt(env("UNWIND_MAX_SLIPPAGE_BPS") ?? "100"); // worst unwind price vs index: 1%
+const UNWIND_PAGE_AFTER_BLOCKS = BigInt(env("UNWIND_PAGE_AFTER_BLOCKS") ?? "200");
+const UNWIND_MAX_FAILURES = Number(env("UNWIND_MAX_FAILURES") ?? "3");
+const UNWIND_RETRY_BLOCKS = BigInt(env("UNWIND_RETRY_BLOCKS") ?? "5"); // after a failed attempt (partial fill: next block)
+const LIQ_HEADROOM_BUFFER_BPS = BigInt(env("LIQ_HEADROOM_BUFFER_BPS") ?? "200"); // keep 2% of IM capacity spare
+// A `latest` estimate misses the block's first funding touch (bench 5 Oct): same allowance as the MM and the bench.
+const TOUCH_ALLOWANCE_GAS = BigInt(env("TOUCH_ALLOWANCE_GAS") ?? (CHAIN_ID === 31337 ? "0" : "70000"));
 const MIN_KEEPER_BALANCE = 5n * 10n ** 18n; // alert < 5 MON (TEAM_PLAN §7)
 const HEALTH_MAX_SILENCE_MS = 30_000;
 
@@ -120,6 +134,7 @@ type OracleKind = "pyth" | "keeper-fed" | "mock";
 interface MarketDeployment {
   ClearingHouse?: Address;
   OracleAdapter?: Address;
+  OrderBook?: Address;
 }
 interface Deployments {
   chainId: number;
@@ -145,6 +160,7 @@ if (dep.deployed === false || market.ClearingHouse === undefined || market.Oracl
 }
 const CH: Address = market.ClearingHouse;
 const ORACLE: Address = market.OracleAdapter;
+const OB: Address | undefined = market.OrderBook;
 const ORACLE_KIND: OracleKind =
   (env("ORACLE_KIND") as OracleKind | undefined) ?? (MARKET === "demo" ? dep.demoMarket?.oracleKind : dep.oracleKind) ?? "pyth";
 if (PRICE_FACTOR_FILE !== undefined && MARKET !== "demo") throw new Error("PRICE_FACTOR_FILE is only allowed with MARKET=demo");
@@ -154,6 +170,7 @@ const SWAP_FULL_EVERY_BLOCKS = BigInt(env("SWAP_FULL_EVERY_BLOCKS") ?? "10");
 // B-01 (PHASES 18): touch the swap market every N quiet blocks while an account is near MM, so the bounded mark keeps
 // converging (20 = the contract's MARK_MAX_ELAPSED_BLOCKS ⇒ full 0.5 APR pt/block); 0 disables.
 const SWAP_MARK_POKE_EVERY_BLOCKS = BigInt(env("SWAP_MARK_POKE_EVERY_BLOCKS") ?? "20");
+const SWAP_OB: Address | undefined = SWAP === undefined ? undefined : dep.contracts.SwapOrderBook;
 const SWAP_LIQ_MAX_SIZE = env("SWAP_LIQ_MAX_SIZE_WAD") === undefined ? maxUint256 : BigInt(env("SWAP_LIQ_MAX_SIZE_WAD") as string);
 const SCAN_EVENTS = [...clearingHouseAbi, ...oracleAdapterAbi, ...fundingSwapAbi].filter(
   (x): x is Extract<(typeof clearingHouseAbi)[number] | (typeof oracleAdapterAbi)[number] | (typeof fundingSwapAbi)[number], { type: "event" }> =>
@@ -227,6 +244,18 @@ const health = {
   maturity: 0n,
   maturitySettled: false, // snapshot exists (ours or lazy)
   maturitySettledByKeeper: false,
+  // H-1 (P7): what the keeper holds after liquidations, and its unwind
+  keeperPosition: 0n,
+  unwindPending: false,
+  unwinds: 0,
+  unwindFailures: 0,
+  unwindWaiting: null as string | null,
+  liquidationsSkippedNoHeadroom: 0,
+  swapKeeperPosition: 0n,
+  swapUnwinds: 0,
+  swapUnwindFailures: 0,
+  /** non-null ⇒ page (scripts/watch.ts keeper_unwind): 3 failed unwinds, a position held > UNWIND_PAGE_AFTER_BLOCKS, no headroom, no swap counterparty */
+  unwindPage: null as string | null,
 };
 const swapTracked = new Set<Address>();
 let swapChanged = new Set<Address>();
@@ -256,6 +285,22 @@ let scannedTo = -1n;
 let firstTickBlock = -1n;
 let busy = false;
 let oracleBusy = false;
+// H-1 state: the keeper's perp size follows its own PositionChanged logs (bootstrapped from getAccount at start).
+const self = account.address.toLowerCase();
+let keeperSize = 0n;
+let lotSize = 0n;
+let tickSize = 0n;
+const unwind = new UnwindTracker({ maxFailures: UNWIND_MAX_FAILURES, maxHoldBlocks: UNWIND_PAGE_AFTER_BLOCKS });
+let unwindNextBlock = 0n;
+let swapKeeperSize = 0n;
+let swapLot = 0n;
+let swapTick = 0n;
+const swapUnwind = new UnwindTracker({ maxFailures: UNWIND_MAX_FAILURES, maxHoldBlocks: UNWIND_PAGE_AFTER_BLOCKS });
+let swapUnwindNextBlock = 0n;
+let headroomPage: string | null = null;
+let swapHeadroomPage: string | null = null;
+let swapPage: string | null = null;
+let lastPaged: string | null = null;
 
 const log = (msg: string, extra: Record<string, unknown> = {}): void =>
   console.log(JSON.stringify({ t: new Date().toISOString(), msg, ...extra }, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
@@ -267,12 +312,12 @@ const alert = (msg: string, extra: Record<string, unknown> = {}): void => log(`A
  * Estimate (reverts ⇒ throws, nothing mined), then send with limit = estimate × 1.2 (Monad bills the limit, R6).
  * @returns the block the tx landed in if it succeeded, else null
  */
-async function send(label: string, to: Address, data: Hex, value = 0n): Promise<bigint | null> {
+async function send(label: string, to: Address, data: Hex, value = 0n, limitFor: (est: bigint) => bigint = gasLimitFor): Promise<bigint | null> {
   const est = await pub.estimateGas({ account, to, data, value });
-  const gas = gasLimitFor(est);
+  const gas = limitFor(est);
   const hash = await wallet.sendTransaction({ to, data, value, gas });
   const rcpt = await pub.waitForTransactionReceipt({ hash, timeout: 10_000 });
-  log(label, { hash, block: rcpt.blockNumber, status: rcpt.status, gasUsed: rcpt.gasUsed, gasLimit: gas });
+  log(label, { hash, block: rcpt.blockNumber, status: rcpt.status, gasUsed: rcpt.gasUsed, gasEstimate: est, gasLimit: gas });
   return rcpt.status === "success" ? rcpt.blockNumber : null;
 }
 
@@ -371,11 +416,13 @@ async function scanStep(block: bigint): Promise<void> {
       const fromCh = l.address.toLowerCase() === CH.toLowerCase();
       if (fromCh && l.eventName === "PositionChanged") {
         pos.push({ account: l.args.account, newSize: l.args.newSize });
+        if (l.args.account.toLowerCase() === self) keeperSize = l.args.newSize;
         changed.add(l.args.account.toLowerCase() as Address);
       } else if (fromCh && l.eventName === "FundingUpdated") {
         fundingBlocks.push(l.blockNumber);
       } else if (l.eventName === "SwapPositionChanged") {
         const a = l.args.account.toLowerCase() as Address;
+        if (a === self) swapKeeperSize = l.args.newSize;
         swapTracked.add(a); // tracked until a read proves it inert (newSize 0 may still carry a K stream)
         swapChanged.add(a);
         if (l.blockNumber !== null && l.blockNumber > swapLastTouch) swapLastTouch = l.blockNumber;
@@ -427,6 +474,7 @@ async function fundingStep(block: bigint): Promise<void> {
 }
 
 async function liquidationStep(block: bigint): Promise<void> {
+  headroomPage = null; // re-derived below while an eligible account can't be taken
   if (open.size === 0) return;
   for (const a of [...checked.keys()]) if (!open.has(a)) checked.delete(a);
   const markWad = await pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "markPrice", blockNumber: block });
@@ -469,11 +517,45 @@ async function liquidationStep(block: bigint): Promise<void> {
   }
   // Every eligible account is re-read each block (headroom ≤ 0 ⇒ needsRecheck), so the latency tracker sees it.
   latency.observe(block, snaps.filter(isLiquidationCandidate).map((s) => s.account));
-  // The liquidator takes over the position and must hold margin in this market (IClearingHouse.liquidate).
-  for (const s of selectLiquidations(snaps, MAX_LIQUIDATIONS_PER_BLOCK, account.address)) {
+  // The liquidator takes over the position and must hold margin in this market (IClearingHouse.liquidate): H-1 sizes
+  // each take to the keeper's cap and IM headroom, with the keeper's size carried across this tick's liquidations.
+  const picks = selectLiquidations(snaps, MAX_LIQUIDATIONS_PER_BLOCK, account.address);
+  if (picks.length === 0) return;
+  const [me, rp] = await Promise.all([
+    pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "getAccount", args: [account.address], blockNumber: block }),
+    pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "riskParams" }),
+    loadBookParams(),
+  ]);
+  let runSize = me.size;
+  for (const s of picks) {
+    const h = liquidationHeadroom({
+      keeperSize: runSize,
+      keeperEquity: me.equity,
+      keeperReserved: me.reservedOrderMargin,
+      targetSize: s.size,
+      markWad,
+      imr: rp.imr,
+      maxPositionSize: rp.maxPositionSize,
+      lotSize: lotSize === 0n ? 1n : lotSize,
+      bufferBps: LIQ_HEADROOM_BUFFER_BPS,
+    });
+    if (h.limitedBy === "no-headroom") {
+      health.liquidationsSkippedNoHeadroom++;
+      headroomPage = `liquidation of ${s.account} skipped: ${h.reason}`;
+      alert("keeper has no liquidation headroom", { account: s.account, reason: h.reason, keeperSize: runSize });
+      changed.add(s.account.toLowerCase() as Address);
+      continue;
+    }
     try {
-      const landed = await send("liquidate", CH, encodeFunctionData({ abi: clearingHouseAbi, functionName: "liquidate", args: [s.account, maxUint256] }));
+      const landed = await send(
+        `liquidate (${h.limitedBy === "position" ? "whole" : `bounded by ${h.limitedBy}`})`,
+        CH,
+        encodeFunctionData({ abi: clearingHouseAbi, functionName: "liquidate", args: [s.account, h.size] }),
+      );
       if (landed !== null) {
+        runSize = sizeAfterTake(runSize, s.size, h.size);
+        keeperSize = runSize; // the scan confirms it next tick
+        unwindNextBlock = 0n; // unwind right away
         health.liquidations++;
         // B7: blocks from first seen eligible to landed (target ≤ 3)
         log("liquidation latency", { account: s.account, firstSeen: latency.firstSeen(s.account), landed, blocks: latency.liquidated(s.account, landed) });
@@ -486,7 +568,131 @@ async function liquidationStep(block: bigint): Promise<void> {
   }
 }
 
+/** OrderBook lot / tick (immutable): read once. */
+async function loadBookParams(): Promise<void> {
+  if (lotSize !== 0n || OB === undefined) return;
+  [lotSize, tickSize] = await Promise.all([
+    pub.readContract({ address: OB, abi: orderBookAbi, functionName: "lotSize" }),
+    pub.readContract({ address: OB, abi: orderBookAbi, functionName: "tickSize" }),
+  ]);
+}
+
+/**
+ * H-1: close the keeper's inherited perp position with a reduce-only IOC market order, limit at index ± slippage, gas
+ * limit = estimate × 1.2 + TOUCH_ALLOWANCE_GAS. Partial fill ⇒ the rest next block; failure ⇒ retry after
+ * UNWIND_RETRY_BLOCKS; stale oracle ⇒ wait. Pages via health.unwindPage (3 failures / held > UNWIND_PAGE_AFTER_BLOCKS).
+ */
+async function unwindStep(block: bigint): Promise<void> {
+  if (OB === undefined) return;
+  await loadBookParams();
+  unwind.observe(block, keeperSize, lotSize);
+  health.keeperPosition = keeperSize;
+  health.unwindPending = unwind.pending;
+  if (!UNWIND || !unwind.pending || block < unwindNextBlock) return;
+  const [me, idx] = await Promise.all([
+    pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "getAccount", args: [account.address], blockNumber: block }),
+    pub.readContract({ address: ORACLE, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice", blockNumber: block }),
+  ]);
+  keeperSize = me.size;
+  const plan = unwindPlan({ keeperSize, lotSize, tickSize, indexOk: idx[0], indexWad: idx[1], maxSlippageBps: UNWIND_MAX_SLIPPAGE_BPS });
+  if (plan.kind === "none") return;
+  if (plan.kind === "wait") {
+    unwind.waiting(plan.reason);
+    health.unwindWaiting = plan.reason;
+    return;
+  }
+  health.unwindWaiting = null;
+  const data = encodeFunctionData({
+    abi: orderBookAbi,
+    functionName: "placeMarketOrder",
+    args: [plan.isBid, plan.lots, Number(plan.limitTick), 0n, true],
+  });
+  try {
+    const landed = await send(
+      `unwind (${plan.isBid ? "buy" : "sell"} ${plan.lots} lots reduce-only IOC, limit tick ${plan.limitTick}, index ${idx[1]})`,
+      OB,
+      data,
+      0n,
+      (est) => unwindGasLimit(est, TOUCH_ALLOWANCE_GAS),
+    );
+    if (landed === null) throw new Error("unwind tx reverted");
+    const after = await pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "getAccount", args: [account.address], blockNumber: landed });
+    const filled = (abs(keeperSize) - abs(after.size)) / lotSize;
+    log("unwind filled", { lots: filled, of: plan.lots, keeperSizeBefore: keeperSize, keeperSizeAfter: after.size, landed });
+    keeperSize = after.size;
+    unwind.filled(filled);
+    if (filled > 0n) health.unwinds++;
+    else health.unwindFailures++;
+    unwindNextBlock = filled > 0n ? landed + 1n : block + UNWIND_RETRY_BLOCKS;
+  } catch (e) {
+    unwind.failed();
+    health.unwindFailures++;
+    unwindNextBlock = block + UNWIND_RETRY_BLOCKS;
+    fail("unwind", e); // no bid/ask inside the bound, CH paused, stale between read and send: retry later
+  }
+}
+
+/** H-1 swap side: same reduce-only IOC on the SwapOrderBook (price = 1 + APR, bound around 1 + markApr). No counterparty ⇒ page. */
+async function swapUnwindStep(block: bigint): Promise<void> {
+  if (SWAP === undefined || SWAP_OB === undefined) return;
+  if (swapLot === 0n) {
+    [swapLot, swapTick] = await Promise.all([
+      pub.readContract({ address: SWAP_OB, abi: orderBookAbi, functionName: "lotSize" }),
+      pub.readContract({ address: SWAP_OB, abi: orderBookAbi, functionName: "tickSize" }),
+    ]);
+  }
+  swapUnwind.observe(block, swapKeeperSize, swapLot);
+  health.swapKeeperPosition = swapKeeperSize;
+  swapPage = null;
+  if (!UNWIND || !swapUnwind.pending || block < swapUnwindNextBlock) return;
+  const [me, apr, bid, ask] = await Promise.all([
+    pub.readContract({ address: SWAP, abi: fundingSwapAbi, functionName: "getAccount", args: [account.address], blockNumber: block }),
+    pub.readContract({ address: SWAP, abi: fundingSwapUnwindAbi, functionName: "markApr", blockNumber: block }),
+    pub.readContract({ address: SWAP_OB, abi: orderBookAbi, functionName: "bestBid", blockNumber: block }),
+    pub.readContract({ address: SWAP_OB, abi: orderBookAbi, functionName: "bestAsk", blockNumber: block }),
+  ]);
+  swapKeeperSize = me.size;
+  const ref = WAD_ONE + apr;
+  const plan = unwindPlan({ keeperSize: swapKeeperSize, lotSize: swapLot, tickSize: swapTick, indexOk: ref > 0n, indexWad: ref, maxSlippageBps: UNWIND_MAX_SLIPPAGE_BPS });
+  if (plan.kind !== "order") return;
+  if (!bookHasCounterparty(plan.isBid, BigInt(bid), BigInt(ask))) {
+    swapPage = `swap unwind: keeper holds ${swapKeeperSize} on the swap market and the swap book has no ${plan.isBid ? "ask" : "bid"} (no counterparty: unwind by hand or wait for the swap MM)`;
+    swapUnwindNextBlock = block + UNWIND_RETRY_BLOCKS;
+    return;
+  }
+  const data = encodeFunctionData({ abi: orderBookAbi, functionName: "placeMarketOrder", args: [plan.isBid, plan.lots, Number(plan.limitTick), 0n, true] });
+  try {
+    const landed = await send(`swap unwind (${plan.isBid ? "buy" : "sell"} ${plan.lots} lots reduce-only IOC)`, SWAP_OB, data, 0n, (est) => unwindGasLimit(est, TOUCH_ALLOWANCE_GAS));
+    if (landed === null) throw new Error("swap unwind tx reverted");
+    const after = await pub.readContract({ address: SWAP, abi: fundingSwapAbi, functionName: "getAccount", args: [account.address], blockNumber: landed });
+    const filled = (abs(swapKeeperSize) - abs(after.size)) / swapLot;
+    swapKeeperSize = after.size;
+    swapUnwind.filled(filled);
+    if (filled > 0n) health.swapUnwinds++;
+    else health.swapUnwindFailures++;
+    swapUnwindNextBlock = filled > 0n ? landed + 1n : block + UNWIND_RETRY_BLOCKS;
+  } catch (e) {
+    swapUnwind.failed();
+    health.swapUnwindFailures++;
+    swapUnwindNextBlock = block + UNWIND_RETRY_BLOCKS;
+    fail("swap unwind", e);
+  }
+}
+
+/** One page string for /health (watch.ts keeper_unwind): the first reason that holds; logged as ALERT when it changes. */
+function unwindPageStep(block: bigint): void {
+  const p = unwind.page(block) ?? headroomPage ?? (swapUnwind.page(block) ? `swap: ${swapUnwind.page(block)}` : null) ?? swapHeadroomPage ?? swapPage;
+  health.unwindPage = p;
+  health.unwindPending = unwind.pending;
+  health.unwindFailures = Math.max(health.unwindFailures, unwind.totalFailures);
+  if (p !== null && p !== lastPaged) alert("keeper unwind", { page: p, keeperSize, swapKeeperSize });
+  lastPaged = p;
+}
+
+const abs = (x: bigint): bigint => (x < 0n ? -x : x);
+
 async function swapLiquidationStep(block: bigint): Promise<void> {
+  swapHeadroomPage = null;
   if (SWAP === undefined || swapTracked.size === 0) return;
   const pick = swapAccountsToCheck({ block, tracked: swapTracked, changed: swapChanged, hot: swapHot, lastFullBlock: swapLastFull, fullEvery: SWAP_FULL_EVERY_BLOCKS });
   swapChanged = new Set();
@@ -515,11 +721,31 @@ async function swapLiquidationStep(block: bigint): Promise<void> {
   }
   health.swapTracked = swapTracked.size;
   swapLatency.observe(block, snaps.filter((s) => s.liquidatable).map((s) => s.account));
-  for (const s of swapLiquidationCandidates(snaps, MAX_LIQUIDATIONS_PER_BLOCK, account.address)) {
+  const swapPicks = swapLiquidationCandidates(snaps, MAX_LIQUIDATIONS_PER_BLOCK, account.address);
+  const sp = swapPicks.length === 0 ? null : await pub.readContract({ address: SWAP, abi: fundingSwapUnwindAbi, functionName: "swapParams" });
+  if (swapPicks.length > 0 && swapLot === 0n && SWAP_OB !== undefined) {
+    [swapLot, swapTick] = await Promise.all([
+      pub.readContract({ address: SWAP_OB, abi: orderBookAbi, functionName: "lotSize" }),
+      pub.readContract({ address: SWAP_OB, abi: orderBookAbi, functionName: "tickSize" }),
+    ]);
+  }
+  let swapRun = swapKeeperSize;
+  for (const s of swapPicks) {
+    // H-1: never past the keeper's swap position cap (IM: the estimate reverts and nothing is sent)
+    const size = sp === null ? 0n : capHeadroom(swapRun, s.size, sp.maxPositionSize, swapLot === 0n ? 1n : swapLot, SWAP_LIQ_MAX_SIZE);
+    if (size === 0n) {
+      swapHeadroomPage = `swap liquidation of ${s.account} skipped: keeper at its swap position cap (${swapRun})`;
+      health.liquidationsSkippedNoHeadroom++;
+      swapChanged.add(s.account);
+      continue;
+    }
     try {
-      const data = encodeFunctionData({ abi: fundingSwapAbi, functionName: "liquidate", args: [s.account, SWAP_LIQ_MAX_SIZE] });
+      const data = encodeFunctionData({ abi: fundingSwapAbi, functionName: "liquidate", args: [s.account, size] });
       const landed = await send("swap liquidate", SWAP, data);
       if (landed !== null) {
+        swapRun = sizeAfterTake(swapRun, s.size, size);
+        swapKeeperSize = swapRun;
+        swapUnwindNextBlock = 0n;
         health.swapLiquidations++;
         log("swap liquidation latency", { account: s.account, firstSeen: swapLatency.firstSeen(s.account), landed, blocks: swapLatency.liquidated(s.account, landed) });
         health.swapLiquidationLatency = swapLatency.summary();
@@ -703,13 +929,16 @@ async function tick(block: bigint): Promise<void> {
     const steps: Array<[string, () => Promise<void>]> = [
       ["liquidation", () => (scannedTo >= block ? liquidationStep(block) : Promise.resolve())],
       ["funding", () => fundingStep(block)],
+      ["unwind", () => (scannedTo >= block ? unwindStep(block) : Promise.resolve())],
       ["swap liquidation", () => (scannedTo >= block ? swapLiquidationStep(block) : Promise.resolve())],
+      ["swap unwind", () => (scannedTo >= block ? swapUnwindStep(block) : Promise.resolve())],
       ["maturity", () => maturityStep()],
       ["clock", () => (SWAP !== undefined && (clockReadBlock < 0n || block - clockReadBlock >= CLOCK_EVERY_BLOCKS) ? readClock(block) : Promise.resolve())],
       ["vault fulfil", () => redeemStep(block)],
       ["vault", () => vaultStep(block)],
     ];
     for (const [name, fn] of steps) await fn().catch((e: unknown) => fail(name, e));
+    unwindPageStep(block);
     if (block % BALANCE_EVERY_BLOCKS === 0n) await balanceStep().catch((e: unknown) => fail("balance", e));
     health.lastTickAt = Date.now();
   } finally {
@@ -756,7 +985,11 @@ log("keeper start", {
   logSpan: LOG_SPAN,
 });
 await balanceStep().catch((e: unknown) => fail("balance", e));
+// H-1: what the keeper already holds (e.g. from liquidations before the unwind existed) is unwound like any other take.
+keeperSize = (await pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "getAccount", args: [account.address] })).size;
+log("keeper position", { keeperSize, unwind: UNWIND, orderBook: OB ?? null, maxSlippageBps: UNWIND_MAX_SLIPPAGE_BPS, touchAllowanceGas: TOUCH_ALLOWANCE_GAS });
 if (SWAP !== undefined) {
+  swapKeeperSize = (await pub.readContract({ address: SWAP, abi: fundingSwapAbi, functionName: "getAccount", args: [account.address] })).size;
   health.maturity = await pub.readContract({ address: SWAP, abi: fundingSwapAbi, functionName: "maturity" });
   const [snapped] = await pub.readContract({ address: SWAP, abi: fundingSwapImplAbi, functionName: "maturitySnapshot" });
   health.maturitySettled = snapped;

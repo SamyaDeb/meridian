@@ -21,12 +21,16 @@ export interface GasRow {
   gasLimit: bigint;
   block: bigint;
   txHash: string;
+  /** eth_estimateGas ("latest") the limit was built from: the only view of execution gas on Monad (P7, Found #19). */
+  estimate?: bigint;
+  /** TOUCH_ALLOWANCE_GAS added to ⌈estimate × 1.2⌉ for this tx. */
+  touchAllowance?: bigint;
 }
 
-export const GAS_CSV_HEADER = "op,gasUsed,gasLimit,block,txHash,commit,date,chainId,blockTimeMs";
+export const GAS_CSV_HEADER = "op,gasUsed,gasLimit,block,txHash,commit,date,chainId,blockTimeMs,gasEstimate,touchAllowance";
 
 export function gasCsvRow(r: GasRow, meta: { commit: string; date: string; chainId: number; blockTimeMs: number }): string {
-  return [r.op, r.gasUsed, r.gasLimit, r.block, r.txHash, meta.commit, meta.date, meta.chainId, meta.blockTimeMs.toFixed(1)].join(",");
+  return [r.op, r.gasUsed, r.gasLimit, r.block, r.txHash, meta.commit, meta.date, meta.chainId, meta.blockTimeMs.toFixed(1), r.estimate ?? "", r.touchAllowance ?? ""].join(",");
 }
 
 /** Foundry reference (contracts/bench-out/real_engine_gas.csv: op,gas,target) → map. */

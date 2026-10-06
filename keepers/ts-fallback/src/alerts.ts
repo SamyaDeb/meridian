@@ -41,7 +41,7 @@ export interface Snapshot {
   /** minWei overrides keeperMinBalanceWei per wallet (size it from RUNBOOK §4 MON/h × hours of runway at the mainnet gas price) */
   keeperBalances: Array<{ label: string; wei: bigint; minWei?: bigint }>;
   /** keeper /health endpoints: ok flag, or null if unreachable */
-  keeperHealth: Array<{ url: string; ok: boolean | null; errors?: number }>;
+  keeperHealth: Array<{ url: string; ok: boolean | null; errors?: number; /** H-1: keeper /health unwindPage */ unwindPage?: string | null }>;
   indexerLagSec: number | null;
   /** Chainlink AUSD/USD (8 dp), RISKS E4 */
   ausdUsd?: { price8: bigint; updatedAt: bigint } | null;
@@ -88,6 +88,7 @@ export function evaluateAlerts(s: Snapshot, t: Thresholds, ifPeak: bigint | null
   for (const h of s.keeperHealth) {
     if (h.ok === null) out.push({ severity: "critical", code: "keeper_down", message: `${h.url} unreachable` });
     else if (!h.ok) out.push({ severity: "critical", code: "keeper_stalled", message: `${h.url} reports ok=false (no tick for 30 s)` });
+    if (h.unwindPage != null) out.push({ severity: "critical", code: "keeper_unwind", message: `${h.url}: ${h.unwindPage} (RUNBOOK §7d)` });
   }
   if (s.indexerLagSec !== null && s.indexerLagSec > t.indexerMaxLagSec) {
     out.push({ severity: "warn", code: "indexer_lag", message: `indexer ${s.indexerLagSec} s behind (> ${t.indexerMaxLagSec} s)` });

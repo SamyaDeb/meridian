@@ -82,11 +82,12 @@ const rows: GasRow[] = [];
 const TOUCH_ALLOWANCE_GAS = BigInt(process.env.TOUCH_ALLOWANCE_GAS ?? (CHAIN_ID === 31337 ? "0" : "70000"));
 
 async function send(op: string, to: Address, data: Hex) {
-  const gas = gasLimitFor(await pub.estimateGas({ account, to, data }), TOUCH_ALLOWANCE_GAS);
+  const estimate = await pub.estimateGas({ account, to, data });
+  const gas = gasLimitFor(estimate, TOUCH_ALLOWANCE_GAS);
   const hash = await wallet.sendTransaction({ to, data, gas });
   const r = await pub.waitForTransactionReceipt({ hash });
   if (r.status !== "success") throw new Error(`${op} reverted: ${hash}`);
-  rows.push({ op, gasUsed: r.gasUsed, gasLimit: gas, block: r.blockNumber, txHash: hash });
+  rows.push({ op, gasUsed: r.gasUsed, gasLimit: gas, block: r.blockNumber, txHash: hash, estimate, touchAllowance: TOUCH_ALLOWANCE_GAS });
   return r;
 }
 
@@ -141,7 +142,9 @@ const date = new Date().toISOString().slice(0, 10);
 const blockTimeMs = meanBlockTimeMs(first, last);
 mkdirSync(`${HERE}out`, { recursive: true });
 const net = networkLabel(CHAIN_ID, await pub.request({ method: "web3_clientVersion" }));
-const file = `${HERE}out/gas_onchain_${net}_${date}.csv`;
+// never overwrite an earlier run of the same (UTC) day: P7's rerun landed on 6 Oct UTC, the P4 file's date
+let file = `${HERE}out/gas_onchain_${net}_${date}.csv`;
+for (let i = 2; existsSync(file); i++) file = `${HERE}out/gas_onchain_${net}_${date}-${i}.csv`;
 writeFileSync(file, [GAS_CSV_HEADER, ...rows.map((r) => gasCsvRow(r, { commit, date, chainId: CHAIN_ID, blockTimeMs }))].join("\n") + "\n");
 
 // summary vs Foundry (Ethereum schedule). Receipts include the 21k base + calldata; Foundry rows are execution only.
@@ -150,10 +153,10 @@ for (const r of rows) byOp.set(r.op, [...(byOp.get(r.op) ?? []), r.gasUsed]);
 const foundryFile = `${HERE}../contracts/bench-out/real_engine_gas.csv`;
 const foundry = existsSync(foundryFile) ? parseFoundryCsv(readFileSync(foundryFile, "utf8")) : new Map();
 console.log(`chain ${CHAIN_ID}, blocks ${first.number}..${last.number}, mean block ${blockTimeMs.toFixed(0)} ms, commit ${commit} → ${file}`);
-console.log("op | receipt gasUsed (median) | Foundry execution gas | target");
+console.log("op | receipt gasUsed (median, = billed limit on Monad) | estimate (median) | touch allowance | Foundry execution gas | target");
+const midOf = (xs: bigint[]): bigint => [...xs].sort((a, b) => (a < b ? -1 : 1))[Math.floor(xs.length / 2)]!;
 for (const [op, xs] of byOp) {
-  const s = [...xs].sort((a, b) => (a < b ? -1 : 1));
-  const med = s[Math.floor(s.length / 2)]!;
   const f = foundry.get(op === "funding_first_touch_tx" ? "funding_first_touch_tx" : op);
-  console.log(`${op} | ${med} | ${f ? f.gas : "—"} | ${f?.target ?? ""}`);
+  const est = rows.filter((r) => r.op === op).map((r) => r.estimate ?? 0n);
+  console.log(`${op} | ${midOf(xs)} | ${midOf(est)} | ${TOUCH_ALLOWANCE_GAS} | ${f ? f.gas : "—"} | ${f?.target ?? ""}`);
 }

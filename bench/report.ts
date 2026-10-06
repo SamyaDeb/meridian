@@ -18,7 +18,12 @@ const today = new Date().toISOString().slice(0, 10);
 const files = existsSync(OUT) ? readdirSync(OUT) : [];
 
 const foundry = read(FOUNDRY);
-const gasFiles = files.filter((f) => /^gas_onchain_\d+_.*\.csv$/.test(f)).sort();
+// CSVs written before the gasEstimate/touchAllowance columns (P7): the allowance their limits include, from
+// bench/gas_onchain.ts at the commit in the file (064f327: TOUCH_ALLOWANCE_GAS default 70000 on live chains; 1e202d5: none).
+const LEGACY_TOUCH: Record<string, number> = { "gas_onchain_10143_2026-10-06.csv": 70_000 };
+// oldest run first (by its first block: file names of two runs on the same UTC day don't sort chronologically)
+const firstBlock = (f: string): number => Number(parseCsv(readFileSync(`${OUT}${f}`, "utf8"))[0]?.block ?? 0);
+const gasFiles = files.filter((f) => /^gas_onchain_\d+_.*\.csv$/.test(f)).sort((a, b) => firstBlock(a) - firstBlock(b));
 const anvilGas = files.filter((f) => /^gas_onchain_anvil-/.test(f));
 const loadFiles = files.filter((f) => /^load_\d+_.*\.json$/.test(f));
 const anvilLoad = files.filter((f) => /^load_anvil-/.test(f));
@@ -40,10 +45,13 @@ if (gasFiles.length === 0) {
     const network = f.split("_")[2]!;
     s.push(`Source: \`bench/out/${f}\` — network ${network}, ${provenance(rows)}. Foundry column: \`contracts/bench-out/real_engine_gas.csv\`${foundry ? "" : " (**missing**: run the Foundry bench)"}.`);
     s.push("");
-    s.push(renderGasTable({ foundry, onchain: rows, network }));
+    s.push(renderGasTable({ foundry, onchain: rows, network, ...(LEGACY_TOUCH[f] !== undefined ? { legacyTouchAllowance: LEGACY_TOUCH[f] } : {}) }));
+    if (LEGACY_TOUCH[f] !== undefined) s.push(`\n_This file predates the \`gasEstimate\` column: its limits were built as ⌈estimate × 1.2⌉ + ${LEGACY_TOUCH[f].toLocaleString("en-US")} (\`bench/gas_onchain.ts\` at its commit), so the estimate is derived as (limit − allowance) / 1.2._`);
     s.push("");
   }
-  s.push("Reading: the < 100k place + cancel target is met on the Foundry (Cancun) schedule (96,478). On Monad testnet the billed limit is ≈ 3.85× that (371,291) and the estimate ≈ 3.2× (≈ 309k): MIP-8 charges 8,100 per cold storage page read, and the 1.2 limit margin is billed on top. The per-market funding touch is O(1) and flat in the number of positions (`test/unit/ClearingHouseGas.t.sol`).");
+  s.push("Reading: the < 100k place + cancel target is met on the Foundry (Cancun) schedule. On Monad testnet `eth_estimateGas` for the same ops is ≈ 3.2× higher (MIP-8 charges 8,100 per cold storage page read), and Monad bills the **limit**, not the gas used: ⌈estimate × 1.2⌉ plus, since 5 Oct, a 70,000 `TOUCH_ALLOWANCE_GAS` on every tx (a `latest` estimate misses the block's first funding touch; without it a `replaceOrder` ran out of gas on 5 Oct). The per-market funding touch is O(1) and flat in the number of positions (`test/unit/ClearingHouseGas.t.sol`).");
+  s.push("");
+  s.push("**Found #19 (6 Oct receipts up vs 30 Sep), settled:** the 6 Oct limits carry the 70,000 allowance and the 30 Sep ones don't (`bench/gas_onchain.ts` at `064f327` vs `1e202d5`). With it taken out, the 6 Oct execution estimates are +0.2% (cancel) to +5% (match) over 30 Sep (P2/P3 code growth and book state), not +40–50%. The 7 Oct (IST) rerun records `eth_estimateGas` next to every receipt and reproduces the derived 6 Oct estimates within 0.2% for place, cancel, replace, close and funding (match 197,228 vs 246,285: the fill's cost depends on the resting maker's state); every receipt's `gasUsed` equals ⌈estimate × 1.2⌉ + 70,000. Lowering the billed cost means a smaller allowance: only the first tx in a block pays the touch, so a bot that knows it is not first (or estimates on `pending`, RUNBOOK §1 > VERIFY) can drop it.");
   s.push("");
   s.push("5 Oct rerun (decision D12): aborted after 18 receipts, not used in the table above. The testnet endpoint was a free tier (BLOCKED #5) and the bench wallet ran out of MON; a `replaceOrder` at ⌈estimate × 1.2⌉ ran out of gas (the `latest` estimate misses the block's first funding touch), so `gasLimitFor` now adds `TOUCH_ALLOWANCE_GAS` (70,000 on live chains). Rebuilt read-only: `bench/out/partial_gas_onchain_10143_2026-10-05.csv`.");
 }
