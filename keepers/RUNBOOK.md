@@ -56,6 +56,42 @@ MARKET=demo MM_PK=… KILL_FILE=/tmp/KILL-demo pnpm start   # MM (demo)
 Stop with **SIGINT** (Ctrl-C): the MM cancels its resting orders on SIGINT. Never SIGKILL the MM while it has orders resting (they stay on the book; on restart it re-adopts them from its `OrderPlaced` logs, `RECOVER_LOOKBACK_BLOCKS`).
 Before the first testnet start: `pnpm --filter @pulse/keeper-ts check-source` prints what the keeper-fed oracle would push from each source.
 
+## 2b. House taker flow (testnet chart liquidity, `pnpm flow`)
+The MM is **maker-only**: it sends only `placeLimitOrder` / `replaceOrder` (flags 0) and `cancelOrder`, never `placeMarketOrder`, and quotes around the index, so on its own it prints **no trades** and the chart gets no candles. (It could only take if someone else's order rested across its quote.) `mm-bot/src/flow.ts` adds small, occasional **IOC market orders** from a separate key, so the book prints real trades between two house accounts. Everything it does is labelled operator flow:
+- **Own key, listed as operator.** `FLOW_PK` must differ from `MM_PK`, and its address must be in `deployments/<chain>.json` `mmAccounts`. Otherwise the bot refuses to start. The indexer (`gen-config`) excludes it from `ProtocolStats.externalUsers` and counts its volume in `perpVolumeMmQuoteWad` (the "MM share"), never as user volume. 10143: `0x6E02…303A` (key in the root `.env` as `FLOW_PK`).
+- **Taker only.** It never rests an order, so it can't trade against itself. Each take is one `placeMarketOrder(side, 1..FLOW_MAX_LOTS, limitTick, minFilled = 1, reduceOnly)` with the limit at index ± `FLOW_MAX_SLIPPAGE_BPS`. It skips without a tx when the oracle is stale, the opposite side is empty, or the best level is outside the band. Gas limit = estimate × 1.2.
+- **Bounded inventory.** P(buy) = ½ − ½·position/cap. At |position| ≥ `FLOW_POSITION_CAP_LOTS` it only reduces (`reduceOnly`), and no take ever pushes |position| past the cap.
+- **Kill switch.** It reads the same `KILL_FILE` as the MM (default `mm-bot/KILL`), checked before the reads and again right before the send. SIGINT finishes the in-flight take and exits; nothing rests, so there's nothing to cancel.
+
+| Var | Default | |
+|---|---|---|
+| `FLOW_PK` | — | required; its own key, listed in `mmAccounts` |
+| `FLOW_MIN_SEC` / `FLOW_MAX_SEC` | 20 / 90 | uniform random wait between takes |
+| `FLOW_MAX_LOTS` | 3 | take size uniform in [1, max] lots (1 lot = `lotSize()`) |
+| `FLOW_MAX_SLIPPAGE_BPS` | 30 | worst price vs the oracle index |
+| `FLOW_POSITION_CAP_LOTS` | 10 | |position| cap (reduce-only at or past it) |
+| `MARKET` | `main` | `main` or `demo` (perp books only) |
+| `CHAIN_ID`, `RPC_URL`, `READ_RPC_URL`, `DEPLOYMENTS`, `KILL_FILE`, `ESTIMATE_BLOCK_TAG`, `TOUCH_ALLOWANCE_GAS` | as the MM | |
+
+**One-time setup per key:** MON for gas, then tAUSD collateral in the CH: `cast send $AUSD "mint(address,uint256)" <flow> <amt>` (testnet mock token), `approve($CH, amt)` and `ClearingHouse.deposit(amt)` from the flow key. The bot refuses to start with zero collateral.
+
+**Run MM + flow + keeper together (testnet budget):**
+```bash
+set -a; source .env; set +a; export CHAIN_ID=10143 RPC_URL=$MONAD_TESTNET_RPC_URL
+P=0x31491744e2dbf6df7fcf4ac0820d18a609b49076d45066d3568424e62f686cd1 READ=https://testnet-rpc.monad.xyz   # R12 feed id; public RPC (R29) for reads
+(cd keepers/ts-fallback && PYTH_MON_USD_FEED_ID=$P LOG_SPAN=10 LOOKBACK_BLOCKS=3000 FEED_HEARTBEAT_SEC=10 HEALTH_PORT=8797 pnpm start)   # 1. oracle feed + funding pokes
+(cd mm-bot && READ_RPC_URL=$READ LEVELS=1 LOTS_PER_LEVEL=5 REQUOTE_BPS=10 TICK_EVERY_BLOCKS=3 pnpm start)                                  # 2. MM, budget settings (§4)
+(cd mm-bot && READ_RPC_URL=$READ FLOW_MIN_SEC=30 FLOW_MAX_SEC=90 FLOW_MAX_LOTS=2 pnpm flow)                                                # 3. flow, ≥ 30 s after the MM quotes
+```
+Without `PYTH_MON_USD_FEED_ID` the keeper pushes nothing ("missing env PYTH_MON_USD_FEED_ID", every tick). `LOG_SPAN=10` because `MONAD_TESTNET_RPC_URL` is a free tier that allows 10-block `eth_getLogs` (a 100-block scan fails with "JSON is not a valid request object"); the MM and flow read from the public RPC through `READ_RPC_URL` (sends stay on `RPC_URL`). Run from the ws-03 worktree or after it merges (its `deployments/10143.json` has `mmAccounts`). First live run 6 Oct 12:40Z: 1 of 13 takes reverted, but succeeded when replayed at N−1 (the book changed inside the block: the MM re-quoted the side being taken); that's expected, not a bug.
+Each in its own terminal. Keep the keeper's **`FEED_HEARTBEAT_SEC` ≤ 10** (the default) whenever anything trades: the keeper-fed oracle stores the source's publish time, and a longer heartbeat leaves stale windows where every take reverts `OracleStale` (§11).
+
+**Local rehearsal (6 Oct, anvil 31337, `DeployLocal`, 1 s blocks):** MM at `LEVELS=2 LOTS_PER_LEVEL=5` + flow at 2–6 s: 10 takes in 75 s, all `success`, gas limit 203–213k each; one `skip: no liquidity` (a take had emptied the MM's side before its re-quote); `touch KILL` stopped takes until the file was removed.
+
+**MON per hour, measured on 10143 (6 Oct, 12:40–13:16Z, 102 gwei, settings above):** keeper **8.0 MON/h** (4.78 MON in 35.9 min: 300+ funding pokes, ~110 feed pushes, 0 errors, max funding gap 25 blocks), MM **5.7 MON/h** (2.96 MON in 31.3 min: 60 re-quotes, 115 txs, 0 errors), flow **1.3 MON/h** (0.65 MON in 29 min: 28 takes, 22 lots bought / 22 sold, 1 same-block revert). **≈ 15 MON/h for all three, so a 30-min run costs ≈ 7.5 MON** (the projection was ≈ 20 MON/h). Balances before/after with `cast balance`. Keep ≥ 5 MON on the keeper and ≥ 4 on the MM for a 30-min run, plus a margin: the keeper ended this run at 0.57 MON.
+
+**Stop:** `touch mm-bot/KILL` (flow stops taking and the MM pulls its quotes), then SIGINT the flow bot, then the MM (it cancels on SIGINT; check `openOrderCount(mm) == 0`), then the keeper.
+
 ## 3. Health
 - `curl localhost:$HEALTH_PORT/health` → `ok` is false after 30 s without a completed tick. Fields: `lastBlock`, `fundingPokes`, `feedPushes` (+ `lastFeedSource`), `pythPushes`, `liquidations`, `liquidationLatency {n, p50, p95, max, withinThreeBlocks}`, `openPositions`, `errors`, `lastError`; Phase 4: **`monPerHour`** (balance decrease over the last 30 min, per hour), **`maxFundingGapBlocks`** (observed since start, from `FundingUpdated` logs), `lastFundingUpdateBlock`, `accountReads`, `fullSweeps`, **`rpcCallsPerMin`**, `rpcCalls`, **`rpcErrors`** (failed after retries), `rpcRateLimited` (429s seen), `rpcRetries`, `rpcByMethod`.
 - The MM logs a `stats` line every 60 s (txs, Σ gas limit / used, rpc calls/min, errors, resting count).

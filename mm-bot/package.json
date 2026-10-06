@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",
+    "flow": "tsx src/flow.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
