@@ -1,7 +1,7 @@
 {
-  "_label": "MAINNET FORK REHEARSAL @ block 110560579 (anvil, chain id 143): NOT a mainnet deployment",
+  "_label": "MAINNET FORK REHEARSAL @ block 111084897 (anvil, chain id 143): NOT a mainnet deployment",
   "_owner": "FORK STAND-IN — not the real Safe (anvil dev account #9); need Safe address (HUMAN_CHECKLIST #3)",
-  "forkBlock": 110560579,
+  "forkBlock": 111084897,
   "fork": true,
   "chainId": 143,
   "contracts": {
@@ -22,6 +22,6 @@
   "mocks": false,
   "oracleKind": "pyth",
   "owner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
-  "startBlock": 110560579,
+  "startBlock": 111084913,
   "symbol": "MON-PERP"
 }

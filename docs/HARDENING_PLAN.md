@@ -8,10 +8,12 @@ Owner: A (lead, WS-00). Written Tue 6 Oct 2026 from the 6 Oct audit. Scope = aud
 | P1 | Bad-debt waterfall: IF → protocol fees → uncovered | M-3 | ClearingHouse, FundingSwapMarket | no |
 | P2 | Mark premium rate limit (per-block bound on the book-derived basis) | M-1 | MarkPriceLib, ClearingHouse | no |
 | P3 | CR-007: maker fill `Filled / Evict / Skip` | M-2 | IMarginEngine, IOrderBook, OrderBook, ClearingHouse, FundingSwapMarket, mocks | **yes** (CR-007, v1.6) |
-| P4 | Integration, deep invariants, gas, ABIs, fork rehearsal, **perp + swaps mainnet deploy** | — | none (scripts/config only) | — |
+| P4 | Integration, deep invariants, **mainnet-fork rehearsal (no broadcast)**, **testnet 10143 relaunch** (perp + swaps + demo market), bots, indexer, app, crash demo, onchain gas bench | Found #1, #6 | none (scripts/config, test handlers) | — |
 | P5 | Vault v2: async withdrawals + routed exits + emergency unwind + cooldown | A-01, A-07, A-09, A-11 | PulseVault, IPulseVault, KuruHedger config | **yes** (CR-014, v1.7) |
-| P6 | Vault v2 mainnet rollout (staged) | — | none | — |
-| P7 | Docs, benchmarks, write-up deltas | — | none | — |
+| P6 | Vault v2 on testnet + end-to-end demo rehearsal | — | none | — |
+| P7 | Docs, benchmarks, write-up, demo video, submission | — | none | — |
+
+> **Revision 6 Oct, night (owner): no mainnet deploy before the hackathon (PHASES 40).** Everything ships to **Monad testnet 10143**; mainnet readiness is shown by a **mainnet-fork rehearsal** of the same scripts (no broadcast) and by the A-01 fork test with a real Kuru Flow route. Consequences: the Thu 8 Oct freeze and go/no-go are gone; the human items for mainnet (Safe, mainnet keys, AUSD capital, ToS, owner "go") are no longer blocking; **testnet MON becomes the main human dependency** (bots ≈ 15 MON/h, RUNBOOK §4). PRD G1 ("live on mainnet") and the §6 mainnet traction metrics can't be met; the write-up says so plainly and reports testnet usage instead. Contracts stay changeable until the **demo freeze (Sat 10 Oct 18:00)**, after which only the demo deployment is used. Decision 35 ("no v1 vault on mainnet day") is superseded: the testnet relaunch ships no vault, vault v2 joins it in P6.
 
 Parallel lanes (not in this plan, but P4 depends on them): **B** keeper unwind after liquidation (H-1), MM re-quote on `OrderEvicted` / `MakerFillSkipped`, MM depth within ±5%; **C** Kryon rewrite + rebase of `ws-07zb` (H-3), app ABI bump, Earn v2 UI (P5.6).
 
@@ -19,7 +21,7 @@ Parallel lanes (not in this plan, but P4 depends on them): **B** keeper unwind a
 
 ## 0. Ground rules (read before every phase)
 
-1. **Non-upgradeable contracts set the order.** CH / OrderBook / swap market changes (P1–P3) must be in the **Thu 8 Oct** mainnet deploy; changing them later means a new market and migrating every position. The vault only *consumes* the CH, so vault v2 (P5) ships **after** the perp launch as a separate deploy.
+1. **Non-upgradeable contracts set the order.** CH / OrderBook / swap market changes (P1–P3) go into the **testnet relaunch (P4)**; changing them later means another redeploy, new indexer config and new app addresses. The vault only *consumes* the CH, so vault v2 (P5) joins the same testnet deployment afterwards (P6) without touching the perp.
 2. **One phase = one branch = one PR**, stacked: `ws-00p-hardening` (P0) → `ws-02c-bad-debt-waterfall` (P1) → `ws-02d-mark-bound` (P2) → `ws-01c-cr007-skip` (P3) → `ws-00q-launch` (P4) → `ws-04c-vault-v2` (P5). Rebase each on `origin/main` after the previous one merges. Work in a worktree `../pulse-hard`, never in `../Meridian` (owner tree, frontend work in progress).
 3. **Tests first** (CLAUDE.md §1.7): write the failing test / PoC, then the fix. Every phase ends green on: `forge build`, `forge test` (non-fork), `forge fmt --check`, the invariant suites at CI depth, the gas ceilings (`test/unit/ClearingHouseGas.t.sol`, `test/bench/RealEngineGas.t.sol`), and TS suites touched by an ABI change.
 4. **Interfaces:** P3 and P5 change frozen files. Apply the CR in a **separate WS-00 commit first** (`chore(ws-00): apply CR-0xx, interfaces-v1.x`), regenerate `abis/` and `docs/INTERFACES.md`, then implement. P1/P2 change no interface.
@@ -34,13 +36,16 @@ Parallel lanes (not in this plan, but P4 depends on them): **B** keeper unwind a
 | Tue 6 Oct, evening | P0 + P1 | P1 PR green by **Wed 09:00** |
 | Wed 7 Oct, morning | P2 | P2 PR green by **Wed 15:00** |
 | Wed 7 Oct, afternoon → night | P3 | **Cut-off Wed 23:00**: green or cut |
-| Thu 8 Oct, 08:00–12:00 | P4 integration + fork rehearsal | Go/no-go 12:00 (needs HUMAN #3/#4/#5/#8/#16/#18) |
-| Thu 8 Oct, 12:00–17:00 | P4 deploy perp + swaps (no vault) | Contract freeze 18:00 for CH/OB/swaps |
-| Thu 8 Oct evening → Sat 10 Oct 12:00 | P5 vault v2 | Cut-off **Sat 12:00** (else Earn = roadmap) |
-| Sat 10 Oct, afternoon | P6 vault v2 staged rollout | — |
-| Sun 11 → Tue 13 Oct | P7 docs, benchmarks, write-up | Submit by Tue 13 Oct, well before 18:00 |
+**Actual (revised 6 Oct night):** P0–P3 all finished Tue 6 Oct. P1 merged (#7); P2 and P3 done, awaiting the owner's push.
 
-**Decision taken here (PHASES 35):** mainnet day ships **no v1 vault**. The idle v1 vault earns 0 and would need a migration; vault v2 is deployed on its own on Sat 10 Oct. The Earn page shows "Vault opens Sat 10 Oct" until then. Owner may override (deploy v1 idle Thu, migrate Sat).
+| When (IST) | Phase | Gate / cut-off |
+|---|---|---|
+| Wed 7 Oct | **P4** merge P2+P3, verification, swap-handler gap, mainnet-fork rehearsal, testnet relaunch, bots, indexer, crash demo | Testnet live on the new contracts by **Thu 8 Oct 12:00** |
+| Thu 8 Oct → Fri 9 Oct 18:00 | **P5** vault v2 (contracts + keeper + fork proof) | Cut-off **Fri 9 Oct 18:00** (else Earn = roadmap, CR-014 implemented and fork-tested) |
+| Sat 10 Oct | **P6** vault v2 on testnet, full demo rehearsal | **Demo freeze Sat 10 Oct 18:00** (no contract change after) |
+| Sun 11 → Tue 13 Oct | **P7** testnet users, benchmarks, write-up, video, submission | Submit by Tue 13 Oct, well before 18:00 |
+
+**Decision 35** (no v1 vault on mainnet day) is superseded by **PHASES 40**: the testnet relaunch ships no vault; vault v2 is added to it in P6.
 
 ---
 
@@ -145,15 +150,27 @@ M      = I · (1 + p_used)                               // then the ±band clam
 
 ---
 
-## P4. Integration and perp + swaps mainnet deploy · Thu 8 Oct
+## P4. Integration, mainnet-fork rehearsal, testnet relaunch · Wed 7 Oct (→ Thu 12:00)
 
-- P4.1 Merge P1 → P2 → P3 to `main` in order (merge commits, CI green each time).
-- P4.2 Full verification on `main`: `forge test` (non-fork), invariants at 256×128 (`FOUNDRY_PROFILE=deep` or the env the suites use), `forge snapshot --diff .gas-snapshot-baseline`, `forge fmt --check`, every TS workspace (`pnpm -r test`, `pnpm -r typecheck`), `abis/ in sync` check.
-- P4.3 Self-review against the security checklist below, written into `HARDENING_LOOP.md` (one line per item per phase).
-- P4.4 Fork rehearsal: `contracts/script/fork/rehearse-143.sh` + `VerifyDeployment` (44/44 + new checks: mark step constants, enum ABI) + `SmokeFork143` + a forced stale-oracle maker-skip smoke on the fork.
-- P4.5 `DeployPulse` with the vault **disabled** (add a `DEPLOY_VAULT=false` switch if none exists; P5 ships its own `DeployVaultV2.s.sol`). Deploy needs `--gas-estimate-multiplier 200`.
-- P4.6 Go/no-go 12:00: HUMAN #3 Safe, #4 keys, #5 paid RPC, #8 funds, #16 ToS, #18 owner go. Then `preflight-143.sh` → broadcast → `VerifyDeployment` on 143 → explorer verification → keeper (with B's unwind) + MMs + hosted indexer → founders' first trades.
-- P4.7 Freeze CH/OB/swaps at 18:00 (PHASES).
+**Goal:** the hardened contracts (P1–P3) run end to end on Monad testnet 10143 with keeper, MMs, hosted indexer and app, the crash demo liquidates on chain, and the same deploy is proven against mainnet state on a fork without broadcasting. Branch `ws-00q-testnet-relaunch` from `origin/main` after P2 and P3 merge.
+
+**Human prerequisites (owner, before P4.6):** testnet MON on the deployer, keeper, perp MM, swap MM and flow keys (budget below); `MONAD_RPC_URL` (mainnet, for the fork only) and `MONAD_TESTNET_RPC_URL` in `.env`; Envio Cloud access for the redeploy (#14, done on 5 Oct for the old deployment). P2 and P3 pushed and squash-merged.
+
+**MON budget (RUNBOOK §4, measured 6 Oct on 10143):** keeper ≈ 8 MON/h, perp MM ≈ 5.7 MON/h (1 level), flow ≈ 1.3 MON/h ⇒ **≈ 15 MON/h with all bots**. Deploy (perp + swaps + demo market) ≈ check `--gas-estimate-multiplier 200` dry-run. Run bots only in evidence windows (crash demo, gas bench, demo recording), not continuously. If the keys hold less than one 30-min window plus deploy, stop after P4.5 and report.
+
+| Task | What | Done when |
+|---|---|---|
+| P4.1 | Rebase/merge: P2 PR, then P3 PR (`git rebase --onto origin/main ws-02d-mark-bound ws-01c-cr007-skip` after P2's squash), push tag `interfaces-v1.6` with P3 | `origin/main` has P1–P3, CI green |
+| P4.2 | Full verification on `main`: non-fork `forge test`, invariants at CI depth and once at 256×128 default, gas ceilings, `forge snapshot --diff .gas-snapshot-baseline`, `pnpm -r test`, `pnpm -r typecheck`, `pnpm abis` clean, `gen_interfaces_md.py --check` | all green, numbers in HARDENING_LOOP |
+| P4.3 | **Close HARDENING_LOOP Found #1:** swap invariant handler gets a "shock" action (wide book / long roll with keeper pokes, or a short-maturity fixture) so swap liquidations and the bad-debt waterfall actually happen in `FundingSwapInvariants` (I9, `invariant_I9_badDebtWaterfall`). Timebox 3 h | coverage CSV shows swap liquidations > 0 and waterfall hits > 0, invariants green |
+| P4.4 | **Mainnet-fork rehearsal, no broadcast:** `contracts/script/fork/rehearse-143.sh` + `VerifyDeployment` + `SmokeFork143` on a 143 fork with the hardened code; add checks for the P2 constants and the CR-007 ABI (enum return, `MakerFillSkipped`); a fork smoke that pauses the market and shows a maker Skip | rehearsal log + Verify N/N in HARDENING_LOOP; this is the "mainnet-ready" evidence |
+| P4.5 | **Testnet deploy:** `DeployPulse` on 10143 with `DEPLOY_SWAPS=true`, vault not deployed (`DEPLOY_VAULT` unset), demo market included; archive the old record as `deployments/10143-v1.json`; new `deployments/10143.json`; `VerifyDeployment` on 10143; explorer verification if the verifier is configured (HUMAN #17, else skip and say so) | addresses in `deployments/10143.json`, Verify green |
+| P4.6 | **Offchain repoint:** keeper + perp MM + swap MM + flow bot env to the new addresses (budget settings: MM `LEVELS=1 REQUOTE_BPS=10`, swap MM `REQUOTE_BPS=1000 TICK_EVERY_BLOCKS=33`), indexer config regenerated (`indexer/scripts/gen-config.mjs`) and the hosted Envio deployment updated (new endpoint, `NEXT_PUBLIC_INDEXER_URL`), app bundled testnet record + env, MFI unaffected | `/health` ok, indexer synced from `startBlock`, app shows the new market |
+| P4.7 | **Crash demo on testnet with bots up (closes Found #6):** demo market, keeper + demo MM running, ≈ 5x long, −15% keeper-fed push, liquidation within ≤ 3 blocks; plus a **Skip demo**: pause the demo market, send a reduce-only taker, show `MakerFillSkipped` and the MM order still resting, unpause | tx hashes + block numbers + latency in HARDENING_LOOP, screenshots for the video |
+| P4.8 | **Onchain gas bench (B1/B2) on testnet** with the hardened contracts, within the MON budget (`bench/gas_onchain.ts`, gas limit with `TOUCH_ALLOWANCE_GAS`) | `bench/out/gas_onchain_10143_<date>.csv`, BENCHMARKS.md B1/B2 refreshed |
+| P4.9 | Docs: PHASES 40 (no mainnet before submission; 35 superseded), HARDENING_PLAN revision committed, RUNBOOK testnet section (new addresses, budget windows), README/deployments notes; security self-review "### P4" | HARDENING_LOOP P4 report |
+
+**Lanes:** P4.6 touches B's (keeper/MM) and C's (indexer/app) config. Lead does the repoint commits on the P4 branch unless B/C are online; hand the H-1 keeper unwind (B) and the Kryon rewrite (C) over as before. **H-1 matters for the crash demo:** if the keeper can't absorb the liquidated position (cap / margin), the demo fails. Size the demo trader below the keeper's headroom or fund the keeper's collateral, and record which.
 
 ---
 
@@ -207,22 +224,25 @@ CR-010 items (1) `exitHedgeWithRoute` and (2) `emergencyUnwind` are kept; (3) `r
 - P5.3j MATH_SPEC §5.6 "Withdrawals (v2)"; PHASES 39; STATUS.md: A-01 Closed, A-07 Closed, A-09 Mitigated, A-11 Closed.
 - P5.3k PR `[WS-04] Vault v2: async withdrawals, routed exits, emergency unwind (A-01)`.
 
-**Cut rule:** not green by Sat 12:00 ⇒ no vault on mainnet, Earn = "roadmap: CR-014 implemented, fork-tested" in the write-up.
+**Cut rule:** not green by **Fri 9 Oct 18:00** ⇒ no vault in the demo deployment, Earn = "roadmap: CR-014 implemented, fork-tested" in the write-up.
+
+**Testnet note (PHASES 40):** 10143 has no live Kuru Flow route for MON/AUSD (`deployments/10143.json` lists `KuruHedger` as a mock; > VERIFY before assuming otherwise). On testnet the vault v2 hedges through the labelled mock hedger; the **real-route proof is the 143 fork test (P5.3f)**, which reads mainnet state and broadcasts nothing. The write-up states both.
 
 ---
 
-## P6. Vault v2 staged rollout · Sat 10 Oct
+## P6. Vault v2 on testnet + demo rehearsal · Sat 10 Oct
 
-1. Deploy `DeployVaultV2` with `skewCapacity = 0`, `depositCap` 1,200 AUSD. Verify.
-2. Founders deposit; test request → fulfil → claim from idle (no hedge yet).
-3. Safe sets `skewCapacity = 0.8e18`. Keeper enters **one** slice through Flow; then the Safe calls `emergencyUnwind` on half of it with a route (proves the exit live on mainnet); keeper re-enters.
-4. Only then announce the vault. Note for the demo: the hedge only enters when 8 h realized funding > ≈ 15.6% APR (MATH_SPEC §5.3) and only against takers' net long. If the market doesn't pay yet, the vault correctly stays idle. Show the rule, don't force it with `enterHedge` in public.
+1. `DeployVaultV2` on 10143 against the P4 perp (`skewCapacity = 0`, `depositCap` 1,200 tAUSD, mock hedger labelled), `VerifyDeployment`, indexer + app repoint for the vault events.
+2. Founders deposit; request → fulfil → claim from idle.
+3. Owner key (testnet stand-in for the Safe) sets `skewCapacity = 0.8e18`; keeper enters one slice (rule-based if 8 h of funding history pays, else a **labelled** forced `enterHedge()` for the demo); `emergencyUnwind` half; request beyond idle → keeper fulfil → claim.
+4. Full demo rehearsal on the frozen deployment: trade → per-block funding ticker → crash + liquidation → fix a rate with a swap → vault request/fulfil → `/rates` MFI. **Demo freeze 18:00.**
 
-## P7. Docs, benchmarks, write-up · Sun 11 → Tue 13 Oct
-- P7.1 STATUS.md and review-A/B statuses; MATH_SPEC amendments merged; RUNBOOK (mark bound, Skip semantics, fulfil loop, emergency unwind steps for the Safe).
-- P7.2 BENCHMARKS: re-run B1/B2 after P2/P3 (gas changed), B4 on the paid RPC.
-- P7.3 Write-up "Security" section: two internal reviews + this hardening (M-1/M-2/M-3/A-01 closed, with the test names as evidence).
-- P7.4 `HARDENING_LOOP.md` final report.
+## P7. Users, benchmarks, write-up, submission · Sun 11 → Tue 13 Oct
+- P7.1 STATUS.md and review-A/B statuses; MATH_SPEC amendments; RUNBOOK (mark bound, Skip semantics, fulfil loop, emergency unwind).
+- P7.2 BENCHMARKS: B1/B2 (from P4.8), B4 reduced on testnet within the MON budget, B5/B9 from the hosted indexer if history allows.
+- P7.3 Testnet users: invite testers to the testnet app; record only real, consented usage in `USERS.md` (testnet, labelled as such).
+- P7.4 Write-up: product + "why only Monad" + Security (two reviews + this hardening, test names as evidence) + **Status: testnet; mainnet-ready (fork-rehearsed deploy, A-01 fork-proven), mainnet after the hackathon**. Demo video. Bounty forms only where the criteria fit a testnet product.
+- P7.5 `HARDENING_LOOP.md` final report; submit well before Tue 13 Oct 18:00.
 
 ---
 

@@ -119,7 +119,8 @@ contract RealEngineGasBench is Test {
         vm.revertToState(snap);
         (uint256 first, uint256 noop, uint256 later) = _fundingTouch(block.number + 1);
         _row("funding_first_touch_tx", 0, first);
-        _row("funding_first_touch_incremental", 30_000, first - noop);
+        // incl. the external oracle + book views: no target (the asserted 30k row is CH-own, below; Found #11)
+        _row("funding_first_touch_incremental", 0, first - noop);
         _row("funding_later_touch_same_tx", 3000, later);
         uint256 ext = _externalViewGas();
         _row("funding_external_views_cold", 0, ext);
@@ -136,7 +137,7 @@ contract RealEngineGasBench is Test {
         }
         (uint256 ckFirst, uint256 ckNoop,) = _fundingTouch((b / 200 + 1) * 200);
         _row("funding_first_touch_checkpoint_tx", 0, ckFirst);
-        _row("funding_first_touch_checkpoint_incremental", 40_000, ckFirst - ckNoop);
+        _row("funding_first_touch_checkpoint_incremental", 0, ckFirst - ckNoop); // incl. views: no target (#11)
         _row("funding_ch_own_checkpoint_incremental", 40_000, ckFirst - ckNoop - ext);
         assertLt(ckFirst - ckNoop - ext, 40_000, "CH-own funding first touch on a checkpoint block >= 40k");
         assertLt(later, 3000, "later touch >= 3k");

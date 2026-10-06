@@ -2,6 +2,8 @@
 pragma solidity 0.8.28;
 
 import {Script, console2} from "forge-std/Script.sol";
+import {Vm} from "forge-std/Vm.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -23,7 +25,8 @@ import {AccountView, SwapAccountView} from "../../src/interfaces/PulseTypes.sol"
 ///         the end state and asserts it. Refuses anything but an anvil node (`anvil_nodeInfo`) with chain id 143.
 ///   FORK_DEPLOYMENTS=dry-run/143-fork.json forge script script/fork/SmokeFork143.s.sol --rpc-url http://127.0.0.1:8545 \
 ///     --broadcast --slow --gas-estimate-multiplier 200
-/// @dev Anvil public dev keys only (#0 seeder, #1 keeper, #2 MM, #3 taker, #4 swap taker, #5 depositor).
+/// @dev Anvil public dev keys only (#0 seeder, #1 keeper, #2 MM, #3 taker, #4 swap taker, #5 depositor; skipDemo: #6
+///      trader, #9 owner stand-in).
 contract SmokeFork143 is Script {
     using stdJson for string;
 
@@ -33,6 +36,9 @@ contract SmokeFork143 is Script {
     uint256 internal constant PK_TAKER = 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6;
     uint256 internal constant PK_SWAP_TAKER = 0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a;
     uint256 internal constant PK_DEPOSITOR = 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba;
+    uint256 internal constant PK_SKIP_TRADER = 0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e;
+    /// @dev anvil #9 = rehearse-143.sh's owner stand-in (FORK_OWNER unset), never the real Safe
+    uint256 internal constant PK_OWNER_STANDIN = 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6;
 
     uint64 internal constant TAKER_LOTS = 250; // 25,000 MON = maxPositionSize (launch cap)
     uint256 internal constant IF_SEED = 1500e6;
@@ -102,6 +108,59 @@ contract SmokeFork143 is Script {
         vm.stopBroadcast();
 
         _assertEndState(ifBefore);
+    }
+
+    /// @notice CR-007 on the fork (hardening P4.4), after `run()`: a trader opens a small short into the MM's bid
+    ///         wall (the MM reduces: Filled), the owner stand-in pauses the CH, and a reduce-only buy crosses the MM's
+    ///         ask, which would INCREASE the MM's short. Expected: `MakerFillSkipped(orderId, MM)`, nothing filled,
+    ///         no eviction, the MM's ask still resting with the same lots; then unpause. Assertions run in forge's
+    ///         simulation (logs recorded there); re-check the broadcast receipt with `cast receipt`.
+    ///   forge script script/fork/SmokeFork143.s.sol --sig "skipDemo()" --rpc-url http://127.0.0.1:8545 --broadcast --slow
+    function skipDemo() external {
+        _load();
+        require(Ownable(address(ch)).owner() == vm.addr(PK_OWNER_STANDIN), "CH owner is not the fork stand-in (#9)");
+        (bool fresh,,) = oracle.tryGetIndexPrice();
+        require(fresh, "SmokeFork143: oracle stale - start fork-pyth-relay first");
+        address trader = vm.addr(PK_SKIP_TRADER);
+        address mm = vm.addr(PK_MM);
+        uint32 bid = ob.bestBid();
+        uint32 ask = ob.bestAsk();
+        require(bid != 0 && ask != type(uint32).max, "run() first: the MM's bid wall and ask must rest");
+
+        _deposit(PK_SKIP_TRADER, 300e6, 0);
+        vm.broadcast(PK_SKIP_TRADER);
+        ob.placeMarketOrder(false, 5, bid, 5, false); // short 500 MON into the bid wall: the MM reduces (Filled)
+        require(ch.getAccount(trader).size == -500e18, "trader short 500 MON");
+        (uint64 askLots,) = ob.getLevel(ask);
+        uint256 mmOrders = ob.openOrderCount(mm);
+
+        vm.broadcast(PK_OWNER_STANDIN);
+        ch.setPaused(true);
+        vm.recordLogs();
+        vm.broadcast(PK_SKIP_TRADER);
+        (uint64 filled,) = ob.placeMarketOrder(true, 5, ask + 10, 0, true); // reduce-only buy into the MM's ask
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        vm.broadcast(PK_OWNER_STANDIN);
+        ch.setPaused(false);
+
+        uint256 skipped;
+        uint256 evicted;
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].emitter != address(ob)) continue;
+            if (logs[i].topics[0] == IOrderBook.MakerFillSkipped.selector) {
+                require(address(uint160(uint256(logs[i].topics[2]))) == mm, "skipped maker is the MM");
+                console2.log("MakerFillSkipped orderId", uint256(logs[i].topics[1]));
+                ++skipped;
+            }
+            if (logs[i].topics[0] == IOrderBook.OrderEvicted.selector) ++evicted;
+        }
+        (uint64 askLotsAfter,) = ob.getLevel(ask);
+        console2.log("paused reduce-only buy: filled lots / skips / evictions", filled, skipped, evicted);
+        console2.log("MM ask level lots before / after", askLots, askLotsAfter);
+        require(filled == 0 && skipped == 1 && evicted == 0, "CR-007: one Skip, nothing filled, nothing evicted");
+        require(askLotsAfter == askLots && ob.openOrderCount(mm) == mmOrders, "CR-007: the MM's ask still rests");
+        require(ch.getAccount(trader).size == -500e18, "trader position unchanged");
+        console2.log("SKIP OK (mainnet fork, labelled): paused market refused new risk, MM order kept");
     }
 
     function _deposit(uint256 pk, uint256 perp, uint256 swp) internal {

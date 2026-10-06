@@ -66,6 +66,7 @@ contract FundingSwapInvariantsTest is StdInvariant, Test {
         handler = new FundingSwapHandler(ch, ob, fs, sob, ausd, perpMm, actors, keeper);
         handler.setInsuranceFund(fund);
         handler.setOwner(owner);
+        handler.setOracle(oracle); // P4.3: shock() moves the index
         vm.prank(owner);
         fund.setMarketAuthorized(address(handler), true); // drainInsurance: bad debt reaches fees, then uncovered
         _fundSwap(actors[0], 200_000e6);
@@ -77,7 +78,7 @@ contract FundingSwapInvariantsTest is StdInvariant, Test {
         everyone = actors;
         everyone.push(keeper);
 
-        bytes4[] memory sel = new bytes4[](18);
+        bytes4[] memory sel = new bytes4[](19);
         sel[0] = handler.placeLimit.selector;
         sel[1] = handler.placeLimit.selector;
         sel[2] = handler.placeLimit.selector;
@@ -96,6 +97,7 @@ contract FundingSwapInvariantsTest is StdInvariant, Test {
         sel[15] = handler.goToMaturity.selector;
         sel[16] = handler.drainInsurance.selector;
         sel[17] = handler.setPaused.selector; // CR-007: paused ⇒ increasing makers Skip
+        sel[18] = handler.shock.selector; // P4.3 (Found #1): MON price shock ⇒ swap liquidations and bad debt
         targetSelector(FuzzSelector({addr: address(handler), selectors: sel}));
         targetContract(address(handler));
     }
@@ -184,7 +186,9 @@ contract FundingSwapInvariantsTest is StdInvariant, Test {
                 ",",
                 vm.toString(handler.skips()),
                 ",",
-                vm.toString(handler.evictions())
+                vm.toString(handler.evictions()),
+                ",",
+                vm.toString(handler.shocks())
             )
         );
     }

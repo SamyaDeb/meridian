@@ -10,6 +10,8 @@ import {IClearingHouse} from "../src/interfaces/IClearingHouse.sol";
 import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 import {IInsuranceFund} from "../src/interfaces/IInsuranceFund.sol";
 import {IMarketFactory} from "../src/interfaces/IMarketFactory.sol";
+import {IMarginEngine} from "../src/interfaces/IMarginEngine.sol";
+import {IOrderBook} from "../src/interfaces/IOrderBook.sol";
 import {IPulseVault} from "../src/interfaces/IPulseVault.sol";
 import {IFundingSwapMarket} from "../src/interfaces/IFundingSwapMarket.sol";
 import {PulseVault} from "../src/vault/PulseVault.sol";
@@ -17,19 +19,31 @@ import {KuruHedger} from "../src/vault/KuruHedger.sol";
 import {ClearingHouse} from "../src/clearing/ClearingHouse.sol";
 import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
 import {PythChainlinkOracleAdapter} from "../src/oracle/PythChainlinkOracleAdapter.sol";
+import {TestnetKeeperOracle} from "../src/oracle/TestnetKeeperOracle.sol";
 import {RiskParams, VaultParams, SwapParams} from "../src/interfaces/PulseTypes.sol";
 
 /// @notice READ-ONLY post-deploy check of a DeployPulse record against `script/config/<chainid>.json` (Phase 3 P2;
-///         mainnet day step "verify"). Never broadcasts. Checks: every Ownable's owner = EXPECTED_OWNER (the Safe; on
-///         a fork the labelled stand-in) and ≠ the deployer; the deployer holds no vault role; the keeper and the MM
-///         are registered as decided (vault keeper; skew provider, PHASES decision 11); caps and params equal the
-///         config; the vault is idle (skewCapacity 0, decision 17); wiring (CH↔OB, swap↔OB, IF authorisations,
-///         factory registry); not paused; the oracle returns a fresh live price.
+///         mainnet day step "verify"; testnet relaunch P4.5). Never broadcasts. Checks: every Ownable's owner =
+///         EXPECTED_OWNER (mainnet: the Safe, never the deployer; on a fork the labelled stand-in; testnet with
+///         `ownerIsDeployer`: the deployer); the deployer holds no vault role; the keeper and the MM are registered as
+///         decided (vault keeper; skew provider, PHASES decision 11); caps and params equal the config; the vault is
+///         idle (skewCapacity 0, decision 17); wiring (CH↔OB, swap↔OB, IF authorisations, factory registry); not
+///         paused; the oracle returns a fresh live price; the labelled demo market (testnet) is wired and keeper-fed.
+///         Vault and swaps are checked only when the record lists them (testnet relaunch P4.5: no vault).
+///         Hardening (P4.4): the P2 mark premium bound (10 bps per block, credited for ≤ 20 blocks) and CR-007
+///         (`MakerFillSkipped` in every book's bytecode; a paused engine answers Skip) are checked by BEHAVIOUR on the
+///         deployed bytecode, in this script's local simulation only (mocked oracle/book views, pranked owner/book,
+///         state snapshot reverted): nothing reaches the chain.
 ///   DEPLOYMENTS_FILE=dry-run/143-fork.json EXPECTED_OWNER=0x… DEPLOYER_ADDRESS=0x… KEEPER_ADDRESS=0x… MM_ADDRESS=0x… \
 ///     forge script script/VerifyDeployment.s.sol --rpc-url <rpc>
 ///   Prints one PASS/FAIL line per check and reverts at the end if any check failed.
 contract VerifyDeployment is DeployBase {
     using stdJson for string;
+
+    uint256 internal constant MAINNET = 143;
+    /// @dev P2 (MarkPriceLib, PHASES 37): basis step per block (fraction of the index) and the elapsed-block cap.
+    uint256 internal constant MARK_STEP = 0.001e18;
+    uint256 internal constant MARK_MAX_ELAPSED = 20;
 
     uint256 internal failures;
     uint256 internal passes;
@@ -58,15 +72,21 @@ contract VerifyDeployment is DeployBase {
         address hedger;
         address swap;
         address sob;
+        address demoCh;
+        address demoOb;
+        address demoOracle;
         string symbol;
+        string demoSymbol;
+        string oracleKind;
     }
 
     Addrs internal x;
+    string internal dep;
 
     function run() external {
         require(!vm.isContext(VmSafe.ForgeContext.ScriptBroadcast), "VerifyDeployment is read-only: never --broadcast");
         _loadConfig();
-        string memory dep = vm.readFile(
+        dep = vm.readFile(
             string.concat(vm.projectRoot(), "/../deployments/", vm.envOr("DEPLOYMENTS_FILE", string("143.json")))
         );
         require(dep.readUint(".chainId") == block.chainid, "deployments file is for another chain");
@@ -74,53 +94,89 @@ contract VerifyDeployment is DeployBase {
         x.deployer = vm.envAddress("DEPLOYER_ADDRESS");
         x.keeper = vm.envAddress("KEEPER_ADDRESS");
         x.mm = vm.envAddress("MM_ADDRESS");
+        // mainnet: the Safe, never the deployer; testnet with `ownerIsDeployer` (config): the deployer by design
+        bool ownerMayBeDeployer = block.chainid != MAINNET && cfg.readBoolOr(".ownerIsDeployer", false);
         require(
-            x.owner != address(0) && x.owner != x.deployer, "EXPECTED_OWNER must be set and differ from the deployer"
+            x.owner != address(0) && (x.owner != x.deployer || ownerMayBeDeployer),
+            "EXPECTED_OWNER must be set and differ from the deployer"
         );
         x.ch = dep.readAddress(".contracts.ClearingHouse");
         x.ob = dep.readAddress(".contracts.OrderBook");
         x.oracle = dep.readAddress(".contracts.OracleAdapter");
         x.fund = dep.readAddress(".contracts.InsuranceFund");
         x.factory = dep.readAddress(".contracts.MarketFactory");
-        x.vault = dep.readAddress(".contracts.PulseVault");
-        x.hedger = dep.readAddress(".contracts.KuruHedger");
-        x.swap = dep.readAddress(".contracts.FundingSwapMarket");
-        x.sob = dep.readAddress(".contracts.SwapOrderBook");
+        x.vault = _optDep(".contracts.PulseVault");
+        x.hedger = _optDep(".contracts.KuruHedger");
+        x.swap = _optDep(".contracts.FundingSwapMarket");
+        x.sob = _optDep(".contracts.SwapOrderBook");
         x.symbol = dep.readString(".symbol");
+        x.oracleKind = dep.readStringOr(".oracleKind", "pyth");
+        if (vm.keyExistsJson(dep, ".demoMarket")) {
+            x.demoCh = dep.readAddress(".demoMarket.ClearingHouse");
+            x.demoOb = dep.readAddress(".demoMarket.OrderBook");
+            x.demoOracle = dep.readAddress(".demoMarket.OracleAdapter");
+            x.demoSymbol = dep.readString(".demoMarket.symbol");
+        }
         console2.log("chain / block", block.chainid, block.number);
         console2.log("expected owner", x.owner);
+        if (x.vault == address(0)) console2.log("SKIP vault checks: no PulseVault in the record");
+        if (x.swap == address(0)) console2.log("SKIP swap checks: no FundingSwapMarket in the record");
 
         _ownership();
         _roles();
         _wiring();
         _params();
         _oracle();
+        _demo();
+        _hardening(); // last; every simulated change is reverted to a state snapshot
 
         console2.log("checks passed / failed", passes, failures);
         require(failures == 0, "VerifyDeployment: FAILED");
     }
 
-    /// @dev 7 Ownables → the Safe; the OrderBooks have no owner.
-    function _ownership() internal {
-        address[7] memory owned = [x.fund, x.factory, x.oracle, x.ch, x.swap, x.vault, x.hedger];
-        string[7] memory names = [
-            "InsuranceFund",
-            "MarketFactory",
-            "OracleAdapter",
-            "ClearingHouse",
-            "FundingSwapMarket",
-            "PulseVault",
-            "KuruHedger"
-        ];
-        for (uint256 i; i < owned.length; ++i) {
-            _check(owned[i].code.length > 0, string.concat(names[i], " has code"));
-            _check(Ownable(owned[i]).owner() == x.owner, string.concat(names[i], ".owner() == expected owner"));
-        }
-        _check(x.ob.code.length > 0 && x.sob.code.length > 0, "both OrderBooks have code (no owner by design)");
+    function _optDep(string memory key) internal view returns (address) {
+        return vm.keyExistsJson(dep, key) ? dep.readAddress(key) : address(0);
     }
 
-    /// @dev The deployer holds no role; keeper + MM as decided (decision 11).
+    function _owned(address a, string memory name) internal {
+        _check(a.code.length > 0, string.concat(name, " has code"));
+        _check(Ownable(a).owner() == x.owner, string.concat(name, ".owner() == expected owner"));
+    }
+
+    /// @dev Ownables → the expected owner; the OrderBooks have no owner. MockKuruHedger (testnet) is not Ownable.
+    function _ownership() internal {
+        _owned(x.fund, "InsuranceFund");
+        _owned(x.factory, "MarketFactory");
+        _owned(x.oracle, "OracleAdapter");
+        _owned(x.ch, "ClearingHouse");
+        _check(x.ob.code.length > 0, "OrderBook has code (no owner by design)");
+        if (x.swap != address(0)) {
+            _owned(x.swap, "FundingSwapMarket");
+            _check(x.sob.code.length > 0, "SwapOrderBook has code (no owner by design)");
+        }
+        if (x.vault != address(0)) {
+            _owned(x.vault, "PulseVault");
+            if (_hedgerIsMock()) _check(x.hedger.code.length > 0, "KuruHedger (labelled mock) has code");
+            else _owned(x.hedger, "KuruHedger");
+        }
+        if (x.demoCh != address(0)) {
+            _owned(x.demoOracle, "demo OracleAdapter");
+            _owned(x.demoCh, "demo ClearingHouse");
+            _check(x.demoOb.code.length > 0, "demo OrderBook has code");
+        }
+    }
+
+    function _hedgerIsMock() internal view returns (bool) {
+        string[] memory mocks = dep.readStringArray(".mockContracts");
+        for (uint256 i; i < mocks.length; ++i) {
+            if (keccak256(bytes(mocks[i])) == keccak256("KuruHedger")) return true;
+        }
+        return false;
+    }
+
+    /// @dev The deployer holds no vault role; keeper + MM as decided (decision 11).
     function _roles() internal {
+        if (x.vault == address(0)) return;
         PulseVault v = PulseVault(x.vault);
         _check(!v.isKeeper(x.deployer), "deployer is not a vault keeper");
         _check(v.isKeeper(x.keeper), "KEEPER_ADDRESS is a vault keeper");
@@ -130,33 +186,69 @@ contract VerifyDeployment is DeployBase {
         } catch {
             _check(true, "exactly one skew provider");
         }
-        _check(KuruHedger(payable(x.hedger)).vault() == x.vault, "hedger.vault() == vault (one-shot)");
+        if (!_hedgerIsMock()) {
+            _check(KuruHedger(payable(x.hedger)).vault() == x.vault, "hedger.vault() == vault (one-shot)");
+        }
     }
 
     function _wiring() internal {
         _check(IClearingHouse(x.ch).orderBook() == x.ob, "CH.orderBook() == OB");
-        _check(IFundingSwapMarket(x.swap).orderBook() == x.sob, "swap.orderBook() == swap OB");
         _check(IInsuranceFund(x.fund).isAuthorized(x.ch), "IF authorises the perp CH");
-        _check(IInsuranceFund(x.fund).isAuthorized(x.swap), "IF authorises the swap market");
-        IMarketFactory.Market memory m = IMarketFactory(x.factory).getMarket(keccak256(bytes(x.symbol)));
-        _check(
-            m.clearingHouse == x.ch && m.orderBook == x.ob && m.oracle == x.oracle && m.active,
-            "factory registry: MON-PERP"
-        );
+        _registry(x.symbol, x.ch, x.ob, x.oracle);
         _check(!ClearingHouse(x.ch).paused(), "CH not paused");
+        if (x.swap == address(0)) return;
+        _check(IFundingSwapMarket(x.swap).orderBook() == x.sob, "swap.orderBook() == swap OB");
+        _check(IInsuranceFund(x.fund).isAuthorized(x.swap), "IF authorises the swap market");
+        _check(!FundingSwapMarket(x.swap).paused(), "swap market not paused");
+    }
+
+    function _registry(string memory symbol, address ch, address ob, address oracle) internal {
+        IMarketFactory.Market memory m = IMarketFactory(x.factory).getMarket(keccak256(bytes(symbol)));
+        _check(
+            m.clearingHouse == ch && m.orderBook == ob && m.oracle == oracle && m.active,
+            string.concat("factory registry: ", symbol)
+        );
     }
 
     /// @dev Caps and params == config; the vault is idle (decision 17).
     function _params() internal {
-        RiskParams memory r = IClearingHouse(x.ch).riskParams();
+        _perpParams(x.ch, "perp");
+        if (x.vault != address(0)) _vaultParamsCheck();
+        if (x.swap == address(0)) return;
+        SwapParams memory sp = IFundingSwapMarket(x.swap).swapParams();
+        _check(keccak256(abi.encode(sp)) == keccak256(abi.encode(_swapParams())), "SwapParams == config (all fields)");
+        uint256 mat = IFundingSwapMarket(x.swap).maturity();
+        _check(mat > block.timestamp && mat <= block.timestamp + 30 days, "swap maturity within 30 d of now");
+        console2.log("swap maturity (unix s)", mat);
+        // a pre-B-01 swap market has no such constant: FAIL, don't abort the whole run
+        try FundingSwapMarket(x.swap).MARK_MAX_STEP_PER_BLOCK() returns (int256 step) {
+            _check(step == 0.005e18, "swap mark bound 0.5 pt/block (decision 18)");
+        } catch {
+            _check(false, "swap mark bound 0.5 pt/block (decision 18)");
+        }
+    }
+
+    function _perpParams(address ch, string memory label) internal {
+        RiskParams memory r = IClearingHouse(ch).riskParams();
         RiskParams memory rc = _riskParams();
-        _check(r.maxPositionSize == rc.maxPositionSize && r.maxPositionSize > 0, "perp maxPositionSize == config");
-        _check(r.maxOpenInterest == rc.maxOpenInterest && r.maxOpenInterest > 0, "perp maxOpenInterest == config");
-        _check(keccak256(abi.encode(r)) == keccak256(abi.encode(rc)), "perp RiskParams == config (all fields)");
         _check(
-            keccak256(abi.encode(IClearingHouse(x.ch).fundingParams())) == keccak256(abi.encode(_fundingParams())),
-            "perp FundingParams == config (all fields)"
+            r.maxPositionSize == rc.maxPositionSize && r.maxPositionSize > 0,
+            string.concat(label, " maxPositionSize == config")
         );
+        _check(
+            r.maxOpenInterest == rc.maxOpenInterest && r.maxOpenInterest > 0,
+            string.concat(label, " maxOpenInterest == config")
+        );
+        _check(
+            keccak256(abi.encode(r)) == keccak256(abi.encode(rc)), string.concat(label, " RiskParams == config (all)")
+        );
+        _check(
+            keccak256(abi.encode(IClearingHouse(ch).fundingParams())) == keccak256(abi.encode(_fundingParams())),
+            string.concat(label, " FundingParams == config (all)")
+        );
+    }
+
+    function _vaultParamsCheck() internal {
         PulseVault v = PulseVault(x.vault);
         VaultParams memory vp = v.vaultParams();
         _check(vp.depositCap == _vaultParams().depositCap, "vault depositCap == config");
@@ -164,31 +256,169 @@ contract VerifyDeployment is DeployBase {
         _check(keccak256(abi.encode(vp)) == keccak256(abi.encode(_vaultParams())), "VaultParams == config (all fields)");
         _check(v.shortCapacity() == 0, "vault shortCapacity() == 0 (cannot hedge)");
         _check(uint8(v.needsRebalance()) == uint8(IPulseVault.RebalanceReason.None), "vault needsRebalance() == None");
-        SwapParams memory sp = IFundingSwapMarket(x.swap).swapParams();
-        _check(keccak256(abi.encode(sp)) == keccak256(abi.encode(_swapParams())), "SwapParams == config (all fields)");
-        uint256 mat = IFundingSwapMarket(x.swap).maturity();
-        _check(mat > block.timestamp && mat <= block.timestamp + 30 days, "swap maturity within 30 d of now");
-        console2.log("swap maturity (unix s)", mat);
-        _check(
-            FundingSwapMarket(x.swap).MARK_MAX_STEP_PER_BLOCK() == 0.005e18,
-            "swap mark bound 0.5 pt/block (decision 18)"
-        );
     }
 
-    /// @dev Oracle params == config and a fresh live price.
+    /// @dev Oracle params == config and a fresh live price. `pyth`: feed, Pyth contract and guard; `keeper-fed`
+    ///      (testnet only): staleness / deviation == config and KEEPER_ADDRESS is a feeder.
     function _oracle() internal {
-        PythChainlinkOracleAdapter a = PythChainlinkOracleAdapter(x.oracle);
-        _check(a.maxStaleness() == cfg.readUint(".params.oracle.maxStalenessSec"), "oracle maxStaleness == config");
-        _check(a.maxDeviation() == _u(".params.oracle.maxDeviationWad"), "oracle maxDeviation == config");
-        _check(address(a.pyth()) == cfg.readAddress(".pyth.contract"), "oracle Pyth == config (R12)");
-        _check(a.priceId() == cfg.readBytes32(".pyth.monUsdFeedId"), "oracle feed id == config (R12)");
+        if (keccak256(bytes(x.oracleKind)) == keccak256("keeper-fed")) {
+            _keeperFed(x.oracle, "oracle");
+        } else {
+            PythChainlinkOracleAdapter a = PythChainlinkOracleAdapter(x.oracle);
+            _check(a.maxStaleness() == cfg.readUint(".params.oracle.maxStalenessSec"), "oracle maxStaleness == config");
+            _check(a.maxDeviation() == _u(".params.oracle.maxDeviationWad"), "oracle maxDeviation == config");
+            _check(address(a.pyth()) == cfg.readAddress(".pyth.contract"), "oracle Pyth == config (R12)");
+            _check(a.priceId() == cfg.readBytes32(".pyth.monUsdFeedId"), "oracle feed id == config (R12)");
+            _check(
+                address(a.secondary()) == cfg.readAddress(".chainlink.monUsd"),
+                "oracle guard == Chainlink MON/USD (R11)"
+            );
+        }
+        _fresh(x.oracle, "oracle");
+    }
+
+    function _keeperFed(address oracle, string memory label) internal {
+        require(block.chainid != MAINNET, "keeper-fed oracle on mainnet");
+        TestnetKeeperOracle o = TestnetKeeperOracle(oracle);
         _check(
-            address(a.secondary()) == cfg.readAddress(".chainlink.monUsd"), "oracle guard == Chainlink MON/USD (R11)"
+            o.maxStaleness() == cfg.readUint(".params.oracle.keeperFedMaxStalenessSec"),
+            string.concat(label, " (keeper-fed) maxStaleness == config")
         );
-        (bool ok, uint256 px, uint256 at) = IOracleAdapter(x.oracle).tryGetIndexPrice();
-        _check(ok && px > 0, "oracle returns a fresh price (tryGetIndexPrice ok)");
+        _check(
+            o.maxDeviation() == _u(".params.oracle.maxDeviationWad"),
+            string.concat(label, " (keeper-fed) maxDeviation == config")
+        );
+        _check(o.isFeeder(x.keeper), string.concat(label, ": KEEPER_ADDRESS is a feeder"));
+    }
+
+    /// @dev A keeper-fed oracle is fresh only while its keeper runs: FRESH_ORACLE_OPTIONAL=1 reports a stale price
+    ///      instead of failing (testnet verify right after the deploy, before the keeper starts).
+    function _fresh(address oracle, string memory label) internal {
+        (bool ok, uint256 px, uint256 at) = IOracleAdapter(oracle).tryGetIndexPrice();
+        string memory what = string.concat(label, " returns a fresh price (tryGetIndexPrice ok)");
+        if (!ok && vm.envOr("FRESH_ORACLE_OPTIONAL", false)) console2.log("INFO (not counted): stale,", what);
+        else _check(ok && px > 0, what);
         console2.log(
             "index price (WAD) / publish time / age s", px, at, block.timestamp > at ? block.timestamp - at : 0
         );
+    }
+
+    /// @dev The labelled test market (testnet only): wiring, registry, IF authorisation, params, keeper-fed oracle.
+    function _demo() internal {
+        if (x.demoCh == address(0)) return;
+        require(block.chainid != MAINNET, "demo market on mainnet");
+        _check(IClearingHouse(x.demoCh).orderBook() == x.demoOb, "demo CH.orderBook() == demo OB");
+        _check(IInsuranceFund(x.fund).isAuthorized(x.demoCh), "IF authorises the demo CH");
+        _registry(x.demoSymbol, x.demoCh, x.demoOb, x.demoOracle);
+        _check(!ClearingHouse(x.demoCh).paused(), "demo CH not paused");
+        _perpParams(x.demoCh, "demo");
+        _keeperFed(x.demoOracle, "demo oracle");
+        _fresh(x.demoOracle, "demo oracle");
+    }
+
+    // ═══ Hardening (P2 + CR-007) by behaviour, local simulation only ════════════════════════════════════════
+
+    function _hardening() internal {
+        bytes32 topic = IOrderBook.MakerFillSkipped.selector;
+        _markBound(x.ch, x.ob, x.oracle, "perp");
+        _check(_hasWord(x.ob.code, topic), "CR-007: OrderBook bytecode emits MakerFillSkipped");
+        _skipWhenPaused(x.ch, x.ob, x.oracle, 30_000, "perp CH");
+        if (x.demoCh != address(0)) {
+            _markBound(x.demoCh, x.demoOb, x.demoOracle, "demo");
+            _check(_hasWord(x.demoOb.code, topic), "CR-007: demo OrderBook bytecode emits MakerFillSkipped");
+            _skipWhenPaused(x.demoCh, x.demoOb, x.demoOracle, 30_000, "demo CH");
+        }
+        if (x.swap != address(0)) {
+            _check(_hasWord(x.sob.code, topic), "CR-007: SwapOrderBook bytecode emits MakerFillSkipped");
+            _skipWhenPaused(x.swap, x.sob, x.oracle, 11_200, "swap market"); // tick 11,200 = 12% APR
+        }
+    }
+
+    /// @dev P2 (MATH_SPEC §2.1, PHASES 37) on the DEPLOYED ClearingHouse: oracle fresh at I (mocked); a first touch on
+    ///      a neutral book fixes m0; then a book manipulated to I·1.10 (bid, ask, a fresh last trade; before P2 the mark
+    ///      jumped to the band edge I·1.05 in one block) must move the next block's mark by exactly one step (10 bps),
+    ///      and after a 1,000-block gap by exactly MARK_MAX_ELAPSED steps (2%). vm.mockCall / vm.roll / the touch run
+    ///      in the local simulation and are reverted; nothing reaches the chain.
+    function _markBound(address ch, address ob, address oracle, string memory label) internal {
+        uint256 ts = IOrderBook(ob).tickSize();
+        uint256 index = (0.03e18 / ts) * ts; // tick-aligned; any value works, the bound is relative to the index
+        uint256 hi = index * 110 / 100;
+        uint256 snap = vm.snapshotState();
+        vm.mockCall(
+            oracle,
+            abi.encodeWithSelector(IOracleAdapter.tryGetIndexPrice.selector),
+            abi.encode(true, index, block.timestamp)
+        );
+        _mockBook(ob, index / ts - 1, index / ts + 1, 0, 0);
+        vm.roll(block.number + 1);
+        IClearingHouse(ch).updateFunding();
+        uint256 m0 = IClearingHouse(ch).markPrice();
+        vm.roll(block.number + 1);
+        _mockBook(ob, hi / ts, hi / ts + 1, hi, block.number - 1);
+        uint256 m1 = IClearingHouse(ch).markPrice();
+        vm.roll(block.number + 999); // 1,000 blocks since the touch: credited for at most MARK_MAX_ELAPSED
+        _mockBook(ob, hi / ts, hi / ts + 1, hi, block.number - 1);
+        uint256 m20 = IClearingHouse(ch).markPrice();
+        vm.clearMockedCalls();
+        vm.revertToStateAndDelete(snap);
+        console2.log(string.concat(label, " mark (index 0.03e18): neutral / +1 block / +1,000 blocks"), m0, m1, m20);
+        _check(
+            _near(m1, m0 + index * MARK_STEP / 1e18),
+            string.concat("P2: ", label, " mark basis moves 10 bps in one block (pre-P2: to the +5% band edge)")
+        );
+        _check(
+            _near(m20, m0 + index * MARK_STEP * MARK_MAX_ELAPSED / 1e18),
+            string.concat("P2: ", label, " mark basis credited for <= 20 blocks (2% after a 1,000-block gap)")
+        );
+    }
+
+    function _mockBook(address ob, uint256 bidTick, uint256 askTick, uint256 lastPx, uint256 lastBlk) internal {
+        vm.mockCall(ob, abi.encodeWithSelector(IOrderBook.bestBid.selector), abi.encode(uint32(bidTick)));
+        vm.mockCall(ob, abi.encodeWithSelector(IOrderBook.bestAsk.selector), abi.encode(uint32(askTick)));
+        vm.mockCall(ob, abi.encodeWithSelector(IOrderBook.lastTrade.selector), abi.encode(lastPx, uint64(lastBlk)));
+    }
+
+    /// @dev Equal up to the premium truncation (MATH_SPEC §2.1 rounds neutral): ≤ 0.1 bp of the value, far below a step.
+    function _near(uint256 got, uint256 want) internal pure returns (bool) {
+        uint256 d = got > want ? got - want : want - got;
+        return d <= 2 + want / 1e5;
+    }
+
+    /// @dev CR-007 on the DEPLOYED engine: the owner pauses it (simulation, oracle mocked fresh so only the pause
+    ///      applies) and the book (pranked) settles an increasing maker fill for a fresh account. The answer must be
+    ///      Skip (2); a pre-CR-007 engine returns `false`, which decodes as 0. Reverted to a snapshot afterwards.
+    function _skipWhenPaused(address engine, address book, address oracle, uint256 tick, string memory label) internal {
+        uint256 snap = vm.snapshotState();
+        vm.mockCall(
+            oracle,
+            abi.encodeWithSelector(IOracleAdapter.tryGetIndexPrice.selector),
+            abi.encode(true, uint256(0.03e18), block.timestamp)
+        );
+        uint256 price = IOrderBook(book).tickSize() * tick; // before the prank (a call here would consume it)
+        vm.prank(x.owner);
+        ClearingHouse(engine).setPaused(true); // same selector on FundingSwapMarket
+        bool skip;
+        vm.prank(book);
+        try IMarginEngine(engine).settleMakerFill(address(0xC0FFEE), true, 1000e18, price) returns (
+            IMarginEngine.MakerFillResult r
+        ) {
+            skip = r == IMarginEngine.MakerFillResult.Skip;
+        } catch {}
+        vm.clearMockedCalls();
+        vm.revertToStateAndDelete(snap);
+        _check(skip, string.concat("CR-007: paused ", label, " answers Skip to an increasing maker fill"));
+    }
+
+    /// @dev True if `word` appears in `code` right after a PUSH32 opcode (how solc embeds an event topic).
+    function _hasWord(bytes memory code, bytes32 word) internal pure returns (bool) {
+        for (uint256 i; i + 33 <= code.length; ++i) {
+            if (code[i] != 0x7f) continue;
+            bytes32 w;
+            assembly {
+                w := mload(add(add(code, 0x21), i))
+            }
+            if (w == word) return true;
+        }
+        return false;
     }
 }

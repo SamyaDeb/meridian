@@ -106,10 +106,13 @@ for a in <dev #0..#9>; do cast rpc anvil_setCode $a 0x --rpc-url http://127.0.0.
 (cd ../keepers/ts-fallback && FORK_RPC_URL=http://127.0.0.1:8545 pnpm fork-pyth-relay &)  # real signed mainnet Pyth updates
 bash script/fork/rehearse-143.sh                         # DeployPulse, owner = FORK STAND-IN (dev #9) → deployments/dry-run/143-fork.json
 DEPLOYMENTS_FILE=dry-run/143-fork.json EXPECTED_OWNER=<stand-in> DEPLOYER_ADDRESS=<dev #0> KEEPER_ADDRESS=<dev #1> MM_ADDRESS=<dev #2> \
-  forge script script/VerifyDeployment.s.sol --rpc-url http://127.0.0.1:8545      # read-only, 44 checks
+  forge script script/VerifyDeployment.s.sol --rpc-url http://127.0.0.1:8545      # read-only, 52 checks (6 Oct)
 # fund dev accounts with AUSD by impersonating a holder (fork only), then:
 forge script script/fork/SmokeFork143.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --slow --gas-estimate-multiplier 200
+forge script script/fork/SmokeFork143.s.sol --sig "skipDemo()" --rpc-url http://127.0.0.1:8545 --broadcast --slow   # CR-007 on the fork
 ```
+- **Hardening checks (P4.4, 6 Oct).** `VerifyDeployment` also checks the P2 mark premium bound (a +10% book moves the deployed CH's mark +10 bps in one block and +2% after a 1,000-block gap) and CR-007 (`MakerFillSkipped` in every book's bytecode; a paused CH / swap market answers Skip). Both run on the deployed bytecode in the script's local simulation (`vm.mockCall`, `vm.prank`, state snapshot reverted), never on chain. Against the pre-hardening 10143 deployment all 10 of these FAIL. Testnet mode: owner = deployer when the config says `ownerIsDeployer` (never on 143), keeper-fed oracle + demo market checks, vault/swaps optional, `FRESH_ORACLE_OPTIONAL=1` before the keeper runs.
+- **AUSD on the fork:** no holder is hard-coded; pick one from recent `Transfer` logs (`cast logs … 'Transfer(address,address,uint256)'`, then `balanceOf`), `anvil_impersonateAccount` + `anvil_setBalance` it, `cast send --unlocked` to the dev accounts (fork only). 6 Oct: `0xd5b7…615b` (15,841 AUSD at block 111,084,897).
 - **Gas multiplier:** forge simulates the whole deploy in one EVM session, so later one-shot setters are under-estimated. At ×1.20, `CH.setOrderBook` ran out of gas (limit 51,228) on the fork. ×2.00 passed (24 txs, 55.1 M gas limit, anvil-fork estimate). Monad bills the limit, so ×2 costs ≈ 2.8 MON more at 102 gwei than ×1. Use the same multiplier on mainnet day.
 - `VerifyDeployment.s.sol` is chain-agnostic and read-only. Use it on 143 after the real broadcast with `DEPLOYMENTS_FILE=143.json EXPECTED_OWNER=<Safe>`.
 - `deployments/dry-run/143-fork.json` carries `"fork": true` and a `_label`. Consumers must never treat it as a mainnet record.

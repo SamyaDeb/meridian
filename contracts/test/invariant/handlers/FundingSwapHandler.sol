@@ -7,6 +7,7 @@ import {OrderBook} from "../../../src/orderbook/OrderBook.sol";
 import {FundingSwapMarket} from "../../../src/swaps/FundingSwapMarket.sol";
 import {InsuranceFund} from "../../../src/clearing/InsuranceFund.sol";
 import {MockERC20} from "../../../src/mocks/MockERC20.sol";
+import {MockOracleAdapter} from "../../../src/mocks/MockOracleAdapter.sol";
 import {IFundingSwapMarket} from "../../../src/interfaces/IFundingSwapMarket.sol";
 import {IOrderBook} from "../../../src/interfaces/IOrderBook.sol";
 
@@ -46,6 +47,13 @@ contract FundingSwapHandler is Test {
     uint256 public skips;
     uint256 public evictions;
     address public owner; // swap market owner, for the pause toggle (set once by the suite)
+
+    // Found #1 (P4.3): MON price shock. Swap margin, value and accrual all scale with the index, while collateral is
+    // in AUSD, so a jump in MON/USD is what turns a thinly margined swap position liquidatable, or underwater.
+    MockOracleAdapter public oracle; // the perp's index (set once by the suite)
+    uint256 public basePrice; // index at setup
+    uint256 public shocks; // successful shock() calls that changed the index
+    int256 internal _premiumBp; // the perp MM's current premium (regime), kept across shocks
 
     uint64[] internal _perpIds;
     mapping(address => uint64[]) internal _ids;
@@ -223,18 +231,46 @@ contract FundingSwapHandler is Test {
         }
     }
 
-    /// The perp MM re-quotes at a premium in [−3%, +3%]: moves perp funding (and so the swaps' floating leg).
+    /// The perp MM re-quotes at a premium in [−3%, +3%] of the index: moves perp funding (and so the swaps' floating leg).
     function regime(uint256 premiumBp) external {
-        int256 bp = int256(bound(premiumBp, 0, 600)) - 300;
-        uint32 mid = uint32(uint256(int256(29_000) + 29_000 * bp / 10_000));
+        _premiumBp = int256(bound(premiumBp, 0, 600)) - 300;
+        _quote();
+    }
+
+    /// Found #1 (P4.3): the MON index jumps to base × {1, 10, 30, 100} (×1 = back to base) and the perp MM re-quotes
+    /// around it at the current premium. A stress lever, not a realistic one-block move: swap MM, V and the funding
+    /// stream scale with I, so ×10 makes thin accounts liquidatable at once and ×30–×100 puts an adverse stream
+    /// under water (bad debt ⇒ IF → fees → uncovered). The swap's own APR mark bound (B-01) is untouched by this.
+    function shock(uint256 seed) external {
+        if (address(oracle) == address(0)) return;
+        uint256[4] memory factor = [uint256(1), 10, 30, 100];
+        uint256 p = basePrice * factor[seed % 4];
+        if (p == oracle.price()) return;
+        oracle.setPrice(p);
+        ++shocks;
+        _quote();
+    }
+
+    function setOracle(MockOracleAdapter oracle_) external {
+        oracle = oracle_;
+        basePrice = oracle_.price();
+    }
+
+    /// Cancels the perp MM's orders and quotes 3 levels per side around index·(1 + premium); spacing scales with the
+    /// index (10 ticks at the 0.029 base, as before the shock action existed).
+    function _quote() internal {
+        uint256 indexTick = address(oracle) == address(0) ? 29_000 : oracle.price() / ob.tickSize();
+        uint32 mid = uint32(uint256(int256(indexTick) + int256(indexTick) * _premiumBp / 10_000));
+        uint32 step = uint32(indexTick / 2900);
+        if (step == 0) step = 1;
         vm.startPrank(perpMm);
         for (uint256 i; i < _perpIds.length; ++i) {
             if (ob.getOrder(_perpIds[i]).remainingLots != 0) ob.cancelOrder(_perpIds[i]);
         }
         delete _perpIds;
         for (uint32 i = 1; i <= 3; ++i) {
-            (uint64 b,) = ob.placeLimitOrder(true, mid - 10 * i, 100, 0);
-            (uint64 a,) = ob.placeLimitOrder(false, mid + 10 * i, 100, 0);
+            (uint64 b,) = ob.placeLimitOrder(true, mid - step * i, 100, 0);
+            (uint64 a,) = ob.placeLimitOrder(false, mid + step * i, 100, 0);
             _perpIds.push(b);
             _perpIds.push(a);
         }

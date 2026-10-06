@@ -164,6 +164,31 @@ Launch settings for the swap MM (decision D13): `REQUOTE_BPS=1000 TICK_EVERY_BLO
    The mark's basis over the index moves ≤ 10 bps per block; an index move passes through at once (MATH_SPEC §2.1, PHASES 37), so the −15% reaches the mark in the same block even before the MM re-quotes.
 4. `echo 1 > $PRICE_FACTOR_FILE` to recover. Never touch the main market's price or parameters for a demo.
 
+## 7b. Testnet relaunch with the hardened contracts (HARDENING_PLAN P4.5–P4.8; **blocked on MON, 6 Oct**)
+PHASES 40: testnet 10143 is the demo deployment. Status 6 Oct: P2 + P3 code fork-rehearsed (§ mainnet-fork in `contracts/script/README.md`, Verify 52/52, Skip on the fork); **not yet deployed to 10143**: the deployer holds 0.026 MON.
+
+**MON per key** (102 gwei; dry-run 6 Oct: deploy = 62.69 M gas limit at `--gas-estimate-multiplier 200` ⇒ **6.39 MON**; window costs from §2b/§4):
+| Key (`.env` name) | Holds 6 Oct | Needs for deploy + one 30-min window + crash/Skip demo + gas bench | Top up |
+|---|---|---|---|
+| deployer `DEPLOYER_PK` `0xEF4E…3b91` | 0.026 | deploy 6.39 + setup (tAUSD mints, IF seed, collateral, `setFeeder(demo keeper)`, pause/unpause for the Skip demo) ≈ 0.5 + gas bench B1/B2 ≈ 0.45 ⇒ **≈ 7.4** | **+7.5** |
+| keeper `KEEPER_PK` `0x0D3B…0fA9` | 10.57 | 30 min ≈ 4.0, floor 5 | 0 |
+| perp MM `MM_PK` `0x814D…b981` | 2.47 | 30 min ≈ 2.9, floor 4 | **+1.6** |
+| flow `FLOW_PK` `0x6E02…303A` | 4.32 | 30 min ≈ 0.7 | 0 |
+| demo keeper `DEMO_KEEPER_PK` `0x8520…8552` | 0.33 | crash window 15 min ≈ 2.0 (keeper rate) | **+1.7** |
+| demo MM `DEMO_MM_PK` `0xB1a7…5bd1` | 0.11 | 15 min ≈ 1.5 | **+1.4** |
+| swap MM (no key in `.env` yet) | — | `LEVELS=1 REQUOTE_BPS=1000 TICK_EVERY_BLOCKS=33` ≈ 24 MON/h projected (§4 fork table ÷ 2 levels): run it only for a 10-min swap window ≈ 4 | **new key + 4** (optional for P4) |
+Total top-up ≈ **12 MON** (+ 4 with the swap MM window).
+
+**Steps (from `contracts/`, `.env` loaded, never echo keys):**
+1. `git mv ../deployments/10143.json ../deployments/10143-v1.json` (keep the v1 addresses).
+2. Deploy (P4.5): `DEPLOYER_PK=… KEEPER_ADDRESS=0x0D3B07775a452155D8F1B243154b38f12FDD0fA9 MM_ADDRESS=0x814DB3f310CCB192acaab4a6908A0Cf33323b981 DEPLOY_SWAPS=true SWAP_MATURITY_IN_SEC=2592000 forge script script/DeployPulse.s.sol --rpc-url $MONAD_TESTNET_RPC_URL --broadcast --slow --code-size-limit 131072 --with-gas-price 102gwei --priority-gas-price 2gwei --gas-estimate-multiplier 200` with `DEPLOY_VAULT` **unset** (vault v2 comes in P6). Then `cast code` at every new address (§ "Forge writes the deployments JSON during the simulation").
+3. Re-add the operator lists to the new record by hand (DeployPulse doesn't write them): `_operators`, `keeperAccounts` (main + demo keeper), `mmAccounts` (perp MM, demo MM, flow; + the swap MM key if one is created). The indexer's `externalUsers` depends on them.
+4. Verify: `DEPLOYMENTS_FILE=10143.json EXPECTED_OWNER=<deployer> DEPLOYER_ADDRESS=<deployer> KEEPER_ADDRESS=<keeper> MM_ADDRESS=<mm> FRESH_ORACLE_OPTIONAL=1 forge script script/VerifyDeployment.s.sol --rpc-url https://testnet-rpc.monad.xyz` (read-only; includes the P2 + CR-007 behaviour checks). Explorer verification: only if a verifier URL is configured (HUMAN #17).
+5. Setup (deployer): `TestnetKeeperOracle(demo oracle).setFeeder(<demo keeper>, true)` (DeployPulse registers only `KEEPER_ADDRESS`); tAUSD `mint` + `deposit` for keeper (main + demo CH), MM, demo MM, flow, the demo trader; IF `fund`; `FundingSwapMarket.depositFor(keeper, …)` (§4b).
+6. Offchain repoint (P4.6): bots read `deployments/10143.json` (no address env). Indexer: `node indexer/scripts/gen-config.mjs`, then the hosted Envio redeploy per `docs/outputs/HOSTED_ENVIO.md` (owner's Envio login) ⇒ new `NEXT_PUBLIC_INDEXER_URL`.
+7. Crash + Skip demo (P4.7), one window on `MARKET=demo` with demo keeper + demo MM (§2, §7): ≈ 5x long sized **below the keeper's absorb headroom** (the keeper takes the position: `maxPositionSize` 25,000 MON and IM on its demo-CH collateral, audit H-1; record the collateral used), `echo 0.85 > $PRICE_FACTOR_FILE`, expect liquidation ≤ 3 blocks after eligibility (`/health` `liquidationLatency`). Then Skip: deployer `setPaused(true)` on the demo CH, a reduce-only taker crosses an MM order that would increase the MM ⇒ `MakerFillSkipped`, the order still rests (`getOrder`), `setPaused(false)`. Same sequence as `SmokeFork143.skipDemo()` on the fork.
+8. Gas bench (P4.8): `cd bench && CHAIN_ID=10143 RPC_URL=… BENCH_PK=… DEPLOYMENTS=../deployments/10143.json pnpm gas` (dry-run 6 Oct: ≈ 0.40 MON for 22 txs + 2 setup).
+
 ## 8. Monitoring and paging (TEAM_PLAN §7; paging Phase 5 B6)
 ```bash
 cd keepers/ts-fallback && CHAIN_ID=143 RPC_URL=<watcher's own endpoint> DEPLOYMENTS=../../deployments/143.json \
