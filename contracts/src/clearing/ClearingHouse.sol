@@ -271,7 +271,9 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         _fb = FundingSlotB(
             int256(t.emaPremium).toInt64(), t.rate.toInt64(), uint64(block.number), t.checkpointIdx, t.stale
         );
-        if (!t.stale) _px = PriceSlot(t.index.toUint96(), t.mark.toUint96(), t.tickSize);
+        // Plain casts (no SafeCast, 171 gas on every first touch): `_tryIndex` admits index ≤ MAX_INDEX = uint96.max / 2
+        // and `boundPremium` returns a mark ≤ index·1.05 (band clamp), so both fit in uint96.
+        if (!t.stale) _px = PriceSlot(uint96(t.index), uint96(t.mark), t.tickSize);
         emit FundingUpdated(
             uint64(block.number), t.premium, t.emaPremium, t.rate, t.cumFunding, t.cumIndexTime, t.index, t.mark
         );
@@ -303,17 +305,24 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         if (!ok) return t;
 
         (uint256 bid, uint256 ask, uint256 lastPx, uint256 lastBlk) = _book(t.tickSize);
+        uint256 elapsed = block.number - b.lastUpdateBlock;
         FundingState memory s = FundingState(t.cumFunding, t.cumIndexTime, t.emaPremium, t.rate, b.lastUpdateBlock);
-        (FundingState memory ns, int256 prem) = FundingLib.update(
-            s, _fundingParams(), index, MarkPriceLib.fairBookPrice(index, bid, ask), block.number - b.lastUpdateBlock
-        );
+        (FundingState memory ns, int256 prem) =
+            FundingLib.update(s, _fundingParams(), index, MarkPriceLib.fairBookPrice(index, bid, ask), elapsed);
         t.cumFunding = ns.cumFunding;
         t.cumIndexTime = ns.cumIndexTime;
         t.emaPremium = ns.emaPremium;
         t.rate = ns.rate;
         t.premium = prem;
         t.index = index;
-        t.mark = MarkPriceLib.markPrice(index, ns.emaPremium, bid, ask, lastPx, lastBlk, block.number);
+        // MATH_SPEC §2.1: live median-of-three mark, then its basis over the index is rate-limited per block
+        t.mark = MarkPriceLib.boundPremium(
+            MarkPriceLib.markPrice(index, ns.emaPremium, bid, ask, lastPx, lastBlk, block.number),
+            index,
+            px.mark,
+            px.lastIndex,
+            elapsed
+        );
     }
 
     function _tryIndex() internal view returns (bool ok, uint256 index) {

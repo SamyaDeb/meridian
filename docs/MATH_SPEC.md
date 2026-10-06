@@ -104,6 +104,23 @@ Fallback table:
 | ✗ | ✗ | A |
 Every fallback collapses to A, the smoothed funding-implied price, which is the manipulation-resistant anchor. A single manipulated input can never move the median beyond the other two.
 
+*(Amended 6 Oct, PHASES 37, audit M-1.)* **Premium bound: bound the basis, not the price.** Two of the three inputs (B, C) come from our own book, so a thin book swept ≈ 10% plus a wash trade used to move the next block's M to the band edge. The median above is now the *live* mark `M_live`; the mark actually used rate-limits its basis over the index:
+```
+p_prev = (M_prev − I_prev)·1e18 / I_prev        // last good mark and the index it was computed on (PriceSlot)
+p_live = (M_live − I)·1e18 / I
+k      = min(block.number − lastUpdateBlock, MARK_MAX_ELAPSED_BLOCKS)         // 20
+p      = clamp(p_live, p_prev − k·MARK_MAX_PREMIUM_STEP, p_prev + k·MARK_MAX_PREMIUM_STEP)   // step 0.001e18 = 10 bps
+p      = clamp(p, −markBand, +markBand)                                       // defensive, a no-op for valid inputs
+M      = M_live if p = p_live (exact, no rounding drift) else I + I·p / 1e18
+```
+- Rounding: neutral (signed division and `I·p` truncate toward 0). No overflow: prices < 2^96, so |M − I|·1e18 < 2^156.
+- **The index passes through at once:** M is re-anchored on the live I every block, so a real −15% crash reaches the mark in the same block (with the book still at the old price, M = I'·1.001 instead of the old I'·1.05); only the manipulable basis is rate-limited. An absolute bound on M (the swap B-01 pattern, §6.3) would lag a genuine crash and create bad debt.
+- Reaching the full ±5% band takes ≥ 50 blocks ≈ 15 s of a *sustained* manipulated book, against an MM that re-quotes every block; one first touch after a long gap moves at most 20 × 10 bps = 2%. A short 3.9% from its liquidation price needs ≈ 40 consecutive blocks of a held manipulation (`test/security/MarkManipulation.t.sol`).
+- **Stale oracle:** unchanged (M stays the last good mark; stale touches don't write it). **Stale → fresh:** `p_prev` is the last good mark's basis, while k counts blocks since the last *touch* (stale touches included), not since the last good mark, so after an outage the basis catches up at ≤ 10 bps per touched block. Conservative by design.
+- **No previous good mark** (constructor with a stale oracle, `I_prev = 0`): the first fresh touch takes `M_live` unbounded; the constructor otherwise starts at M = I ⇒ p_prev = 0.
+- **Same-block trades:** every fill calls the margin engine (and so touches funding) before the OrderBook records the trade, so the first touch of block b never includes a print from block b (proved on the event order in `MarkManipulation.t.sol`).
+- Constants live in `MarkPriceLib` beside `MARK_BAND` (no `PulseConstants`/interface change): `MARK_MAX_PREMIUM_STEP = 0.001e18`, `MARK_MAX_ELAPSED_BLOCKS = 20`.
+
 ### 2.2 Fair book price (premium source)
 `S = bookMid` if both sides present and `spread/mid ≤ 2%`; else `S = I` (premium 0 sample). Impact-mid (depth-weighted) = stretch.
 

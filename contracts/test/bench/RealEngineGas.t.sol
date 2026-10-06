@@ -109,6 +109,14 @@ contract RealEngineGasBench is Test {
         }
         _row("per_extra_fill", 0, (g32 - g1) / 31);
 
+        // The same first touch when the mark's premium bound binds (MATH_SPEC §2.1, the costliest mark path): the index
+        // drops 2% while the book and the last trade stay at 0.029, so the live basis jumps +2% and is clamped to
+        // +10 bps. Measured first, inside a snapshot, so both rows see identical (clean) storage.
+        uint256 snap = vm.snapshotState();
+        oracle.setPrice(0.02842e18);
+        (uint256 bFirst, uint256 bNoop,) = _fundingTouch(block.number + 1);
+        assertEq(ch.markPrice(), 0.02842e18 + 0.02842e15, "bound active");
+        vm.revertToState(snap);
         (uint256 first, uint256 noop, uint256 later) = _fundingTouch(block.number + 1);
         _row("funding_first_touch_tx", 0, first);
         _row("funding_first_touch_incremental", 30_000, first - noop);
@@ -117,6 +125,8 @@ contract RealEngineGasBench is Test {
         _row("funding_external_views_cold", 0, ext);
         _row("funding_ch_own_incremental", 30_000, first - noop - ext);
         assertLt(first - noop - ext, 30_000, "CH-own funding first touch >= 30k");
+        _row("funding_ch_own_incremental_bound_active", 30_000, bFirst - bNoop - ext);
+        assertLt(bFirst - bNoop - ext, 30_000, "CH-own funding first touch (premium bound active) >= 30k");
         // steady-state checkpoint: wrap the 1440-slot ring so the checkpoint overwrites a nonzero slot
         uint256 b = block.number;
         for (uint256 i; i < 1440; ++i) {

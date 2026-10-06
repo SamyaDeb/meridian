@@ -102,4 +102,80 @@ contract MarkPriceLibFuzzTest is Test {
         else assertEq(s, index);
         assertEq(MarkPriceLib.fairBookPrice(index, 0, ask), index);
     }
+
+    // ─── MATH_SPEC §2.1 premium bound (M-1) ─────────────────────────────────────────────────────────────────
+    uint256 constant MAX_INDEX = type(uint96).max / 2; // ClearingHouse.MAX_INDEX
+    int256 constant BAND = 0.05e18;
+    int256 constant STEP = 0.001e18;
+
+    struct Bnd {
+        uint256 index;
+        uint256 prevIndex;
+        uint256 prevMark;
+        uint256 elapsed;
+    }
+
+    function _prem(uint256 m, uint256 i) internal pure returns (int256) {
+        return (int256(m) - int256(i)) * 1e18 / int256(i);
+    }
+
+    function _bandMark(uint256 i, uint256 seed) internal pure returns (uint256) {
+        uint256 e = FPM.mulWad(i, 0.05e18);
+        return bound(seed, i - e, i + e);
+    }
+
+    /// For any previous good mark/index, index, book, trade and gap: the basis moves ≤ min(gap, 20)·10 bps from the
+    /// previous basis, M stays in I·(1 ± band), and a live mark inside the step window is returned unchanged.
+    function testFuzz_boundPremium_stepAndBand(In memory x, Bnd memory b) public pure {
+        x = _bound(x);
+        b.index = bound(b.index, 1e9, MAX_INDEX);
+        x.index = b.index;
+        x.bid = bound(x.bid, 1, b.index * 2);
+        x.ask = bound(x.ask, x.bid + 1, b.index * 2 + 1);
+        x.lastPx = bound(x.lastPx, 1, b.index * 2);
+        x.lastBlk = bound(x.lastBlk, x.blk - 150, x.blk);
+        b.prevIndex = bound(b.prevIndex, 1e9, MAX_INDEX);
+        b.prevMark = _bandMark(b.prevIndex, b.prevMark);
+        b.elapsed = bound(b.elapsed, 1, 1e9);
+        uint256 live = _mark(x);
+        uint256 m = MarkPriceLib.boundPremium(live, b.index, b.prevMark, b.prevIndex, b.elapsed);
+
+        uint256 edge = FPM.mulWad(b.index, 0.05e18);
+        assertGe(m, b.index - edge, "below band");
+        assertLe(m, b.index + edge, "above band");
+
+        int256 k = int256(FPM.min(b.elapsed, 20));
+        int256 pPrev = _prem(b.prevMark, b.prevIndex);
+        int256 pLive = _prem(live, b.index);
+        if (pLive >= pPrev - k * STEP && pLive <= pPrev + k * STEP) {
+            assertEq(m, live, "inside the step: live mark unchanged");
+        } else {
+            int256 pUsed = FPM.clamp(pLive > pPrev ? pPrev + k * STEP : pPrev - k * STEP, -BAND, BAND);
+            assertEq(m, uint256(int256(b.index) + FPM.sMulWad(int256(b.index), pUsed)), "I(1 + p_used)");
+        }
+        // |p_out − p_prev| ≤ k·step, up to the re-derivation rounding of p_out from M (≤ 1e18/I + 1 wei of premium)
+        int256 tol = int256(1e18 / b.index) + 1;
+        int256 d = _prem(m, b.index) - pPrev;
+        assertLe(d < 0 ? -d : d, k * STEP + tol, "basis moved more than k steps");
+    }
+
+    /// Fixed index and book: touched every block, the mark reaches the live median within ⌈|Δp|/step⌉ + 1 blocks, moving
+    /// monotonically toward it. The +1: each block re-derives p_prev from the stored mark, and that truncation loses
+    /// ≤ max(1, 1e18/I) wei of premium per block (≤ 100 blocks · 1e9 wei ≪ one 1e15 step), so a Δp that is an exact
+    /// multiple of the step can need one extra block (fuzz counterexample: I ≈ 3.96e28, a few wei short after n blocks).
+    function testFuzz_boundPremium_convergesToLive(uint256 index, uint256 liveSeed, uint256 prevSeed) public pure {
+        index = bound(index, 1e9, MAX_INDEX);
+        uint256 live = _bandMark(index, liveSeed);
+        uint256 m = _bandMark(index, prevSeed);
+        int256 dp = _prem(live, index) - _prem(m, index);
+        uint256 n = (uint256(dp < 0 ? -dp : dp) + uint256(STEP) - 1) / uint256(STEP);
+        assertLe(n, 101, "band width / step");
+        for (uint256 i; i < n + 1 && m != live; ++i) {
+            uint256 next = MarkPriceLib.boundPremium(live, index, m, index, 1);
+            if (live > m) assertTrue(next > m && next <= live, "monotone up");
+            else assertTrue(next < m && next >= live, "monotone down");
+            m = next;
+        }
+        assertEq(m, live, "not converged within ceil(|dp| / step) + 1 blocks");
+    }
 }

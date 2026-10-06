@@ -160,6 +160,7 @@ Launch settings for the swap MM (decision D13): `REQUOTE_BPS=1000 TICK_EVERY_BLO
 1. A test account opens a ≈ 4–5x long on the demo book (e.g. 30 tAUSD collateral, 50 lots).
 2. `echo 0.85 > $PRICE_FACTOR_FILE` → the demo keeper pushes 85% of the source on the next block (publish time = now, demo only).
 3. The mark (median of index-implied, book mid, last trade; clamped ±5% of the index) follows once the demo MM has re-quoted (one pipelined batch); the demo keeper liquidates within ≤ 3 blocks of eligibility and logs `liquidation latency` (B7).
+   The mark's basis over the index moves ≤ 10 bps per block; an index move passes through at once (MATH_SPEC §2.1, PHASES 37), so the −15% reaches the mark in the same block even before the MM re-quotes.
 4. `echo 1 > $PRICE_FACTOR_FILE` to recover. Never touch the main market's price or parameters for a demo.
 
 ## 8. Monitoring and paging (TEAM_PLAN §7; paging Phase 5 B6)
@@ -242,6 +243,6 @@ Fork results with these calls (the keeper's swap collateral went in as `cast sen
 - **Fork rehearsal, 5 Oct (mainnet fork of 143, anvil, `docs/standup/PHASE3_LOOP.md` P4):**
   - Anvil's public dev accounts carry **EIP-7702 delegations on Monad mainnet** (sweeper bots). On a fork, clear them with `anvil_setCode <addr> 0x`, and never use those keys on 143.
   - A fork has no sponsored Pyth pushes and its clock follows wall time, so the adapter goes stale 60 s after the fork starts. `pnpm fork-pyth-relay` replays the real signed mainnet updates onto the fork.
-  - **One MM key = at most `maxPositionSize` of inventory** (25k MON). At the cap its asks are evicted, the book goes one-sided and funding swings toward −cap. With a stale bid wall left after an index move, the mark sits at index + 5% and liquidations wait (P3 crash demo).
+  - **One MM key = at most `maxPositionSize` of inventory** (25k MON). At the cap its asks are evicted, the book goes one-sided and funding swings toward −cap. With a stale bid wall left after an index move, the mark used to sit at index + 5% and liquidations waited (P3 crash demo); since PHASES 37 the basis climbs ≤ 10 bps per block, so a wall left for ≈ 50 blocks still gets there: pull stale quotes on an index move.
   - **The MM's inventory skew sets the published funding rate:** a sustained 1 bp premium is 87.6% APR (T = 3,600 s). With the perp MM short 10k MON (q = −0.5), its A–S reservation of +3.8 bps took the rate to ≈ +454% APR within 20 min. On launch day, start the MM flat and watch the realized APR.
   - The deploy needs `--gas-estimate-multiplier 200`: ×1.20 ran `CH.setOrderBook` out of gas on the fork.

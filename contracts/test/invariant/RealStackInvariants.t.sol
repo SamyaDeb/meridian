@@ -10,6 +10,8 @@ import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
 import {RiskParams, FundingParams, AccountView} from "../../src/interfaces/PulseTypes.sol";
 import {RealStackHandler} from "./handlers/RealStackHandler.sol";
+import {MarkPriceLib} from "../../src/libs/MarkPriceLib.sol";
+import {FixedPointMathLib as FPM} from "solady/utils/FixedPointMathLib.sol";
 
 /// @notice PHASES G2: invariants I1–I7 and I11 on the REAL OrderBook + ClearingHouse (MATH_SPEC defaults,
 ///         deployed tick/lot). Default profile 256 runs × depth 128; CI profile 512 × 256.
@@ -188,6 +190,19 @@ contract RealStackInvariantsTest is StdInvariant, Test {
 
     function invariant_I7_reservations() public view {
         handler.checkI7();
+    }
+
+    /// MATH_SPEC §2.1: the mark stays in I·(1 ± 5%) of the index it was computed on, through the premium bound
+    /// (P2, M-1). Checked when the views are a consistent pair: before this block's first touch `markPrice()` previews
+    /// on the live index (stale: both views return the last good pair). After it, the mark is cached for the block
+    /// (decision 2) while `indexPrice()` reads the oracle live, so a same-block price move would pair different indices.
+    function invariant_markBand() public view {
+        if (ch.fundingState().lastUpdateBlock == block.number) return;
+        uint256 i = ch.indexPrice();
+        uint256 m = ch.markPrice();
+        uint256 e = FPM.mulWad(i, MarkPriceLib.MARK_BAND);
+        assertGe(m, i - e, "mark below I(1 - band)");
+        assertLe(m, i + e, "mark above I(1 + band)");
     }
 
     function invariant_I11_oracle() public view {
