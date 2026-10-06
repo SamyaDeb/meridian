@@ -87,6 +87,15 @@ describe("gap fill", () => {
     const f = fillGaps([{ time: 0, open: 1n, high: 1n, low: 1n, close: 1n, volumeBaseWad: 0n, volumeQuoteWad: 0n, trades: 0 }, { time: 60 * 1e7, open: 1n, high: 1n, low: 1n, close: 1n, volumeBaseWad: 0n, volumeQuoteWad: 0n, trades: 0 }], 60, 100);
     expect(f.length).toBeLessThanOrEqual(100);
   });
+  it("keeps the NEWEST bars when capped (a sparse old trade must not push today's candles out)", () => {
+    const bar = (time: number, close: bigint): Bar => ({ time, open: close, high: close, low: close, close, volumeBaseWad: 0n, volumeQuoteWad: 0n, trades: 1 });
+    const f = fillGaps([bar(0, 1n), bar(60 * 10_000, 2n), bar(60 * 10_001, 3n)], 60, 100);
+    expect(f).toHaveLength(100);
+    expect(f.slice(-2).map((b) => [b.time, b.close, b.gapFill ?? false])).toEqual([[60 * 10_000, 2n, false], [60 * 10_001, 3n, false]]);
+    expect(f[0]!.gapFill).toBe(true);
+    expect(f[0]!.close).toBe(1n); // carried from the old bar
+    for (let i = 1; i < f.length; i++) expect(f[i]!.time - f[i - 1]!.time).toBe(60);
+  });
 });
 
 describe("applyTrade (live per-block bar)", () => {

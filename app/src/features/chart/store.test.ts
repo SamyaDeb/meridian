@@ -8,6 +8,20 @@ describe("chart view store", () => {
     expect(parseView("{not json")).toEqual(DEFAULT_VIEW);
     expect(parseView(null)).toEqual(DEFAULT_VIEW);
   });
+  it("index line on by default, Last stays the default source", () => {
+    expect(DEFAULT_VIEW.indexLine).toBe(true);
+    expect(DEFAULT_VIEW.source).toBe("last");
+  });
+  it("a saved view keeps its own index-line choice (no silent overwrite of existing viewers)", () => {
+    const saved = JSON.stringify({ ...DEFAULT_VIEW, indexLine: false, timeframe: "1h" });
+    expect(parseView(saved).indexLine).toBe(false);
+    expect(parseView(JSON.stringify({ timeframe: "1h" })).indexLine).toBe(true); // field never saved ⇒ the new default
+  });
+  it("a saved reference source survives only while the flag is on", () => {
+    const saved = JSON.stringify({ ...DEFAULT_VIEW, source: "reference" });
+    expect(parseView(saved, true).source).toBe("reference");
+    expect(parseView(saved, false).source).toBe("last");
+  });
   it("setView survives a throwing localStorage (private mode)", () => {
     const g = globalThis as { localStorage?: unknown };
     const prev = g.localStorage;

@@ -17,6 +17,8 @@ for (const { w, h } of WIDTHS) {
       await page.setViewportSize({ width: w, height: h });
       await page.goto(path);
       await page.waitForLoadState("load");
+      // a live indexer answers slower than the mock: shoot the chart once its data is applied (engine signal)
+      if (path === "/trade") await expect(page.getByTestId("chart-engine")).toHaveAttribute("data-ready", "true", { timeout: 30_000 });
       await page.waitForTimeout(1500);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       const name = path === "/" ? "home" : path.slice(1).replaceAll("/", "-");

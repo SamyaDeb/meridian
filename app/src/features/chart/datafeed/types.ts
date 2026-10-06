@@ -37,8 +37,11 @@ export const SOURCE_OF: Record<Timeframe, "Candle1m" | "Candle1h"> = {
   "1W": "Candle1h",
 };
 
-/** What the main series draws: trades on Meridian's book, the mark price, or the oracle index. */
-export type PriceSource = "last" | "mark" | "index";
+/**
+ * What the main series draws: trades on Meridian's book, the mark price, the oracle index, or (opt-in, labelled) the
+ * outside MON/USD reference (Uniswap v4 MON/USDC on Monad via GeckoTerminal), never Meridian's trades and never mixed in.
+ */
+export type PriceSource = "last" | "mark" | "index" | "reference";
 
 export type Bar = {
   /** bucket start, unix seconds (UTC aligned) */

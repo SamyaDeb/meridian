@@ -45,20 +45,23 @@ export function aggregate(bars: readonly Bar[], targetSec: number, gapFill = fal
   return gapFill ? fillGaps(out, targetSec) : out;
 }
 
-/** Inserts carried bars for missing buckets between the first and last bar (bounded by the input span). */
+/**
+ * Inserts carried bars for missing buckets between the first and last bar. At most `maxBars` are returned, and they
+ * are always the NEWEST: the fill runs backwards from the last bar. (Capping from the front dropped the recent candles
+ * whenever a sparse history spanned more than maxBars buckets, e.g. 1m bars from a few trades on 30 Sep to today.)
+ */
 export function fillGaps(bars: readonly Bar[], sec: number, maxBars = 5_000): Bar[] {
-  const out: Bar[] = [];
-  for (const b of bars) {
-    const prev = out[out.length - 1];
-    if (prev) {
-      for (let t = prev.time + sec; t < b.time && out.length < maxBars; t += sec) {
-        out.push({ time: t, open: prev.close, high: prev.close, low: prev.close, close: prev.close, volumeBaseWad: 0n, volumeQuoteWad: 0n, trades: 0, gapFill: true });
-      }
+  const rev: Bar[] = [];
+  for (let i = bars.length - 1; i >= 0 && rev.length < maxBars; i--) {
+    const b = bars[i]!;
+    rev.push(b);
+    const prev = bars[i - 1];
+    if (!prev) continue;
+    for (let t = b.time - sec; t > prev.time && rev.length < maxBars; t -= sec) {
+      rev.push({ time: t, open: prev.close, high: prev.close, low: prev.close, close: prev.close, volumeBaseWad: 0n, volumeQuoteWad: 0n, trades: 0, gapFill: true });
     }
-    if (out.length >= maxBars) break;
-    out.push(b);
   }
-  return out;
+  return rev.reverse();
 }
 
 /**

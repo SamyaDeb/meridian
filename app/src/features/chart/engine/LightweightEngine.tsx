@@ -44,23 +44,30 @@ function hashPoints(pts: readonly Record<string, unknown>[], upTo = pts.length):
   }
   return h >>> 0;
 }
-type Applied = { full: number; prefix: number; len: number };
+type Applied = { full: number; prefix: number; len: number; lastTime: number };
 /**
  * Applies data to a series only when it changed: nothing when identical, update() of the last point when only the
  * newest bar moved or a bar was appended, setData otherwise. Re-applying every frame reset the chart's pointer state
  * (clicks spanning a reset were dropped) and wasted work at one render per 300 ms block.
  */
-function applyData(ser: ISeriesApi<SeriesType>, data: Record<string, unknown>[], seen: Map<unknown, Applied>) {
+export function applyData(ser: ISeriesApi<SeriesType>, data: Record<string, unknown>[], seen: Map<unknown, Applied>) {
   const full = hashPoints(data);
   const prev = seen.get(ser);
   if (prev && prev.full === full && prev.len === data.length) return;
   const last = data[data.length - 1];
-  const sameHistory = prev && last && ((data.length === prev.len && hashPoints(data, data.length - 1) === prev.prefix) || (data.length === prev.len + 1 && hashPoints(data, data.length - 1) === prev.full));
+  const lastTime = last ? Number(last.time) : 0;
+  // update() only moves forward: a newest point whose time moved earlier (session times are re-estimated from block
+  // heights) throws "Cannot update oldest data" in the library and froze the series, so that case re-sets the data
+  const sameHistory =
+    prev &&
+    last &&
+    lastTime >= prev.lastTime &&
+    ((data.length === prev.len && hashPoints(data, data.length - 1) === prev.prefix) || (data.length === prev.len + 1 && hashPoints(data, data.length - 1) === prev.full));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (sameHistory) (ser as any).update(last);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   else (ser as any).setData(data);
-  seen.set(ser, { full, prefix: data.length ? hashPoints(data, data.length - 1) : 0, len: data.length });
+  seen.set(ser, { full, prefix: data.length ? hashPoints(data, data.length - 1) : 0, len: data.length, lastTime });
 }
 
 type State = {
@@ -201,9 +208,22 @@ function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
   if (firstBars) s.fittedWithBars = true;
   if (p.bars.length === 0) s.fittedWithBars = false;
   if (lastReset.current !== p.resetKey || firstBars) {
-    chart.timeScale().fitContent();
+    const r = initialRange(p.bars.length);
+    if (r) chart.timeScale().setVisibleLogicalRange(r);
+    else chart.timeScale().fitContent();
     lastReset.current = p.resetKey;
   }
+}
+
+/** Bars shown when the chart opens or resets; older history stays one zoom-out (or the "All" range) away. */
+export const INITIAL_BARS = 120;
+/**
+ * Pure: the logical range that frames the newest INITIAL_BARS bars (plus a little room on the right), or null to fit
+ * everything. Fitting a long, sparse history (testnet: a few trades on 30 Sep, then today's run) squeezed the recent
+ * candles into a sliver at the right edge behind days of flat gap-fill.
+ */
+export function initialRange(bars: number): { from: number; to: number } | null {
+  return bars > INITIAL_BARS ? { from: bars - INITIAL_BARS, to: bars - 1 + 3 } : null;
 }
 
 /**

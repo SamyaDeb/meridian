@@ -5,17 +5,21 @@
 import type { ReactNode } from "react";
 import { Popover } from "@/components/ds";
 import { TIMEFRAMES, type PriceSource, type Timeframe } from "../datafeed/types";
+import { REFERENCE_ENABLED } from "../datafeed/reference";
 import type { ChartType } from "../engine/types";
 import { CORE_INDICATORS, INDICATOR_LABEL, PRO_INDICATORS } from "../indicators/build";
 import type { ChartView, IndicatorId } from "../store";
 import { I } from "./icons";
 
 const TYPE_LABEL: Record<ChartType, string> = { candles: "Candles", hollow: "Hollow candles", bars: "Bars", line: "Line", area: "Area", heikin: "Heikin-Ashi" };
-const SOURCE_LABEL: Record<PriceSource, { label: string; hint: string }> = {
+export const SOURCE_LABEL: Record<PriceSource, { label: string; hint: string }> = {
   last: { label: "Last", hint: "Trades on Meridian's MON-PERP book" },
   mark: { label: "Mark", hint: "Mark price (drives PnL, liquidation and funding)" },
   index: { label: "Index", hint: "Oracle MON/USD index (spot reference; nobody trades at it here)" },
+  reference: { label: "MON/USD ref (Monad DEX)", hint: "MON/USDC on Uniswap v4 (Monad mainnet) via GeckoTerminal. Not Meridian trades." },
 };
+/** Sources the toolbar offers: the outside reference only with NEXT_PUBLIC_REFERENCE_CHART=1, and always last. */
+export const sourceOptions = (referenceEnabled = REFERENCE_ENABLED): PriceSource[] => (referenceEnabled ? ["last", "mark", "index", "reference"] : ["last", "mark", "index"]);
 const GROUPS: [string, Timeframe[]][] = [
   ["Minutes", TIMEFRAMES.filter((t) => t.endsWith("m"))],
   ["Hours", TIMEFRAMES.filter((t) => t.endsWith("h"))],
@@ -103,7 +107,7 @@ export function TopBar({
       <Popover label="Price source" align="start" triggerClassName={btn} trigger={<span>{SOURCE_LABEL[view.source].label}</span>}>
         {(close) => (
           <div className="w-64 p-1">
-            {(Object.keys(SOURCE_LABEL) as PriceSource[]).map((s) => (
+            {sourceOptions().map((s) => (
               <button
                 key={s}
                 type="button"
