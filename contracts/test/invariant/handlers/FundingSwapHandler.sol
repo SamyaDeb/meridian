@@ -42,6 +42,11 @@ contract FundingSwapHandler is Test {
     uint256 public uncoveredWithFees; // a liquidation left uncovered debt while fees were > 0 before it
     bool public waterfallViolation; // uncovered debt was added while positive fees remained
 
+    // CR-007 coverage: swap maker fills refused while paused (order kept) vs evicted (margin, caps, matured)
+    uint256 public skips;
+    uint256 public evictions;
+    address public owner; // swap market owner, for the pause toggle (set once by the suite)
+
     uint64[] internal _perpIds;
     mapping(address => uint64[]) internal _ids;
 
@@ -75,6 +80,8 @@ contract FundingSwapHandler is Test {
                 ++settlements;
             }
             if (logs[i].emitter == address(sob) && logs[i].topics[0] == IOrderBook.Trade.selector) ++fills;
+            if (logs[i].emitter == address(sob) && logs[i].topics[0] == IOrderBook.MakerFillSkipped.selector) ++skips;
+            if (logs[i].emitter == address(sob) && logs[i].topics[0] == IOrderBook.OrderEvicted.selector) ++evictions;
         }
     }
 
@@ -232,6 +239,18 @@ contract FundingSwapHandler is Test {
             _perpIds.push(a);
         }
         vm.stopPrank();
+    }
+
+    function setOwner(address owner_) external {
+        owner = owner_;
+    }
+
+    /// CR-007: pause the swap market a quarter of the time it is called (increasing maker fills Skip; reductions,
+    /// cancels and liquidations keep working).
+    function setPaused(uint256 seed) external {
+        if (owner == address(0)) return;
+        vm.prank(owner);
+        fs.setPaused(seed % 4 == 0);
     }
 
     /// Rare: jump past maturity (then every later action runs on a matured market).

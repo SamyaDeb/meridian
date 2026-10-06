@@ -64,6 +64,11 @@ contract RealStackHandler is Test {
     uint256 public ghostUncoveredWithFees; // a liquidation left uncovered debt while fees were > 0 before it
     bool public ghostWaterfallViolation; // uncovered debt was added while positive fees remained
 
+    // CR-007 coverage: maker fills the CH refused while paused / stale (order kept) vs evicted
+    uint256 public ghostSkips;
+    uint256 public ghostEvictions;
+    address public owner; // CH owner, for the pause toggle (set once by the suite)
+
     bool internal _ok; // the current action's protocol call succeeded
     int256[N] internal _lastCumBefore;
 
@@ -105,6 +110,10 @@ contract RealStackHandler is Test {
                 if (req - byIF - unc != 0) ++ghostFeesAbsorbed;
             } else if (logs[i].emitter == address(ob) && t0 == IOrderBook.Trade.selector) {
                 ++ghostMakerFills[address(uint160(uint256(logs[i].topics[2])))];
+            } else if (logs[i].emitter == address(ob) && t0 == IOrderBook.MakerFillSkipped.selector) {
+                ++ghostSkips;
+            } else if (logs[i].emitter == address(ob) && t0 == IOrderBook.OrderEvicted.selector) {
+                ++ghostEvictions;
             }
         }
         for (uint256 i; i < N; ++i) {
@@ -297,6 +306,18 @@ contract RealStackHandler is Test {
     function setStale(uint256 seed) external {
         oracle.setStale(seed % 4 == 0); // stale a quarter of the time it is called
         ++calls["stale"];
+    }
+
+    function setOwner(address owner_) external {
+        owner = owner_;
+    }
+
+    /// CR-007: pause a quarter of the time it is called (increasing maker fills Skip, cancels always work).
+    function setPaused(uint256 seed) external {
+        if (owner == address(0)) return;
+        vm.prank(owner);
+        ch.setPaused(seed % 4 == 0);
+        ++calls["paused"];
     }
 
     function _prune() internal {

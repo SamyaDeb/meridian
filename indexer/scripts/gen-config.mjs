@@ -26,8 +26,8 @@ export const CONTRACTS = [
       "FundingParamsUpdated", "PausedSet", "FundingCheckpoint",
     ],
   },
-  { name: "OrderBook", abi: "IOrderBook", events: ["OrderPlaced", "OrderCancelled", "OrderEvicted", "Trade"] },
-  { name: "SwapOrderBook", abi: "IOrderBook", events: ["OrderPlaced", "OrderCancelled", "OrderEvicted", "Trade"] },
+  { name: "OrderBook", abi: "IOrderBook", events: ["OrderPlaced", "OrderCancelled", "OrderEvicted", "MakerFillSkipped", "Trade"] },
+  { name: "SwapOrderBook", abi: "IOrderBook", events: ["OrderPlaced", "OrderCancelled", "OrderEvicted", "MakerFillSkipped", "Trade"] },
   {
     name: "FundingSwapMarket",
     abi: "IFundingSwapMarket",

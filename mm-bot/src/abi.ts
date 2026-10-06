@@ -1,4 +1,4 @@
-// Minimal typed fragments of the frozen interfaces (interfaces-v1.3). test/abi.test.ts checks every selector
+// Minimal typed fragments of the frozen interfaces (interfaces-v1.6). test/abi.test.ts checks every selector
 // against the committed abis/*.json, so drift from contracts/src/interfaces fails CI.
 import { parseAbi } from "viem";
 
@@ -15,6 +15,7 @@ export const orderBookAbi = parseAbi([
   "function bestAsk() view returns (uint32 tick)",
   "event OrderPlaced(uint64 indexed orderId, address indexed maker, bool isBid, uint32 tick, uint64 lots, uint8 flags)",
   "event OrderEvicted(uint64 indexed orderId, address indexed maker, uint64 remainingLots)",
+  "event MakerFillSkipped(uint64 indexed orderId, address indexed maker)",
   "event Trade(uint64 indexed makerOrderId, address indexed maker, address indexed taker, bool takerIsBid, uint32 tick, uint64 lots, uint256 priceWad, uint256 sizeWad)",
 ]);
 

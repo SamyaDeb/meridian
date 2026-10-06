@@ -25,7 +25,7 @@ import { RateWindow, createCountingFetch, newRpcStats } from "@pulse/bot-rpc";
 import { clearingHouseAbi, fundingSwapAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
 import { DEFAULTS, buildLadder, inventoryRatio, quoteBps, sigmaForQuoting } from "./as.js";
 import { type AnchorSource, aprSigma, aprWadToBps, blocksFor, buildAprLadder, chooseAnchor, movedAprBps } from "./aprbook.js";
-import { type Resting, idsToRefresh, needsRequote, planRequote, shouldTick } from "./plan.js";
+import { type Resting, idsToRefresh, needsRequote, planRequote, shouldTick, touchedId } from "./plan.js";
 import { gasLimitFor, gasLimitsForBatch, sendBatch } from "./send.js";
 import { launchGuard } from "./launch.js";
 
@@ -100,8 +100,8 @@ if (dep.deployed === false || market?.ClearingHouse === undefined || market.Orde
   throw new Error(`${DEPLOYMENTS}: market ${MARKET} is not deployed`);
 }
 const TOUCH_EVENTS = orderBookAbi.filter(
-  (x): x is Extract<(typeof orderBookAbi)[number], { type: "event"; name: "Trade" | "OrderEvicted" }> =>
-    x.type === "event" && (x.name === "Trade" || x.name === "OrderEvicted"),
+  (x): x is Extract<(typeof orderBookAbi)[number], { type: "event"; name: "Trade" | "OrderEvicted" | "MakerFillSkipped" }> =>
+    x.type === "event" && (x.name === "Trade" || x.name === "OrderEvicted" || x.name === "MakerFillSkipped"),
 );
 const CH: Address = market.ClearingHouse;
 const OB: Address = IS_SWAP ? (dep.contracts.SwapOrderBook as Address) : market.OrderBook;
@@ -142,7 +142,7 @@ let lastTickBlock = -1n;
 let ticks = 0;
 let logsTo = -1n; // our Trade/OrderEvicted logs are read up to here
 const touched = new Set<bigint>(); // resting ids a fill/eviction log mentioned since the last refresh
-const stats = { requotes: 0, txs: 0, errors: 0, gasLimitSum: 0n, gasUsedSum: 0n };
+const stats = { requotes: 0, txs: 0, errors: 0, skips: 0, gasLimitSum: 0n, gasUsedSum: 0n };
 
 /** Monad bills the gas limit (ARCHITECTURE R6): limit = ceil(estimate × 1.2) (CLAUDE.md §7). */
 
@@ -225,7 +225,10 @@ async function refreshResting(ids?: readonly bigint[]): Promise<void> {
   });
 }
 
-/** Our fills/evictions since the last tick (one eth_getLogs, chunked by LOG_SPAN): marks the ids to re-read. */
+/**
+ * Our fills/evictions/skips since the last tick (one eth_getLogs, chunked by LOG_SPAN): marks the ids to re-read.
+ * A MakerFillSkipped (CR-007: paused / oracle stale) leaves the order live and unchanged: counted, not re-read.
+ */
 async function scanTouched(head: bigint): Promise<void> {
   const from = logsTo >= 0n ? logsTo + 1n : head;
   for (let s = from; s <= head; s += LOG_SPAN) {
@@ -233,7 +236,9 @@ async function scanTouched(head: bigint): Promise<void> {
     const logs = await pub.getLogs({ address: OB, events: TOUCH_EVENTS, fromBlock: s, toBlock: e, strict: true });
     for (const l of logs) {
       if (l.args.maker.toLowerCase() !== account.address.toLowerCase()) continue;
-      touched.add(l.eventName === "Trade" ? l.args.makerOrderId : l.args.orderId);
+      const id = touchedId(l);
+      if (id === null) stats.skips++;
+      else touched.add(id);
     }
     logsTo = e;
   }

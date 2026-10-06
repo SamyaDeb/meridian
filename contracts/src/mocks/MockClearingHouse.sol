@@ -153,10 +153,10 @@ contract MockClearingHouse is IClearingHouse {
     function settleMakerFill(address maker, bool makerIsBid, uint256 sizeWad, uint256 priceWad)
         external
         onlyOB
-        returns (bool)
+        returns (MakerFillResult)
     {
         _applyTrade(maker, makerIsBid ? int256(sizeWad) : -int256(sizeWad), priceWad, true);
-        return true;
+        return MakerFillResult.Filled;
     }
 
     function settleTakerFill(address taker, bool takerIsBid, uint256 sizeWad, uint256 notionalWad, bool reduceOnly)

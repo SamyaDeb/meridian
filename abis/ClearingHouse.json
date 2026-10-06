@@ -997,8 +997,8 @@
     "outputs": [
       {
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "uint8",
+        "internalType": "enum IMarginEngine.MakerFillResult"
       }
     ],
     "stateMutability": "nonpayable"

@@ -66,6 +66,7 @@ Invariant test (WS-08): `0 ≤ Σ owed_i ≤ #settlements` wei; solvency is I1 (
 
 ### 1.6 Oracle stale behaviour
 If `oracle.tryGetIndexPrice()` fails: skip the premium sample and accrual (F **and G** unchanged, so funding swaps also pause consistently), still set `lastUpdateBlock` (no retroactive accrual), emit FundingUpdated with rate unchanged. CH blocks position-increasing trades (`OracleStale`); reduce-only, cancels, deposits and liquidation (using last good mark) continue.
+*Amendment (CR-007, PHASES 38, 6 Oct):* on the maker side the block is a **Skip**, not an eviction: an increasing maker fill while stale (or paused) returns `MakerFillResult.Skip`, the resting order keeps its lots, queue place and reservation, and the book stops matching at it. A reducing taker therefore fills only against reducing makers ahead of the first increasing one (INTERFACES §2 rule 2). No formula changes.
 
 ### 1.7 Worked example
 (a) Premium only, **with i = 0 for illustration**: I = 2.0000, persistent premium p̄ = +0.1%, T = 3600 s:

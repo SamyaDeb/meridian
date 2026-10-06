@@ -10,14 +10,26 @@ interface IMarginEngine {
     error InsufficientMargin();
     error ReduceOnlyViolated();
 
+    /// @notice Outcome of one maker fill (CR-007). Filled = settled. Evict = the maker itself can't carry the fill
+    ///         (margin, position cap, matured swap): the book removes the order, releases its remainder and continues.
+    ///         Skip = the market refuses new risk right now (paused, oracle stale): the order must stay untouched
+    ///         and the book stops matching.
+    enum MakerFillResult {
+        Filled,
+        Evict,
+        Skip
+    }
+
     /// @notice Reverts InsufficientMargin if the order would push initial margin above equity.
     function reserveOrderMargin(address trader, bool isBid, uint256 sizeWad, uint256 priceWad) external;
     function releaseOrderMargin(address trader, bool isBid, uint256 sizeWad, uint256 priceWad) external;
-    /// @notice Settle one maker fill; releases the matching reservation.
-    /// @return ok false => maker failed the margin check; the book must evict the order and continue.
+    /// @notice Settle one maker fill; on Filled, releases the matching reservation.
+    /// @return result Filled => settled; Evict => the book must evict the order (release its remainder) and continue;
+    ///         Skip => nothing written for the fill, reservation kept: the book must leave the order resting
+    ///         untouched and stop matching.
     function settleMakerFill(address maker, bool makerIsBid, uint256 sizeWad, uint256 priceWad)
         external
-        returns (bool ok);
+        returns (MakerFillResult result);
     /// @notice Settle the aggregated taker side of one order. Enforces IM (or reduce-only) and reverts otherwise.
     function settleTakerFill(address taker, bool takerIsBid, uint256 sizeWad, uint256 notionalWad, bool reduceOnly)
         external;

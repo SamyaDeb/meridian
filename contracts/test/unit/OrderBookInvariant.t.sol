@@ -35,7 +35,14 @@ contract OrderBookInvariantTest is Test {
     ///         with zero successful cancels AND zero successful market orders needs every one of ~26 cancel calls to
     ///         find an empty ghost list and every market order to find no liquidity: only a broken handler does that
     ///         (mutation-checked: cancel as a no-op + uncounted market orders fails this in the first run).
-    function afterInvariant() public view {
+    function afterInvariant() public {
+        // CR-007 coverage per run (skips, evictions), appended to bench-out/ob_invariant_coverage.csv
+        RecordingEngine eng = handler.eng();
+        vm.createDir("./bench-out", true);
+        vm.writeLine(
+            "./bench-out/ob_invariant_coverage.csv",
+            string.concat(vm.toString(eng.makerSkips()), ",", vm.toString(eng.makerEvicts()))
+        );
         uint256 placed = handler.calls("placeLimit");
         assertGt(placed + handler.calls("placeLimit.reverted") + handler.calls("placeMarket.reverted"), 0, "no calls");
         if (placed >= 8) {

@@ -584,7 +584,7 @@ contract ClearingHouseTest is ClearingHouseBase {
         vm.expectEmit(address(ch));
         emit IClearingHouse.PositionChanged(alice, 5e18, 5e18, 2e18, 0, -0.001e18, true);
         vm.prank(address(ob));
-        assertTrue(ch.settleMakerFill(alice, true, 5e18, 2e18));
+        assertEq(uint8(ch.settleMakerFill(alice, true, 5e18, 2e18)), uint8(IMarginEngine.MakerFillResult.Filled));
         Position memory p = ch.getPosition(alice);
         assertEq(p.size, 5e18);
         assertEq(p.openNotional, 10e18);
@@ -595,36 +595,86 @@ contract ClearingHouseTest is ClearingHouseBase {
         assertEq(so, 0, "counterparty not settled in this unit call");
     }
 
-    function test_makerFill_returnsFalseWithoutStateChange() public {
+    function test_makerFill_evictOrSkipWithoutStateChange() public {
         // no collateral
         vm.prank(address(ob));
-        assertFalse(ch.settleMakerFill(carol, true, 10e18, 2e18));
+        assertEq(uint8(ch.settleMakerFill(carol, true, 10e18, 2e18)), uint8(IMarginEngine.MakerFillResult.Evict));
         assertEq(ch.getPosition(carol).size, 0);
-        // paused: increase refused, reduction allowed
+        // paused: increase refused with Skip (CR-007: the order stays), reduction allowed
         _deposit(alice, 100e6);
         vm.prank(address(ob));
-        assertTrue(ch.settleMakerFill(alice, true, 10e18, 2e18));
+        assertEq(uint8(ch.settleMakerFill(alice, true, 10e18, 2e18)), uint8(IMarginEngine.MakerFillResult.Filled));
         vm.prank(owner);
         ch.setPaused(true);
         vm.startPrank(address(ob));
-        assertFalse(ch.settleMakerFill(alice, true, 1e18, 2e18));
-        assertTrue(ch.settleMakerFill(alice, false, 4e18, 2e18));
+        assertEq(uint8(ch.settleMakerFill(alice, true, 1e18, 2e18)), uint8(IMarginEngine.MakerFillResult.Skip));
+        assertEq(uint8(ch.settleMakerFill(alice, false, 4e18, 2e18)), uint8(IMarginEngine.MakerFillResult.Filled));
         vm.stopPrank();
         assertEq(ch.getPosition(alice).size, 6e18);
     }
 
-    function test_makerFill_falseOnStaleAndPositionCap() public {
+    function test_makerFill_skipOnStale_evictOnPositionCap() public {
         _deposit(alice, 100_000e6);
         oracle.setStale(true);
         _roll(1);
         vm.prank(address(ob));
-        assertFalse(ch.settleMakerFill(alice, true, 1e18, 2e18), "stale");
+        assertEq(uint8(ch.settleMakerFill(alice, true, 1e18, 2e18)), uint8(IMarginEngine.MakerFillResult.Skip), "stale");
         oracle.setStale(false);
         _roll(1);
         vm.prank(address(ob));
-        assertFalse(ch.settleMakerFill(alice, true, 25_000e18 + 1, 2e18), "position cap");
+        assertEq(
+            uint8(ch.settleMakerFill(alice, true, 25_000e18 + 1, 2e18)),
+            uint8(IMarginEngine.MakerFillResult.Evict),
+            "position cap"
+        );
         vm.prank(address(ob));
-        assertTrue(ch.settleMakerFill(alice, true, 25_000e18, 2e18));
+        assertEq(uint8(ch.settleMakerFill(alice, true, 25_000e18, 2e18)), uint8(IMarginEngine.MakerFillResult.Filled));
+    }
+
+    /// CR-007: `_checkFill` checks pause and staleness before margin, so a maker that is both under-margined and
+    /// hits a paused (or stale) market is Skipped, not Evicted: the conservative outcome (the order stays).
+    function test_makerFill_pausedBeatsMargin_skip() public {
+        vm.prank(owner);
+        ch.setPaused(true);
+        vm.prank(address(ob));
+        assertEq(uint8(ch.settleMakerFill(carol, true, 10e18, 2e18)), uint8(IMarginEngine.MakerFillResult.Skip));
+        vm.prank(owner);
+        ch.setPaused(false);
+        oracle.setStale(true);
+        _roll(1);
+        vm.prank(address(ob));
+        assertEq(uint8(ch.settleMakerFill(carol, true, 10e18, 2e18)), uint8(IMarginEngine.MakerFillResult.Skip));
+        assertEq(ch.getPosition(carol).size, 0);
+    }
+
+    /// Skip writes nothing for the fill and keeps the reservation; the maker's funding settlement is still written.
+    function test_makerFill_skipKeepsReservation_settlesFunding() public {
+        _deposit(alice, 1000e6);
+        _deposit(bob, 1000e6);
+        _trade(alice, bob, true, 10, 2e18); // alice long 10, bob short 10
+        vm.prank(alice);
+        ob.placeLimitOrder(true, 19_000, 20, 0);
+        uint256 res = _acct(alice).reservedOrderMargin;
+        assertGt(res, 0);
+        Position memory p0 = ch.getPosition(alice);
+        _roll(50);
+        ch.updateFunding(); // F moves; alice's account still holds the old F
+        oracle.setStale(true);
+        _roll(1);
+        vm.recordLogs();
+        vm.prank(address(ob));
+        assertEq(uint8(ch.settleMakerFill(alice, true, 5e18, 1.9e18)), uint8(IMarginEngine.MakerFillResult.Skip));
+        Position memory p1 = ch.getPosition(alice);
+        int256 f = ch.fundingState().cumFunding;
+        assertTrue(f != p0.lastCumFunding, "funding moved");
+        assertEq(p1.size, p0.size, "no fill");
+        assertEq(p1.openNotional, p0.openNotional);
+        assertEq(p1.lastCumFunding, f, "funding settlement kept");
+        assertEq(_acct(alice).reservedOrderMargin, res, "reservation kept");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; ++i) {
+            assertTrue(logs[i].topics[0] != IClearingHouse.PositionChanged.selector, "no PositionChanged");
+        }
     }
 
     function test_takerFill_feesAndPositions() public {

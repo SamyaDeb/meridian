@@ -1,6 +1,6 @@
 // Phase 4 step 1: MM RPC/gas discipline. Pure functions, hand-computed values.
 import { describe, expect, it } from "vitest";
-import { idsToRefresh, shouldTick, type Resting } from "../src/plan.js";
+import { idsToRefresh, shouldTick, touchedId, type Resting } from "../src/plan.js";
 import { type BatchIo, gasLimitFor, gasLimitsForBatch, sendBatch } from "../src/send.js";
 
 describe("shouldTick (TICK_EVERY_BLOCKS)", () => {
@@ -97,5 +97,41 @@ describe("sendBatch with a limits policy", () => {
     expect(sent).toEqual(["a:100", "b:201"]);
     expect(r.gasLimits).toEqual([100n, 201n]);
     expect(r.pipelined).toBe(true);
+  });
+});
+
+describe("touchedId: what one of our book logs means (CR-007)", () => {
+  const resting: Resting[] = [
+    { id: 1n, isBid: true, tick: 10, lots: 50n },
+    { id: 2n, isBid: false, tick: 12, lots: 50n },
+  ];
+  const scan = (logs: Parameters<typeof touchedId>[0][]) => {
+    const touched = new Set<bigint>();
+    let skips = 0;
+    for (const l of logs) {
+      const id = touchedId(l);
+      if (id === null) skips++;
+      else touched.add(id);
+    }
+    return { touched, skips };
+  };
+
+  it("Trade: the filled order is re-read", () => {
+    expect(touchedId({ eventName: "Trade", args: { makerOrderId: 1n } })).toBe(1n);
+  });
+
+  it("OrderEvicted: the evicted order is re-read (0 lots ⇒ dropped ⇒ re-quote)", () => {
+    const { touched } = scan([{ eventName: "OrderEvicted", args: { orderId: 2n } }]);
+    expect(idsToRefresh(resting, touched, 1, 20)).toEqual([2n]);
+  });
+
+  it("MakerFillSkipped: still live and unchanged, no getOrder, no re-quote", () => {
+    expect(touchedId({ eventName: "MakerFillSkipped", args: { orderId: 1n } })).toBeNull();
+    const { touched, skips } = scan([
+      { eventName: "MakerFillSkipped", args: { orderId: 1n } },
+      { eventName: "MakerFillSkipped", args: { orderId: 2n } },
+    ]);
+    expect(skips).toBe(2);
+    expect(idsToRefresh(resting, touched, 1, 20)).toEqual([]);
   });
 });

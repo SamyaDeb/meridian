@@ -23,6 +23,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 | `FundingTick` | `<market>-<block>` | `block`, `timestamp`, `rate`, `rateAprWad`, `premium`, `emaPremium`, `cumFunding`, **`cumIndexTime`**, `index`, `mark` | per-block funding chart |
 | `FundingCheckpoint` | `<market>-<block/200>` | `slot`, `blockNumber`, `cumFunding`, `cumIndexTime`, `realizedApr1h/8h/24hWad` | oracle APR history (~60 s) |
 | `Order` | `<book>-<orderId>` | `kind` (Perp/Swap), `market`, `maker`, `isBid`, `tick`, `lots`, `remainingLots`, `filledLots`, `status` (Open/PartiallyFilled/Filled/Cancelled/Evicted) | open orders |
+| `MakerFillSkip` | `<block>-<logIndex>` | `kind`, `book`, `market`, `orderId`, `order` (Order id), `maker`, `timestamp`, `txHash`. CR-007: the engine refused a fill on a resting order because the market refuses new risk (paused / oracle stale); the `Order` stays Open and unchanged, matching stopped at it (an `OrderEvicted` instead closes it as Evicted) | MM ops, Stats |
 | `Trade` | `<block>-<logIndex>` | `kind`, `market` (perp) / `swapMarket`, `maker`, `taker`, `takerIsBid`, `priceWad`, `sizeWad`, `notionalWad`, `aprWad` (swap), `timestamp`, `txHash` | trade tape |
 | `Candle1m`, `Candle1h` | `<market>-<bucketStart>` | `open/high/low/close` (WAD), `volumeBaseWad`, `volumeQuoteWad`, `trades` | price chart (perp only) |
 | `Account` | address | `firstSeenBlock`, `tradeCount`, `volumeQuoteWad`, `countedExternal` | — |
@@ -94,7 +95,7 @@ Enforced by `test/config.test.ts`, which diffs `abis/*.json` and `contracts/src/
 | Contract (config name) | Events | Handler |
 |---|---|---|
 | ClearingHouse (`IClearingHouse` + `IFundingRateOracle`) | Deposited, Withdrawn, FundingUpdated, FundingSettled, PositionChanged, Liquidated, BadDebtSocialized, OrderMarginChanged, FeesCollected, RiskParamsUpdated, FundingParamsUpdated, PausedSet, FundingCheckpoint | `src/handlers/clearingHouse.ts` |
-| OrderBook, SwapOrderBook (`IOrderBook`) | OrderPlaced, OrderCancelled, OrderEvicted, Trade | `src/handlers/orderBook.ts` |
+| OrderBook, SwapOrderBook (`IOrderBook`) | OrderPlaced, OrderCancelled, OrderEvicted, MakerFillSkipped, Trade | `src/handlers/orderBook.ts` |
 | FundingSwapMarket | Deposited, Withdrawn, SwapPositionChanged, SwapAccrualSettled, SwapLiquidated, MaturitySettled, SwapParamsUpdated | `src/handlers/fundingSwap.ts` |
 | PulseVault (`IPulseVault` + ERC-4626) | Deposit, Withdraw, Transfer, Rebalanced, HedgeExited, HedgeEntered, NavSnapshot, VaultParamsUpdated, KeeperUpdated (`Approval` intentionally skipped) | `src/handlers/vault.ts` |
 | KuruHedger | SpotBought, SpotSold | `src/handlers/vault.ts` |

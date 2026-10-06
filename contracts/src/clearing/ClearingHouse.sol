@@ -392,17 +392,20 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
     }
 
     /// @inheritdoc IMarginEngine
-    /// @dev Returns false (no position change) on any margin / cap / stale / pause failure; the book evicts.
+    /// @dev No position change unless Filled. CR-007: Paused / OracleStale ⇒ Skip (the market refuses new risk; the
+    ///      book keeps the order and stops); InsufficientMargin / PositionCapExceeded ⇒ Evict (the maker can't carry
+    ///      it). The OI cap can't fail a maker (`oiRef = max`). `_checkFill` tests pause and staleness before margin,
+    ///      so an under-margined maker hitting a paused or stale market is Skipped (the conservative outcome).
     function settleMakerFill(address maker, bool makerIsBid, uint256 sizeWad, uint256 priceWad)
         external
         onlyOrderBook
         nonReentrant
-        returns (bool)
+        returns (MakerFillResult)
     {
         return _makerFill(maker, makerIsBid ? int256(sizeWad) : -int256(sizeWad), priceWad);
     }
 
-    function _makerFill(address maker, int256 dq, uint256 priceWad) internal returns (bool) {
+    function _makerFill(address maker, int256 dq, uint256 priceWad) internal returns (MakerFillResult) {
         Touch memory t = _touchFunding();
         Account memory a = _accounts[maker];
         _settle(maker, a, t.cumFunding);
@@ -411,12 +414,13 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
         b.reserved = _released(a.reserved, FPM.abs(dq), priceWad);
         uint256 oi0 = _longOI;
         t.oiRef = type(uint256).max; // OI cap: checked on the net result at the taker fill
-        if (_execute(maker, a, b, Fill(dq, notional, _makerFee(notional), priceWad, true), t) != bytes4(0)) {
-            _accounts[maker] = a; // keep the funding settlement only
-            return false;
+        bytes4 err = _execute(maker, a, b, Fill(dq, notional, _makerFee(notional), priceWad, true), t);
+        if (err != bytes4(0)) {
+            _accounts[maker] = a; // keep the funding settlement only (Skip and Evict alike; reservation untouched)
+            return err == Paused.selector || err == OracleStale.selector ? MakerFillResult.Skip : MakerFillResult.Evict;
         }
         if (_oiBeforeOrder == 0) _oiBeforeOrder = oi0 + 1;
-        return true;
+        return MakerFillResult.Filled;
     }
 
     /// @dev MATH_SPEC §3.1: maker fee rounds up, a rebate (negative fee) rounds down in magnitude.

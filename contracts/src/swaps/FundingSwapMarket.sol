@@ -273,12 +273,14 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
     }
 
     /// @inheritdoc IMarginEngine
-    /// @dev Returns false (no position change, the book evicts) on any margin / cap / pause / maturity failure.
+    /// @dev No position change unless Filled. CR-007: Paused ⇒ Skip (the market refuses new risk; the book keeps the
+    ///      order and stops, nothing reaches `_kAcc` / `_oiBeforeOrder`, so ΣK = 0 holds); Matured ⇒ Evict (permanent:
+    ///      a matured order can never fill again; maturity is checked before pause); margin / caps ⇒ Evict.
     function settleMakerFill(address maker, bool makerIsBid, uint256 sizeWad, uint256 priceWad)
         external
         onlyOrderBook
         nonReentrant
-        returns (bool)
+        returns (MakerFillResult)
     {
         Obs memory o = _touch();
         Account memory a = _accounts[maker];
@@ -290,16 +292,16 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
         Account memory b = _copy(a);
         (b.resSize, b.resAbsK) = _released(a.resSize, a.resAbsK, sizeWad, priceWad);
         int256 fee = _fee(sizeWad, o, _p.makerFeeApr);
-        uint256 oi0 = _longOI;
-        if (!_apply(a, b, dq, kd, fee, o, type(uint256).max)) {
-            _accounts[maker] = a; // keep the accrual settlement only
-            return false;
+        MakerFillResult r = _apply(a, b, dq, kd, fee, o, type(uint256).max);
+        if (r != MakerFillResult.Filled) {
+            _accounts[maker] = a; // keep the accrual settlement only (Skip and Evict alike; reservation untouched)
+            return r;
         }
+        if (_oiBeforeOrder == 0) _oiBeforeOrder = _longOI + 1; // OI before this order's first fill (pre-commit)
         _commit(maker, a.size, b, fee);
         _kAcc += kd;
-        if (_oiBeforeOrder == 0) _oiBeforeOrder = oi0 + 1;
         emit SwapPositionChanged(maker, dq, b.size, apr, 0, fee, true);
-        return true;
+        return MakerFillResult.Filled;
     }
 
     /// @inheritdoc IMarginEngine
@@ -337,13 +339,16 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
         newSize = b.size;
     }
 
-    /// @dev Applies the fill to `b` and runs the checks. False (nothing written) on failure.
+    /// @dev Applies the fill to `b` and runs the checks (nothing written). CR-007: Paused ⇒ Skip; any other failure
+    ///      (Matured, caps, margin) ⇒ Evict.
     function _apply(Account memory a, Account memory b, int256 dq, int256 kd, int256 fee, Obs memory o, uint256 oiRef)
         internal
         view
-        returns (bool)
+        returns (MakerFillResult)
     {
-        return _check(a, b, dq, kd, fee, o, oiRef) == bytes4(0);
+        bytes4 err = _check(a, b, dq, kd, fee, o, oiRef);
+        if (err == bytes4(0)) return MakerFillResult.Filled;
+        return err == Paused.selector ? MakerFillResult.Skip : MakerFillResult.Evict;
     }
 
     /// @dev Risk-increasing (|q| grows or flips): not matured, not paused, position cap, OI cap on the order's net

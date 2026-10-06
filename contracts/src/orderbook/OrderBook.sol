@@ -34,19 +34,23 @@ import {TickBitmap} from "./libraries/TickBitmap.sol";
 /// and O(1) lookup. A stale id whose slot was recycled fails the stored `orderId` check (OrderNotFound).
 ///
 /// ─── Matching rules ─────────────────────────────────────────────────────────────────────────────────────────
-/// - ≤ MAX_FILLS_PER_ORDER maker orders are visited per taker order (fills, evictions and self-trade expiries
-///   all count), so every external call is bounded.
-/// - `settleMakerFill` returning false ⇒ the maker order is evicted (its remainder released) and matching continues.
+/// - ≤ MAX_FILLS_PER_ORDER maker orders are visited per taker order (fills, evictions, skips and self-trade
+///   expiries all count), so every external call is bounded.
+/// - `settleMakerFill` (CR-007): Filled ⇒ fill. Evict (the maker can't carry the fill) ⇒ the order is evicted (its
+///   remainder released, OrderEvicted) and matching continues. Skip (the market refuses new risk: paused, oracle
+///   stale) ⇒ the order stays exactly as it is (lots, FIFO position, level, bitmap, reservation), MakerFillSkipped,
+///   and matching STOPS: jumping past the head would break price-time priority. Fills made before the skip settle
+///   normally; the crossing remainder is dropped by the rule below.
 /// - `settleTakerFill` once at the end with Σsize and Σnotional. Σnotional is summed exactly as Σ size·price and
 ///   divided once: rounded up for a taker buy and down for a taker sell (against the taker). For the deployed
 ///   books (lot a whole number of base units, tick ≥ 1e-18·1e18) the division is exact.
 /// - Self-trade: the resting order of the same account is expired (cancelled, OrderCancelled) instead of filled.
-/// - If the fill cap stops matching while the remainder still crosses, the remainder is dropped (never rests), so
-///   bestBid < bestAsk always holds (I6).
+/// - If the fill cap or a Skip stops matching while the remainder still crosses, the remainder is dropped (never
+///   rests), so bestBid < bestAsk always holds (I6).
 /// - IOC and REDUCE_ONLY never rest (reduce-only is enforced by the engine on the taker fill; a resting reduce-only
 ///   order could not be re-checked at maker-fill time).
-/// - Pause: enforced by the engine's hooks (reserve/settle revert when paused, release never does), so cancels
-///   always work.
+/// - Pause: enforced by the engine's hooks (reserve and the taker settle revert when paused, a maker fill that adds
+///   risk returns Skip, release never reverts), so cancels always work.
 contract OrderBook is IOrderBook, ReentrancyGuardTransient {
     using TickBitmap for TickBitmap.Bitmap;
 
@@ -329,7 +333,8 @@ contract OrderBook is IOrderBook, ReentrancyGuardTransient {
         for (uint256 visits; remaining != 0 && visits < PulseConstants.MAX_FILLS_PER_ORDER; ++visits) {
             uint32 t = isBid ? _h.bestAsk : _h.bestBid;
             if (isBid ? (t == NO_ASK || t > limitTick) : (t == 0 || t < limitTick)) break;
-            uint64 fill = _visit(isBid, t, remaining);
+            (uint64 fill, bool skipped) = _visit(isBid, t, remaining);
+            if (skipped) break; // CR-007: the head can't fill now; nothing behind it may jump the queue
             if (fill != 0) {
                 remaining -= fill;
                 notionalRaw += uint256(fill) * lotSize * (uint256(t) * tickSize);
@@ -343,22 +348,29 @@ contract OrderBook is IOrderBook, ReentrancyGuardTransient {
         }
     }
 
-    /// @dev Visit the head order of level `t`: fill it, or expire it (self-trade), or evict it (margin failure).
-    /// @return fill lots filled against it (0 if expired/evicted)
-    function _visit(bool takerIsBid, uint32 t, uint64 remaining) internal returns (uint64 fill) {
+    /// @dev Visit the head order of level `t`: fill it, or expire it (self-trade), or evict it (Evict), or leave it
+    ///      untouched (Skip, CR-007).
+    /// @return fill lots filled against it (0 if expired/evicted/skipped)
+    /// @return skipped true ⇒ the engine refused new risk: the order is untouched and matching must stop
+    function _visit(bool takerIsBid, uint32 t, uint64 remaining) internal returns (uint64 fill, bool skipped) {
         uint32 slot = _levels[t].head;
         Order storage o = _orders[slot];
         (address maker, uint64 oLots) = (o.maker, o.lots);
         if (maker == msg.sender) {
             _drop(slot, t, !takerIsBid, false);
-            return 0;
+            return (0, false);
         }
         fill = remaining < oLots ? remaining : oLots;
         uint256 price = uint256(t) * tickSize;
         uint256 size = uint256(fill) * lotSize;
-        if (!_engine.settleMakerFill(maker, !takerIsBid, size, price)) {
+        IMarginEngine.MakerFillResult r = _engine.settleMakerFill(maker, !takerIsBid, size, price);
+        if (r != IMarginEngine.MakerFillResult.Filled) {
+            if (r == IMarginEngine.MakerFillResult.Skip) {
+                emit MakerFillSkipped(o.orderId, maker);
+                return (0, true);
+            }
             _drop(slot, t, !takerIsBid, true);
-            return 0;
+            return (0, false);
         }
         if (fill == oLots) {
             _remove(slot, t, !takerIsBid, maker, oLots);

@@ -9,23 +9,30 @@ import {MockOrderBook} from "../../src/mocks/MockOrderBook.sol";
 import {MockInsuranceFund} from "../../src/mocks/MockInsuranceFund.sol";
 import {IOrderBook} from "../../src/interfaces/IOrderBook.sol";
 import {IClearingHouse} from "../../src/interfaces/IClearingHouse.sol";
+import {IMarginEngine} from "../../src/interfaces/IMarginEngine.sol";
 
 /// @notice Records the hook call order; `makerOk` toggles the maker margin check result.
 contract HookRecorder {
     bytes32[] public calls;
     bool public makerOk = true;
+    bool public makerSkip;
 
     function setMakerOk(bool ok) external {
         makerOk = ok;
+    }
+
+    function setMakerSkip(bool s) external {
+        makerSkip = s;
     }
 
     function callCount() external view returns (uint256) {
         return calls.length;
     }
 
-    function settleMakerFill(address, bool, uint256, uint256) external returns (bool) {
+    function settleMakerFill(address, bool, uint256, uint256) external returns (IMarginEngine.MakerFillResult) {
         calls.push("maker");
-        return makerOk;
+        if (makerSkip) return IMarginEngine.MakerFillResult.Skip;
+        return makerOk ? IMarginEngine.MakerFillResult.Filled : IMarginEngine.MakerFillResult.Evict;
     }
 
     function settleTakerFill(address, bool, uint256, uint256, bool) external {
@@ -67,6 +74,21 @@ contract MockOrderBookHookOrderTest is Test {
 
     function test_makerRejectedWithMinFillReverts() public {
         rec.setMakerOk(false);
+        vm.expectRevert(IOrderBook.SlippageExceeded.selector);
+        ob.placeMarketOrder(true, 5, 0, 1, false);
+    }
+
+    /// CR-007: Skip ⇒ MakerFillSkipped (not OrderEvicted), nothing filled, taker not settled.
+    function test_makerSkipped_emitsSkippedNotEvicted() public {
+        rec.setMakerSkip(true);
+        vm.recordLogs();
+        (uint64 filled, uint256 px) = ob.placeMarketOrder(true, 5, 0, 0, false);
+        assertEq(filled, 0);
+        assertEq(px, 0);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].topics[0], IOrderBook.MakerFillSkipped.selector);
+        assertEq(rec.callCount(), 1);
         vm.expectRevert(IOrderBook.SlippageExceeded.selector);
         ob.placeMarketOrder(true, 5, 0, 1, false);
     }

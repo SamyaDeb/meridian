@@ -17,8 +17,8 @@ contract NoopEngine is IMarginEngine {
     function reserveOrderMargin(address, bool, uint256, uint256) external {}
     function releaseOrderMargin(address, bool, uint256, uint256) external {}
 
-    function settleMakerFill(address, bool, uint256, uint256) external pure returns (bool) {
-        return true;
+    function settleMakerFill(address, bool, uint256, uint256) external pure returns (MakerFillResult) {
+        return MakerFillResult.Filled;
     }
 
     function settleTakerFill(address, bool, uint256, uint256, bool) external {}

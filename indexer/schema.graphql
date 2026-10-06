@@ -129,6 +129,21 @@ type Order @index(fields: ["maker", "status"]) {
   updatedBlock: BigInt!
 }
 
+# One per IOrderBook.MakerFillSkipped (CR-007): the engine refused a fill on this resting order because the market
+# refuses new risk (paused / oracle stale). The order stays Open and unchanged (no Order update); matching stopped at it.
+type MakerFillSkip @index(fields: ["maker", ["block", "DESC"]]) {
+  id: ID! # "<block>-<logIndex>"
+  kind: BookKind!
+  book: String!
+  market: String! # ClearingHouse (perp) or FundingSwapMarket (swap) address
+  orderId: BigInt!
+  order: String! # Order.id "<book>-<orderId>"
+  maker: String!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
 # One per maker fill (IOrderBook.Trade). For kind = Swap, priceWad = 1 + fixed APR and aprWad = price - 1.
 type Trade @index(fields: ["market", ["block", "DESC"]]) {
   id: ID! # "<block>-<logIndex>"

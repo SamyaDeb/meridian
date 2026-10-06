@@ -8,6 +8,7 @@ import {MockERC20} from "../../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../../src/mocks/MockOracleAdapter.sol";
 import {MockOrderBook} from "../../../src/mocks/MockOrderBook.sol";
 import {IClearingHouse} from "../../../src/interfaces/IClearingHouse.sol";
+import {IMarginEngine} from "../../../src/interfaces/IMarginEngine.sol";
 import {FundingState, AccountView} from "../../../src/interfaces/PulseTypes.sol";
 
 /// @title ClearingHouseHandler — WS-02 handler for invariants I1–I5 and I11 (MATH_SPEC §7)
@@ -140,7 +141,9 @@ contract ClearingHouseHandler is Test {
     function doTrade(address taker, address maker, bool takerIsBid, uint256 size, uint256 price) external {
         require(msg.sender == address(this));
         vm.prank(address(ob));
-        require(ch.settleMakerFill(maker, !takerIsBid, size, price), "maker refused");
+        require(
+            ch.settleMakerFill(maker, !takerIsBid, size, price) == IMarginEngine.MakerFillResult.Filled, "maker refused"
+        );
         vm.prank(address(ob));
         ch.settleTakerFill(taker, takerIsBid, size, FPM.mulWad(size, price), false);
     }

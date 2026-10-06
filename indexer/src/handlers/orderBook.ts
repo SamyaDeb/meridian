@@ -36,6 +36,7 @@ type Placed = Base & {
   };
 };
 type Closed = Base & { readonly params: { readonly orderId: bigint; readonly maker: string; readonly remainingLots: bigint } };
+type Skipped = Base & { readonly params: { readonly orderId: bigint; readonly maker: string } };
 type TradeEv = Base & {
   readonly params: {
     readonly makerOrderId: bigint;
@@ -80,6 +81,23 @@ async function onClosed(event: Closed, context: Ctx, status: "Cancelled" | "Evic
   const o = await context.Order.get(orderId(event.srcAddress, event.params.orderId));
   if (!o) return; // placed before the indexer's start block
   context.Order.set({ ...o, status, remainingLots: event.params.remainingLots, updatedBlock: blockOf(event) });
+}
+
+/** CR-007: a skip is recorded, but the order stays Open with the same lots (no Order write). */
+async function onSkipped(event: Skipped, context: Ctx, kind: BookKind) {
+  const p = event.params;
+  context.MakerFillSkip.set({
+    id: evId(event),
+    kind,
+    book: event.srcAddress,
+    market: await resolveBookMarket(context, event.srcAddress, kind),
+    orderId: p.orderId,
+    order: orderId(event.srcAddress, p.orderId),
+    maker: p.maker,
+    block: blockOf(event),
+    timestamp: tsOf(event),
+    txHash: event.transaction.hash,
+  });
 }
 
 async function upsertCandle(
@@ -214,6 +232,9 @@ indexer.onEvent({ contract: "OrderBook", event: "OrderCancelled", fields: FIELDS
 indexer.onEvent({ contract: "OrderBook", event: "OrderEvicted", fields: FIELDS }, ({ event, context }) =>
   onClosed(event, context, "Evicted"),
 );
+indexer.onEvent({ contract: "OrderBook", event: "MakerFillSkipped", fields: FIELDS }, ({ event, context }) =>
+  onSkipped(event, context, "Perp"),
+);
 indexer.onEvent({ contract: "OrderBook", event: "Trade", fields: FIELDS }, ({ event, context }) =>
   onTrade(event, context, "Perp"),
 );
@@ -226,6 +247,9 @@ indexer.onEvent({ contract: "SwapOrderBook", event: "OrderCancelled", fields: FI
 );
 indexer.onEvent({ contract: "SwapOrderBook", event: "OrderEvicted", fields: FIELDS }, ({ event, context }) =>
   onClosed(event, context, "Evicted"),
+);
+indexer.onEvent({ contract: "SwapOrderBook", event: "MakerFillSkipped", fields: FIELDS }, ({ event, context }) =>
+  onSkipped(event, context, "Swap"),
 );
 indexer.onEvent({ contract: "SwapOrderBook", event: "Trade", fields: FIELDS }, ({ event, context }) =>
   onTrade(event, context, "Swap"),

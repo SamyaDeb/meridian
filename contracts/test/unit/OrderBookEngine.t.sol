@@ -4,11 +4,12 @@ pragma solidity 0.8.28;
 import {IMarginEngine} from "../../src/interfaces/IMarginEngine.sol";
 
 /// @notice Test IMarginEngine that records the hook protocol (INTERFACES §2.2) instead of doing margin math.
-///         Tracks the reservation each trader should hold (I7) and lets tests force maker evictions.
+///         Tracks the reservation each trader should hold (I7) and lets tests force maker evictions and skips.
 contract RecordingEngine is IMarginEngine {
     address public orderBook;
     mapping(address => uint256) public reservedWad; // Σ size·price of resting orders, WAD²/1e18
     mapping(address => bool) public failMaker;
+    mapping(address => bool) public skipMaker; // CR-007: market refuses the maker's new risk, order must stay
     mapping(address => bool) public rejectReserve;
     mapping(address => int256) public position; // base WAD
 
@@ -19,6 +20,8 @@ contract RecordingEngine is IMarginEngine {
     uint256 public lastTakerNotional;
     bool public lastReduceOnly;
     uint256 public makerCalls;
+    uint256 public makerSkips; // CR-007 coverage
+    uint256 public makerEvicts;
     uint256 public makerCallsAtTakerSettle; // makerCalls when settleTakerFill ran (taker must settle last)
     bytes public reenterData; // if set, every hook calls back into the book with this calldata
 
@@ -28,6 +31,10 @@ contract RecordingEngine is IMarginEngine {
 
     function setFailMaker(address m, bool f) external {
         failMaker[m] = f;
+    }
+
+    function setSkipMaker(address m, bool s) external {
+        skipMaker[m] = s;
     }
 
     function setRejectReserve(address t, bool r) external {
@@ -67,13 +74,20 @@ contract RecordingEngine is IMarginEngine {
     function settleMakerFill(address maker, bool makerIsBid, uint256 sizeWad, uint256 priceWad)
         external
         onlyOB
-        returns (bool)
+        returns (MakerFillResult)
     {
         ++makerCalls;
-        if (failMaker[maker]) return false;
+        if (skipMaker[maker]) {
+            ++makerSkips;
+            return MakerFillResult.Skip; // nothing written, reservation kept
+        }
+        if (failMaker[maker]) {
+            ++makerEvicts;
+            return MakerFillResult.Evict;
+        }
         reservedWad[maker] -= sizeWad * priceWad / 1e18;
         position[maker] += makerIsBid ? int256(sizeWad) : -int256(sizeWad);
-        return true;
+        return MakerFillResult.Filled;
     }
 
     function settleTakerFill(address taker, bool takerIsBid, uint256 sizeWad, uint256 notionalWad, bool reduceOnly)

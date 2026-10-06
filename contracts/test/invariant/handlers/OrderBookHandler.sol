@@ -92,6 +92,14 @@ contract OrderBookHandler is CommonBase, StdUtils {
         ++calls["toggleFailMaker"];
     }
 
+    /// @dev CR-007 "market refuses risk" mode: settleMakerFill returns Skip for this actor's orders (checked before
+    ///      the fail mode), so matching stops at them and they must keep lots, FIFO place and reservation (I6, I7).
+    function toggleSkipMaker(uint256 actorSeed) external {
+        address a = _actor(actorSeed);
+        eng.setSkipMaker(a, !eng.skipMaker(a));
+        ++calls["toggleSkipMaker"];
+    }
+
     // ─── invariants ───────────────────────────────────────────────────────────────────────────────────
 
     /// @notice I6: bestBid < bestAsk; level totals and counts = Σ resting orders; bitmap bit ⇔ level non-empty

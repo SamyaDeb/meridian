@@ -91,3 +91,36 @@ describe("funding-swap book (SwapOrderBook)", () => {
     expect(await indexer.Candle1m.getAll()).toHaveLength(0); // candles are perp-only
   });
 });
+
+describe("MakerFillSkipped (CR-007)", () => {
+  const skipped = (src: `0x${string}`, block: number, orderId: bigint, maker: `0x${string}`) => ({
+    contract: (src === A.OB ? "OrderBook" : "SwapOrderBook") as "OrderBook",
+    event: "MakerFillSkipped" as const,
+    srcAddress: src,
+    block: blk(block),
+    transaction: { hash: `0x${block.toString(16).padStart(64, "0")}` },
+    params: { orderId, maker },
+  });
+
+  it("records the skip; the order stays Open with the same lots (perp and swap)", async () => {
+    const indexer = createTestIndexer();
+    await indexer.process({
+      chains: {
+        [CHAIN]: {
+          simulate: [
+            placed(A.OB, 10, 1n, ALICE),
+            skipped(A.OB, 11, 1n, ALICE),
+            placed(A.SWAP_OB, 10, 5n, BOB),
+            skipped(A.SWAP_OB, 12, 5n, BOB),
+          ],
+        },
+      },
+    });
+    expect(await indexer.Order.getOrThrow(`${A.OB}-1`)).toMatchObject({ status: "Open", remainingLots: 10n, filledLots: 0n, updatedBlock: 10n });
+    expect(await indexer.Order.getOrThrow(`${A.SWAP_OB}-5`)).toMatchObject({ status: "Open", remainingLots: 10n });
+    const s = await indexer.MakerFillSkip.getAll();
+    expect(s).toHaveLength(2);
+    expect(s.find((x) => x.kind === "Perp")).toMatchObject({ book: A.OB, market: A.CH, orderId: 1n, order: `${A.OB}-1`, maker: ALICE, block: 11n });
+    expect(s.find((x) => x.kind === "Swap")).toMatchObject({ book: A.SWAP_OB, orderId: 5n, order: `${A.SWAP_OB}-5`, maker: BOB, block: 12n });
+  });
+});

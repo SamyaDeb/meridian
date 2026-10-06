@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IOrderBook} from "../interfaces/IOrderBook.sol";
 import {IClearingHouse} from "../interfaces/IClearingHouse.sol";
+import {IMarginEngine} from "../interfaces/IMarginEngine.sol";
 import {PulseConstants} from "../interfaces/PulseTypes.sol";
 
 /// @notice Mock order book. No matching engine:
@@ -76,9 +77,13 @@ contract MockOrderBook is IOrderBook {
         if (lots < minFilledLots) revert SlippageExceeded();
         uint256 size = uint256(lots) * lotSize;
         // Hook order (INTERFACES §2, decision 8): every maker fill first, then exactly one taker fill.
-        // A maker that fails its margin check is evicted and its fill skipped.
-        if (!IClearingHouse(clearingHouse).settleMakerFill(mockMaker, !isBid, size, fillPriceWad)) {
-            emit OrderEvicted(0, mockMaker, lots);
+        // Evict (maker can't carry the fill) ⇒ OrderEvicted; Skip (market refuses new risk, CR-007) ⇒
+        // MakerFillSkipped (the synthetic maker stays live). Either way nothing fills and the taker isn't settled.
+        IMarginEngine.MakerFillResult r =
+            IClearingHouse(clearingHouse).settleMakerFill(mockMaker, !isBid, size, fillPriceWad);
+        if (r != IMarginEngine.MakerFillResult.Filled) {
+            if (r == IMarginEngine.MakerFillResult.Skip) emit MakerFillSkipped(0, mockMaker);
+            else emit OrderEvicted(0, mockMaker, lots);
             if (minFilledLots > 0) revert SlippageExceeded();
             return (0, 0);
         }

@@ -385,10 +385,66 @@ contract FundingSwapMarketTest is FundingSwapBase {
         ob.mockSetMaker(bob);
         ob.mockSetFillPrice(1.12e18);
         vm.prank(alice);
-        vm.expectRevert(); // bob's increase is refused ⇒ evicted; or alice's increase reverts
+        vm.expectRevert(); // bob's increase is refused ⇒ skipped (CR-007), minFilled 1 reverts; or alice's increase reverts
         ob.placeMarketOrder(true, 100, 0, 1, false);
         _trade(alice, bob, false, 400, 0.12e18); // both reduce
         assertEq(fs.getPosition(alice).size, 600_000e18);
+    }
+
+    /// CR-007: paused ⇒ Skip (nothing written for the fill, reservation kept, ΣK / Σq / OI unchanged);
+    /// a reducing maker still fills while paused.
+    function test_makerFill_pausedSkips() public {
+        _deposit(alice, 5000e6);
+        _deposit(bob, 5000e6);
+        _trade(alice, bob, true, 1000, 0.12e18); // alice long, bob short
+        vm.prank(alice);
+        ob.placeLimitOrder(true, 11_200, 500, 0);
+        uint256 res = _acct(alice).reservedOrderMargin;
+        assertGt(res, 0);
+        vm.prank(owner);
+        fs.setPaused(true);
+        (uint256 lo0, uint256 so0) = fs.openInterest();
+        (int256 qa, int256 ka, int256 kb) = (fs.getPosition(alice).size, _k(alice), _k(bob));
+        vm.prank(address(ob));
+        assertEq(uint8(fs.settleMakerFill(alice, true, 100e18, 1.12e18)), uint8(IMarginEngine.MakerFillResult.Skip));
+        assertEq(fs.getPosition(alice).size, qa);
+        assertEq(_k(alice), ka, "K unchanged");
+        assertEq(_k(bob), kb);
+        assertEq(_acct(alice).reservedOrderMargin, res, "reservation kept");
+        (uint256 lo1, uint256 so1) = fs.openInterest();
+        assertEq(lo1, lo0);
+        assertEq(so1, so0);
+        // the taker of an order whose only maker skipped is never settled (book: filled == 0), so ΣK = 0 holds;
+        // a reducing maker still fills while paused
+        vm.prank(address(ob));
+        assertEq(uint8(fs.settleMakerFill(alice, false, 100e18, 1.12e18)), uint8(IMarginEngine.MakerFillResult.Filled));
+    }
+
+    /// CR-007: matured ⇒ Evict (permanent: a matured order can never fill again), also when paused (maturity is
+    /// checked first).
+    function test_makerFill_maturedEvicts() public {
+        _deposit(alice, 5000e6);
+        vm.warp(maturity);
+        vm.prank(address(ob));
+        assertEq(uint8(fs.settleMakerFill(alice, true, 100e18, 1.12e18)), uint8(IMarginEngine.MakerFillResult.Evict));
+        vm.prank(owner);
+        fs.setPaused(true);
+        vm.prank(address(ob));
+        assertEq(uint8(fs.settleMakerFill(alice, true, 100e18, 1.12e18)), uint8(IMarginEngine.MakerFillResult.Evict));
+        assertEq(fs.getPosition(alice).size, 0);
+    }
+
+    /// CR-007: margin / caps ⇒ Evict (unpaused, not matured).
+    function test_makerFill_marginEvicts() public {
+        vm.prank(address(ob));
+        assertEq(uint8(fs.settleMakerFill(carol, true, 1000e18, 1.12e18)), uint8(IMarginEngine.MakerFillResult.Evict));
+        _deposit(alice, 1_000_000e6);
+        vm.prank(address(ob));
+        assertEq(
+            uint8(fs.settleMakerFill(alice, true, _params().maxPositionSize + 1, 1.12e18)),
+            uint8(IMarginEngine.MakerFillResult.Evict),
+            "position cap"
+        );
     }
 
     function test_reduceOnly() public {

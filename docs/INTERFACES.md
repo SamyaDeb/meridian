@@ -1,6 +1,6 @@
 # INTERFACES — frozen cross-workstream contracts
 
-**Frozen: `interfaces-v1.3` (29 Sep 2026, CR-001..006).** The `.sol` files in `contracts/src/interfaces/` are the source of truth. The second half of this document is generated verbatim from them (`python3 tools/gen_interfaces_md.py`; CI runs `--check`). To change anything, file an entry in `docs/CHANGE_REQUESTS.md`.
+**Frozen: `interfaces-v1.6` (6 Oct 2026, CR-001..007).** The `.sol` files in `contracts/src/interfaces/` are the source of truth. The second half of this document is generated verbatim from them (`python3 tools/gen_interfaces_md.py`; CI runs `--check`). To change anything, file an entry in `docs/CHANGE_REQUESTS.md`.
 
 ## 1. Who implements / who calls
 
@@ -26,7 +26,12 @@
 2. **OrderBook ⇄ IMarginEngine protocol** (perp ClearingHouse and FundingSwapMarket alike):
    - Before an order rests: `reserveOrderMargin` (may revert ⇒ whole placement reverts).
    - On cancel / eviction / fill: `releaseOrderMargin` for the cancelled/evicted remainder; `settleMakerFill` releases the filled part itself.
-   - Per maker fill: `settleMakerFill` → `false` ⇒ the book evicts that order (`OrderEvicted`) and continues matching.
+   - Per maker fill: `settleMakerFill` returns `MakerFillResult` (CR-007, `interfaces-v1.6`):
+     - `Filled` ⇒ settled (the engine released the filled part of the reservation).
+     - `Evict` ⇒ the maker itself can't carry the fill (margin, position cap; swap: also `Matured`, permanent): the book evicts that order (`OrderEvicted`, remainder released) and continues matching.
+     - `Skip` ⇒ the market refuses new risk right now (perp: paused or oracle stale; swap: paused). Nothing is written for the fill and the reservation is kept; the book leaves the order exactly as it is (lots, FIFO position, level totals, bitmap), emits `MakerFillSkipped`, and **stops matching** (no further orders or levels: jumping past the head would break price-time priority). Fills already made in this taker order settle normally; `lastTrade` moves only if something filled; a crossing remainder never rests (bestBid < bestAsk). A Skip counts as a visit toward `MAX_FILLS_PER_ORDER`.
+     - The perp checks pause and staleness before margin, so a maker that is both under-margined and hits a paused / stale market is Skipped (it stays; conservative). The maker's funding (perp) / accrual (swap) settlement is written on Skip and Evict alike.
+     - Consequence while stale or paused: a reduce-only (or any reducing) taker fills only against makers that are themselves reducing, up to the first increasing maker at the head, then stops. Liquidations don't use the book and are unaffected.
    - Once per taker order (if filled > 0): `settleTakerFill(Σsize, Σnotional)` last, after all maker fills. It reverts on IM failure / reduce-only violation.
    - Both hooks are `onlyOrderBook`. The CH trusts the book for prices; the book trusts the CH for margin.
 3. **Funding touch:** every mutating CH function starts with the internal funding touch; `updateFunding()` is the public poke.
@@ -40,6 +45,7 @@
 | Event | Entity |
 |---|---|
 | `IOrderBook.OrderPlaced / OrderCancelled / OrderEvicted` | `Order` (status) |
+| `IOrderBook.MakerFillSkipped` | `MakerFillSkip` (the `Order` stays Open, unchanged) |
 | `IOrderBook.Trade` | `Trade`, `Candle` (1m/1h), `MarketStats.volume` |
 | `IClearingHouse.PositionChanged` | `Position`, `AccountMarket`, `MarketStats.fees` |
 | `IClearingHouse.FundingUpdated` | `FundingTick` (per block, incl. cumIndexTime), `MarketStats.lastRate` |
@@ -236,6 +242,9 @@ interface IOrderBook {
     event OrderCancelled(uint64 indexed orderId, address indexed maker, uint64 remainingLots);
     /// @notice Resting order removed during matching because the maker failed the margin check.
     event OrderEvicted(uint64 indexed orderId, address indexed maker, uint64 remainingLots);
+    /// @notice The engine refused a fill on this resting order because the market refuses new risk (paused, oracle
+    ///         stale; CR-007). The order is still live and unchanged; matching stopped at it.
+    event MakerFillSkipped(uint64 indexed orderId, address indexed maker);
     /// @notice One event per maker fill. priceWad = tick * tickSize; sizeWad = lots * lotSize.
     event Trade(
         uint64 indexed makerOrderId,
@@ -321,14 +330,26 @@ interface IMarginEngine {
     error InsufficientMargin();
     error ReduceOnlyViolated();
 
+    /// @notice Outcome of one maker fill (CR-007). Filled = settled. Evict = the maker itself can't carry the fill
+    ///         (margin, position cap, matured swap): the book removes the order, releases its remainder and continues.
+    ///         Skip = the market refuses new risk right now (paused, oracle stale): the order must stay untouched
+    ///         and the book stops matching.
+    enum MakerFillResult {
+        Filled,
+        Evict,
+        Skip
+    }
+
     /// @notice Reverts InsufficientMargin if the order would push initial margin above equity.
     function reserveOrderMargin(address trader, bool isBid, uint256 sizeWad, uint256 priceWad) external;
     function releaseOrderMargin(address trader, bool isBid, uint256 sizeWad, uint256 priceWad) external;
-    /// @notice Settle one maker fill; releases the matching reservation.
-    /// @return ok false => maker failed the margin check; the book must evict the order and continue.
+    /// @notice Settle one maker fill; on Filled, releases the matching reservation.
+    /// @return result Filled => settled; Evict => the book must evict the order (release its remainder) and continue;
+    ///         Skip => nothing written for the fill, reservation kept: the book must leave the order resting
+    ///         untouched and stop matching.
     function settleMakerFill(address maker, bool makerIsBid, uint256 sizeWad, uint256 priceWad)
         external
-        returns (bool ok);
+        returns (MakerFillResult result);
     /// @notice Settle the aggregated taker side of one order. Enforces IM (or reduce-only) and reverts otherwise.
     function settleTakerFill(address taker, bool takerIsBid, uint256 sizeWad, uint256 notionalWad, bool reduceOnly)
         external;

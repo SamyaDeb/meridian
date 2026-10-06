@@ -29,6 +29,7 @@ contracts:
       - event: OrderPlaced
       - event: OrderCancelled
       - event: OrderEvicted
+      - event: MakerFillSkipped
       - event: Trade
   - name: SwapOrderBook
     abi_file_path: ./abis/IOrderBook.json
@@ -36,6 +37,7 @@ contracts:
       - event: OrderPlaced
       - event: OrderCancelled
       - event: OrderEvicted
+      - event: MakerFillSkipped
       - event: Trade
   - name: FundingSwapMarket
     abi_file_path: ./abis/IFundingSwapMarket.json

@@ -24,6 +24,9 @@ interface IOrderBook {
     event OrderCancelled(uint64 indexed orderId, address indexed maker, uint64 remainingLots);
     /// @notice Resting order removed during matching because the maker failed the margin check.
     event OrderEvicted(uint64 indexed orderId, address indexed maker, uint64 remainingLots);
+    /// @notice The engine refused a fill on this resting order because the market refuses new risk (paused, oracle
+    ///         stale; CR-007). The order is still live and unchanged; matching stopped at it.
+    event MakerFillSkipped(uint64 indexed orderId, address indexed maker);
     /// @notice One event per maker fill. priceWad = tick * tickSize; sizeWad = lots * lotSize.
     event Trade(
         uint64 indexed makerOrderId,

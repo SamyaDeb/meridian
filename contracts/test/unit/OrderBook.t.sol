@@ -238,6 +238,122 @@ contract OrderBookTest is Test {
         assertEq(ob.bestAsk(), NO_ASK);
     }
 
+    // ─── CR-007: Skip ─────────────────────────────────────────────────────────────────────────────────
+
+    /// A Skip at the head leaves the order exactly as it was and stops matching: the deeper level that would
+    /// have filled is not visited, and the crossing remainder does not rest.
+    function test_match_skipLeavesOrderUntouchedAndStops() public {
+        (uint64 a1,) = _limit(alice, false, 105, 2);
+        (uint64 b1,) = _limit(bob, false, 105, 1); // behind alice in the FIFO
+        (uint64 d1,) = _limit(dave, false, 106, 3); // deeper level
+        eng.setSkipMaker(alice, true);
+        uint256 resA = eng.reservedWad(alice);
+        vm.expectEmit(address(ob));
+        emit IOrderBook.MakerFillSkipped(a1, alice);
+        vm.recordLogs(); // after the expected-event template, which would be recorded too
+        (uint64 id, uint64 filled) = _limit(carol, true, 106, 4);
+        assertEq(filled, 0);
+        assertEq(id, 0, "remainder crosses alice: never rests");
+        assertEq(eng.makerCalls(), 1, "stopped at the skip");
+        assertEq(eng.takerCalls(), 0, "no settleTakerFill when filled == 0");
+        assertEq(vm.getRecordedLogs().length, 1, "only MakerFillSkipped: no Trade / OrderEvicted / OrderPlaced");
+        // alice's order: lots, FIFO head, level totals, bitmap/best, reservation, count all unchanged
+        assertEq(ob.getOrder(a1).remainingLots, 2);
+        assertEq(eng.reservedWad(alice), resA);
+        assertEq(ob.openOrderCount(alice), 1);
+        (uint64 lots, uint32 count) = ob.getLevel(105);
+        assertEq(lots, 3);
+        assertEq(count, 2);
+        assertEq(ob.bestAsk(), 105);
+        assertEq(ob.bestBid(), 0);
+        assertEq(ob.getOrder(b1).remainingLots, 1);
+        assertEq(ob.getOrder(d1).remainingLots, 3, "deeper level untouched");
+        (uint256 p, uint64 blk) = ob.lastTrade();
+        assertEq(p, 0, "a skip is not a trade");
+        assertEq(blk, 0);
+        // the skipped order is still first in the FIFO: once the market accepts risk again it fills first
+        eng.setSkipMaker(alice, false);
+        vm.expectEmit(address(ob));
+        emit IOrderBook.Trade(a1, alice, carol, true, 105, 1, _px(105), LOT);
+        _limit(carol, true, 105, 1);
+    }
+
+    /// Fills before the skip settle normally (one settleTakerFill with what was filled), then matching stops.
+    function test_match_partialFillThenSkip_settlesFilledPart() public {
+        (uint64 b1,) = _limit(bob, false, 105, 1);
+        (uint64 a1,) = _limit(alice, false, 106, 2);
+        (uint64 d1,) = _limit(dave, false, 106, 1); // same level, behind alice
+        eng.setSkipMaker(alice, true);
+        vm.expectEmit(address(ob));
+        emit IOrderBook.Trade(b1, bob, carol, true, 105, 1, _px(105), LOT);
+        vm.expectEmit(address(ob));
+        emit IOrderBook.MakerFillSkipped(a1, alice);
+        (uint64 id, uint64 filled) = _limit(carol, true, 106, 4);
+        assertEq(filled, 1);
+        assertEq(id, 0, "remainder crosses alice: dropped");
+        assertEq(eng.takerCalls(), 1);
+        assertEq(eng.lastTakerSize(), LOT, "taker settles only the filled lot");
+        assertEq(eng.makerCalls(), 2);
+        assertEq(eng.makerCallsAtTakerSettle(), 2, "taker settled last");
+        assertEq(ob.getOrder(d1).remainingLots, 1, "order behind the skip untouched");
+        assertEq(ob.getOrder(a1).remainingLots, 2);
+        (uint256 p,) = ob.lastTrade();
+        assertEq(p, _px(105), "lastTrade = the last real fill");
+        assertEq(ob.bestAsk(), 106);
+    }
+
+    /// Market orders: a skip that leaves filled < minFilledLots reverts the whole tx (the order still rests).
+    function test_market_skipBelowMinFilled_revertsSlippage() public {
+        (uint64 a1,) = _limit(alice, false, 105, 2);
+        _limit(dave, false, 106, 5);
+        eng.setSkipMaker(alice, true);
+        vm.prank(carol);
+        vm.expectRevert(IOrderBook.SlippageExceeded.selector);
+        ob.placeMarketOrder(true, 2, 106, 1, false);
+        assertEq(ob.getOrder(a1).remainingLots, 2);
+        vm.prank(carol);
+        (uint64 filled, uint256 avg) = ob.placeMarketOrder(true, 2, 106, 0, false);
+        assertEq(filled, 0);
+        assertEq(avg, 0);
+        assertEq(eng.takerCalls(), 0);
+    }
+
+    /// Skip on the bid side (taker sells), and a reduce-only taker never rests either way.
+    function test_match_skipBidSide_reduceOnlyTaker() public {
+        (uint64 a1,) = _limit(alice, true, 100, 1);
+        _limit(bob, true, 99, 1);
+        eng.setSkipMaker(alice, true);
+        vm.expectEmit(address(ob));
+        emit IOrderBook.MakerFillSkipped(a1, alice);
+        vm.prank(carol);
+        (uint64 id, uint64 filled) = ob.placeLimitOrder(false, 99, 2, REDUCE_ONLY);
+        assertEq(filled, 0);
+        assertEq(id, 0);
+        assertEq(ob.bestBid(), 100);
+        assertEq(ob.getOrder(a1).remainingLots, 1);
+        (uint64 lots,) = ob.getLevel(99);
+        assertEq(lots, 1, "deeper bid untouched");
+    }
+
+    /// Evict before the skip: the evicted order is dropped and released, then the skip stops matching.
+    function test_match_evictThenSkip() public {
+        (uint64 a1,) = _limit(alice, false, 105, 1);
+        (uint64 b1,) = _limit(bob, false, 105, 1);
+        _limit(dave, false, 105, 1);
+        eng.setFailMaker(alice, true);
+        eng.setSkipMaker(bob, true);
+        vm.expectEmit(address(ob));
+        emit IOrderBook.OrderEvicted(a1, alice, 1);
+        vm.expectEmit(address(ob));
+        emit IOrderBook.MakerFillSkipped(b1, bob);
+        (, uint64 filled) = _limit(carol, true, 105, 3);
+        assertEq(filled, 0);
+        assertEq(eng.reservedWad(alice), 0);
+        (uint64 lots, uint32 count) = ob.getLevel(105);
+        assertEq(lots, 2);
+        assertEq(count, 2);
+    }
+
     function test_match_boundedByMaxFills_remainderDroppedWhileCrossing() public {
         uint256 n = PulseConstants.MAX_FILLS_PER_ORDER + 8;
         for (uint256 i; i < n; ++i) {

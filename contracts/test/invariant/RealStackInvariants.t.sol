@@ -47,6 +47,7 @@ contract RealStackInvariantsTest is StdInvariant, Test {
 
         handler = new RealStackHandler(ch, ob, oracle, ausd);
         handler.setInsuranceFund(fund);
+        handler.setOwner(owner);
         vm.prank(owner);
         fund.setMarketAuthorized(address(handler), true); // drainInsurance: bad debt reaches fees, then uncovered
         for (uint256 i; i < 6; ++i) {
@@ -54,7 +55,7 @@ contract RealStackInvariantsTest is StdInvariant, Test {
             handler.deposit(i, 50e6); // 150 tAUSD each: the position cap allows ~4.8x, so liquidations are reachable
         }
         // weights: limit ×4, market ×3, price ×3, liquidate ×3, roll ×2, crash ×2, the rest ×1 (deposits rare so leverage builds)
-        bytes4[] memory sel = new bytes4[](25);
+        bytes4[] memory sel = new bytes4[](26);
         sel[0] = handler.deposit.selector;
         sel[1] = handler.withdraw.selector;
         sel[2] = handler.placeLimit.selector;
@@ -80,6 +81,7 @@ contract RealStackInvariantsTest is StdInvariant, Test {
         sel[22] = handler.crash.selector;
         sel[23] = handler.crash.selector;
         sel[24] = handler.drainInsurance.selector;
+        sel[25] = handler.setPaused.selector; // CR-007: paused ⇒ increasing makers Skip
         targetSelector(FuzzSelector(address(handler), sel));
         targetContract(address(handler));
     }
@@ -147,7 +149,11 @@ contract RealStackInvariantsTest is StdInvariant, Test {
                 ",",
                 vm.toString(handler.ghostFeesAbsorbed()),
                 ",",
-                vm.toString(handler.ghostUncoveredWithFees())
+                vm.toString(handler.ghostUncoveredWithFees()),
+                ",",
+                vm.toString(handler.ghostSkips()),
+                ",",
+                vm.toString(handler.ghostEvictions())
             )
         );
     }

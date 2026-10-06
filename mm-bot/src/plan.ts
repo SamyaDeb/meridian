@@ -75,10 +75,33 @@ export function shouldTick(block: bigint, lastTickBlock: bigint, every: bigint):
   return lastTickBlock < 0n || every <= 1n || block - lastTickBlock >= every;
 }
 
+/** One of our OrderBook logs, as decoded by the log scan. */
+export type BookLog =
+  | { eventName: "Trade"; args: { makerOrderId: bigint } }
+  | { eventName: "OrderEvicted"; args: { orderId: bigint } }
+  | { eventName: "MakerFillSkipped"; args: { orderId: bigint } };
+
+/**
+ * The resting order a log of ours changed, or null (CR-007). Trade (partly/fully filled) and OrderEvicted (removed,
+ * reads 0 lots, so the planner re-quotes it) ⇒ that id needs a getOrder read. MakerFillSkipped ⇒ null: the market
+ * refused new risk (paused / oracle stale), the order is still live and unchanged, so no read and no re-quote.
+ */
+export function touchedId(l: BookLog): bigint | null {
+  switch (l.eventName) {
+    case "Trade":
+      return l.args.makerOrderId;
+    case "OrderEvicted":
+      return l.args.orderId;
+    case "MakerFillSkipped":
+      return null;
+  }
+}
+
 /**
  * Which resting orders need a getOrder read: only ids a Trade / OrderEvicted log of ours mentioned since the last
- * tick (a fill or an eviction is the only way a resting order changes without our own tx), plus every order once
- * every `fullEvery` ticks as a safety net (a missed log range, a failed read).
+ * tick (a fill or an eviction is the only way a resting order changes without our own tx; a MakerFillSkipped
+ * leaves it unchanged), plus every order once every `fullEvery` ticks as a safety net (a missed log range, a
+ * failed read).
  */
 export function idsToRefresh(resting: readonly Resting[], touched: ReadonlySet<bigint>, tickCount: number, fullEvery: number): bigint[] {
   const full = fullEvery <= 1 || tickCount % fullEvery === 0;
