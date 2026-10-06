@@ -1,8 +1,18 @@
-# Security findings: status after Phase 1 (Mon 5 Oct 2026)
+# Security findings: status after the hardening (Wed 7 Oct 2026)
 
-Branch `ws-00i-phase1-merge` (nothing pushed). Reviews: [review-A.md](review-A.md) (A on B's contracts), [review-B.md](review-B.md) (B on A's contracts).
+Reviews: [review-A.md](review-A.md) (A on B's contracts), [review-B.md](review-B.md) (B on A's contracts), plus the owner's 6 Oct audit, worked through in `docs/HARDENING_PLAN.md` P1–P7 (evidence: `docs/standup/HARDENING_LOOP.md`, one-page summary: [`../PROOF.md`](../PROOF.md)). Branches P3–P7 are stacked locally (`ws-01c-cr007-skip` → … → `ws-00s-submission`), not merged yet; P1 (#7) and P2 (#9) are on `main`.
 
-## Highs (and B-02)
+## 6 Oct audit (hardening P1–P7)
+
+| ID | Sev | Status | Fix | Tests / evidence |
+|---|---|---|---|---|
+| **H-1** keeper takes the whole liquidated position and never closes it (same-direction liquidations then revert `PositionCapExceeded` / `InsufficientMargin`; the keeper carries price risk) | High | **Closed (offchain).** The keeper sizes every liquidation to its own headroom (cap + IM after the take, 2% buffer, whole lots); headroom 0 ⇒ no tx + page. It unwinds whatever it holds with a reduce-only IOC `placeMarketOrder` bounded at index ± 1% (`UNWIND_MAX_SLIPPAGE_BPS`), gas = estimate × 1.2 + `TOUCH_ALLOWANCE_GAS`; partial fill ⇒ rest next block; stale oracle ⇒ wait; pages after 3 failed unwinds or > 200 blocks held. Swap side: cap-sized liquidations, same unwind on the swap book, page if the swap book has no counterparty. No contract change (demo freeze). | `9aee4fe` (ws-03) | `keepers/ts-fallback/test/unwind.test.ts` (20: `liquidationHeadroom` IM / cap / opposite-side / lot rounding / grid property "never exceeds the cap or IM" against the contract's own check; `unwindPlan` long/short tick rounding, stale ⇒ wait, dust, partial fill; `UnwindTracker` paging), `test/alerts.test.ts` (`keeper_unwind` page). **Testnet 10143, 7 Oct:** demo keeper's old 10,000 MON long unwound `0x67399d47…9a8d` (60 lots, 68,784,250) + `0x684ebf9d…3f50` (40 lots, 68,784,265); crash ⇒ liquidation `0x125631b2…45ef` (68,784,435) ⇒ automatic unwind of 49 lots `0x78cc42aa…eaef6` (68,784,442), keeper flat |
+| **H-3** Kryon-ported chart commit `de40466` on the frontend branches (CLAUDE.md rule 2) | High (process) | **Open (C).** Still on `ws-07u/ws-07v/ws-07w` and the frontend stack; not on `main` and not in this branch. | — | C: rewrite or drop it, then rebase the frontend onto `main` |
+| **M-1** one-block mark manipulation can liquidate a healthy account | Medium | **Closed.** The book-derived premium moves ≤ 10 bps per block (20-block cap), index moves pass through (PHASES 37, MATH_SPEC §2.1). | P2, `main` (#9) | `test/security/MarkManipulation.t.sol::test_M1_oneBlockManipulationDoesNotLiquidate` (before: mark +5% in one block, victim liquidatable; after: +10 bps, not liquidatable), `test_M1_heldManipulation_needsAbout40Blocks`, `test/unit/MarkBound.t.sol` (16), `test/fuzz/Mark.fuzz.t.sol`, `invariant_markBand`; VerifyDeployment check on the fork and on 10143 |
+| **M-2** a paused / stale engine evicts makers' orders | Medium | **Closed.** CR-007: maker fill `Filled / Evict / Skip`; Skip keeps the order and stops matching (PHASES 38, interfaces-v1.6). | P3 `ws-01c-cr007-skip` | `test/unit/MakerFillSkip.t.sol` (8), `OrderBook.t.sol` (5), `FundingSwapMarket.t.sol` (3); invariants with real skips; testnet `MakerFillSkipped` `0x1b8cf023…092d` (P4), `0x9089cab9…4d47` (P6) |
+| **M-3** bad debt socialized before protocol fees | Medium | **Closed.** Waterfall IF → fees → uncovered; `collectFees` never pays out of user collateral (PHASES 36, MATH_SPEC §3.3). | P1, `main` (#7) | `Liquidation.t.sol` waterfall tests, `test/fuzz/BadDebt.fuzz.t.sol`, `invariant_I1_badDebtWaterfall` (128 uncovered-after-fees hits), `invariant_I9_badDebtWaterfall` (112 hits) |
+
+## Review highs (and B-02), status after Phase 1 (5 Oct); A-01 is superseded by the vault v2 section below (Closed)
 
 | ID | Sev | Status | Fix (commit) | Tests proving it |
 |---|---|---|---|---|
@@ -32,9 +42,14 @@ Branch `ws-00i-phase1-merge` (nothing pushed). Reviews: [review-A.md](review-A.m
 | A-11 max* may revert | Info | **Closed.** `maxWithdraw` / `maxRedeem` are capped at idleFree and the sync path never unwinds, so they never revert inside the max. | `f0922a4` | `test_sync_hedged_maxCappedAtIdleFree`, `test_A01_syncRedeemBeyondIdle_isCappedNotReverting`, fuzz `testFuzz_syncMaxNeverRevertsNorSpendsClaimable`, invariant `invariant_syncPathIdleOnly` |
 | A-13 route amount vs onchain amount | Info | Mitigated for fulfils: `previewFulfill(ids)` gives the exact base the batch sells (the fork test asserts it equals the actual call); the keeper quotes it minus a haircut and re-quotes on failure. | `fe58160`, `3850348` | `test_fork_vaultV2_probeAmounts`, `test_fulfil_beyondIdle_unwindsAndChargesBatch` |
 
-## Still open
+## Still open (honest list, 7 Oct)
 
 | ID | Sev | Note |
 |---|---|---|
+| H-3 | High (process) | Kryon commit on the frontend branches (C), above |
+| A-09 | Low | Mitigated only: cooldown between forced keeper calls; no per-hour slippage budget |
 | A-08, A-12 | Low / Info | As in review-A.md (A-08 skew-rule griefing is keeper-side; A-12 oracle stale / empty book ⇒ only idle is withdrawable, now also the queue waits) |
-| B-03 … B-15 | Low / Info | As in review-B.md (not re-triaged in Phase 1) |
+| B-03 … B-15 | Low / Info | As in review-B.md (not re-triaged since Phase 1) |
+| Swap `BadDebtSocialized` parity | Info | Deferred post-hackathon (interface change ⇒ swap redeploy), HARDENING_LOOP Found #2 |
+| Liquidation latency on testnet | Ops | 4–5 blocks after eligibility on a free-tier RPC (target ≤ 3): needs a paid RPC for the keeper (Found #18) |
+| No ADL | Design | Uncovered bad debt after IF + fees stays as negative collateral and `totalBadDebt` (MATH_SPEC §3.3); ADL is roadmap |
