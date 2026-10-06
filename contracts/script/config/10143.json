@@ -2,11 +2,11 @@
   "chainId": 10143,
   "_sources": "Chain id + CRE forwarders: ARCHITECTURE R1, R14. WMON, Pyth, 'no Chainlink', 'no AUSD': PHASES decision 10 (verified 29 Sep). Everything else null = VERIFY before use.",
   "owner": null,
-  "_owner": "Testnet owner = the deployer (ownerIsDeployer); DeployPulse writes the resolved address into deployments/10143.json. Mainnet (143) will be the 2-of-3 Safe in Phase 5; the script refuses a deployer owner on 143.",
+  "_owner": "Testnet owner = the deployer (ownerIsDeployer); DeployMeridian writes the resolved address into deployments/10143.json. Mainnet (143) will be the 2-of-3 Safe in Phase 5; the script refuses a deployer owner on 143.",
   "ownerIsDeployer": true,
   "tokens": {
     "AUSD": null,
-    "_AUSD": "No AUSD on testnet (decision 10): DeployPulse deploys MockERC20 'tAUSD' (6 dp)",
+    "_AUSD": "No AUSD on testnet (decision 10): DeployMeridian deploys MockERC20 'tAUSD' (6 dp)",
     "AUSD_decimals": 6,
     "WMON": "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541",
     "_WMON": "PHASES decision 10 (verified 29 Sep)",

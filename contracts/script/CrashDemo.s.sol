@@ -9,9 +9,9 @@ import {IClearingHouse} from "../src/interfaces/IClearingHouse.sol";
 import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 import {IOrderBook} from "../src/interfaces/IOrderBook.sol";
 import {IInsuranceFund} from "../src/interfaces/IInsuranceFund.sol";
-import {IPulseVault} from "../src/interfaces/IPulseVault.sol";
+import {IMeridianVault} from "../src/interfaces/IMeridianVault.sol";
 import {IFundingSwapMarket} from "../src/interfaces/IFundingSwapMarket.sol";
-import {AccountView, HedgeState} from "../src/interfaces/PulseTypes.sol";
+import {AccountView, HedgeState} from "../src/interfaces/MeridianTypes.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @notice DEMO_SCRIPT 2:25–2:50 crash segment, as a FORK SIMULATION (never broadcast): a fresh trader opens a ≈ 4.9x
@@ -35,7 +35,7 @@ contract CrashDemo is Script, StdCheats {
     IOrderBook ob;
     IOracleAdapter oracle;
     IInsuranceFund fund;
-    IPulseVault vault;
+    IMeridianVault vault;
     IFundingSwapMarket swap;
     IERC20 ausd;
     address owner;
@@ -50,7 +50,7 @@ contract CrashDemo is Script, StdCheats {
         ob = IOrderBook(dep.readAddress(".contracts.OrderBook"));
         oracle = IOracleAdapter(dep.readAddress(".contracts.OracleAdapter"));
         fund = IInsuranceFund(dep.readAddress(".contracts.InsuranceFund"));
-        vault = IPulseVault(dep.readAddress(".contracts.PulseVault"));
+        vault = IMeridianVault(dep.readAddress(".contracts.MeridianVault"));
         swap = IFundingSwapMarket(dep.readAddress(".contracts.FundingSwapMarket"));
         ausd = IERC20(dep.readAddress(".contracts.AUSD"));
         owner = dep.readAddress(".owner");

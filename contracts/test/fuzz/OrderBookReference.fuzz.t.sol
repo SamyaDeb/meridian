@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import {Test, Vm} from "forge-std/Test.sol";
 import {OrderBook} from "../../src/orderbook/OrderBook.sol";
 import {IOrderBook} from "../../src/interfaces/IOrderBook.sol";
-import {PulseConstants} from "../../src/interfaces/PulseTypes.sol";
+import {MeridianConstants} from "../../src/interfaces/MeridianTypes.sol";
 import {RecordingEngine} from "../unit/OrderBookEngine.t.sol";
 
 /// @notice WS-01 required test (A1 §2): random place / cancel / market sequences against a naive Solidity
@@ -178,7 +178,7 @@ contract OrderBookReferenceFuzzTest is Test {
     {
         delete exp;
         uint64 remaining = lots;
-        for (uint256 visits; remaining != 0 && visits < PulseConstants.MAX_FILLS_PER_ORDER; ++visits) {
+        for (uint256 visits; remaining != 0 && visits < MeridianConstants.MAX_FILLS_PER_ORDER; ++visits) {
             uint256 j = _best(!isBid);
             if (j == type(uint256).max) break;
             MOrder storage o = mo[j];

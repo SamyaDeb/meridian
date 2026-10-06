@@ -9,7 +9,7 @@ import {FundingSwapMarket} from "../../src/swaps/FundingSwapMarket.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
 import {IOrderBook} from "../../src/interfaces/IOrderBook.sol";
-import {RiskParams, FundingParams, SwapParams} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, SwapParams} from "../../src/interfaces/MeridianTypes.sol";
 import {IntegrationBase} from "./Integration.t.sol";
 
 /// @notice CR-007 (audit M-2) on the REAL OrderBook + ClearingHouse: while the oracle is stale or the market is

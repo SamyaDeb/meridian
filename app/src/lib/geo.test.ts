@@ -45,8 +45,8 @@ describe("geoDecision", () => {
 
 describe("isGeoRestricted", () => {
   it("reads the proxy's cookie exactly", () => {
-    expect(isGeoRestricted("a=1; pulse_geo=restricted; b=2")).toBe(true);
-    expect(isGeoRestricted("pulse_geo=restrictedX")).toBe(false);
+    expect(isGeoRestricted("a=1; meridian_geo=restricted; b=2")).toBe(true);
+    expect(isGeoRestricted("meridian_geo=restrictedX")).toBe(false);
     expect(isGeoRestricted("")).toBe(false);
     expect(isGeoRestricted(undefined)).toBe(false);
   });

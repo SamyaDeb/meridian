@@ -1,5 +1,5 @@
 {
-  "name": "@pulse/abis",
+  "name": "@meridian/abis",
   "version": "0.1.0",
   "private": true,
   "description": "Contract ABIs generated from contracts/out by tools/export_abis.sh. Do not edit by hand.",

@@ -9,7 +9,7 @@ import {FundingSwapMarket} from "../../src/swaps/FundingSwapMarket.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
 import {SwapMathLib} from "../../src/libs/SwapMathLib.sol";
-import {RiskParams, FundingParams, SwapParams, SwapAccountView} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, SwapParams, SwapAccountView} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @notice FundingSwapMarket on the REAL perp ClearingHouse + a SECOND real OrderBook (tick 1e14 = 1 bp APR,
 ///         lot 1,000 MON), MATH_SPEC defaults, thousands of blocks of real per-block funding.

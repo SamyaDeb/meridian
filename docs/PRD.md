@@ -1,11 +1,11 @@
-# PRD: Pulse (placeholder name)
+# PRD: Meridian (placeholder name)
 
 > "Hourly funding exists because chains were slow. On Monad, funding is continuous, so we built the funding-rate layer on top of it: **trade it, earn it, fix it.**"
 
 Hackathon: Monad Metropolis, **Track 01 Onchain Finance & Trading** (+ Grand Champion). Deadline 13 Oct 2026. Team: 3 founders (docs/TEAM_PLAN.md).
 
 ## 1. Problem
-| Problem | Today | Pulse |
+| Problem | Today | Meridian |
 |---|---|---|
 | Funding is lumpy | Perps settle funding in lumps (Perpl every ~43 min; CEXs 1–8 h): equity jumps, timing games, bigger buffers | Funding accrues **every block (300 ms)** through an O(1) index |
 | No onchain funding rate | Rate products (e.g. Pendle Boros on Arbitrum) import CEX funding through oracles | A **Monad-native funding-rate oracle** anyone can settle against |
@@ -60,7 +60,7 @@ Hackathon: Monad Metropolis, **Track 01 Onchain Finance & Trading** (+ Grand Cha
 | Invariants I1–I11 | green at 256×128 |
 
 ## 7. Competitive positioning
-| | Perpl | Monday Trade | Pendle Boros | **Pulse** |
+| | Perpl | Monday Trade | Pendle Boros | **Meridian** |
 |---|---|---|---|---|
 | Chain | Monad | Monad | Arbitrum | Monad |
 | Book | onchain CLOB | CLOB + AMM | order book | onchain CLOB |

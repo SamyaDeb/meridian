@@ -1,7 +1,7 @@
 # Mainnet config audit: `contracts/script/config/143.json`
 
 Phase 3 P1, 5 Oct 2026, branch `ws-00j-mainnet-config-audit` (from `main` @ `a619894`). Auditor: Phase 3 loop session.
-Every field is checked against `docs/ARCHITECTURE.md §0` (R#), `docs/MATH_SPEC.md`, `docs/TEAM_PLAN.md §7` and the PHASES decisions (11–19). The invariants are enforced by `contracts/test/script/Config143.t.sol` (11 tests, no RPC needed). That test reads the file with the same parsers `DeployPulse` uses (`DeployBase._riskParams`, `_fundingParams`, `_swapParams`, `_vaultParams`, `_optAddress`), so the test sees the values the deploy will see.
+Every field is checked against `docs/ARCHITECTURE.md §0` (R#), `docs/MATH_SPEC.md`, `docs/TEAM_PLAN.md §7` and the PHASES decisions (11–19). The invariants are enforced by `contracts/test/script/Config143.t.sol` (11 tests, no RPC needed). That test reads the file with the same parsers `DeployMeridian` uses (`DeployBase._riskParams`, `_fundingParams`, `_swapParams`, `_vaultParams`, `_optAddress`), so the test sees the values the deploy will see.
 
 Status: ✅ sourced and matching · ⚠ VERIFY or a stale note · ❌ missing (launch blocker).
 
@@ -17,7 +17,7 @@ Status: ✅ sourced and matching · ⚠ VERIFY or a stale note · ❌ missing (l
 |---|---|---|---|---|
 | `chainId` | 143 | R1; `cast chain-id --rpc-url $MONAD_RPC_URL` = 143 (5 Oct) | ✅ | — |
 | `owner` | `null` (`_owner`: "VERIFY: Safe 2-of-3 address once created") | HUMAN_CHECKLIST #3 ⏳ | ❌ | **BLOCKED (HUMAN_CHECKLIST #3).** B creates the Safe. Then A checks onchain that `getThreshold()` = 2 and `getOwners()` = the 3 founders, and writes the address. The P2 rehearsal uses a labelled **FORK STAND-IN — not the real Safe**. The test allows null only while `_owner` says VERIFY and `ownerIsDeployer` is absent |
-| `ownerIsDeployer` | absent | `DeployPulse` refuses it on 143 | ✅ | test asserts it stays absent |
+| `ownerIsDeployer` | absent | `DeployMeridian` refuses it on 143 | ✅ | test asserts it stays absent |
 
 ### Tokens
 | Field | Value | Source | Status | Action |
@@ -68,7 +68,7 @@ Status: ✅ sourced and matching · ⚠ VERIFY or a stale note · ❌ missing (l
 ### Oracle parameters `params.oracle`
 | Field | Value | Source | Status | Action |
 |---|---|---|---|---|
-| `kind` | `"pyth"` | R11/R12; `DeployPulse` reads it; `keeper-fed` is refused on 143 by `TestnetKeeperOracle`'s constructor | ✅ | — |
+| `kind` | `"pyth"` | R11/R12; `DeployMeridian` reads it; `keeper-fed` is refused on 143 by `TestnetKeeperOracle`'s constructor | ✅ | — |
 | `maxStalenessSec` | 60 | R24 (no Pyth API key ⇒ sponsored pushes); B's 72 h sample: sponsored age p99 50 s, max 66 s (`ws-03j-oracle-params`, `7a8d7ed`) | ⚠ | Correct **for the no-key launch**. If the Pyth key arrives (HUMAN_CHECKLIST #6) and the keeper pushes Hermes updates, B decides whether to drop to 10 s. That change goes through the Safe (`adapter.setOracleParams`) or the config **and** `Config143.t.sol` together, so the test fails until both agree |
 | `maxDeviationWad` | 0.03 (3%) | B, 72 h / 8,581 blocks: p99 0.50%, p99.9 1.02%, max 1.42%; constructor bound (0, 10%] (review A-16 closed) | ✅ | — |
 | `chainlinkGuardStalenessSec` | 3600 | R11 ("staleness for guard: 1 h") | ✅ | constructor bound ≤ 1 h holds |
@@ -77,7 +77,7 @@ Status: ✅ sourced and matching · ⚠ VERIFY or a stale note · ❌ missing (l
 | Field | Value | Source | Status |
 |---|---|---|---|
 | `depositCap` | 1,200,000,000 (1,200 AUSD, 6 dp) | PHASES decision 12 (option C); A-04 fixed, so the 1,000 AUSD fallback isn't needed | ✅ |
-| `skewCapacity` | 0 | PHASES decision 17 (A-01 idle launch); `PulseVaultIdleLaunch.t.sol` | ✅ |
+| `skewCapacity` | 0 | PHASES decision 17 (A-01 idle launch); `MeridianVaultIdleLaunch.t.sol` | ✅ |
 | `leverage` | 1.5 | MATH_SPEC §5.1/§5.3 | ✅ |
 | `driftBand` | 0.02 | MATH_SPEC §5.3 | ✅ |
 | `targetMarginRatio` / `minMarginRatio` | 0.60 / 0.25 | MATH_SPEC §5.3 | ✅ |
@@ -87,13 +87,13 @@ Status: ✅ sourced and matching · ⚠ VERIFY or a stale note · ❌ missing (l
 | `idleBuffer` | 0.05 | MATH_SPEC §5.3 | ✅ |
 | `maxSliceAssets` | 2,500,000,000 (2,500 AUSD) | MATH_SPEC §5.3 | ✅ |
 
-The keeper and skew-provider addresses are **not in the config**. `DeployPulse` takes them from `KEEPER_ADDRESS` / `MM_ADDRESS`, refuses either missing on 143 or equal to the deployer, and registers the MM as a skew provider (decision 11). P2 checks this on the fork.
+The keeper and skew-provider addresses are **not in the config**. `DeployMeridian` takes them from `KEEPER_ADDRESS` / `MM_ADDRESS`, refuses either missing on 143 or equal to the deployer, and registers the MM as a skew provider (decision 11). P2 checks this on the fork.
 
 ### Funding swaps `params.swap` (decision 18)
 | Field | Value | Source | Status |
 |---|---|---|---|
 | `maturity` | null | MATH_SPEC §6.1: set at deploy | ✅ |
-| `maturityInSec` | 2,592,000 (30 d) | MATH_SPEC §6.1; `DeployPulse` computes listing block time + 30 d | ✅ |
+| `maturityInSec` | 2,592,000 (30 d) | MATH_SPEC §6.1; `DeployMeridian` computes listing block time + 30 d | ✅ |
 | `tickSizeWad` / `lotSizeWad` | 1e14 (1 bp APR) / 1,000 MON | MATH_SPEC §6.1, ARCHITECTURE §7 step 11 | ✅ |
 | `params.aprMoveBuffer` | 0.05 | MATH_SPEC §6.4 | ✅ |
 | `params.liqHorizonSec` | 86,400 | MATH_SPEC §6.4 (24 h) | ✅ |
@@ -109,7 +109,7 @@ The keeper and skew-provider addresses are **not in the config**. `DeployPulse` 
 | Item | Status | Action |
 |---|---|---|
 | `foundry.toml` `evm_version = "cancun"` comment "VERIFY before mainnet deploy" | ⚠ stale | R8 records "Cancun opcodes supported (we compile cancun)" ✅, so the VERIFY is satisfied by R8. The comment and the README row (`⏳`) can be updated by the owner. No change here: `foundry.toml` is outside this loop's paths |
-| `test/fork/DeployPulseMainnet.t.sol` patches `"maxDeviationWad": null` | ⚠ stale, harmless | The value is now the decided 3%, so `vm.replace` matches nothing and the fork test deploys with 3%. No action needed. If touched in P2, drop the line |
+| `test/fork/DeployMeridianMainnet.t.sol` patches `"maxDeviationWad": null` | ⚠ stale, harmless | The value is now the decided 3%, so `vm.replace` matches nothing and the fork test deploys with 3%. No action needed. If touched in P2, drop the line |
 | Keeper/MM hot keys (`KEEPER_ADDRESS`, `MM_ADDRESS` at deploy) | ❌ human | HUMAN_CHECKLIST #4. Three keys exist in `.env` but hold 0 MON on 143, and no one has confirmed they're the mainnet hot keys |
 | `chainlink.ausdUsd` depeg alert (ARCHITECTURE §5, "pause deposits if < 0.99") | — | monitoring, not config. P4/P5 check that the watcher has it |
 

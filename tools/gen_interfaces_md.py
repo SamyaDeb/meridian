@@ -8,9 +8,9 @@ DOC = ROOT / "docs" / "INTERFACES.md"
 SRC = ROOT / "contracts" / "src" / "interfaces"
 MARK = "<!-- BEGIN GENERATED: do not edit below; run tools/gen_interfaces_md.py -->"
 
-ORDER = ["PulseTypes.sol", "IOrderBook.sol", "IMarginEngine.sol", "IClearingHouse.sol", "IFundingRateOracle.sol",
-         "IFundingSwapMarket.sol", "IOracleAdapter.sol", "IInsuranceFund.sol", "IMarketFactory.sol", "IPulseVault.sol",
-         "IKuruHedger.sol", "IPulseKeeperReceiver.sol"]
+ORDER = ["MeridianTypes.sol", "IOrderBook.sol", "IMarginEngine.sol", "IClearingHouse.sol", "IFundingRateOracle.sol",
+         "IFundingSwapMarket.sol", "IOracleAdapter.sol", "IInsuranceFund.sol", "IMarketFactory.sol", "IMeridianVault.sol",
+         "IKuruHedger.sol", "IMeridianKeeperReceiver.sol"]
 # interfaces/deferred/** (PT/YT, CR-003) are intentionally excluded from the frozen doc.
 
 def body():

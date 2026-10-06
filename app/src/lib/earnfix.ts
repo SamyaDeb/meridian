@@ -1,11 +1,11 @@
 // Pure helpers for the Earn (vault) and Fix (funding swap) screens. bigint only; unit-tested in earnfix.test.ts.
-// Numbers mirror the contracts: PulseVault.previewRedeem (5 bps fee ↑, retained), _ensureIdle (idle first, else a
+// Numbers mirror the contracts: MeridianVault.previewRedeem (5 bps fee ↑, retained), _ensureIdle (idle first, else a
 // pro-rata unwind), FundingSwapMarket prices (p = 1 + APR, tick 1e14 = 1 bp APR), MATH_SPEC §6.
 import type { Address, RebalanceReason, SwapPosition, VaultSnapshot } from "@/data/types";
 import { isLockedSpread } from "./math";
 
 export const WAD = 10n ** 18n;
-/** PulseVault.WITHDRAW_FEE (MATH_SPEC §5.3): 5 bps, stays in the vault for the remaining holders. */
+/** MeridianVault.WITHDRAW_FEE (MATH_SPEC §5.3): 5 bps, stays in the vault for the remaining holders. */
 export const VAULT_WITHDRAW_FEE_WAD = 500_000_000_000_000n;
 
 export const REBALANCE_REASONS: readonly RebalanceReason[] = ["None", "Deploy", "DeltaDrift", "MarginLow", "ExitHedge", "EnterHedge", "Withdraw", "SkewCap"];

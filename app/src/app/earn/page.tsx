@@ -21,7 +21,7 @@ export default function EarnPage() {
   const tx = useTx();
   const [amt, setAmt] = useState("100");
   const [pct, setPct] = useState(100);
-  const vault = contractAddress(chainId, "PulseVault");
+  const vault = contractAddress(chainId, "MeridianVault");
   const ausd = contractAddress(chainId, "AUSD");
 
   const myValueWad = v && u ? (u.shares * v.sharePriceWad) / WAD : undefined;

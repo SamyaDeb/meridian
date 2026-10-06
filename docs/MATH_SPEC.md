@@ -1,4 +1,4 @@
-# MATH_SPEC — Pulse (normative)
+# MATH_SPEC — Meridian (normative)
 
 All defaults are **tunable** and set at deploy through `setRiskParams` / `setFundingParams` / `setVaultParams`. "↑" = round up (toward +∞), "↓" = round down (toward −∞), "0" = truncate toward zero (neutral, used only where both sides read the same value).
 
@@ -120,7 +120,7 @@ M      = M_live if p = p_live (exact, no rounding drift) else I + I·p / 1e18
 - **Stale oracle:** unchanged (M stays the last good mark; stale touches don't write it). **Stale → fresh:** `p_prev` is the last good mark's basis, while k counts blocks since the last *touch* (stale touches included), not since the last good mark, so after an outage the basis catches up at ≤ 10 bps per touched block. Conservative by design.
 - **No previous good mark** (constructor with a stale oracle, `I_prev = 0`): the first fresh touch takes `M_live` unbounded; the constructor otherwise starts at M = I ⇒ p_prev = 0.
 - **Same-block trades:** every fill calls the margin engine (and so touches funding) before the OrderBook records the trade, so the first touch of block b never includes a print from block b (proved on the event order in `MarkManipulation.t.sol`).
-- Constants live in `MarkPriceLib` beside `MARK_BAND` (no `PulseConstants`/interface change): `MARK_MAX_PREMIUM_STEP = 0.001e18`, `MARK_MAX_ELAPSED_BLOCKS = 20`.
+- Constants live in `MarkPriceLib` beside `MARK_BAND` (no `MeridianConstants`/interface change): `MARK_MAX_PREMIUM_STEP = 0.001e18`, `MARK_MAX_ELAPSED_BLOCKS = 20`.
 
 ### 2.2 Fair book price (premium source)
 `S = bookMid` if both sides present and `spread/mid ≤ 2%`; else `S = I` (premium 0 sample). Impact-mid (depth-weighted) = stretch.
@@ -263,7 +263,7 @@ slice ⇔ each rebalance moves ≤ maxSliceAssets (2,500 AUSD) through the spot 
 ```
 NAV = idle + spotBase·I + perpCollateral + perpSize·I − perpON − owedFunding     // all at ORACLE INDEX I
 ```
-Both legs at the same index ⇒ NAV is price-neutral when hedged and cannot be moved by trading on Kuru or Pulse. shares minted ↓, assets out ↓, shares burned ↑; OZ ERC-4626 decimals offset 12.
+Both legs at the same index ⇒ NAV is price-neutral when hedged and cannot be moved by trading on Kuru or Meridian. shares minted ↓, assets out ↓, shares burned ↑; OZ ERC-4626 decimals offset 12.
 
 ### 5.5 Worked example
 D = 10,000, L = 1.5, P = 0.029: N = 6,000 AUSD → ≈ 206,897 MON spot; M = 4,000; short 206,897 MON (if shortCapacity allows, e.g. other traders net long ≥ 258,621 MON). At 10.95% floor funding: 6,000 × 10.95% ≈ 657 AUSD/yr ≈ 6.6% on D. Round trip (open + close) ≈ 2 × 0.15% × 6,000 = 18 AUSD ≈ 10 days of yield (657/365 = 1.8 AUSD/day) ⇒ the 7-day entry test fails at the bare 10.95% floor; it needs ≈ 15.6%, i.e. premium adding ≈ 4.7 APR points. That is intentional: the vault only works when the market pays.

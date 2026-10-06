@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 /// DEFERRED (CR-003, 29 Sep 2026): PT/YT is out of hackathon scope, replaced by IFundingSwapMarket. Kept for post-hackathon.
-/// @title IYieldTokenizer — splits PulseVault shares into PT + YT for one maturity (FROZEN)
+/// @title IYieldTokenizer — splits MeridianVault shares into PT + YT for one maturity (FROZEN)
 /// @notice Index I = vault.convertToAssets(1e18 shares) scaled to WAD (asset per share).
 ///         Minting s shares at index I yields s*I PT and s*I YT (asset units, 18 dp): "1 share = 1 PT + 1 YT"
 ///         in value terms at I = 1. YT accrues yield only above the high-water mark (loss waterfall).

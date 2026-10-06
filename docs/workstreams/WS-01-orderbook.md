@@ -8,7 +8,7 @@
 `contracts/src/orderbook/**`, `contracts/test/unit/OrderBook*.t.sol`, `contracts/test/fuzz/OrderBook*.t.sol`, `contracts/test/bench/OrderBookGas.t.sol`, `contracts/test/invariant/handlers/OrderBookHandler.sol`.
 
 ## Interfaces
-Provides: `IOrderBook`. Consumes: `IMarginEngine` hooks (`reserveOrderMargin`, `releaseOrderMargin`, `settleMakerFill`, `settleTakerFill`); `PulseConstants`. Never import IClearingHouse. Build against `MockClearingHouse` until WS-02 merges. Protocol: INTERFACES §2.
+Provides: `IOrderBook`. Consumes: `IMarginEngine` hooks (`reserveOrderMargin`, `releaseOrderMargin`, `settleMakerFill`, `settleTakerFill`); `MeridianConstants`. Never import IClearingHouse. Build against `MockClearingHouse` until WS-02 merges. Protocol: INTERFACES §2.
 
 ## Task checklist (ordered)
 1. [ ] Storage design doc-comment at the top of `OrderBook.sol` (MIP-8 verified, ARCHITECTURE R5: first write to a page costs 2,800, later writes to that page 0, each new nonzero slot 17,000, no refunds ⇒ **recycle order slots via a free-list, never zero them**): header slot(s), `levels` layout (array indexed by tick for MIP-8 page locality, ARCHITECTURE §3), 1-slot `Order {maker160|lots64|next32}`, FIFO via head/tail per level, 2-level bitmap (`uint256` summary word + `mapping(uint256=>uint256)` words).
@@ -41,11 +41,11 @@ D1 design + bitmap · D2 place/cancel · D3 matching + hooks · D4 gas pass · D
 
 ## Kickoff prompt
 ```
-You are the engineer for WS-01 (Order book and matching engine) of Pulse.
+You are the engineer for WS-01 (Order book and matching engine) of Meridian.
 Read CLAUDE.md, docs/TEAM_PLAN.md, docs/PRD.md, docs/ARCHITECTURE.md (§0 R5, §2.1, §2.2, §3, §4), docs/MATH_SPEC.md, docs/INTERFACES.md and docs/workstreams/WS-01-orderbook.md.
 Work only in your owned paths on branch ws-01-orderbook (branch from main after tag interfaces-v1.1).
 Implement contracts/src/orderbook/OrderBook.sol implementing IOrderBook exactly and settling only through IMarginEngine; build and test against MockClearingHouse.
 Tests first: write the TickBitmap fuzz test and the price-time priority unit tests before the implementation.
-No unbounded loops; respect PulseConstants bounds. Report gas numbers for place, cancel, replace and k-fill matches at the end.
+No unbounded loops; respect MeridianConstants bounds. Report gas numbers for place, cancel, replace and k-fill matches at the end.
 If you need an interface change, add a CR to docs/CHANGE_REQUESTS.md and continue against the current interface.
 ```

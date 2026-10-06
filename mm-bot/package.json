@@ -1,8 +1,8 @@
 {
-  "name": "@pulse/mm-bot",
+  "name": "@meridian/mm-bot",
   "version": "0.1.0",
   "private": true,
-  "description": "Pulse market maker: Avellaneda–Stoikov in bps (MATH_SPEC §4), 3 levels per side via replaceOrder (WS-03)",
+  "description": "Meridian market maker: Avellaneda–Stoikov in bps (MATH_SPEC §4), 3 levels per side via replaceOrder (WS-03)",
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",
@@ -11,8 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@pulse/abis": "workspace:*",
-    "@pulse/bot-rpc": "workspace:*",
+    "@meridian/abis": "workspace:*",
+    "@meridian/bot-rpc": "workspace:*",
     "viem": "^2.57.0"
   },
   "devDependencies": {

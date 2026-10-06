@@ -21,7 +21,7 @@ export const oracleAdapterAbi = parseAbi([
   "event PriceUpdated(uint256 priceWad, uint256 publishTime, uint8 source)",
 ]);
 
-export const pulseVaultAbi = parseAbi([
+export const meridianVaultAbi = parseAbi([
   "struct HedgeState { uint256 spotBase; int256 perpSize; int256 perpEquity; uint256 idleAssets; uint256 nav; int256 netDelta; uint256 marginRatio; bool hedged; uint64 lastRebalanceBlock; }",
   "function hedgeState() view returns (HedgeState)",
   "function needsRebalance() view returns (uint8 reason)",

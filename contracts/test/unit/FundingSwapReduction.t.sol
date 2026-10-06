@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {ReviewBFixture} from "../security/ReviewB.t.sol";
 import {IMarginEngine} from "../../src/interfaces/IMarginEngine.sol";
-import {SwapAccountView} from "../../src/interfaces/PulseTypes.sol";
+import {SwapAccountView} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @notice B-02 (MATH_SPEC §6.4): a voluntary reduction never creates bad debt and never creates or worsens a
 ///         maintenance shortfall (slack = equity − MM, the `isLiquidatable` measure). Fixture: alice long 100,000 MON

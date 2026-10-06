@@ -6,13 +6,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IClearingHouse} from "../interfaces/IClearingHouse.sol";
 import {IOracleAdapter} from "../interfaces/IOracleAdapter.sol";
 import {
-    PulseConstants,
+    MeridianConstants,
     RiskParams,
     FundingParams,
     FundingState,
     Position,
     AccountView
-} from "../interfaces/PulseTypes.sol";
+} from "../interfaces/MeridianTypes.sol";
 
 /// @notice Simplified ClearingHouse for building the vault / frontend / keepers before WS-02 merges.
 ///         NOT the spec: no fees, no EMA funding (cumFunding is set by hand), simplified liquidation,
@@ -20,7 +20,7 @@ import {
 contract MockClearingHouse is IClearingHouse {
     using SafeERC20 for IERC20;
 
-    int256 internal constant W = PulseConstants.IWAD;
+    int256 internal constant W = MeridianConstants.IWAD;
 
     address public immutable collateralToken;
     address public immutable oracle;
@@ -90,14 +90,14 @@ contract MockClearingHouse is IClearingHouse {
     function _deposit(address account, uint256 amountToken) internal {
         if (amountToken == 0) revert ZeroAmount();
         IERC20(collateralToken).safeTransferFrom(msg.sender, address(this), amountToken);
-        uint256 wad = amountToken * PulseConstants.AUSD_TO_WAD;
+        uint256 wad = amountToken * MeridianConstants.AUSD_TO_WAD;
         collateralOf[account] += wad;
         emit Deposited(account, amountToken, wad);
     }
 
     function withdraw(uint256 amountToken) external {
         settleFunding(msg.sender);
-        uint256 wad = amountToken * PulseConstants.AUSD_TO_WAD;
+        uint256 wad = amountToken * MeridianConstants.AUSD_TO_WAD;
         if (wad > collateralOf[msg.sender]) revert InsufficientMargin();
         collateralOf[msg.sender] -= wad;
         AccountView memory a = getAccount(msg.sender);
@@ -138,14 +138,14 @@ contract MockClearingHouse is IClearingHouse {
     }
 
     function reserveOrderMargin(address trader, bool, uint256 sizeWad, uint256 priceWad) external onlyOB {
-        reservedOf[trader] += sizeWad * priceWad / PulseConstants.WAD * _risk.imr / PulseConstants.WAD;
+        reservedOf[trader] += sizeWad * priceWad / MeridianConstants.WAD * _risk.imr / MeridianConstants.WAD;
         AccountView memory a = getAccount(trader);
         if (a.equity < int256(a.initialMargin)) revert InsufficientMargin();
         emit OrderMarginChanged(trader, reservedOf[trader]);
     }
 
     function releaseOrderMargin(address trader, bool, uint256 sizeWad, uint256 priceWad) external onlyOB {
-        uint256 r = sizeWad * priceWad / PulseConstants.WAD * _risk.imr / PulseConstants.WAD;
+        uint256 r = sizeWad * priceWad / MeridianConstants.WAD * _risk.imr / MeridianConstants.WAD;
         reservedOf[trader] = r > reservedOf[trader] ? 0 : reservedOf[trader] - r;
         emit OrderMarginChanged(trader, reservedOf[trader]);
     }
@@ -165,7 +165,7 @@ contract MockClearingHouse is IClearingHouse {
     {
         int256 before = _pos[taker].size;
         int256 d = takerIsBid ? int256(sizeWad) : -int256(sizeWad);
-        _applyTrade(taker, d, notionalWad * PulseConstants.WAD / sizeWad, false);
+        _applyTrade(taker, d, notionalWad * MeridianConstants.WAD / sizeWad, false);
         int256 after_ = _pos[taker].size;
         if (reduceOnly) {
             if (_abs(after_) > _abs(before) || (before != 0 && after_ != 0 && (before > 0) != (after_ > 0))) {
@@ -275,7 +275,7 @@ contract MockClearingHouse is IClearingHouse {
     }
 
     function averageFundingApr(uint64 blocksAgo) external view returns (int256) {
-        return averageFundingRate(blocksAgo) * int256(PulseConstants.SECONDS_PER_YEAR);
+        return averageFundingRate(blocksAgo) * int256(MeridianConstants.SECONDS_PER_YEAR);
     }
 
     function indexPrice() public view returns (uint256 p) {
@@ -299,10 +299,10 @@ contract MockClearingHouse is IClearingHouse {
         a.unrealizedPnl = p.size * int256(m) / W - p.openNotional;
         a.pendingFunding = p.size * (_fs.cumFunding - p.lastCumFunding) / W;
         a.equity = int256(a.collateral) + a.unrealizedPnl - a.pendingFunding;
-        uint256 notional = _abs(p.size) * m / PulseConstants.WAD;
+        uint256 notional = _abs(p.size) * m / MeridianConstants.WAD;
         a.reservedOrderMargin = reservedOf[account];
-        a.initialMargin = notional * _risk.imr / PulseConstants.WAD + a.reservedOrderMargin;
-        a.maintenanceMargin = notional * _risk.mmr / PulseConstants.WAD;
+        a.initialMargin = notional * _risk.imr / MeridianConstants.WAD + a.reservedOrderMargin;
+        a.maintenanceMargin = notional * _risk.mmr / MeridianConstants.WAD;
         a.liquidatable = p.size != 0 && a.equity < int256(a.maintenanceMargin);
     }
 

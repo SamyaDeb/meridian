@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {ClearingHouse} from "../../../src/clearing/ClearingHouse.sol";
 import {OrderBook} from "../../../src/orderbook/OrderBook.sol";
-import {PulseVault} from "../../../src/vault/PulseVault.sol";
+import {MeridianVault} from "../../../src/vault/MeridianVault.sol";
 import {MockERC20} from "../../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../../src/mocks/MockOracleAdapter.sol";
 import {MockKuruHedger} from "../../../src/mocks/MockKuruHedger.sol";
@@ -16,7 +16,7 @@ import {IFundingRateOracle} from "../../../src/interfaces/IFundingRateOracle.sol
 ///         Ghosts: per-actor net cash (withdrawn − deposited) for I10 checks at no price move; share-price floor
 ///         across deposit/withdraw-only steps for I8.
 contract VaultHandler is Test {
-    PulseVault public vault;
+    MeridianVault public vault;
     ClearingHouse public ch;
     OrderBook public ob;
     MockERC20 public ausd;
@@ -38,7 +38,7 @@ contract VaultHandler is Test {
     uint256 public maxFallWei;
 
     constructor(
-        PulseVault vault_,
+        MeridianVault vault_,
         ClearingHouse ch_,
         OrderBook ob_,
         MockOracleAdapter oracle_,

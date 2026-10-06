@@ -19,7 +19,7 @@ Provides: `IFundingSwapMarket` (is `IMarginEngine`). Consumes: `IFundingRateOrac
 5. [ ] Liquidation per §6.4: transfer x and K·x/q, equal-and-opposite cash transfer of V_x, then penalty; IF surplus/bad debt.
 6. [ ] Maturity: `settleMaturity()` snapshots F, G; afterwards no accrual; only reducing trades; withdraw allowed. Test with a 1-hour maturity.
 7. [ ] `FundingSwapHandler` for invariant I9.
-8. [ ] Deploy wiring notes for WS-00's DeployPulse (tick 1e14 = 1 bp APR, lot 1,000 MON).
+8. [ ] Deploy wiring notes for WS-00's DeployMeridian (tick 1e14 = 1 bp APR, lot 1,000 MON).
 
 ## Acceptance criteria
 - Accrual equals `q·Σ I·Δt·(r − Ā)` for fuzzed rate/index paths (± N wei, N = settles).
@@ -40,7 +40,7 @@ D6 accrual + margin (tests first) · D7 book integration, mark, liquidation · D
 
 ## Kickoff prompt
 ```
-You are the engineer for WS-05 (Funding swap market) of Pulse. Founder A owns this lane.
+You are the engineer for WS-05 (Funding swap market) of Meridian. Founder A owns this lane.
 Read CLAUDE.md, docs/TEAM_PLAN.md, docs/PRD.md, docs/MATH_SPEC.md (§1.2, §1.8 and §6 are normative), docs/ARCHITECTURE.md (§2.6, §2.7), docs/INTERFACES.md and docs/workstreams/WS-05-yield-tokenizer.md.
 Work only in your owned paths (contracts/src/swaps/**) on branch ws-05-swaps.
 Tests first: reproduce the MATH_SPEC §6.6 worked example and the accrual/rounding fuzz tests using MockClearingHouse.mockAccrue, then implement FundingSwapMarket exactly per IFundingSwapMarket.

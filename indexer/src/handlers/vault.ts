@@ -1,4 +1,4 @@
-// IPulseVault (ERC-4626 over AUSD) + IKuruHedger events.
+// IMeridianVault (ERC-4626 over AUSD) + IKuruHedger events.
 import { indexer } from "envio";
 import {
   FIELDS,
@@ -38,7 +38,7 @@ async function sharePriceHoursAgo(context: Ctx, vault: string, hour: bigint, hou
   return undefined;
 }
 
-indexer.onEvent({ contract: "PulseVault", event: "Deposit", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianVault", event: "Deposit", fields: FIELDS }, async ({ event, context }) => {
   const { owner, assets } = event.params;
   const block = blockOf(event);
   await touchAccount(context, owner, block, tsOf(event));
@@ -48,7 +48,7 @@ indexer.onEvent({ contract: "PulseVault", event: "Deposit", fields: FIELDS }, as
   context.Vault.set({ ...v, depositedToken: v.depositedToken + assets });
 });
 
-indexer.onEvent({ contract: "PulseVault", event: "Withdraw", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianVault", event: "Withdraw", fields: FIELDS }, async ({ event, context }) => {
   const { owner, assets } = event.params;
   const block = blockOf(event);
   const u = await getVaultUser(context, event.srcAddress, owner, block);
@@ -58,7 +58,7 @@ indexer.onEvent({ contract: "PulseVault", event: "Withdraw", fields: FIELDS }, a
 });
 
 // Share balances come from Transfer only (Deposit/Withdraw also emit mint/burn Transfers).
-indexer.onEvent({ contract: "PulseVault", event: "Transfer", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianVault", event: "Transfer", fields: FIELDS }, async ({ event, context }) => {
   const { from, to, value } = event.params;
   const block = blockOf(event);
   if (from !== ZERO_ADDRESS) {
@@ -71,7 +71,7 @@ indexer.onEvent({ contract: "PulseVault", event: "Transfer", fields: FIELDS }, a
   }
 });
 
-indexer.onEvent({ contract: "PulseVault", event: "NavSnapshot", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianVault", event: "NavSnapshot", fields: FIELDS }, async ({ event, context }) => {
   const p = event.params;
   const block = blockOf(event);
   const ts = tsOf(event);
@@ -102,7 +102,7 @@ indexer.onEvent({ contract: "PulseVault", event: "NavSnapshot", fields: FIELDS }
   await updateProtocol(context, () => ({ vaultNavToken: p.nav }), { block: blockOf(event) });
 });
 
-indexer.onEvent({ contract: "PulseVault", event: "Rebalanced", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianVault", event: "Rebalanced", fields: FIELDS }, async ({ event, context }) => {
   const p = event.params;
   const reason = REBALANCE_REASONS[Number(p.reason)] ?? "None";
   const block = blockOf(event);
@@ -122,25 +122,25 @@ indexer.onEvent({ contract: "PulseVault", event: "Rebalanced", fields: FIELDS },
   context.Vault.set({ ...v, lastRebalanceReason: reason, lastRebalanceBlock: block });
 });
 
-indexer.onEvent({ contract: "PulseVault", event: "HedgeEntered", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianVault", event: "HedgeEntered", fields: FIELDS }, async ({ event, context }) => {
   const v = await getVault(context, event.srcAddress);
   context.Vault.set({ ...v, hedged: true });
   await logAdmin(context, event, "HedgeEntered", event.params);
 });
 
-indexer.onEvent({ contract: "PulseVault", event: "HedgeExited", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianVault", event: "HedgeExited", fields: FIELDS }, async ({ event, context }) => {
   const v = await getVault(context, event.srcAddress);
   context.Vault.set({ ...v, hedged: false });
   await logAdmin(context, event, "HedgeExited", event.params);
 });
 
-indexer.onEvent({ contract: "PulseVault", event: "VaultParamsUpdated", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianVault", event: "VaultParamsUpdated", fields: FIELDS }, async ({ event, context }) => {
   const v = await getVault(context, event.srcAddress);
   context.Vault.set({ ...v, params: toJson(event.params.params) });
   await logAdmin(context, event, "VaultParamsUpdated", event.params.params);
 });
 
-indexer.onEvent({ contract: "PulseVault", event: "KeeperUpdated", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianVault", event: "KeeperUpdated", fields: FIELDS }, async ({ event, context }) => {
   const { keeper, allowed } = event.params;
   const v = await getVault(context, event.srcAddress);
   const rest = v.keepers.filter((k) => k !== keeper);

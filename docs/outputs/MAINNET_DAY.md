@@ -37,7 +37,7 @@ All times are local, Thu 8 Oct. Contract code freeze: **18:00**.
 | 09:00 | A | `forge test` (no regressions); **preflight** | 2.2 |
 | 09:30 | all | Go / no-go (§0) | 0 |
 | 10:00 | owner | "go" | — |
-| 10:00 | A | `cast base-fee`; **broadcast DeployPulse** | 2.3 |
+| 10:00 | A | `cast base-fee`; **broadcast DeployMeridian** | 2.3 |
 | 10:15 | A | `cast code` at every address; **VerifyDeployment** (44 checks); commit `deployments/143.json` + the broadcast record | 2.4, 2.5 |
 | 10:30 | A | Explorer verification: one contract first, then the batch | 3 |
 | 10:45 | A → C | **Hand-off** (§7): C runs `sync-mainnet` / `gen-config 143`, deploys app + indexer | 7 |
@@ -74,11 +74,11 @@ Expected: `PASS` lines for chain id 143, "RPC is not an anvil fork", config sha2
 cast base-fee --rpc-url $RPC_URL          # 4–5 Oct: 100 gwei; gas price 102 gwei. If it moved, adjust --with-gas-price
 DEPLOYER_PK=<from the secret store, this shell only> KEEPER_ADDRESS=<keeper> MM_ADDRESS=<perp MM> \
 DEPLOY_VAULT=1 DEPLOY_SWAPS=1 SWAP_MATURITY_IN_SEC=0 DEPLOY_CONFIG= REUSE_DEPLOYMENT= DEPLOY_CRE_RECEIVER=false \
-  forge script script/DeployPulse.s.sol --rpc-url $RPC_URL --broadcast --slow --code-size-limit 131072 \
+  forge script script/DeployMeridian.s.sol --rpc-url $RPC_URL --broadcast --slow --code-size-limit 131072 \
   --gas-estimate-multiplier 200 --with-gas-price 102gwei --priority-gas-price 2gwei
 ```
 - **`--gas-estimate-multiplier 200` (F-1):** at ×120, tx 6 `ClearingHouse.setOrderBook` ran out of gas on the fork. ×200 passed. Cost: 55.1 M gas limit ≈ **5.6 MON** at 102 gwei (Monad bills the limit); ×1 would be ≈ 2.8 MON.
-- **Expected output (fork):** "Estimated total gas used for script: 55062918" (a similar figure), 24 transactions (5 creates for the perp: IF, factory, oracle adapter, CH, OB; then `setOrderBook`, `setMarketAuthorized`, `registerMarket`, `KuruHedger`, `PulseVault`, `setVault`, `setKeeper`, `setSkewProvider`, `FundingSwapMarket`, swap `OrderBook`, swap `setOrderBook`, `setMarketAuthorized`, 7 × `transferOwnership`), **`ONCHAIN EXECUTION COMPLETE & SUCCESSFUL`**, logs `deployer / owner <deployer> <Safe>`, `ClearingHouse runtime bytes 26470`. Per-tx gas: `bench/out/deploy_gas_143fork.csv`.
+- **Expected output (fork):** "Estimated total gas used for script: 55062918" (a similar figure), 24 transactions (5 creates for the perp: IF, factory, oracle adapter, CH, OB; then `setOrderBook`, `setMarketAuthorized`, `registerMarket`, `KuruHedger`, `MeridianVault`, `setVault`, `setKeeper`, `setSkewProvider`, `FundingSwapMarket`, swap `OrderBook`, swap `setOrderBook`, `setMarketAuthorized`, 7 × `transferOwnership`), **`ONCHAIN EXECUTION COMPLETE & SUCCESSFUL`**, logs `deployer / owner <deployer> <Safe>`, `ClearingHouse runtime bytes 26470`. Per-tx gas: `bench/out/deploy_gas_143fork.csv`.
 - **If the script stops midway:** the hand-over is the last step, so the deployer still owns whatever got created. **Don't reuse a partial deployment.** Fix the cause, re-run the preflight (it only checks `deployments/143.json`, which forge already wrote during the simulation, so move that file aside first: `mv ../deployments/143.json ../deployments/143.partial.json`) and broadcast again. Fresh addresses come from the next nonce.
 
 ### 2.4 Check every address, then verify (10:15)
@@ -91,8 +91,8 @@ Expected (fork): **`checks passed / failed 44 0`**. Ownership × 7 = Safe; the O
 
 ### 2.5 Record (10:20)
 ```bash
-git add deployments/143.json contracts/broadcast/DeployPulse.s.sol/143/run-latest.json
-git commit -m "feat(ws-00): Meridian live on Monad 143 (DeployPulse, owner = Safe <addr>)"
+git add deployments/143.json contracts/broadcast/DeployMeridian.s.sol/143/run-latest.json
+git commit -m "feat(ws-00): Meridian live on Monad 143 (DeployMeridian, owner = Safe <addr>)"
 ```
 `deployments/143.json` is what C and the bots read. Never hand-edit it. Never commit `contracts/cache/` (forge's "sensitive values" file).
 
@@ -113,7 +113,7 @@ forge verify-contract <InsuranceFund addr> src/clearing/InsuranceFund.sol:Insura
 | ClearingHouse | `src/clearing/ClearingHouse.sol:ClearingHouse` |
 | OrderBook, SwapOrderBook | `src/orderbook/OrderBook.sol:OrderBook` |
 | KuruHedger | `src/vault/KuruHedger.sol:KuruHedger` |
-| PulseVault | `src/vault/PulseVault.sol:PulseVault` |
+| MeridianVault | `src/vault/MeridianVault.sol:MeridianVault` |
 | FundingSwapMarket | `src/swaps/FundingSwapMarket.sol:FundingSwapMarket` |
 Not rehearsed: Sourcify can't verify a local fork. If `--guess-constructor-args` fails, pass `--constructor-args $(cast abi-encode …)` built from `transactions[i].arguments` in the broadcast record. Verification is cosmetic; it never blocks seeding.
 
@@ -160,8 +160,8 @@ The swap market smoke is optional (1 lot = 1,000 MON notional ≈ $34). If run: 
 
 ## 7. Hand-off to lane C (10:45): what the app and the indexer need
 C's own scripts read the record. **Nothing is copied by hand.**
-- **Record:** `deployments/143.json` on `main` (2.5). Keys: `chainId` 143, `startBlock`, `owner` (Safe), `symbol` "MON-PERP", `oracleKind` "pyth", `mockContracts` [], and `contracts.{AUSD, WMON, InsuranceFund, MarketFactory, OracleAdapter, ClearingHouse, OrderBook, KuruHedger, PulseVault, FundingSwapMarket, SwapOrderBook}`.
-- **App:** `node app/scripts/sync-mainnet.mjs` bundles it into `src/config/mainnet.generated.ts` (it uses `ClearingHouse, OrderBook, FundingSwapMarket, SwapOrderBook, PulseVault`). Env: `NEXT_PUBLIC_CHAIN_ID=143`, `NEXT_PUBLIC_MONAD_RPC_URL` (**a public, keyless RPC only**: never a paid key in `NEXT_PUBLIC_*`), `NEXT_PUBLIC_INDEXER_URL` (mainnet indexer), `NEXT_PUBLIC_DATA_SOURCE`, `NEXT_PUBLIC_LOG_SPAN=100` (public RPC cap, R2), `NEXT_PUBLIC_LOG_LOOKBACK`; leave `NEXT_PUBLIC_VAULT_ROUTE_PENDING` unset (the chain says skewCapacity 0); never `NEXT_PUBLIC_DEPLOYMENT_OVERRIDE` / `LOCAL_*` on 143. Server-side: `GEO_COUNTRY_HEADER` (> VERIFY per host), `GEO_BLOCKED_COUNTRIES` (H16), `GEO_BLOCK_MODE`.
+- **Record:** `deployments/143.json` on `main` (2.5). Keys: `chainId` 143, `startBlock`, `owner` (Safe), `symbol` "MON-PERP", `oracleKind` "pyth", `mockContracts` [], and `contracts.{AUSD, WMON, InsuranceFund, MarketFactory, OracleAdapter, ClearingHouse, OrderBook, KuruHedger, MeridianVault, FundingSwapMarket, SwapOrderBook}`.
+- **App:** `node app/scripts/sync-mainnet.mjs` bundles it into `src/config/mainnet.generated.ts` (it uses `ClearingHouse, OrderBook, FundingSwapMarket, SwapOrderBook, MeridianVault`). Env: `NEXT_PUBLIC_CHAIN_ID=143`, `NEXT_PUBLIC_MONAD_RPC_URL` (**a public, keyless RPC only**: never a paid key in `NEXT_PUBLIC_*`), `NEXT_PUBLIC_INDEXER_URL` (mainnet indexer), `NEXT_PUBLIC_DATA_SOURCE`, `NEXT_PUBLIC_LOG_SPAN=100` (public RPC cap, R2), `NEXT_PUBLIC_LOG_LOOKBACK`; leave `NEXT_PUBLIC_VAULT_ROUTE_PENDING` unset (the chain says skewCapacity 0); never `NEXT_PUBLIC_DEPLOYMENT_OVERRIDE` / `LOCAL_*` on 143. Server-side: `GEO_COUNTRY_HEADER` (> VERIFY per host), `GEO_BLOCKED_COUNTRIES` (H16), `GEO_BLOCK_MODE`.
 - **Indexer:** `node indexer/scripts/gen-config.mjs 143` → `config.mainnet.yaml` (HyperSync `https://143.hypersync.xyz`, R20; `start_block` = `startBlock`; every contract key above that has events). `ENVIO_API_TOKEN` for hosted.
 - **Do not** point anything at `deployments/dry-run/143-fork.json`: it's a labelled fork record (`"fork": true`).
 
@@ -176,21 +176,21 @@ C's own scripts read the record. **Nothing is copied by hand.**
 | `VerifyDeployment` FAIL on ownership / params | **Don't seed, don't hand off.** Wrong owner: if the deployer still owns it, `transferOwnership(Safe)`; if a wrong address owns it, abandon and redeploy (non-upgradeable) | A |
 | Oracle wrong / stale, exploit suspected, depeg (`ausd_depeg`) | `touch $KILL_FILE` on every MM; Safe: `ClearingHouse.setPaused(true)` + `FundingSwapMarket.setPaused(true)`. Keep the keeper running (liquidations work while paused) | **Safe 2-of-3** |
 | Exposure must shrink | Safe: `setRiskParams` with lower `maxOpenInterest` / `maxPositionSize` | Safe |
-| Keeper key leaked / misbehaving vault keeper | Safe: `PulseVault.setKeeper(<keeper>, false)`; rotate the bot key; `setKeeper(<new>, true)` | Safe |
+| Keeper key leaked / misbehaving vault keeper | Safe: `MeridianVault.setKeeper(<keeper>, false)`; rotate the bot key; `setKeeper(<new>, true)` | Safe |
 | Resume | Cause fixed and the oracle fresh → `setPaused(false)`, `rm $KILL_FILE`, watch for 30 min | Safe |
 | "Rollback" | Contracts are non-upgradeable (ARCHITECTURE §6): pause → reduce-only → users close/withdraw → deploy v2 markets → C points the app at v2 | Safe + A |
 
 Pause rehearsed on the fork (stand-in owner): `setPaused(true)` makes a new order revert `Paused()` (`0x9e87fac8`); a reduce-only market order still reaches matching; a non-owner reverts `OwnableUnauthorizedAccount` (`0x118cdaa7`); `setPaused(false)` restores trading.
 
-**Safe transactions (none is needed to go live; the hand-over is inside DeployPulse).** Build them in the Safe UI's transaction builder from these rows. A Safe Transaction Builder JSON isn't provided: its format wasn't verified from Safe's docs.
+**Safe transactions (none is needed to go live; the hand-over is inside DeployMeridian).** Build them in the Safe UI's transaction builder from these rows. A Safe Transaction Builder JSON isn't provided: its format wasn't verified from Safe's docs.
 | Purpose | Target (143.json key) | Function | Args |
 |---|---|---|---|
 | Pause perp | ClearingHouse | `setPaused(bool)` | `true` (resume: `false`) |
 | Pause swaps | FundingSwapMarket | `setPaused(bool)` | `true` / `false` |
 | Caps (raise together, decision 12) | ClearingHouse | `setRiskParams((uint256,uint256,uint256,int256,uint256,uint256,uint256,uint256))` | `(imr, mmr, takerFee, makerFee, liqPenalty, keeperShare, maxOpenInterest, maxPositionSize)`, current values from `riskParams()`, only the caps changed |
-| Vault cap / enable hedging after CR-010 | PulseVault | `setVaultParams((uint256,…))` (12 fields, `VaultParams`) | current `vaultParams()` with `depositCap` or `skewCapacity` (0.8e18) changed |
-| Second MM key (F-3) | PulseVault | `setSkewProvider(address,bool)` | `(<MM2>, true)` |
-| Revoke a keeper (review A-09) | PulseVault | `setKeeper(address,bool)` | `(<keeper>, false)` |
+| Vault cap / enable hedging after CR-010 | MeridianVault | `setVaultParams((uint256,…))` (12 fields, `VaultParams`) | current `vaultParams()` with `depositCap` or `skewCapacity` (0.8e18) changed |
+| Second MM key (F-3) | MeridianVault | `setSkewProvider(address,bool)` | `(<MM2>, true)` |
+| Revoke a keeper (review A-09) | MeridianVault | `setKeeper(address,bool)` | `(<keeper>, false)` |
 | Oracle params (only with a Hermes key, B decides) | OracleAdapter | `setOracleParams(uint256,uint256)` | `(maxStalenessSec, maxDeviationWad)` |
 | Collect fees | ClearingHouse / FundingSwapMarket | `collectFees(address)` | `(<treasury>)` |
 

@@ -9,7 +9,7 @@ export type HistOrder = { id: string; orderId: bigint; isBid: boolean; tick: big
 export type HistLiquidation = { id: string; sizeTransferred: bigint; markPriceWad: bigint | undefined; penalty: bigint; badDebt: bigint; block: bigint; timestamp: bigint; txHash: string };
 export type AccountHistory = { trades: HistTrade[]; orders: HistOrder[]; liquidations: HistLiquidation[] };
 
-export const ACCOUNT_HISTORY_QUERY = `query PulseAccountHistory($a: String!, $limit: Int!) {
+export const ACCOUNT_HISTORY_QUERY = `query MeridianAccountHistory($a: String!, $limit: Int!) {
   Trade(where: { kind: { _eq: "Perp" }, _or: [{ maker: { _ilike: $a } }, { taker: { _ilike: $a } }] }, order_by: { block: desc }, limit: $limit) {
     id maker taker takerIsBid priceWad sizeWad notionalWad block timestamp txHash
   }

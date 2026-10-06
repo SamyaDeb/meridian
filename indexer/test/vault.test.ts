@@ -6,25 +6,25 @@ import { annualizedChangeWad } from "../src/lib/math.js";
 const T0 = 1_790_000_000;
 const at = (number: number, ts: number) => ({ number, timestamp: ts });
 const nav = (number: number, ts: number, sp: bigint, navToken = 10_000_000_000n) => ({
-  contract: "PulseVault" as const,
+  contract: "MeridianVault" as const,
   event: "NavSnapshot" as const,
   srcAddress: A.VAULT,
   block: at(number, ts),
   params: { nav: navToken, totalShares: 10_000n * WAD, sharePriceWad: sp, fundingAccruedWad: 0n },
 });
 
-describe("PulseVault", () => {
+describe("MeridianVault", () => {
   it("deposit/withdraw flows, share balances from Transfer only, users", async () => {
     const indexer = createTestIndexer();
     await indexer.process({
       chains: {
         [CHAIN]: {
           simulate: [
-            { contract: "PulseVault", event: "Deposit", srcAddress: A.VAULT, block: at(1, T0), params: { sender: ALICE, owner: ALICE, assets: 1_000_000_000n, shares: 1_000n * WAD } },
-            { contract: "PulseVault", event: "Transfer", srcAddress: A.VAULT, block: at(1, T0), params: { from: ZERO, to: ALICE, value: 1_000n * WAD } },
-            { contract: "PulseVault", event: "Transfer", srcAddress: A.VAULT, block: at(2, T0 + 1), params: { from: ALICE, to: BOB, value: 100n * WAD } },
-            { contract: "PulseVault", event: "Withdraw", srcAddress: A.VAULT, block: at(3, T0 + 2), params: { sender: ALICE, receiver: ALICE, owner: ALICE, assets: 400_000_000n, shares: 400n * WAD } },
-            { contract: "PulseVault", event: "Transfer", srcAddress: A.VAULT, block: at(3, T0 + 2), params: { from: ALICE, to: ZERO, value: 400n * WAD } },
+            { contract: "MeridianVault", event: "Deposit", srcAddress: A.VAULT, block: at(1, T0), params: { sender: ALICE, owner: ALICE, assets: 1_000_000_000n, shares: 1_000n * WAD } },
+            { contract: "MeridianVault", event: "Transfer", srcAddress: A.VAULT, block: at(1, T0), params: { from: ZERO, to: ALICE, value: 1_000n * WAD } },
+            { contract: "MeridianVault", event: "Transfer", srcAddress: A.VAULT, block: at(2, T0 + 1), params: { from: ALICE, to: BOB, value: 100n * WAD } },
+            { contract: "MeridianVault", event: "Withdraw", srcAddress: A.VAULT, block: at(3, T0 + 2), params: { sender: ALICE, receiver: ALICE, owner: ALICE, assets: 400_000_000n, shares: 400n * WAD } },
+            { contract: "MeridianVault", event: "Transfer", srcAddress: A.VAULT, block: at(3, T0 + 2), params: { from: ALICE, to: ZERO, value: 400n * WAD } },
           ],
         },
       },
@@ -60,9 +60,9 @@ describe("PulseVault", () => {
       chains: {
         [CHAIN]: {
           simulate: [
-            { contract: "PulseVault", event: "Rebalanced", srcAddress: A.VAULT, block: at(1, T0), params: { reason: 5n, spotDeltaBase: 10n * WAD, perpDeltaBase: -10n * WAD, navAfter: 999n, sharePriceWad: WAD } },
-            { contract: "PulseVault", event: "HedgeEntered", srcAddress: A.VAULT, block: at(1, T0), params: { navAfter: 999n } },
-            { contract: "PulseVault", event: "KeeperUpdated", srcAddress: A.VAULT, block: at(2, T0), params: { keeper: KEEPER, allowed: true } },
+            { contract: "MeridianVault", event: "Rebalanced", srcAddress: A.VAULT, block: at(1, T0), params: { reason: 5n, spotDeltaBase: 10n * WAD, perpDeltaBase: -10n * WAD, navAfter: 999n, sharePriceWad: WAD } },
+            { contract: "MeridianVault", event: "HedgeEntered", srcAddress: A.VAULT, block: at(1, T0), params: { navAfter: 999n } },
+            { contract: "MeridianVault", event: "KeeperUpdated", srcAddress: A.VAULT, block: at(2, T0), params: { keeper: KEEPER, allowed: true } },
             { contract: "KuruHedger", event: "SpotBought", srcAddress: A.HEDGER, block: at(3, T0), params: { vault: A.VAULT, quoteInToken: 290_000n, baseOut: 10n * WAD, avgPriceWad: 29n * 10n ** 15n } },
             { contract: "KuruHedger", event: "SpotSold", srcAddress: A.HEDGER, block: at(4, T0), params: { vault: A.VAULT, baseIn: 5n * WAD, quoteOutToken: 140_000n, avgPriceWad: 28n * 10n ** 15n } },
           ],
@@ -78,8 +78,8 @@ describe("PulseVault", () => {
       chains: {
         [CHAIN]: {
           simulate: [
-            { contract: "PulseVault", event: "HedgeExited", srcAddress: A.VAULT, block: at(5, T0), params: { navAfter: 998n } },
-            { contract: "PulseVault", event: "KeeperUpdated", srcAddress: A.VAULT, block: at(5, T0), params: { keeper: KEEPER, allowed: false } },
+            { contract: "MeridianVault", event: "HedgeExited", srcAddress: A.VAULT, block: at(5, T0), params: { navAfter: 998n } },
+            { contract: "MeridianVault", event: "KeeperUpdated", srcAddress: A.VAULT, block: at(5, T0), params: { keeper: KEEPER, allowed: false } },
           ],
         },
       },

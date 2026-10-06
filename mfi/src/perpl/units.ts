@@ -1,6 +1,6 @@
 // Unit conversion to WAD (docs/MFI.md §3). bigint only; every division truncates toward zero ("rounds neutral").
 export const WAD = 10n ** 18n;
-export const SECONDS_PER_YEAR = 31_536_000n; // 365 d, PulseConstants.SECONDS_PER_YEAR
+export const SECONDS_PER_YEAR = 31_536_000n; // 365 d, MeridianConstants.SECONDS_PER_YEAR
 const MICROS_TO_WAD = 10n ** 12n;
 
 /** MFI.md §3.2: micros per funding interval → annualized WAD. Rounds neutral (toward zero). */

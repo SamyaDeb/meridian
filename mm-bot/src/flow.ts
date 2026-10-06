@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { type Address, type Hex, createPublicClient, createWalletClient, defineChain, encodeFunctionData, http, nonceManager } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { RateWindow, createCountingFetch, newRpcStats } from "@pulse/bot-rpc";
+import { RateWindow, createCountingFetch, newRpcStats } from "@meridian/bot-rpc";
 import { clearingHouseAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
 import { type FlowConfig, type FlowIo, flowStep, nextDelayMs, startupProblem } from "./flowplan.js";
 import { gasLimitFor } from "./send.js";
@@ -66,7 +66,7 @@ const mmPk = env("MM_PK") as Hex | undefined;
 
 const chain = defineChain({
   id: CHAIN_ID,
-  name: `pulse-${CHAIN_ID}`,
+  name: `meridian-${CHAIN_ID}`,
   nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
   rpcUrls: { default: { http: [RPC_URL] } },
 });

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {IOrderBook} from "../interfaces/IOrderBook.sol";
 import {IClearingHouse} from "../interfaces/IClearingHouse.sol";
 import {IMarginEngine} from "../interfaces/IMarginEngine.sol";
-import {PulseConstants} from "../interfaces/PulseTypes.sol";
+import {MeridianConstants} from "../interfaces/MeridianTypes.sol";
 
 /// @notice Mock order book. No matching engine:
 ///  - Book views (best bid/ask, last trade) are set by hand for mark-price tests.
@@ -59,7 +59,7 @@ contract MockOrderBook is IOrderBook {
     {
         if (tick == 0) revert InvalidTick();
         if (lots == 0) revert InvalidSize();
-        if (openOrderCount[msg.sender] >= PulseConstants.MAX_OPEN_ORDERS_PER_ACCOUNT) revert TooManyOpenOrders();
+        if (openOrderCount[msg.sender] >= MeridianConstants.MAX_OPEN_ORDERS_PER_ACCOUNT) revert TooManyOpenOrders();
         IClearingHouse(clearingHouse).reserveOrderMargin(msg.sender, isBid, lots * lotSize, tick * tickSize);
         orderId = nextOrderId++;
         _orders[orderId] = OrderView(msg.sender, isBid, tick, lots, uint64(block.number));
@@ -89,7 +89,7 @@ contract MockOrderBook is IOrderBook {
         }
         emit Trade(0, mockMaker, msg.sender, isBid, uint32(fillPriceWad / tickSize), lots, fillPriceWad, size);
         filledLots = lots;
-        uint256 notional = size * fillPriceWad / PulseConstants.WAD;
+        uint256 notional = size * fillPriceWad / MeridianConstants.WAD;
         IClearingHouse(clearingHouse).settleTakerFill(msg.sender, isBid, size, notional, reduceOnly);
         _lastPrice = fillPriceWad;
         _lastBlock = uint64(block.number);
@@ -107,7 +107,7 @@ contract MockOrderBook is IOrderBook {
     }
 
     function cancelOrders(uint64[] calldata orderIds) external {
-        if (orderIds.length > PulseConstants.MAX_BATCH) revert BatchTooLarge();
+        if (orderIds.length > MeridianConstants.MAX_BATCH) revert BatchTooLarge();
         for (uint256 i; i < orderIds.length; ++i) {
             cancelOrder(orderIds[i]);
         }

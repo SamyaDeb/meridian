@@ -8,7 +8,7 @@ import {OrderBook} from "../../src/orderbook/OrderBook.sol";
 import {FundingSwapMarket} from "../../src/swaps/FundingSwapMarket.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
-import {RiskParams, FundingParams, SwapParams, SwapAccountView} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, SwapParams, SwapAccountView} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @notice Founder B's security review (docs/outputs/security/review-B.md): proof-of-concept tests for the
 ///         High/Medium findings in A's contracts. Each test asserts the CORRECT behaviour, so it FAILS on the

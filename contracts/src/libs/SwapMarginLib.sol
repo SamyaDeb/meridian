@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {FixedPointMathLib as FPM} from "solady/utils/FixedPointMathLib.sol";
-import {PulseConstants} from "../interfaces/PulseTypes.sol";
+import {MeridianConstants} from "../interfaces/MeridianTypes.sol";
 
 /// @title SwapMarginLib — funding-swap margin (MATH_SPEC §6.4)
 /// @notice Losses accrue at a bounded rate (|r| ≤ cap, δ per block), so maintenance covers `liqHorizon` of the
@@ -10,7 +10,7 @@ import {PulseConstants} from "../interfaces/PulseTypes.sol";
 ///         notional-time of the remaining stream. Every term rounds up (requirements round against the user).
 library SwapMarginLib {
     uint256 internal constant WAD = 1e18;
-    uint256 internal constant YEAR = PulseConstants.SECONDS_PER_YEAR;
+    uint256 internal constant YEAR = MeridianConstants.SECONDS_PER_YEAR;
     /// @dev MON price shock applied to |q·markApr − K|·I·τ/YEAR (MATH_SPEC §6.4 constant; change via CR).
     uint256 internal constant PRICE_SHOCK = 0.3e18;
 

@@ -10,7 +10,7 @@ import { FundingCard } from "./FundingCard";
 import { depthPaths } from "@/lib/depth";
 
 const LEVELS = 12; // per side on screen (§6.2)
-// fetched so coarser groupings still fill rows; getDepth reverts BatchTooLarge above PulseConstants.MAX_BATCH (32)
+// fetched so coarser groupings still fill rows; getDepth reverts BatchTooLarge above MeridianConstants.MAX_BATCH (32)
 const RAW_LEVELS = 32;
 type View = "both" | "bids" | "asks";
 type Unit = "MON" | "AUSD";

@@ -1,4 +1,4 @@
-# RUNBOOK — Pulse keeper + market maker (testnet 10143 / mainnet 143)
+# RUNBOOK — Meridian keeper + market maker (testnet 10143 / mainnet 143)
 
 Two processes per market: the **keeper** (`keepers/ts-fallback`: oracle pushes, funding pokes, liquidations, `/health`) and the **MM** (`mm-bot`: Avellaneda–Stoikov, 3 levels per side, kill switch). Testnet also has the labelled **MON-PERP-DEMO** test market (`MARKET=demo`), used only for the crash/liquidation demo.
 
@@ -54,7 +54,7 @@ cd mm-bot && pnpm start                       # MM (main)
 MARKET=demo MM_PK=… KILL_FILE=/tmp/KILL-demo pnpm start   # MM (demo)
 ```
 Stop with **SIGINT** (Ctrl-C): the MM cancels its resting orders on SIGINT. Never SIGKILL the MM while it has orders resting (they stay on the book; on restart it re-adopts them from its `OrderPlaced` logs, `RECOVER_LOOKBACK_BLOCKS`).
-Before the first testnet start: `pnpm --filter @pulse/keeper-ts check-source` prints what the keeper-fed oracle would push from each source.
+Before the first testnet start: `pnpm --filter @meridian/keeper-ts check-source` prints what the keeper-fed oracle would push from each source.
 
 ## 2b. House taker flow (testnet chart liquidity, `pnpm flow`)
 The MM is **maker-only**: it sends only `placeLimitOrder` / `replaceOrder` (flags 0) and `cancelOrder`, never `placeMarketOrder`, and quotes around the index, so on its own it prints **no trades** and the chart gets no candles. (It could only take if someone else's order rested across its quote.) `mm-bot/src/flow.ts` adds small, occasional **IOC market orders** from a separate key, so the book prints real trades between two house accounts. Everything it does is labelled operator flow:
@@ -101,7 +101,7 @@ Each in its own terminal. Keep the keeper's **`FEED_HEARTBEAT_SEC` ≤ 10** (the
 ## 4. Gas and RPC budget (Monad bills the gas LIMIT, R6; testnet floor 100 gwei)
 **Measured costs.** Testnet, 30 Sep (Phase 3, before step 1): keeper ≈ **7.3 MON/h** (funding poke ≈ 108k gas limit every ~20 blocks + feed pushes), MM ≈ **24 MON/h** at 3 levels (place ≈ 334k limit, cancel ≈ 141k), ≈ ⅓ of that with `LEVELS=1 REQUOTE_BPS=10`. Budget every testnet run in MON first and stop the bots (SIGINT) when you're not collecting evidence.
 
-**Phase 4 step 1 A/B rehearsal** (30 Sep, two anvils `--chain-id 10143 --block-time 1`, same DeployPulse, same keeper-fed source = live mainnet Pyth, same `INCLUSION_LAG_BLOCKS=2`, 20 min each, measured OUTSIDE the bots by `keepers/rpc/scripts/count-proxy.ts`; anvil = Ethereum gas schedule, so gas is relative, not a Monad number):
+**Phase 4 step 1 A/B rehearsal** (30 Sep, two anvils `--chain-id 10143 --block-time 1`, same DeployMeridian, same keeper-fed source = live mainnet Pyth, same `INCLUSION_LAG_BLOCKS=2`, 20 min each, measured OUTSIDE the bots by `keepers/rpc/scripts/count-proxy.ts`; anvil = Ethereum gas schedule, so gas is relative, not a Monad number):
 | | before (main) | after (step 1) | Δ |
 |---|---|---|---|
 | keeper RPC calls/min | 675 | 489 | −28% (−44% without the identical `eth_blockNumber` polling: 419 → 233) |
@@ -181,10 +181,10 @@ Total top-up ≈ **12 MON** (+ 4 with the swap MM window).
 
 **Steps (from `contracts/`, `.env` loaded, never echo keys):**
 1. `git mv ../deployments/10143.json ../deployments/10143-v1.json` (keep the v1 addresses).
-2. Deploy (P4.5): `DEPLOYER_PK=… KEEPER_ADDRESS=0x0D3B07775a452155D8F1B243154b38f12FDD0fA9 MM_ADDRESS=0x814DB3f310CCB192acaab4a6908A0Cf33323b981 DEPLOY_SWAPS=true SWAP_MATURITY_IN_SEC=2592000 forge script script/DeployPulse.s.sol --rpc-url $MONAD_TESTNET_RPC_URL --broadcast --slow --code-size-limit 131072 --with-gas-price 102gwei --priority-gas-price 2gwei --gas-estimate-multiplier 200` with `DEPLOY_VAULT` **unset** (vault v2 comes in P6). Then `cast code` at every new address (§ "Forge writes the deployments JSON during the simulation").
-3. Re-add the operator lists to the new record by hand (DeployPulse doesn't write them): `_operators`, `keeperAccounts` (main + demo keeper), `mmAccounts` (perp MM, demo MM, flow; + the swap MM key if one is created). The indexer's `externalUsers` depends on them.
+2. Deploy (P4.5): `DEPLOYER_PK=… KEEPER_ADDRESS=0x0D3B07775a452155D8F1B243154b38f12FDD0fA9 MM_ADDRESS=0x814DB3f310CCB192acaab4a6908A0Cf33323b981 DEPLOY_SWAPS=true SWAP_MATURITY_IN_SEC=2592000 forge script script/DeployMeridian.s.sol --rpc-url $MONAD_TESTNET_RPC_URL --broadcast --slow --code-size-limit 131072 --with-gas-price 102gwei --priority-gas-price 2gwei --gas-estimate-multiplier 200` with `DEPLOY_VAULT` **unset** (vault v2 comes in P6). Then `cast code` at every new address (§ "Forge writes the deployments JSON during the simulation").
+3. Re-add the operator lists to the new record by hand (DeployMeridian doesn't write them): `_operators`, `keeperAccounts` (main + demo keeper), `mmAccounts` (perp MM, demo MM, flow; + the swap MM key if one is created). The indexer's `externalUsers` depends on them.
 4. Verify: `DEPLOYMENTS_FILE=10143.json EXPECTED_OWNER=<deployer> DEPLOYER_ADDRESS=<deployer> KEEPER_ADDRESS=<keeper> MM_ADDRESS=<mm> FRESH_ORACLE_OPTIONAL=1 forge script script/VerifyDeployment.s.sol --rpc-url https://testnet-rpc.monad.xyz` (read-only; includes the P2 + CR-007 behaviour checks). Explorer verification: only if a verifier URL is configured (HUMAN #17).
-5. Setup (deployer): `TestnetKeeperOracle(demo oracle).setFeeder(<demo keeper>, true)` (DeployPulse registers only `KEEPER_ADDRESS`); tAUSD `mint` + `deposit` for keeper (main + demo CH), MM, demo MM, flow, the demo trader; IF `fund`; `FundingSwapMarket.depositFor(keeper, …)` (§4b).
+5. Setup (deployer): `TestnetKeeperOracle(demo oracle).setFeeder(<demo keeper>, true)` (DeployMeridian registers only `KEEPER_ADDRESS`); tAUSD `mint` + `deposit` for keeper (main + demo CH), MM, demo MM, flow, the demo trader; IF `fund`; `FundingSwapMarket.depositFor(keeper, …)` (§4b).
 6. Offchain repoint (P4.6): bots read `deployments/10143.json` (no address env). Indexer: `node indexer/scripts/gen-config.mjs`, then the hosted Envio redeploy per `docs/outputs/HOSTED_ENVIO.md` (owner's Envio login) ⇒ new `NEXT_PUBLIC_INDEXER_URL`.
 7. Crash + Skip demo (P4.7), one window on `MARKET=demo` with demo keeper + demo MM (§2, §7): ≈ 5x long sized **below the keeper's absorb headroom** (the keeper takes the position: `maxPositionSize` 25,000 MON and IM on its demo-CH collateral, audit H-1; record the collateral used), `echo 0.85 > $PRICE_FACTOR_FILE`, expect liquidation ≤ 3 blocks after eligibility (`/health` `liquidationLatency`). Then Skip: deployer `setPaused(true)` on the demo CH, a reduce-only taker crosses an MM order that would increase the MM ⇒ `MakerFillSkipped`, the order still rests (`getOrder`), `setPaused(false)`. Same sequence as `SmokeFork143.skipDemo()` on the fork.
 8. Gas bench (P4.8): `cd bench && CHAIN_ID=10143 RPC_URL=… BENCH_PK=… DEPLOYMENTS=../deployments/10143.json pnpm gas` (dry-run 6 Oct: ≈ 0.40 MON for 22 txs + 2 setup).
@@ -225,7 +225,7 @@ One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`,
 **Balance floors:** = MON/h of that bot (§4, scaled to the mainnet gas price) × 12 h of runway, so a page leaves half a day to refill.
 
 ## 9. Swap keeper duties, swap MM, vault rebalancing (Phase 4)
-- **Keeper:** swap liquidations + `settleMaturity` run inside the main keeper whenever the deployment has `FundingSwapMarket` (section 4b). Vault: `VAULT_REBALANCE=1` (needsRebalance every 20 blocks and after each oracle push). **Mainnet launch (PHASES 17): the vault is idle** (`skewCapacity = 0` ⇒ `needsRebalance()` is always `None`, so the keeper sends nothing; `enterHedge` reverts `NothingToDo`). Leave `VAULT_REBALANCE=1`: it starts working by itself when the Safe raises `skewCapacity` after CR-010. The keeper key needs collateral in the CH **and** the swap market, and must be registered as the vault keeper (`DeployPulse` does it via `KEEPER_ADDRESS`).
+- **Keeper:** swap liquidations + `settleMaturity` run inside the main keeper whenever the deployment has `FundingSwapMarket` (section 4b). Vault: `VAULT_REBALANCE=1` (needsRebalance every 20 blocks and after each oracle push). **Mainnet launch (PHASES 17): the vault is idle** (`skewCapacity = 0` ⇒ `needsRebalance()` is always `None`, so the keeper sends nothing; `enterHedge` reverts `NothingToDo`). Leave `VAULT_REBALANCE=1`: it starts working by itself when the Safe raises `skewCapacity` after CR-010. The keeper key needs collateral in the CH **and** the swap market, and must be registered as the vault keeper (`DeployMeridian` does it via `KEEPER_ADDRESS`).
 - **Swap MM:** `MARKET=swap` with its own key and swap-market collateral (section 4c). Stop with SIGINT; it pulls its quotes at maturity by itself.
 - **Testnet vault spot leg** is the labelled `MockKuruHedger` at a settable price. The vault checks spot vs index ± 0.5%, so sync it before rebalancing on testnet: `cast send <KuruHedger> "setPrice(uint256)" <index>` (anyone can; testnet mock only).
 - **Entry rule:** the vault hedges only when `averageFundingRate(8 h)` × 7 d > 2c (≈ 15.6% APR), so it needs 8 h of continuous checkpoints. On testnet that is ≈ 9 MON/h × 8 h of pokes at lag 6; plan the MON, or use the keeper-only `enterHedge()` for a labelled forced entry.
@@ -238,10 +238,10 @@ One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`,
 4. **Resume:** `setPaused(false)` after the cause is fixed and the oracle is fresh; `rm $KILL_FILE`; watch `pnpm watch` for 30 min.
 
 ## 10b. Seeding on 143 (rehearsed on the mainnet fork, 5 Oct)
-Permissionless, after `DeployPulse` and `VerifyDeployment` pass. Addresses come from `deployments/143.json` (`jq -r .contracts.<Name>`). AUSD has 6 dp (R9), so `1000000000` = 1,000 AUSD. **Approve exact amounts, never `max`, on mainnet.** Each line runs from the key named, in that process's own shell; gas limit = estimate × 1.2 (cast does this with `--gas-limit $(( $(cast estimate …) * 12 / 10 ))`).
+Permissionless, after `DeployMeridian` and `VerifyDeployment` pass. Addresses come from `deployments/143.json` (`jq -r .contracts.<Name>`). AUSD has 6 dp (R9), so `1000000000` = 1,000 AUSD. **Approve exact amounts, never `max`, on mainnet.** Each line runs from the key named, in that process's own shell; gas limit = estimate × 1.2 (cast does this with `--gas-limit $(( $(cast estimate …) * 12 / 10 ))`).
 ```bash
 A=$(jq -r .contracts.AUSD $D); IF=$(jq -r .contracts.InsuranceFund $D); CH=$(jq -r .contracts.ClearingHouse $D)
-SW=$(jq -r .contracts.FundingSwapMarket $D); V=$(jq -r .contracts.PulseVault $D)      # D=deployments/143.json
+SW=$(jq -r .contracts.FundingSwapMarket $D); V=$(jq -r .contracts.MeridianVault $D)      # D=deployments/143.json
 # 1. insurance fund (any funded key; capital plan: 1–2k AUSD)
 cast send $A "approve(address,uint256)" $IF <amt>;  cast send $IF "fund(uint256)" <amt>
 # 2. keeper: perp collateral (it takes liquidated positions) + swap collateral (§4b)

@@ -11,7 +11,7 @@ Source: monad.xyz/metropolis (29 Sep 2026). Detailed criteria are behind the pla
 | Envio: Best Use of Envio | $1k (+ $5k hosting for track winners) | **Claim** | HyperIndex powers the funding ticker/history, oracle APR, positions, vault NAV, swap book | C | — |
 | Privy | $5k | Claim **only if** Privy is our single login | Email login + embedded wallet on Monad; permit-based one-signature deposit | C | Pick Privy vs Mera by Day 2 (never both) |
 | Mera bounties ("Best Mera-Powered UX", "One Passkey, Many Keys") | $2.5k × 2 (public page, 29 Sep) | Claim **only if** Mera is our single login | Passkey account → trade in 2 taps | C | Same decision as above |
-| Chainlink: Best workflow with CRE | $3k | **Dropped** (Phase 4: no deploy access, PRD §8 cut order) | CRE cron → vault rebalance; log trigger → liquidation scan; onchain `PulseKeeperReceiver` | B | Deploy access is gated |
+| Chainlink: Best workflow with CRE | $3k | **Dropped** (Phase 4: no deploy access, PRD §8 cut order) | CRE cron → vault rebalance; log trigger → liquidation scan; onchain `MeridianKeeperReceiver` | B | Deploy access is gated |
 | Kuru: Consumer Trading App on Kuru | $5k | Claim only if Kuru confirms | Vault's spot leg executes via Kuru Flow / Kuru CLOB | C asks, B builds | Does vault routing count? |
 | Kuru: New Assets and Markets | $5k | **Not targeted** | (A PT listing needs Kuru's owner; PT deferred) | — | — |
 | Aurora Intents | $5k | Stretch only | Any-chain deposit → AUSD → vault | C | Only after CP3 if everything is green |

@@ -12,11 +12,11 @@ import {IFundingRateOracle} from "../../src/interfaces/IFundingRateOracle.sol";
 import {IOracleAdapter} from "../../src/interfaces/IOracleAdapter.sol";
 import {IOrderBook} from "../../src/interfaces/IOrderBook.sol";
 import {IInsuranceFund} from "../../src/interfaces/IInsuranceFund.sol";
-import {IPulseVault} from "../../src/interfaces/IPulseVault.sol";
+import {IMeridianVault} from "../../src/interfaces/IMeridianVault.sol";
 import {IFundingSwapMarket} from "../../src/interfaces/IFundingSwapMarket.sol";
-import {AccountView, SwapAccountView} from "../../src/interfaces/PulseTypes.sol";
+import {AccountView, SwapAccountView} from "../../src/interfaces/MeridianTypes.sol";
 
-/// @notice End-to-end smoke of a DeployPulse record on a MAINNET FORK (chain 143 on a local anvil), Phase 3 P2. The
+/// @notice End-to-end smoke of a DeployMeridian record on a MAINNET FORK (chain 143 on a local anvil), Phase 3 P2. The
 ///         mainnet counterpart of SmokeFull, without mocks: real AUSD (funded on the fork by impersonating a holder,
 ///         labelled), the real Pyth adapter (kept fresh by `keepers/ts-fallback/scripts/fork-pyth-relay.ts`, which
 ///         replays real signed mainnet updates). Steps: seed the IF; keeper, MM and taker collateral; the MM rests
@@ -49,7 +49,7 @@ contract SmokeFork143 is Script {
     IOrderBook ob;
     IOracleAdapter oracle;
     IInsuranceFund fund;
-    IPulseVault vault;
+    IMeridianVault vault;
     IFundingSwapMarket swap;
     IOrderBook sob;
 
@@ -68,7 +68,7 @@ contract SmokeFork143 is Script {
         ob = IOrderBook(dep.readAddress(".contracts.OrderBook"));
         oracle = IOracleAdapter(dep.readAddress(".contracts.OracleAdapter"));
         fund = IInsuranceFund(dep.readAddress(".contracts.InsuranceFund"));
-        vault = IPulseVault(dep.readAddress(".contracts.PulseVault"));
+        vault = IMeridianVault(dep.readAddress(".contracts.MeridianVault"));
         swap = IFundingSwapMarket(dep.readAddress(".contracts.FundingSwapMarket"));
         sob = IOrderBook(dep.readAddress(".contracts.SwapOrderBook"));
     }
@@ -205,7 +205,7 @@ contract SmokeFork143 is Script {
         console2.log("vault totalAssets / shortCapacity", nav, vault.shortCapacity());
         require(nav >= VAULT_DEPOSIT, "vault holds the deposit");
         require(vault.shortCapacity() == 0, "vault idle: shortCapacity 0 with takers net long (decision 17)");
-        require(uint8(vault.needsRebalance()) == uint8(IPulseVault.RebalanceReason.None), "vault: nothing to do");
+        require(uint8(vault.needsRebalance()) == uint8(IMeridianVault.RebalanceReason.None), "vault: nothing to do");
         require(!vault.hedgeState().hedged && vault.hedgeState().perpSize == 0, "vault not hedged");
         console2.log("vault maxDeposit left (AUSD units)", IERC4626(address(vault)).maxDeposit(address(1)));
         (,, uint64 obsBlock) = IFundingRateOracle(address(ch)).latestObservation();

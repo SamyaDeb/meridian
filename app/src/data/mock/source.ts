@@ -1,8 +1,8 @@
-import type { PulseDataSource } from "../source";
+import type { MeridianDataSource } from "../source";
 import * as fx from "./fixtures";
 
 /** Mock data source: same shapes as the indexer, advancing one "block" every 300 ms. */
-export function createMockSource(now: () => number = Date.now): PulseDataSource {
+export function createMockSource(now: () => number = Date.now): MeridianDataSource {
   const head = () => fx.blockAt(now());
   return {
     kind: "mock",

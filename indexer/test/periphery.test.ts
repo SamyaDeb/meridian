@@ -99,7 +99,7 @@ describe("test market label (Phase 3: MON-PERP-DEMO)", () => {
   });
 });
 
-describe("PulseKeeperReceiver (Chainlink CRE)", () => {
+describe("MeridianKeeperReceiver (Chainlink CRE)", () => {
   it("reports and forwarder updates", async () => {
     const indexer = createTestIndexer();
     const wf = "0x" + "11".repeat(32);
@@ -107,9 +107,9 @@ describe("PulseKeeperReceiver (Chainlink CRE)", () => {
       chains: {
         [CHAIN]: {
           simulate: [
-            { contract: "PulseKeeperReceiver", event: "ReportExecuted", srcAddress: A.RECEIVER, block: blk(1), params: { action: 1n, success: true, workflowId: wf } },
-            { contract: "PulseKeeperReceiver", event: "ReportExecuted", srcAddress: A.RECEIVER, block: blk(2), params: { action: 2n, success: false, workflowId: wf } },
-            { contract: "PulseKeeperReceiver", event: "ForwarderUpdated", srcAddress: A.RECEIVER, block: blk(3), params: { forwarder: ALICE } },
+            { contract: "MeridianKeeperReceiver", event: "ReportExecuted", srcAddress: A.RECEIVER, block: blk(1), params: { action: 1n, success: true, workflowId: wf } },
+            { contract: "MeridianKeeperReceiver", event: "ReportExecuted", srcAddress: A.RECEIVER, block: blk(2), params: { action: 2n, success: false, workflowId: wf } },
+            { contract: "MeridianKeeperReceiver", event: "ForwarderUpdated", srcAddress: A.RECEIVER, block: blk(3), params: { forwarder: ALICE } },
           ],
         },
       },

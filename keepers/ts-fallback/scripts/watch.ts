@@ -4,7 +4,7 @@
 //   CHAIN_ID=10143 RPC_URL=… DEPLOYMENTS=../../deployments/10143.json KEEPER_HEALTH=http://localhost:8797/health \
 //   WATCH_BALANCES=keeper=0x…:20,mm=0x…:10 WATCH_MM=perp=0x…,swap=0x… [CHAINLINK_AUSD_USD=0x…] \
 //   [CHAINLINK_MON_USD=0x…] [PAGE_DISCORD_WEBHOOK_URL=… | PAGE_TELEGRAM_BOT_TOKEN=… PAGE_TELEGRAM_CHAT_ID=…] \
-//   [PAGE_LABEL="Pulse 143"] [INTERVAL_SEC=15] [ONCE=1] pnpm watch
+//   [PAGE_LABEL="Meridian 143"] [INTERVAL_SEC=15] [ONCE=1] pnpm watch
 // WATCH_BALANCES: label=address[:minMON] (floor per wallet; default 5 MON). WATCH_MM: book=address with book "perp"
 // (deployments OrderBook) or "swap" (SwapOrderBook): alert when that MM has had 0 open orders for > 60 s.
 // ONCE=1 checks once and exits 2 on any critical alert (for cron / CI). INDEXER_LAG_URL (optional) must return JSON
@@ -19,7 +19,7 @@ import {
   insuranceFundAbi,
   oracleAdapterAbi,
   orderBookWatchAbi,
-  pulseVaultAbi,
+  meridianVaultAbi,
 } from "../src/abi.js";
 import { type Alert, type Snapshot, TEAM_PLAN_THRESHOLDS, emptySince, evaluateAlerts, ifBaseline } from "../src/alerts.js";
 import { DEFAULT_PAGER, channelFromEnv, deliver, newPagerState, planPages } from "../src/paging.js";
@@ -47,7 +47,7 @@ const AUSD_FEED = env("CHAINLINK_AUSD_USD") as Address | undefined;
 const GUARD_FEED = env("CHAINLINK_MON_USD") as Address | undefined;
 const channel = channelFromEnv(process.env);
 const pager = newPagerState();
-const LABEL = env("PAGE_LABEL") ?? `Pulse ${dep.chainId}`;
+const LABEL = env("PAGE_LABEL") ?? `Meridian ${dep.chainId}`;
 let vaultPeak: bigint | null = null;
 const ONCE = env("ONCE") === "1";
 const INTERVAL = Number(env("INTERVAL_SEC") ?? "15") * 1000;
@@ -61,7 +61,7 @@ async function snapshot(): Promise<Snapshot> {
     C.OracleAdapter ? opt(pub.readContract({ address: C.OracleAdapter, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" })) : null,
     C.ClearingHouse ? opt(pub.readContract({ address: C.ClearingHouse, abi: clearingHouseAbi, functionName: "fundingState" })) : null,
     C.InsuranceFund ? opt(pub.readContract({ address: C.InsuranceFund, abi: insuranceFundAbi, functionName: "balance" })) : null,
-    C.PulseVault ? opt(pub.readContract({ address: C.PulseVault, abi: pulseVaultAbi, functionName: "hedgeState" })) : null,
+    C.MeridianVault ? opt(pub.readContract({ address: C.MeridianVault, abi: meridianVaultAbi, functionName: "hedgeState" })) : null,
     Promise.all(balances.map(async (b) => ({ label: b.label, wei: await pub.getBalance({ address: b.addr }), ...(b.minWei !== undefined ? { minWei: b.minWei } : {}) }))),
     Promise.all(
       health.map(async (url) => {
@@ -89,7 +89,7 @@ async function snapshot(): Promise<Snapshot> {
           ]),
         )
       : null,
-    C.PulseVault ? opt(pub.readContract({ address: C.PulseVault, abi: pulseVaultAbi, functionName: "sharePrice" })) : null,
+    C.MeridianVault ? opt(pub.readContract({ address: C.MeridianVault, abi: meridianVaultAbi, functionName: "sharePrice" })) : null,
   ]);
   const mmBooks = mms.map((m, i) => {
     const n = mmCounts[i];

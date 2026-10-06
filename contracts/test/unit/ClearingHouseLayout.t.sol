@@ -6,7 +6,7 @@ import {ClearingHouseBase} from "./ClearingHouseBase.t.sol";
 import {ClearingHouse} from "../../src/clearing/ClearingHouse.sol";
 import {IClearingHouse} from "../../src/interfaces/IClearingHouse.sol";
 import {IOrderBook} from "../../src/interfaces/IOrderBook.sol";
-import {FundingParams, FundingState, RiskParams} from "../../src/interfaces/PulseTypes.sol";
+import {FundingParams, FundingState, RiskParams} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @notice Phase 3 gas hardening (ws-02b-gas): the storage packing and the touch-free release keep behaviour.
 contract ClearingHouseLayoutTest is ClearingHouseBase {

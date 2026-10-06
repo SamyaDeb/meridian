@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createPerplClient, fixtureTransport, matchMarket, parseContext, parseFundingSeries, perplRateToAprWad, readPerplVenue } from "../src/perpl";
 
-// REAL Perpl responses recorded 5 Oct 2026 with `pnpm --filter @pulse/mfi record:perpl <net> MON` (fixtures/recorded/).
+// REAL Perpl responses recorded 5 Oct 2026 with `pnpm --filter @meridian/mfi record:perpl <net> MON` (fixtures/recorded/).
 const rec = (net: string, n: string) => JSON.parse(readFileSync(new URL(`../fixtures/recorded/${net}/${n}.json`, import.meta.url), "utf8")) as Record<string, unknown>;
 const noSleep = { sleep: async () => {}, random: () => 0 };
 

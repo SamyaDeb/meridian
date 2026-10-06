@@ -4,7 +4,7 @@
 // Also records the contract's own answers at the last block (averageFundingApr, fundingState, openInterest)
 // so the replay can check the indexer's realized APR against averageFundingApr at the same block.
 //   RPC_URL=http://127.0.0.1:8546 node scripts/record-anvil.mjs [out.json]
-// Testnet (after the DeployPulse broadcast; public RPC caps eth_getLogs at 100 blocks, R2/R29):
+// Testnet (after the DeployMeridian broadcast; public RPC caps eth_getLogs at 100 blocks, R2/R29):
 //   RPC_URL=$MONAD_TESTNET_RPC_URL DEPLOYMENTS=../deployments/10143.json LOG_SPAN=100 \
 //     node scripts/record-anvil.mjs test/fixtures/testnet-10143.json
 // The labelled demo market (deployments.demoMarket) is recorded too, and (Phase 4) the vault, its hedger, the funding
@@ -34,7 +34,7 @@ const SOURCES = [
   ["InsuranceFund", "InsuranceFund", abi("InsuranceFund")],
   ["OracleAdapter", "OracleAdapter", abi("IOracleAdapter")],
   ["MarketFactory", "MarketFactory", abi("MarketFactory")],
-  ["PulseVault", "PulseVault", abi("PulseVault")],
+  ["MeridianVault", "MeridianVault", abi("MeridianVault")],
   ["KuruHedger", "KuruHedger", abi("IKuruHedger")],
   ["FundingSwapMarket", "FundingSwapMarket", abi("FundingSwapMarket")],
   ["SwapOrderBook", "SwapOrderBook", abi("OrderBook")],
@@ -48,7 +48,7 @@ const EXTRA = (process.env.EXTRA_SOURCES ?? "")
     if (!ABI_OF[c] || !/^0x[0-9a-fA-F]{40}$/.test(addr ?? "")) throw new Error(`EXTRA_SOURCES: bad entry ${kv}`);
     return [c, addr, ABI_OF[c]];
   });
-// the labelled demo market's contracts (DeployPulse on 10143), same event sources under the same Envio names
+// the labelled demo market's contracts (DeployMeridian on 10143), same event sources under the same Envio names
 const DEMO = dep.demoMarket
   ? [
       ["ClearingHouse", dep.demoMarket.ClearingHouse, abi("ClearingHouse")],
@@ -124,8 +124,8 @@ const fs = await read("fundingState");
 
 // Phase 4: the vault's and swap markets' own answers. Share price at every NavSnapshot block whose state anvil still
 // has (--prune-history keeps ~1,000 blocks: older calls fail and are skipped); balances/positions at `at`.
-const vaultAddr = dep.contracts.PulseVault;
-const vaultAbi = abi("PulseVault");
+const vaultAddr = dep.contracts.MeridianVault;
+const vaultAbi = abi("MeridianVault");
 const vault = {};
 if (vaultAddr) {
   const vread = (functionName, args = [], blockNumber = at) => pub.readContract({ address: vaultAddr, abi: vaultAbi, functionName, args, blockNumber });
@@ -137,7 +137,7 @@ if (vaultAddr) {
       /* pruned */
     }
   }
-  const holders = new Set(items.filter((i) => i.contract === "PulseVault" && i.event === "Transfer").flatMap((i) => [i.params.from, i.params.to]));
+  const holders = new Set(items.filter((i) => i.contract === "MeridianVault" && i.event === "Transfer").flatMap((i) => [i.params.from, i.params.to]));
   holders.delete("0x0000000000000000000000000000000000000000");
   vault.balances = {};
   for (const h of holders) vault.balances[h] = await vread("balanceOf", [h]);

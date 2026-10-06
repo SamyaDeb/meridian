@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mainnet-day PREFLIGHT for DeployPulse on 143 (Phase 3 P5). READ-ONLY: sends nothing, signs nothing, reads no key.
+# Mainnet-day PREFLIGHT for DeployMeridian on 143 (Phase 3 P5). READ-ONLY: sends nothing, signs nothing, reads no key.
 # Refuses (exit 1) unless every check passes. Run it immediately before the broadcast, from contracts/:
 #
 #   RPC_URL=<paid mainnet endpoint> DEPLOYER_ADDRESS=0x… SAFE_ADDRESS=0x… KEEPER_ADDRESS=0x… MM_ADDRESS=0x… \

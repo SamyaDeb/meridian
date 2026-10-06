@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { type Abi, type AbiEvent, type AbiFunction, toEventSelector, toFunctionSelector } from "viem";
-import ch from "@pulse/abis/IClearingHouse.json" with { type: "json" };
-import oracle from "@pulse/abis/IOracleAdapter.json" with { type: "json" };
-import vault from "@pulse/abis/IPulseVault.json" with { type: "json" };
-import swap from "@pulse/abis/IFundingSwapMarket.json" with { type: "json" };
-import insurance from "@pulse/abis/IInsuranceFund.json" with { type: "json" };
-import swapImpl from "@pulse/abis/FundingSwapMarket.json" with { type: "json" };
-import hedger from "@pulse/abis/IKuruHedger.json" with { type: "json" };
-import ob from "@pulse/abis/IOrderBook.json" with { type: "json" };
-import agg from "@pulse/abis/AggregatorV3Interface.json" with { type: "json" };
+import ch from "@meridian/abis/IClearingHouse.json" with { type: "json" };
+import oracle from "@meridian/abis/IOracleAdapter.json" with { type: "json" };
+import vault from "@meridian/abis/IMeridianVault.json" with { type: "json" };
+import swap from "@meridian/abis/IFundingSwapMarket.json" with { type: "json" };
+import insurance from "@meridian/abis/IInsuranceFund.json" with { type: "json" };
+import swapImpl from "@meridian/abis/FundingSwapMarket.json" with { type: "json" };
+import hedger from "@meridian/abis/IKuruHedger.json" with { type: "json" };
+import ob from "@meridian/abis/IOrderBook.json" with { type: "json" };
+import agg from "@meridian/abis/AggregatorV3Interface.json" with { type: "json" };
 import {
   aggregatorAbi,
   clearingHouseAbi,
@@ -19,7 +19,7 @@ import {
   kuruHedgerAbi,
   oracleAdapterAbi,
   orderBookWatchAbi,
-  pulseVaultAbi,
+  meridianVaultAbi,
 } from "../src/abi.js";
 
 // Every fragment the keeper uses must exist, with the same selector, in the committed frozen-interface ABI.
@@ -36,7 +36,7 @@ describe("keeper ABI fragments match abis/*.json", () => {
   it.each([
     ["IClearingHouse", clearingHouseAbi, ch as Abi],
     ["IOracleAdapter", oracleAdapterAbi, oracle as Abi],
-    ["IPulseVault", pulseVaultAbi, vault as Abi],
+    ["IMeridianVault", meridianVaultAbi, vault as Abi],
     ["IFundingSwapMarket", fundingSwapAbi, swap as Abi],
     ["FundingSwapMarket", fundingSwapImplAbi, swapImpl as Abi],
     ["IInsuranceFund", insuranceFundAbi, insurance as Abi],

@@ -9,7 +9,7 @@ import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
 import {IOrderBook} from "../../src/interfaces/IOrderBook.sol";
 import {IClearingHouse} from "../../src/interfaces/IClearingHouse.sol";
-import {RiskParams, FundingParams} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @notice BENCHMARKS B1 on the REAL engine (A1 §3): OrderBook + ClearingHouse + mock oracle, MATH_SPEC defaults.
 ///         Writes bench-out/real_engine_gas.csv. Same method as OrderBookGas: every measured call starts with the

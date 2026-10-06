@@ -55,7 +55,7 @@ const chAbi = parseAbi([
 ]);
 const erc20 = parseAbi(["function approve(address, uint256) returns (bool)", "function balanceOf(address) view returns (uint256)"]);
 
-const chain = defineChain({ id: CHAIN_ID, name: `pulse-${CHAIN_ID}`, nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 }, rpcUrls: { default: { http: [RPC_URL] } } });
+const chain = defineChain({ id: CHAIN_ID, name: `meridian-${CHAIN_ID}`, nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 }, rpcUrls: { default: { http: [RPC_URL] } } });
 const pub = createPublicClient({ chain, transport: http(RPC_URL) });
 
 // DRY_RUN=1 (Phase 3 P6): no key, no send. Checks the RPC's chain id and prints the planned txs and their projected MON

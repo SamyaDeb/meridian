@@ -10,7 +10,7 @@ describe("terms acceptance", () => {
   it("a different version asks again", () => {
     expect(isAccepted(acceptanceRecord(1, "old"))).toBe(false);
   });
-  it("the pre-rename (Pulse) acceptance asks again after the Meridian bump (D5)", () => {
+  it("the pre-rename (Meridian) acceptance asks again after the Meridian bump (D5)", () => {
     expect(TERMS_VERSION).not.toBe("2026-09-30-draft");
     expect(isAccepted(acceptanceRecord(1, "2026-09-30-draft"))).toBe(false);
   });

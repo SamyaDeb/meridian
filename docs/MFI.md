@@ -37,7 +37,7 @@ Perpl facts used here, from those docs:
 
 ## 3. Normalization to one unit (annualized WAD)
 
-`YEAR = 31_536_000 s` (365 d, `SECONDS_PER_YEAR` in PulseConstants).
+`YEAR = 31_536_000 s` (365 d, `SECONDS_PER_YEAR` in MeridianConstants).
 
 ### 3.1 Meridian (per block → APR)
 Meridian accrues every block; the oracle already returns `averageFundingApr(blocksAgo) = ΔF/ΔG · YEAR` (WAD). The MFI uses the window **W = 1 h = 12,000 blocks** (`blockTimeMs = 300`, MATH_SPEC §1.1), so both venues are measured over the same horizon as Perpl's interval. If the ring buffer is younger than W (`ObservationTooOld`), use the oldest available checkpoint and report the actual window in `windowBlocks`.

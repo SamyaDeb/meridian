@@ -1,6 +1,6 @@
 // Minimal service worker: makes the PWA installable and serves the app shell offline.
 // Never caches API/RPC/indexer responses (live prices must not be stale).
-const CACHE = "pulse-shell-v1";
+const CACHE = "meridian-shell-v1";
 const SHELL = ["/", "/trade", "/positions", "/earn", "/fix", "/stats", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {

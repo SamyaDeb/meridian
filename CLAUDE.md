@@ -1,6 +1,6 @@
-# CLAUDE.md — Pulse engineering conventions (every session MUST follow)
+# CLAUDE.md — Meridian engineering conventions (every session MUST follow)
 
-Pulse = Monad's funding-rate layer: per-block-funding perp → public funding-rate oracle → basis vault (floating yield) → funding swaps (fixed yield). Team: 3 founders, lanes in `docs/TEAM_PLAN.md`. Hackathon: Monad Metropolis, deadline **13 Oct 2026**.
+Meridian = Monad's funding-rate layer: per-block-funding perp → public funding-rate oracle → basis vault (floating yield) → funding swaps (fixed yield). Team: 3 founders, lanes in `docs/TEAM_PLAN.md`. Hackathon: Monad Metropolis, deadline **13 Oct 2026**.
 Read order for any new session: this file → `docs/TEAM_PLAN.md` → `docs/PRD.md` → `docs/MATH_SPEC.md` → `docs/INTERFACES.md` → your `docs/workstreams/WS-XX-*.md`.
 
 ## 1. Hard rules
@@ -8,7 +8,7 @@ Read order for any new session: this file → `docs/TEAM_PLAN.md` → `docs/PRD.
 2. **All code is written during the build window** (1 Sep – 13 Oct 2026). Do not paste code from prior projects (including Kryon). Libraries via `forge install` / npm are fine.
 3. **Edit only your owned paths** (see your WS doc). Need something outside? Add an entry to `docs/CHANGE_REQUESTS.md` and keep going against the mock.
 4. **Interfaces are frozen.** `contracts/src/interfaces/**` changes only via an approved change request applied by a WS-00 session.
-5. **No unbounded loops onchain.** Any loop is bounded by a constant in `PulseConstants` (`MAX_FILLS_PER_ORDER`, `MAX_BATCH`, `MAX_OPEN_ORDERS_PER_ACCOUNT`). Never iterate users, positions or orders globally.
+5. **No unbounded loops onchain.** Any loop is bounded by a constant in `MeridianConstants` (`MAX_FILLS_PER_ORDER`, `MAX_BATCH`, `MAX_OPEN_ORDERS_PER_ACCOUNT`). Never iterate users, positions or orders globally.
 6. **Security:** checks-effects-interactions; `nonReentrant` (OZ `ReentrancyGuardTransient`, Cancun) on every function that moves tokens or calls an external contract; `SafeERC20` for all token transfers; no `tx.origin`; no `delegatecall` to untrusted targets. Non-upgradeable contracts (MVP).
 7. **Tests first.** No PR merges with failing `forge test` or without the tests listed in your WS doc.
 

@@ -44,7 +44,7 @@ const obAbi = parseAbi([
 const chAbi = parseAbi(["function deposit(uint256)"]);
 const erc20 = parseAbi(["function approve(address, uint256) returns (bool)"]);
 
-const chain = defineChain({ id: CHAIN_ID, name: `pulse-${CHAIN_ID}`, nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 }, rpcUrls: { default: { http: [RPC_URL] } } });
+const chain = defineChain({ id: CHAIN_ID, name: `meridian-${CHAIN_ID}`, nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 }, rpcUrls: { default: { http: [RPC_URL] } } });
 const pub = createPublicClient({ chain, transport: http(RPC_URL) });
 
 if (process.env.DRY_RUN === "1") {

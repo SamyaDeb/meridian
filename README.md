@@ -1,4 +1,4 @@
-# Meridian (internal name: Pulse)
+# Meridian (formerly Pulse)
 
 **Monad's funding-rate layer: per-block funding perps, a public funding-rate oracle, a basis vault and fixed-rate funding swaps. Trade it, earn it, fix it.**
 

@@ -1,9 +1,9 @@
 {
-  "name": "@pulse/indexer",
+  "name": "@meridian/indexer",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "WS-06: Envio HyperIndex indexer for Pulse (per-block funding, oracle APR, positions, vault, swaps).",
+  "description": "WS-06: Envio HyperIndex indexer for Meridian (per-block funding, oracle APR, positions, vault, swaps).",
   "scripts": {
     "gen-config": "node scripts/gen-config.mjs",
     "codegen": "envio codegen",

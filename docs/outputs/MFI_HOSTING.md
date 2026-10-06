@@ -1,6 +1,6 @@
 # Hosting the MFI service on Railway (decision D15)
 
-The `/rates` page reads the Meridian Funding Index from the MFI service (`mfi/`, `@pulse/mfi`) at `NEXT_PUBLIC_MFI_URL`. This runbook puts that service on Railway. **Status 5 Oct 2026: prepared, not deployed: BLOCKED on the owner's Railway login** (`railway login`; this session had no Railway credentials).
+The `/rates` page reads the Meridian Funding Index from the MFI service (`mfi/`, `@meridian/mfi`) at `NEXT_PUBLIC_MFI_URL`. This runbook puts that service on Railway. **Status 5 Oct 2026: prepared, not deployed: BLOCKED on the owner's Railway login** (`railway login`; this session had no Railway credentials).
 
 The configuration is Railway Infrastructure as Code: `mfi/.railway/railway.ts` (partial `mfi`, so it manages only this service). Railway's older `railway.json` config-as-code is deprecated and cannot be used for new services (docs.railway.com/infrastructure-as-code, read 5 Oct 2026). The file was typechecked against the pinned SDK (`railway@3.12.0`, devDependency of `mfi/`) and compiled locally: one service `meridian-mfi`, one volume `mfi-data` mounted at `/data`.
 
@@ -15,7 +15,7 @@ The configuration is Railway Infrastructure as Code: `mfi/.railway/railway.ts` (
 | `PERPL_API_URL`, `PERPL_SYMBOL` | optional overrides; defaults are Perpl's documented URL for the chain and `MON` | no |
 | `MFI_CYCLE_MS` | optional, default 60000 | no |
 
-Build: `pnpm install --frozen-lockfile --filter "@pulse/mfi..."` from the **repo root** (the service reads `deployments/<chainId>.json` and the workspace lockfile). Start: `pnpm --filter @pulse/mfi start` (`tsx src/main.ts`; `tsx` is a runtime dependency). Healthcheck: `GET /healthz`. The API is read-only, GET + CORS (`/v1/mfi`, `/v1/mfi/history`).
+Build: `pnpm install --frozen-lockfile --filter "@meridian/mfi..."` from the **repo root** (the service reads `deployments/<chainId>.json` and the workspace lockfile). Start: `pnpm --filter @meridian/mfi start` (`tsx src/main.ts`; `tsx` is a runtime dependency). Healthcheck: `GET /healthz`. The API is read-only, GET + CORS (`/v1/mfi`, `/v1/mfi/history`).
 
 ## Steps (owner, about 10 minutes)
 1. Install the Railway CLI (docs.railway.com/cli) and run `railway login`.

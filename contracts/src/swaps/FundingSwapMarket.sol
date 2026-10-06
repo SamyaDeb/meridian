@@ -13,7 +13,7 @@ import {IClearingHouse} from "../interfaces/IClearingHouse.sol";
 import {IFundingRateOracle} from "../interfaces/IFundingRateOracle.sol";
 import {IOrderBook} from "../interfaces/IOrderBook.sol";
 import {IInsuranceFund} from "../interfaces/IInsuranceFund.sol";
-import {PulseConstants, SwapParams, SwapPosition, SwapAccountView} from "../interfaces/PulseTypes.sol";
+import {MeridianConstants, SwapParams, SwapPosition, SwapAccountView} from "../interfaces/MeridianTypes.sol";
 import {SwapMathLib} from "../libs/SwapMathLib.sol";
 import {SwapMarginLib} from "../libs/SwapMarginLib.sol";
 
@@ -32,8 +32,8 @@ contract FundingSwapMarket is IFundingSwapMarket, Ownable, ReentrancyGuardTransi
 
     uint256 internal constant WAD = 1e18;
     int256 internal constant IWAD = 1e18;
-    uint256 internal constant YEAR = PulseConstants.SECONDS_PER_YEAR;
-    uint256 internal constant TO_WAD = PulseConstants.AUSD_TO_WAD;
+    uint256 internal constant YEAR = MeridianConstants.SECONDS_PER_YEAR;
+    uint256 internal constant TO_WAD = MeridianConstants.AUSD_TO_WAD;
     /// @dev markApr is clamped to realizedApr(8 h) ± 50 APR points (MATH_SPEC §6.3).
     int256 public constant MARK_BAND_APR = 0.5e18;
     /// @dev 8 h of 300 ms blocks: the realized-APR window of the mark (MATH_SPEC §6.3).

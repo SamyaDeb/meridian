@@ -12,7 +12,7 @@ Envio's docs ("Deploying Your Indexer", docs.envio.dev/docs/HyperIndex/hosted-se
 Two open Envio issues from 28 Sep 2026 describe monorepo pitfalls when the Root Directory is the repo root: Cloud runs `pnpm start` at the Root Directory (enviodev/hyperindex#1667) and reads the `envio` version from the Root Directory's `package.json` (#1666). Setting the Root Directory to `indexer/` avoids both: `indexer/package.json` has `"start": "envio start"` and `"envio": "3.12.1"`, and the indexer has no workspace dependencies.
 
 ## Steps (human, ~15 min)
-1. **Envio account (#14):** sign in at app.envio.dev with the GitHub account that can see `SamyaDeb/pulse`, and install Envio's GitHub app on that repo when asked. > VERIFY in the dashboard: hosted-plan limits (free tier, events/month, sync time) and whether HyperSync for 10143 needs an `ENVIO_API_TOKEN` env var on the hosted indexer.
+1. **Envio account (#14):** sign in at app.envio.dev with the GitHub account that can see `SamyaDeb/Meridian`, and install Envio's GitHub app on that repo when asked. > VERIFY in the dashboard: hosted-plan limits (free tier, events/month, sync time) and whether HyperSync for 10143 needs an `ENVIO_API_TOKEN` env var on the hosted indexer.
 2. **Branch:** deploy from a branch that contains this commit (`ws-06g-hosted-envio`, or `main` after it's merged). Deployments trigger on push to the selected branch.
 3. **Indexer settings:**
    | Setting | Value |

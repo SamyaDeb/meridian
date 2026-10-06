@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {IOrderBook} from "../interfaces/IOrderBook.sol";
 import {IMarginEngine} from "../interfaces/IMarginEngine.sol";
-import {PulseConstants} from "../interfaces/PulseTypes.sol";
+import {MeridianConstants} from "../interfaces/MeridianTypes.sol";
 import {TickBitmap} from "./libraries/TickBitmap.sol";
 
 /// @title OrderBook — fully onchain, instrument-agnostic CLOB with price-time priority
@@ -150,7 +150,7 @@ contract OrderBook is IOrderBook, ReentrancyGuardTransient {
     /// @inheritdoc IOrderBook
     function cancelOrders(uint64[] calldata orderIds) external nonReentrant {
         uint256 n = orderIds.length;
-        if (n > PulseConstants.MAX_BATCH) revert BatchTooLarge();
+        if (n > MeridianConstants.MAX_BATCH) revert BatchTooLarge();
         for (uint256 i; i < n; ++i) {
             _cancel(orderIds[i]);
         }
@@ -216,7 +216,7 @@ contract OrderBook is IOrderBook, ReentrancyGuardTransient {
         view
         returns (uint32[] memory ticks, uint64[] memory lots)
     {
-        if (maxLevels > PulseConstants.MAX_BATCH) {
+        if (maxLevels > MeridianConstants.MAX_BATCH) {
             revert BatchTooLarge();
         }
         uint32[] memory t = new uint32[](maxLevels);
@@ -253,7 +253,7 @@ contract OrderBook is IOrderBook, ReentrancyGuardTransient {
         if (tick == 0 || tick > TickBitmap.MAX_TICK) revert InvalidTick();
         if (lots == 0) revert InvalidSize();
         bool rests = flags & (FLAG_IOC | FLAG_REDUCE_ONLY) == 0;
-        if (rests && openOrderCount[msg.sender] >= PulseConstants.MAX_OPEN_ORDERS_PER_ACCOUNT) {
+        if (rests && openOrderCount[msg.sender] >= MeridianConstants.MAX_OPEN_ORDERS_PER_ACCOUNT) {
             revert TooManyOpenOrders();
         }
         if (flags & FLAG_POST_ONLY != 0 && _crosses(isBid, tick)) revert PostOnlyWouldCross();
@@ -330,7 +330,7 @@ contract OrderBook is IOrderBook, ReentrancyGuardTransient {
     function _match(bool isBid, uint32 limitTick, uint64 lots) internal returns (uint64 filled, uint256 notionalRaw) {
         uint64 remaining = lots;
         uint32 lastTick;
-        for (uint256 visits; remaining != 0 && visits < PulseConstants.MAX_FILLS_PER_ORDER; ++visits) {
+        for (uint256 visits; remaining != 0 && visits < MeridianConstants.MAX_FILLS_PER_ORDER; ++visits) {
             uint32 t = isBid ? _h.bestAsk : _h.bestBid;
             if (isBid ? (t == NO_ASK || t > limitTick) : (t == 0 || t < limitTick)) break;
             (uint64 fill, bool skipped) = _visit(isBid, t, remaining);

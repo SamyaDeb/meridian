@@ -6,7 +6,7 @@ Scale: L(ikelihood)/I(mpact) = H/M/L.
 | # | Risk | L | I | Mitigation | Owner |
 |---|---|---|---|---|---|
 | T1 | Kuru ABI differs from docs (selector mismatch) | **Realized** | H | **Resolved 29 Sep:** interface fixed to the SDK ABI and fork-tested (CR-001) | WS-04 |
-| T2 | Kuru market creation not permissionless | **Realized** (`deployProxy` owner-only, R18) | M | **Resolved by CR-003:** the fixed-rate layer lives on Pulse's own order book; no Kuru listing needed | — |
+| T2 | Kuru market creation not permissionless | **Realized** (`deployProxy` owner-only, R18) | M | **Resolved by CR-003:** the fixed-rate layer lives on Meridian's own order book; no Kuru listing needed | — |
 | T3 | No deep MON/AUSD on Kuru | **Realized** (R19: dead market) | H | CR-002: route the spot leg through Kuru Flow (0.34% @ $10k); MM bot revives Kuru MON/AUSD; vault cap 10k AUSD at launch | WS-04, WS-03 |
 | T4 | Oracle freshness: Chainlink push heartbeat too slow for per-block premium | H | M | Verified: Chainlink MON/USD updates are minutes apart and Pyth's sponsored push lands every 10–30 s. Pyth is primary, and our keeper pushes Hermes updates every ≤ 3 s; the premium uses the latest fresh index; staleness guard ⇒ reduce-only | WS-03 |
 | T5 | Order-book gas > 100k per MM cycle | M | M | `replaceOrder`, packed 1-slot orders, level array (MIP-8 pages), bitmap; measure Day 4 | WS-01 |

@@ -3,7 +3,7 @@
 import type { OpenPos } from "@/lib/liqDistance";
 import { big, postGql } from "./stats";
 
-export const RISK_QUERY = `query PulseRisk($market: String!) {
+export const RISK_QUERY = `query MeridianRisk($market: String!) {
   AccountMarket(where: { market_id: { _ilike: $market }, size: { _neq: "0" } }, limit: 1000) { size entryPrice collateralWad }
   InsuranceFund { fundedToken coveredToken }
 }`;

@@ -1,4 +1,4 @@
-# DeployPulse on a MAINNET FORK @ block 110560579 (anvil, chain id 143), script commit 7872e5d + working tree (ws-00k-fork-rehearsal), 2026-10-04 UTC.
+# DeployMeridian on a MAINNET FORK @ block 110560579 (anvil, chain id 143), script commit 7872e5d + working tree (ws-00k-fork-rehearsal), 2026-10-04 UTC.
 # anvil-fork estimate, not Monad-metered: anvil uses the Ethereum gas schedule; Monad prices storage per MIP-8 and BILLS THE GAS LIMIT (ARCHITECTURE R5, R6).
 # gas_limit = forge estimate x 2.00 (--gas-estimate-multiplier 200; x1.20 ran out of gas at CH.setOrderBook, see PHASE3_LOOP P2). Owner = FORK STAND-IN, not the real Safe.
 step,type,contract,function,gas_used,gas_limit
@@ -11,10 +11,10 @@ step,type,contract,function,gas_used,gas_limit
 7,CALL,InsuranceFund,"setMarketAuthorized(address,bool)",47748,101464
 8,CALL,MarketFactory,"registerMarket(string,address,address,address,address)",235102,499590
 9,CREATE,KuruHedger,,1565566,3131132
-10,CREATE,PulseVault,,4972682,9945364
+10,CREATE,MeridianVault,,4972682,9945364
 11,CALL,KuruHedger,setVault(address),46164,98098
-12,CALL,PulseVault,"setKeeper(address,bool)",47893,101772
-13,CALL,PulseVault,"setSkewProvider(address,bool)",68719,146026
+12,CALL,MeridianVault,"setKeeper(address,bool)",47893,101772
+13,CALL,MeridianVault,"setSkewProvider(address,bool)",68719,146026
 14,CREATE,FundingSwapMarket,,4811795,9623590
 15,CREATE,OrderBook,,3172248,6344496
 16,CALL,FundingSwapMarket,setOrderBook(address),71561,161012
@@ -24,6 +24,6 @@ step,type,contract,function,gas_used,gas_limit
 20,CALL,PythChainlinkOracleAdapter,transferOwnership(address),28507,64140
 21,CALL,ClearingHouse,transferOwnership(address),28635,64428
 22,CALL,FundingSwapMarket,transferOwnership(address),28657,64478
-23,CALL,PulseVault,transferOwnership(address),28660,60902
+23,CALL,MeridianVault,transferOwnership(address),28660,60902
 24,CALL,KuruHedger,transferOwnership(address),28529,64190
 total,,,,27467290,55062918

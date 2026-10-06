@@ -27,7 +27,7 @@ function makeSource() {
   const { chain, rpcUrl } = readChain();
   const client = createPublicClient({ chain, transport: http(rpcUrl) });
   const oracle = contractAddress(READ_CHAIN_ID, "OracleAdapter");
-  const vault = contractAddress(READ_CHAIN_ID, "PulseVault");
+  const vault = contractAddress(READ_CHAIN_ID, "MeridianVault");
   const swapMarket = contractAddress(READ_CHAIN_ID, "FundingSwapMarket");
   const swapOrderBook = contractAddress(READ_CHAIN_ID, "SwapOrderBook");
   const span = process.env.NEXT_PUBLIC_LOG_SPAN;

@@ -26,7 +26,7 @@ export const MOCK = {
   clearingHouse: contractAddress(CHAIN, "ClearingHouse") ?? ZERO,
   orderBook: contractAddress(CHAIN, "OrderBook") ?? ZERO,
   oracle: contractAddress(CHAIN, "OracleAdapter"),
-  vault: contractAddress(CHAIN, "PulseVault") ?? ZERO,
+  vault: contractAddress(CHAIN, "MeridianVault") ?? ZERO,
   swapMarket: "0x00000000000000000000000000000000000000F2" as Address, // not deployed yet (mock-only id)
   user: "0xa11ce00000000000000000000000000000000001" as Address,
   /** Mock chain epoch: block 0 at the start of the build window (1 Sep 2026). */

@@ -6,10 +6,10 @@ import { big, postGql } from "./stats";
 
 export type PricePoint = { time: number; price: bigint };
 
-export const INDEX_QUERY = `query PulseIndex($oracle: String!, $limit: Int!) {
+export const INDEX_QUERY = `query MeridianIndex($oracle: String!, $limit: Int!) {
   OraclePrice(where: { oracle: { _ilike: $oracle } }, order_by: { block: desc }, limit: $limit) { priceWad publishTime }
 }`;
-export const MARK_QUERY = `query PulseMark($market: String!, $limit: Int!) {
+export const MARK_QUERY = `query MeridianMark($market: String!, $limit: Int!) {
   FundingTick(where: { market_id: { _ilike: $market } }, order_by: { block: desc }, limit: $limit) { mark timestamp }
 }`;
 

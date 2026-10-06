@@ -14,9 +14,9 @@ export default defineRailway(() => {
 
   const mfi = service("meridian-mfi", {
     // repo root, not mfi/: the service reads deployments/<chainId>.json and the pnpm workspace lockfile
-    source: github("SamyaDeb/pulse", { branch: "main" }),
-    build: 'pnpm install --frozen-lockfile --filter "@pulse/mfi..."',
-    start: "pnpm --filter @pulse/mfi start",
+    source: github("SamyaDeb/Meridian", { branch: "main" }),
+    build: 'pnpm install --frozen-lockfile --filter "@meridian/mfi..."',
+    start: "pnpm --filter @meridian/mfi start",
     healthcheck: "/healthz",
     volumeMounts: { "/data": data },
     env: {

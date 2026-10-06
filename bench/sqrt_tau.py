@@ -38,7 +38,7 @@ CAVEAT = (
     "Caveat: the hourly/8 h rows model designs where risk state (mark, funding, settlement) refreshes only at that "
     "interval. Most CEX/perp DEXs liquidate continuously, so their tau is keeper latency, not the funding interval. "
     "Our claim is narrower: on Monad, funding, mark and liquidation eligibility all update every block. "
-    "Pulse still sets mmr = 10% (5x max) at launch because thin liquidity (impact) dominates."
+    "Meridian still sets mmr = 10% (5x max) at launch because thin liquidity (impact) dominates."
 )
 
 OUT = Path(__file__).resolve().parent / "out"

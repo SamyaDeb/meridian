@@ -12,17 +12,17 @@ import {IInsuranceFund} from "../src/interfaces/IInsuranceFund.sol";
 import {IMarketFactory} from "../src/interfaces/IMarketFactory.sol";
 import {IMarginEngine} from "../src/interfaces/IMarginEngine.sol";
 import {IOrderBook} from "../src/interfaces/IOrderBook.sol";
-import {IPulseVault} from "../src/interfaces/IPulseVault.sol";
+import {IMeridianVault} from "../src/interfaces/IMeridianVault.sol";
 import {IFundingSwapMarket} from "../src/interfaces/IFundingSwapMarket.sol";
-import {PulseVault} from "../src/vault/PulseVault.sol";
+import {MeridianVault} from "../src/vault/MeridianVault.sol";
 import {KuruHedger} from "../src/vault/KuruHedger.sol";
 import {ClearingHouse} from "../src/clearing/ClearingHouse.sol";
 import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
 import {PythChainlinkOracleAdapter} from "../src/oracle/PythChainlinkOracleAdapter.sol";
 import {TestnetKeeperOracle} from "../src/oracle/TestnetKeeperOracle.sol";
-import {RiskParams, VaultParams, SwapParams} from "../src/interfaces/PulseTypes.sol";
+import {RiskParams, VaultParams, SwapParams} from "../src/interfaces/MeridianTypes.sol";
 
-/// @notice READ-ONLY post-deploy check of a DeployPulse record against `script/config/<chainid>.json` (Phase 3 P2;
+/// @notice READ-ONLY post-deploy check of a DeployMeridian record against `script/config/<chainid>.json` (Phase 3 P2;
 ///         mainnet day step "verify"; testnet relaunch P4.5). Never broadcasts. Checks: every Ownable's owner =
 ///         EXPECTED_OWNER (mainnet: the Safe, never the deployer; on a fork the labelled stand-in; testnet with
 ///         `ownerIsDeployer`: the deployer); the deployer holds no vault role; the keeper and the MM are registered as
@@ -105,7 +105,7 @@ contract VerifyDeployment is DeployBase {
         x.oracle = dep.readAddress(".contracts.OracleAdapter");
         x.fund = dep.readAddress(".contracts.InsuranceFund");
         x.factory = dep.readAddress(".contracts.MarketFactory");
-        x.vault = _optDep(".contracts.PulseVault");
+        x.vault = _optDep(".contracts.MeridianVault");
         x.hedger = _optDep(".contracts.KuruHedger");
         x.swap = _optDep(".contracts.FundingSwapMarket");
         x.sob = _optDep(".contracts.SwapOrderBook");
@@ -119,7 +119,7 @@ contract VerifyDeployment is DeployBase {
         }
         console2.log("chain / block", block.chainid, block.number);
         console2.log("expected owner", x.owner);
-        if (x.vault == address(0)) console2.log("SKIP vault checks: no PulseVault in the record");
+        if (x.vault == address(0)) console2.log("SKIP vault checks: no MeridianVault in the record");
         if (x.swap == address(0)) console2.log("SKIP swap checks: no FundingSwapMarket in the record");
 
         _ownership();
@@ -155,7 +155,7 @@ contract VerifyDeployment is DeployBase {
             _check(x.sob.code.length > 0, "SwapOrderBook has code (no owner by design)");
         }
         if (x.vault != address(0)) {
-            _owned(x.vault, "PulseVault");
+            _owned(x.vault, "MeridianVault");
             if (_hedgerIsMock()) _check(x.hedger.code.length > 0, "KuruHedger (labelled mock) has code");
             else _owned(x.hedger, "KuruHedger");
         }
@@ -177,7 +177,7 @@ contract VerifyDeployment is DeployBase {
     /// @dev The deployer holds no vault role; keeper + MM as decided (decision 11).
     function _roles() internal {
         if (x.vault == address(0)) return;
-        PulseVault v = PulseVault(x.vault);
+        MeridianVault v = MeridianVault(x.vault);
         _check(!v.isKeeper(x.deployer), "deployer is not a vault keeper");
         _check(v.isKeeper(x.keeper), "KEEPER_ADDRESS is a vault keeper");
         _check(v.skewProviders(0) == x.mm, "MM_ADDRESS is skew provider #0 (decision 11)");
@@ -249,13 +249,15 @@ contract VerifyDeployment is DeployBase {
     }
 
     function _vaultParamsCheck() internal {
-        PulseVault v = PulseVault(x.vault);
+        MeridianVault v = MeridianVault(x.vault);
         VaultParams memory vp = v.vaultParams();
         _check(vp.depositCap == _vaultParams().depositCap, "vault depositCap == config");
         _check(vp.skewCapacity == 0, "vault skewCapacity == 0 (idle launch, decision 17)");
         _check(keccak256(abi.encode(vp)) == keccak256(abi.encode(_vaultParams())), "VaultParams == config (all fields)");
         _check(v.shortCapacity() == 0, "vault shortCapacity() == 0 (cannot hedge)");
-        _check(uint8(v.needsRebalance()) == uint8(IPulseVault.RebalanceReason.None), "vault needsRebalance() == None");
+        _check(
+            uint8(v.needsRebalance()) == uint8(IMeridianVault.RebalanceReason.None), "vault needsRebalance() == None"
+        );
     }
 
     /// @dev Oracle params == config and a fresh live price. `pyth`: feed, Pyth contract and guard; `keeper-fed`

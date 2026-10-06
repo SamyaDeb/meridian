@@ -6,18 +6,18 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ClearingHouse} from "../../src/clearing/ClearingHouse.sol";
 import {InsuranceFund} from "../../src/clearing/InsuranceFund.sol";
 import {OrderBook} from "../../src/orderbook/OrderBook.sol";
-import {PulseVault} from "../../src/vault/PulseVault.sol";
+import {MeridianVault} from "../../src/vault/MeridianVault.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
 import {MockKuruHedger} from "../../src/mocks/MockKuruHedger.sol";
-import {IPulseVault} from "../../src/interfaces/IPulseVault.sol";
+import {IMeridianVault} from "../../src/interfaces/IMeridianVault.sol";
 import {IKuruHedger} from "../../src/interfaces/IKuruHedger.sol";
 import {IFundingRateOracle} from "../../src/interfaces/IFundingRateOracle.sol";
-import {RiskParams, FundingParams, VaultParams, HedgeState, AccountView} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, VaultParams, HedgeState, AccountView} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @dev REAL ClearingHouse + OrderBook (MATH_SPEC defaults, caps raised so the §5.5 example fits), MockKuruHedger
 ///      for the spot leg, MockOracleAdapter. r̄ (8 h) is pinned with vm.mockCall on the real CH for rule tests.
-abstract contract PulseVaultBase is Test {
+abstract contract MeridianVaultBase is Test {
     uint256 constant I0 = 0.029e18;
     uint32 constant MID0 = 29_000;
     int256 constant YEAR = 365 days;
@@ -30,7 +30,7 @@ abstract contract PulseVaultBase is Test {
     ClearingHouse ch;
     OrderBook ob;
     MockKuruHedger hedger;
-    PulseVault vault;
+    MeridianVault vault;
     address owner = makeAddr("owner");
     address keeper = makeAddr("keeper");
     address mm = makeAddr("mm");
@@ -77,7 +77,7 @@ abstract contract PulseVaultBase is Test {
         fund.setMarketAuthorized(address(ch), true);
         vm.stopPrank();
         hedger = new MockKuruHedger(address(wmon), address(ausd), I0);
-        vault = new PulseVault(ausd, address(ch), address(ob), address(hedger), _params(), owner);
+        vault = new MeridianVault(ausd, address(ch), address(ob), address(hedger), _params(), owner);
         vm.startPrank(owner);
         vault.setKeeper(keeper, true);
         vault.setSkewProvider(mm, true);
@@ -137,7 +137,7 @@ abstract contract PulseVaultBase is Test {
     /// Keeper rebalances until nothing is left to do (bounded).
     function _rebalanceAll() internal returns (uint256 n) {
         for (; n < 20; ++n) {
-            if (vault.needsRebalance() == IPulseVault.RebalanceReason.None) return n;
+            if (vault.needsRebalance() == IMeridianVault.RebalanceReason.None) return n;
             vm.prank(keeper);
             vault.rebalance();
             vm.roll(block.number + 1);
@@ -155,7 +155,7 @@ abstract contract PulseVaultBase is Test {
     }
 }
 
-contract PulseVaultNoBuffer is PulseVaultBase {
+contract MeridianVaultNoBuffer is MeridianVaultBase {
     function _params() internal pure override returns (VaultParams memory p) {
         p = super._params();
         p.idleBuffer = 0;
@@ -166,7 +166,7 @@ contract PulseVaultNoBuffer is PulseVaultBase {
         _whaleLong(3000); // others net long 300,000 MON ⇒ capacity 240,000 ≥ 206,897
         _setAvgApr(0.3e18);
         _deposit(alice, 10_000e6);
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.EnterHedge));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.EnterHedge));
         uint256 steps = _rebalanceAll();
         assertEq(steps, 3, "2,500 AUSD spot slices: 3 slices for 6,000 AUSD of spot");
         HedgeState memory h = _hs();
@@ -179,7 +179,7 @@ contract PulseVaultNoBuffer is PulseVaultBase {
     }
 }
 
-contract PulseVaultTest is PulseVaultBase {
+contract MeridianVaultTest is MeridianVaultBase {
     // ═══ skew capacity (MATH_SPEC §5.2, as amended) ════════════════════════════
     function test_shortCapacity_isTakersNetLongTimesCapacity() public {
         assertEq(vault.shortCapacity(), 0, "no taker skew");
@@ -210,9 +210,9 @@ contract PulseVaultTest is PulseVaultBase {
         // the whale closes half: the takers' net long falls to 50,000 ⇒ capacity 40,000 < short 80,000
         vm.prank(whale);
         ob.placeMarketOrder(false, 500, MID0 - 40, 500, true);
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.SkewCap));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.SkewCap));
         vm.prank(keeper);
-        assertEq(uint8(vault.rebalance()), uint8(IPulseVault.RebalanceReason.SkewCap));
+        assertEq(uint8(vault.rebalance()), uint8(IMeridianVault.RebalanceReason.SkewCap));
         _rebalanceAll();
         assertLe(uint256(-_hs().perpSize), vault.shortCapacity() + 100e18);
     }
@@ -222,15 +222,15 @@ contract PulseVaultTest is PulseVaultBase {
         _whaleLong(1000);
         _deposit(alice, 5000e6);
         // no 8 h history on the real CH yet: r̄ unavailable ⇒ never enter
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.None));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.None));
         _setAvgApr(0.12e18); // below the ≈ 15.6% entry threshold
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.None));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.None));
         vm.prank(keeper);
-        vm.expectRevert(IPulseVault.NothingToDo.selector);
+        vm.expectRevert(IMeridianVault.NothingToDo.selector);
         vault.rebalance();
         assertFalse(_hs().hedged);
         _setAvgApr(0.16e18); // just above 2c·365/7
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.EnterHedge));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.EnterHedge));
     }
 
     function test_exitThenHysteresis() public {
@@ -240,12 +240,12 @@ contract PulseVaultTest is PulseVaultBase {
         _rebalanceAll();
         assertTrue(_hs().hedged);
         _setAvgApr(0); // between −18.3% and +15.6%: hold
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.None));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.None));
         assertFalse(vault.shouldExitHedge());
         _setAvgApr(-0.3e18); // below −c·365/3 ≈ −18.3%
         assertTrue(vault.shouldExitHedge());
         vm.expectEmit(false, false, false, false, address(vault));
-        emit IPulseVault.HedgeExited(0);
+        emit IMeridianVault.HedgeExited(0);
         _rebalanceAll();
         HedgeState memory h = _hs();
         assertFalse(h.hedged);
@@ -253,9 +253,9 @@ contract PulseVaultTest is PulseVaultBase {
         assertLt(h.spotBase, 100e18);
         assertApproxEqRel(h.idleAssets, 10_000e6, 0.002e18, "back to idle, minus fees");
         _setAvgApr(0.1e18); // back between the thresholds: no re-entry (hysteresis)
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.None));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.None));
         _setAvgApr(0.2e18);
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.EnterHedge));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.EnterHedge));
     }
 
     /// Review finding B-S1: an exit whose last step leaves spot ≥ 1 lot with the perp already flat must keep
@@ -273,7 +273,7 @@ contract PulseVaultTest is PulseVaultBase {
         HedgeState memory h = _hs();
         assertEq(h.perpSize, 0);
         assertLt(h.spotBase, 100e18, "all spot sold");
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.None));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.None));
     }
 
     // ═══ NAV at the index (MATH_SPEC §5.4) ═════════════════════════════════════
@@ -320,7 +320,7 @@ contract PulseVaultTest is PulseVaultBase {
         _setPrice(I0 * 14 / 10); // +40% pump: ratio ≈ (0.667 − 0.4)/1.4 ≈ 19% < 25%
         vm.roll(block.number + 1);
         assertLt(_hs().marginRatio, 0.25e18);
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.MarginLow));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.MarginLow));
         vm.prank(keeper);
         vault.rebalance();
         assertGt(_hs().marginRatio, 0.25e18);
@@ -333,7 +333,7 @@ contract PulseVaultTest is PulseVaultBase {
         _deposit(alice, 10_000e6);
         _rebalanceAll();
         wmon.mint(address(vault), uint256(-_hs().perpSize) / 20); // +5% spot
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.DeltaDrift));
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.DeltaDrift));
         vm.prank(keeper);
         vault.rebalance();
         HedgeState memory h = _hs();
@@ -364,16 +364,16 @@ contract PulseVaultTest is PulseVaultBase {
 
     function test_onlyKeeper() public {
         vm.prank(alice);
-        vm.expectRevert(IPulseVault.OnlyKeeper.selector);
+        vm.expectRevert(IMeridianVault.OnlyKeeper.selector);
         vault.rebalance();
         vm.prank(alice);
-        vm.expectRevert(IPulseVault.OnlyKeeper.selector);
+        vm.expectRevert(IMeridianVault.OnlyKeeper.selector);
         vault.rebalanceWithRoute("");
         vm.prank(alice);
-        vm.expectRevert(IPulseVault.OnlyKeeper.selector);
+        vm.expectRevert(IMeridianVault.OnlyKeeper.selector);
         vault.exitHedge();
         vm.prank(alice);
-        vm.expectRevert(IPulseVault.OnlyKeeper.selector);
+        vm.expectRevert(IMeridianVault.OnlyKeeper.selector);
         vault.enterHedge();
     }
 
@@ -383,7 +383,7 @@ contract PulseVaultTest is PulseVaultBase {
         ausd.mint(bob, 1);
         vm.startPrank(bob);
         ausd.approve(address(vault), 1);
-        vm.expectRevert(IPulseVault.DepositCapExceeded.selector);
+        vm.expectRevert(IMeridianVault.DepositCapExceeded.selector);
         vault.deposit(1, bob);
         vm.stopPrank();
     }
@@ -435,32 +435,32 @@ contract PulseVaultTest is PulseVaultBase {
         VaultParams memory p = _params();
         p.leverage = 6e18;
         vm.prank(owner);
-        vm.expectRevert(IPulseVault.InvalidParams.selector);
+        vm.expectRevert(IMeridianVault.InvalidParams.selector);
         vault.setVaultParams(p);
         p = _params();
         p.minMarginRatio = p.targetMarginRatio;
         vm.prank(owner);
-        vm.expectRevert(IPulseVault.InvalidParams.selector);
+        vm.expectRevert(IMeridianVault.InvalidParams.selector);
         vault.setVaultParams(p);
         p = _params();
         p.maxSlippage = 0;
         vm.prank(owner);
-        vm.expectRevert(IPulseVault.InvalidParams.selector);
+        vm.expectRevert(IMeridianVault.InvalidParams.selector);
         vault.setVaultParams(p);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
         vault.setVaultParams(_params());
         vm.expectEmit(address(vault));
-        emit IPulseVault.VaultParamsUpdated(_params());
+        emit IMeridianVault.VaultParamsUpdated(_params());
         vm.prank(owner);
         vault.setVaultParams(_params());
     }
 
     function test_setSkewProvider_bounds() public {
         vm.startPrank(owner);
-        vm.expectRevert(IPulseVault.InvalidParams.selector);
+        vm.expectRevert(IMeridianVault.InvalidParams.selector);
         vault.setSkewProvider(address(0), true);
-        vm.expectRevert(IPulseVault.InvalidParams.selector);
+        vm.expectRevert(IMeridianVault.InvalidParams.selector);
         vault.setSkewProvider(address(vault), true);
         vault.setSkewProvider(mm, true); // idempotent
         assertEq(vault.skewProviders(0), mm);
@@ -471,17 +471,17 @@ contract PulseVaultTest is PulseVaultBase {
     }
 
     function test_constructor_rejectsMiswiring() public {
-        vm.expectRevert(IPulseVault.InvalidParams.selector);
-        new PulseVault(ausd, address(ch), address(0xdead), address(hedger), _params(), owner);
+        vm.expectRevert(IMeridianVault.InvalidParams.selector);
+        new MeridianVault(ausd, address(ch), address(0xdead), address(hedger), _params(), owner);
         MockERC20 other = new MockERC20("x", "x", 6);
-        vm.expectRevert(IPulseVault.InvalidParams.selector);
-        new PulseVault(other, address(ch), address(ob), address(hedger), _params(), owner);
+        vm.expectRevert(IMeridianVault.InvalidParams.selector);
+        new MeridianVault(other, address(ch), address(ob), address(hedger), _params(), owner);
     }
 }
 
 /// Review A-05/A-06: NAV uses the SIGNED perp collateral (AccountView.collateral is clamped at 0), and deposits close
 /// while the vault's perp account carries bad debt.
-contract PulseVaultBadDebtNav is PulseVaultBase {
+contract MeridianVaultBadDebtNav is MeridianVaultBase {
     function test_A05_A06_negativePerpCollateral_navAndDepositsClosed() public {
         _deposit(alice, 1000e6);
         assertGt(vault.maxDeposit(bob), 0);
@@ -498,7 +498,7 @@ contract PulseVaultBadDebtNav is PulseVaultBase {
 
 /// A-02 (Medium): one lot (100 MON ≈ $2.7) of WMON donated to a flat, not-entered vault makes `_needs` return
 /// ExitHedge forever and `_exitSlice` revert NothingToDo (q = 0 ⇒ `_reduceBoth(0)`): the entry rule can never fire.
-contract ReviewA02_DonationBricksRule is PulseVaultBase {
+contract ReviewA02_DonationBricksRule is MeridianVaultBase {
     function test_A02_wmonDonation_doesNotBlockRuleBasedEntry() public {
         _whaleLong(3000);
         _deposit(alice, 5000e6);
@@ -524,7 +524,7 @@ contract ReviewA02_DonationBricksRule is PulseVaultBase {
 /// A-03 (Medium): MarginLow tops up only from idle and reduces the legs only when idle == 0 exactly. A griefer who
 /// sends 1 unit (1e-6 AUSD) before each keeper rebalance keeps the top-up at dust: no margin added, no reduction,
 /// and a further pump liquidates the vault's short.
-contract ReviewA03_DustIdleMarginLow is PulseVaultBase {
+contract ReviewA03_DustIdleMarginLow is MeridianVaultBase {
     function test_A03_dustIdle_marginLowStillMakesProgress() public {
         _whaleLong(3000);
         _setAvgApr(0.3e18);
@@ -536,7 +536,7 @@ contract ReviewA03_DustIdleMarginLow is PulseVaultBase {
         vm.prank(keeper);
         vault.rebalance();
         vm.roll(block.number + 1);
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.MarginLow), "still low");
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.MarginLow), "still low");
         assertEq(ausd.balanceOf(address(vault)), 0, "idle spent");
         HedgeState memory h0 = vault.hedgeState();
         // griefer front-runs the keeper with 1 unit
@@ -556,7 +556,7 @@ contract ReviewA03_DustIdleMarginLow is PulseVaultBase {
 /// vault depositCap 1,200 AUSD, PHASES decision 12) the target N/P = 0.57·1,200/P exceeds 25k MON whenever MON <
 /// ≈ $0.0274 (today ≈ 0.0272): the first (only) slice reverts PositionCapExceeded and the vault never deploys, while
 /// needsRebalance keeps reporting EnterHedge/Deploy.
-contract ReviewA04_TargetIgnoresPositionCap is PulseVaultBase {
+contract ReviewA04_TargetIgnoresPositionCap is MeridianVaultBase {
     function _params() internal pure override returns (VaultParams memory p) {
         p = super._params();
         p.depositCap = 1200e6;

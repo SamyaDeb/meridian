@@ -11,7 +11,7 @@
 Consumes everything. Provides: invariant suites, `bench/out/*`, `docs/outputs/BENCHMARKS.md`, `docs/outputs/WRITEUP.md`, `docs/outputs/SECURITY_REVIEW.md`.
 
 ## Task checklist (ordered)
-1. [ ] Read all specs; turn MATH_SPEC §7 (I1–I11) into invariant test skeletons with ghost variables (`test/invariant/PulseInvariants.t.sol`), initially against mocks.
+1. [ ] Read all specs; turn MATH_SPEC §7 (I1–I11) into invariant test skeletons with ghost variables (`test/invariant/MeridianInvariants.t.sol`), initially against mocks.
 2. [ ] `bench/sqrt_tau.py` → `bench/out/sqrt_tau.png` + CSV (B6), matching the MATH_SPEC §3.4 table. Can be done Day 1.
 3. [ ] Integrate module handlers (WS-01/02/04/05) as they land; get I1–I7 green by CP2, I8–I11 by Day 10.
 4. [ ] Security review pass per PR: reentrancy on value flows, CEI, rounding direction, unbounded loops, access control, oracle failure modes, Kuru slippage. Log it in `docs/outputs/SECURITY_REVIEW.md`. Run `slither` if available.
@@ -37,7 +37,7 @@ D1 read + √τ chart · D2 invariant skeletons · D4 handlers · D5 CP1 test pl
 
 ## Kickoff prompt
 ```
-You are the engineer for WS-08 (QA/security, invariants, benchmarks, √τ chart, deployment, demo and write-up) of Pulse.
+You are the engineer for WS-08 (QA/security, invariants, benchmarks, √τ chart, deployment, demo and write-up) of Meridian.
 Read CLAUDE.md, docs/TEAM_PLAN.md, docs/PRD.md, docs/MATH_SPEC.md (§3.4 and §7 are your core), docs/ARCHITECTURE.md, docs/BENCHMARKS_PLAN.md, docs/DEMO_SCRIPT.md, docs/BOUNTY_MAP.md, docs/RISKS.md and docs/workstreams/WS-08-qa-bench-demo.md.
 Work only in your owned paths on branch ws-08-qa.
 Day 1: produce bench/sqrt_tau.py and its chart, and write the invariant test skeletons for I1–I11 against the mocks.

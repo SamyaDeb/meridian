@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {IdleLaunchBase} from "../unit/PulseVaultIdleLaunch.t.sol";
+import {IdleLaunchBase} from "../unit/MeridianVaultIdleLaunch.t.sol";
 
 /// @notice A-01 idle launch: for any two deposits and any redemption order, the vault never holds a claim it cannot
 ///         pay from idle, and redemption rounds against the redeemer (MATH_SPEC §5.4, shares burned round up /
 ///         assets paid round down), so redeem(deposit(x)) <= x.
-contract PulseVaultIdleLaunchFuzzTest is IdleLaunchBase {
+contract MeridianVaultIdleLaunchFuzzTest is IdleLaunchBase {
     function testFuzz_idle_everyClaimCoveredByIdle(uint256 x, uint256 y, bool aliceFirst) public {
         x = bound(x, 1e6, 1000e6);
         y = bound(y, 1e6, LAUNCH_CAP - x);

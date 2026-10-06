@@ -59,7 +59,7 @@ const MAP = new Map<string, `0x${string}`>(
     [MARKET_REG.params.oracle, A.ORACLE],
     [first("InsuranceFund"), A.IF],
     [first("MarketFactory"), A.FACTORY],
-    [first("PulseVault"), A.VAULT],
+    [first("MeridianVault"), A.VAULT],
     [first("KuruHedger"), A.HEDGER],
     [SWAP_KEPT, A.SWAP],
     [first("SwapOrderBook", (i) => fx.items.some((j) => j.contract === "FundingSwapMarket" && j.srcAddress === SWAP_KEPT && j.block.number === i.block.number && j.transaction.hash === i.transaction.hash)), A.SWAP_OB],
@@ -81,13 +81,13 @@ beforeAll(async () => {
 describe("full-stack replay: vault + swap event surface", () => {
   it("the recording covers every vault, hedger and swap event the rehearsal emits", () => {
     for (const k of [
-      "PulseVault.Deposit",
-      "PulseVault.Transfer",
-      "PulseVault.NavSnapshot",
-      "PulseVault.Rebalanced",
-      "PulseVault.HedgeEntered",
-      "PulseVault.VaultParamsUpdated",
-      "PulseVault.KeeperUpdated",
+      "MeridianVault.Deposit",
+      "MeridianVault.Transfer",
+      "MeridianVault.NavSnapshot",
+      "MeridianVault.Rebalanced",
+      "MeridianVault.HedgeEntered",
+      "MeridianVault.VaultParamsUpdated",
+      "MeridianVault.KeeperUpdated",
       "KuruHedger.SpotBought",
       "KuruHedger.SpotSold",
       "FundingSwapMarket.Deposited",
@@ -105,7 +105,7 @@ describe("full-stack replay: vault + swap event surface", () => {
 
   it("VaultSnapshot per NavSnapshot; share price series = the contract's sharePrice() at those blocks", async () => {
     const snaps = await indexer.VaultSnapshot.getAll();
-    expect(snaps.length).toBe(of("PulseVault", "NavSnapshot").length);
+    expect(snaps.length).toBe(of("MeridianVault", "NavSnapshot").length);
     expect(fx.expected.vault.sharePriceAt.length).toBeGreaterThan(0);
     for (const { block, sharePrice } of fx.expected.vault.sharePriceAt) {
       const inBlock = snaps.filter((s) => Number(s.block) === block).sort((a, b) => (a.id < b.id ? -1 : 1));
@@ -131,7 +131,7 @@ describe("full-stack replay: vault + swap event surface", () => {
 
   it("VaultRebalance per Rebalanced (EnterHedge / SkewCap reasons), hedged flag", async () => {
     const reb = await indexer.VaultRebalance.getAll();
-    expect(reb.length).toBe(of("PulseVault", "Rebalanced").length);
+    expect(reb.length).toBe(of("MeridianVault", "Rebalanced").length);
     const v = await indexer.Vault.getOrThrow(A.VAULT);
     expect(v.hedged).toBe(true);
     expect(reb.map((r) => r.reason)).toEqual(expect.arrayContaining(["EnterHedge", "SkewCap"]));

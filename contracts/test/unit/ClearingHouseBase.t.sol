@@ -8,7 +8,7 @@ import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
 import {MockOrderBook} from "../../src/mocks/MockOrderBook.sol";
 import {IClearingHouse} from "../../src/interfaces/IClearingHouse.sol";
-import {RiskParams, FundingParams, AccountView} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, AccountView} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @dev Shared fixture: I = 2 AUSD, tick 1e-4, lot 1 base, MATH_SPEC §1.3/§3.3 defaults.
 abstract contract ClearingHouseBase is Test {

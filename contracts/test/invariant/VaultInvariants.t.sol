@@ -6,20 +6,20 @@ import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {ClearingHouse} from "../../src/clearing/ClearingHouse.sol";
 import {InsuranceFund} from "../../src/clearing/InsuranceFund.sol";
 import {OrderBook} from "../../src/orderbook/OrderBook.sol";
-import {PulseVault} from "../../src/vault/PulseVault.sol";
+import {MeridianVault} from "../../src/vault/MeridianVault.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
 import {MockKuruHedger} from "../../src/mocks/MockKuruHedger.sol";
-import {RiskParams, FundingParams, VaultParams} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, VaultParams} from "../../src/interfaces/MeridianTypes.sol";
 import {VaultHandler} from "./handlers/VaultHandler.sol";
 
-/// @notice MATH_SPEC I8 (vault shares) and I10 (no free money, see also test/fuzz/PulseVault.fuzz.t.sol) on the REAL
+/// @notice MATH_SPEC I8 (vault shares) and I10 (no free money, see also test/fuzz/MeridianVault.fuzz.t.sol) on the REAL
 ///         ClearingHouse + OrderBook with MockKuruHedger. fail_on_revert; coverage appended per run to
 ///         bench-out/vault_invariant_coverage.csv.
 /// forge-config: default.invariant.fail-on-revert = true
 contract VaultInvariantsTest is StdInvariant, Test {
     VaultHandler handler;
-    PulseVault vault;
+    MeridianVault vault;
     ClearingHouse ch;
 
     function setUp() public {
@@ -45,7 +45,7 @@ contract VaultInvariantsTest is StdInvariant, Test {
         vm.stopPrank();
         MockKuruHedger hedger = new MockKuruHedger(address(wmon), address(ausd), 0.029e18);
         hedger.setSpread(0.001e18);
-        vault = new PulseVault(
+        vault = new MeridianVault(
             ausd,
             address(ch),
             address(ob),

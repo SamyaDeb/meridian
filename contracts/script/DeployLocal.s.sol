@@ -5,7 +5,7 @@ import {stdJson} from "forge-std/StdJson.sol";
 import {DeployBase} from "./DeployBase.s.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../src/mocks/MockOracleAdapter.sol";
-import {MockPulseVault} from "../src/mocks/MockPulseVault.sol";
+import {MockMeridianVault} from "../src/mocks/MockMeridianVault.sol";
 import {MockKuruHedger} from "../src/mocks/MockKuruHedger.sol";
 import {InsuranceFund} from "../src/clearing/InsuranceFund.sol";
 import {ClearingHouse} from "../src/clearing/ClearingHouse.sol";
@@ -72,7 +72,7 @@ contract DeployLocal is DeployBase {
     }
 
     function _deployVault() internal {
-        d.vault = address(new MockPulseVault(d.ausd));
+        d.vault = address(new MockMeridianVault(d.ausd));
         d.hedger = address(new MockKuruHedger(d.wmon, d.ausd, _u(".local.initialIndexPriceWad")));
     }
 
@@ -85,12 +85,12 @@ contract DeployLocal is DeployBase {
         c.serialize("ClearingHouse", d.clearingHouse);
         c.serialize("OrderBook", d.orderBook);
         c.serialize("MarketFactory", d.marketFactory);
-        c.serialize("PulseVault", d.vault);
+        c.serialize("MeridianVault", d.vault);
         string memory contracts = c.serialize("KuruHedger", d.hedger);
 
         string[] memory mocks = new string[](5);
         (mocks[0], mocks[1], mocks[2], mocks[3], mocks[4]) =
-        ("AUSD", "WMON", "OracleAdapter", "PulseVault", "KuruHedger");
+        ("AUSD", "WMON", "OracleAdapter", "MeridianVault", "KuruHedger");
 
         string memory root = "root";
         root.serialize("chainId", block.chainid);

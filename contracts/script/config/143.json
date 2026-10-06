@@ -62,7 +62,7 @@
     "swap": {
       "_maturity": "unix seconds, set at deploy: 30 days after listing (MATH_SPEC §6.1)",
       "maturity": null,
-      "_maturityInSec": "maturity = listing block time + 30 days, computed by DeployPulse at deploy (MATH_SPEC §6.1)",
+      "_maturityInSec": "maturity = listing block time + 30 days, computed by DeployMeridian at deploy (MATH_SPEC §6.1)",
       "maturityInSec": 2592000,
       "tickSizeWad": "100000000000000",
       "lotSizeWad": "1000000000000000000000",
@@ -90,13 +90,13 @@
       "idleBuffer": "50000000000000000",
       "_depositCap": "Launch cap per PHASES decision 12 (vault-cap option C, owner 30 Sep 2026): 1,200 AUSD (6 dp) = what the vault can deploy at maxPositionSize 25k MON. Raise with the perp caps via setVaultParams (Safe).",
       "depositCap": "1200000000",
-      "_skewCapacity": "IDLE LAUNCH (review A-01, 5 Oct 2026): 0 = hedge target 0, so no keeper call can hedge and every redemption is served from idle AUSD (test/unit/PulseVaultIdleLaunch.t.sol). Without CR-010 the hedged vault cannot redeem beyond idle on 143. After CR-010 (or a verified live direct MON/AUSD market) the Safe raises it to 0.8e18 via setVaultParams.",
+      "_skewCapacity": "IDLE LAUNCH (review A-01, 5 Oct 2026): 0 = hedge target 0, so no keeper call can hedge and every redemption is served from idle AUSD (test/unit/MeridianVaultIdleLaunch.t.sol). Without CR-010 the hedged vault cannot redeem beyond idle on 143. After CR-010 (or a verified live direct MON/AUSD market) the Safe raises it to 0.8e18 via setVaultParams.",
       "skewCapacity": "0",
       "entryHorizonSec": 604800,
       "maxSliceAssets": "2500000000"
     },
     "oracle": {
-      "_kind": "PythChainlinkOracleAdapter (ARCHITECTURE R11/R12); structural, added by A (DeployPulse reads it). Values below: B",
+      "_kind": "PythChainlinkOracleAdapter (ARCHITECTURE R11/R12); structural, added by A (DeployMeridian reads it). Values below: B",
       "kind": "pyth",
       "_maxStalenessSec": "60 s: no Pyth API key, sponsored pushes (R24); 72 h sample: sponsored age p99 50 s, max 66 s (ws-03j-oracle-params, docs/standup/B.md, keepers/ts-fallback/evidence/)",
       "maxStalenessSec": 60,

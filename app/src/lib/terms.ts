@@ -2,7 +2,7 @@
 
 /** Bump when the text in src/content/terms.ts changes materially. */
 export const TERMS_VERSION = "2026-10-05-meridian-draft"; // bumped for the Pulse → Meridian rename (decision D5)
-export const TERMS_STORAGE_KEY = "pulse.terms.accepted";
+export const TERMS_STORAGE_KEY = "meridian.terms.accepted";
 
 export type TermsRecord = { version: string; acceptedAt: number };
 

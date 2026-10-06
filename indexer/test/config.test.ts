@@ -16,7 +16,7 @@ const fake = (chainId: number) => ({
   contracts: {
     ClearingHouse: "0x1000000000000000000000000000000000000001",
     OrderBook: "0x1000000000000000000000000000000000000002",
-    PulseVault: "0x1000000000000000000000000000000000000003",
+    MeridianVault: "0x1000000000000000000000000000000000000003",
   },
 });
 
@@ -27,12 +27,12 @@ describe("every interface event is indexed (SCHEMA.md checklist)", () => {
     ["IOrderBook", "OrderBook", []],
     ["IOrderBook", "SwapOrderBook", []],
     ["IFundingSwapMarket", "FundingSwapMarket", []],
-    ["IPulseVault", "PulseVault", ["Approval"]], // ERC-20 allowance: no product use
+    ["IMeridianVault", "MeridianVault", ["Approval"]], // ERC-20 allowance: no product use
     ["IOracleAdapter", "OracleAdapter", []],
     ["IInsuranceFund", "InsuranceFund", []],
     ["IMarketFactory", "MarketFactory", []],
     ["IKuruHedger", "KuruHedger", []],
-    ["IPulseKeeperReceiver", "PulseKeeperReceiver", []],
+    ["IMeridianKeeperReceiver", "MeridianKeeperReceiver", []],
   ];
   it.each(cases)("%s → %s", (abi, name, excluded) => {
     const c = CONTRACTS.find((x: { name: string }) => x.name === name)!;
@@ -94,8 +94,8 @@ describe("renderConfig", () => {
     expect(() => renderConfig(143, { ...fake(143), contracts: {} })).toThrow(/no indexable/);
   });
 
-  it("10143: refuses the NOT DEPLOYED placeholder, renders the DeployPulse dry-run shape", () => {
-    // deployments/10143.json is broadcast now (30 Sep); the placeholder shape DeployPulse overwrites stays tested inline
+  it("10143: refuses the NOT DEPLOYED placeholder, renders the DeployMeridian dry-run shape", () => {
+    // deployments/10143.json is broadcast now (30 Sep); the placeholder shape DeployMeridian overwrites stays tested inline
     const placeholder = { chainId: 10143, deployed: false, startBlock: 0, contracts: {} };
     expect(() => renderConfig(10143, placeholder)).toThrow(/NOT DEPLOYED/);
     const dry = JSON.parse(readFileSync(resolve(ROOT, "deployments/dry-run/10143.json"), "utf8"));
@@ -116,7 +116,7 @@ describe("renderConfig", () => {
     const dep = JSON.parse(readFileSync(resolve(ROOT, "deployments/10143.json"), "utf8"));
     const y = readFileSync(resolve(import.meta.dirname, "../config.testnet.yaml"), "utf8");
     expect(y).toBe(renderConfig(10143, dep));
-    for (const k of ["ClearingHouse", "OrderBook", "OracleAdapter", "PulseVault", "FundingSwapMarket", "SwapOrderBook"]) {
+    for (const k of ["ClearingHouse", "OrderBook", "OracleAdapter", "MeridianVault", "FundingSwapMarket", "SwapOrderBook"]) {
       expect(y, k).toContain(`address: "${dep.contracts[k]}"`);
     }
     // The MM, demo MM and the house taker flow are operators: never external users (chart-liquidity prompt, task 2).

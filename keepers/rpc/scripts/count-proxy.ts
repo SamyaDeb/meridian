@@ -1,6 +1,6 @@
 // Counting JSON-RPC proxy for bot evidence (Phase 4 step 1): measures a bot from the outside, so the "before"
 // (main) and "after" builds are compared with the same instrument.
-//   PORT=18546 UPSTREAM=http://127.0.0.1:8546 OUT=runs/p4-step1/keeper-before.jsonl pnpm --filter @pulse/bot-rpc proxy
+//   PORT=18546 UPSTREAM=http://127.0.0.1:8546 OUT=runs/p4-step1/keeper-before.jsonl pnpm --filter @meridian/bot-rpc proxy
 // Point the bot's RPC_URL at http://127.0.0.1:$PORT. Every 60 s (and on SIGINT) one JSON line is appended to OUT:
 // calls by method in that minute, and for eth_sendRawTransaction the tx count and Σ gas LIMIT (what Monad bills, R6)
 // decoded from the signed bytes.

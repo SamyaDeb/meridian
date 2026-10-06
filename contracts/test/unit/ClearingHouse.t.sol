@@ -9,13 +9,13 @@ import {IClearingHouse} from "../../src/interfaces/IClearingHouse.sol";
 import {IMarginEngine} from "../../src/interfaces/IMarginEngine.sol";
 import {IFundingRateOracle} from "../../src/interfaces/IFundingRateOracle.sol";
 import {
-    PulseConstants,
+    MeridianConstants,
     RiskParams,
     FundingParams,
     FundingState,
     Position,
     AccountView
-} from "../../src/interfaces/PulseTypes.sol";
+} from "../../src/interfaces/MeridianTypes.sol";
 
 contract ClearingHouseTest is ClearingHouseBase {
     // ═══ constructor / wiring ═══════════════════════════════════════════════════
@@ -38,7 +38,7 @@ contract ClearingHouseTest is ClearingHouseBase {
         assertEq(f, 0);
         assertEq(g, 0);
         assertEq(blk, 1000);
-        assertEq(PulseConstants.CHECKPOINT_SLOTS, 1440, "ring literal matches the constant");
+        assertEq(MeridianConstants.CHECKPOINT_SLOTS, 1440, "ring literal matches the constant");
     }
 
     function test_constructor_revertsOnZeroAddress() public {

@@ -80,7 +80,7 @@ Rule: every day ends with a **demoed gate** written to `docs/standup/<A|B|C>.md`
 ### Mon 5 Oct: merge + fix the Highs
 - **A:** merge B's 5 branches (`ws-04b-sec-fixes`, `ws-03i-review-b`, `ws-03j-oracle-params`, `ws-03i-kuru-flow`, `ws-03k-paging`) + `ws-00h-review-a`; full `forge test` + invariants. Decide **A-01**: CR-010 route fix vs launch the vault idle with `NEXT_PUBLIC_VAULT_ROUTE_PENDING` (lead leans CR-010 if it's ≤ 1 day, else idle launch).
 - **B:** fix **B-01** (swap `markApr` atomic manipulation: TWAP/last-block mark or a per-block bound), PoC must flip to failing-exploit.
-- **C:** Pulse → **Meridian** rename across app (header, manifest, title, terms, OG image); start Privy login.
+- **C:** Meridian → **Meridian** rename across app (header, manifest, title, terms, OG image); start Privy login.
 - **New lane D (Claude session, offchain only):** MFI v0 design note `docs/MFI.md` + Perpl API client (read funding, mark, OI) with vitest against recorded fixtures. > VERIFY: Perpl API base URL and endpoints from Perpl's official docs; never guessed.
 - **Gate:** main green with all branches merged; B-01 PoC fails; app says Meridian.
 
@@ -92,14 +92,14 @@ Rule: every day ends with a **demoed gate** written to `docs/standup/<A|B|C>.md`
 - **Gate:** all Highs closed with tests; Privy login → first trade ≤ 4 taps on testnet; MFI API returns both venues.
 
 ### Wed 7 Oct (CP2): rehearse mainnet
-- **A:** mainnet-fork rehearsal of `DeployPulse` with the real Safe; crash demo on the fork → per-block CSV (NAV, markApr, IF for 20 blocks).
+- **A:** mainnet-fork rehearsal of `DeployMeridian` with the real Safe; crash demo on the fork → per-block CSV (NAV, markApr, IF for 20 blocks).
 - **B:** mainnet runbook dry-run on the fork: seed IF, MM inventory, vault; keeper/MM on fork; alerts paging live.
 - **C:** **Rates & Risk** page (MFI chart Meridian vs Perpl, liquidation-distance histogram, insurance fund); hosted Envio on testnet; Lighthouse ≥ 80 phone + desktop.
 - **D:** benchmark B3/B4 with the paid RPC; regenerate `BENCHMARKS.md`.
 - **Gate (G4 closed):** fork deploy passes the full smoke; crash CSV produced; every demo-script segment works on testnet.
 
 ### Thu 8 Oct: MAINNET DAY
-- 10:00 owner "go" → A broadcasts `DeployPulse` (caps on, owner = Safe), verifies contracts, writes `deployments/143.json`.
+- 10:00 owner "go" → A broadcasts `DeployMeridian` (caps on, owner = Safe), verifies contracts, writes `deployments/143.json`.
 - B seeds IF + MM + vault, starts keeper/MM; C points app + indexer at 143 and deploys the site.
 - 14:00 founders' first trades (excluded from user counts); 15:00 outreach wave 1 starts.
 - **18:00 contract code freeze.**

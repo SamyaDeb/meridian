@@ -8,7 +8,7 @@ import {IOracleAdapter} from "../../src/interfaces/IOracleAdapter.sol";
 import {ClearingHouse} from "../../src/clearing/ClearingHouse.sol";
 import {InsuranceFund} from "../../src/clearing/InsuranceFund.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
-import {RiskParams, FundingParams} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams} from "../../src/interfaces/MeridianTypes.sol";
 
 contract OracleTestnetKeeperTest is Test {
     TestnetKeeperOracle o;

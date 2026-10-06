@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {FixedPointMathLib as FPM} from "solady/utils/FixedPointMathLib.sol";
-import {FundingParams, FundingState} from "../interfaces/PulseTypes.sol";
+import {FundingParams, FundingState} from "../interfaces/MeridianTypes.sol";
 
 /// @title FundingLib — per-block funding: EMA premium, clamped rate, cumulative indices F and G
 /// @notice Pure math for MATH_SPEC §1.2–§1.4. The ClearingHouse calls `update` on the first touch per block

@@ -8,8 +8,8 @@ import {MockClearingHouse} from "../../src/mocks/MockClearingHouse.sol";
 import {MockOrderBook} from "../../src/mocks/MockOrderBook.sol";
 import {MockInsuranceFund} from "../../src/mocks/MockInsuranceFund.sol";
 import {MockKuruHedger} from "../../src/mocks/MockKuruHedger.sol";
-import {MockPulseVault} from "../../src/mocks/MockPulseVault.sol";
-import {AccountView} from "../../src/interfaces/PulseTypes.sol";
+import {MockMeridianVault} from "../../src/mocks/MockMeridianVault.sol";
+import {AccountView} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @notice Proves the mocks wire together the way downstream workstreams will use them.
 contract MocksSmokeTest is Test {
@@ -49,7 +49,7 @@ contract MocksSmokeTest is Test {
     }
 
     function test_vaultAndHedger() public {
-        MockPulseVault v = new MockPulseVault(address(ausd));
+        MockMeridianVault v = new MockMeridianVault(address(ausd));
         ausd.mint(alice, 100e6);
         vm.startPrank(alice);
         ausd.approve(address(v), type(uint256).max);

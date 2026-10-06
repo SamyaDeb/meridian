@@ -12,7 +12,7 @@ describe("deployments", () => {
     expect(DEPLOYMENTS[31337]?.contracts.ClearingHouse).toMatch(/^0x[0-9a-fA-F]{40}$/);
   });
 
-  it("accepts the DeployPulse 10143 shape, demo market labelled as a test market", () => {
+  it("accepts the DeployMeridian 10143 shape, demo market labelled as a test market", () => {
     const d = buildDeployments([dryRun as unknown as Deployment])[10143];
     expect(d?.contracts.ClearingHouse).toBe("0x6C58b8bfeA118d1D627112Ab076988733f978304");
     expect(d?.oracleKind).toBe("keeper-fed");
@@ -26,10 +26,10 @@ describe("withOverride (local rehearsal deployments, build time)", () => {
   const real = { chainId: 10143, mocks: false, startBlock: 1, contracts: { ClearingHouse: "0x1111111111111111111111111111111111111111", OrderBook: "0x2222222222222222222222222222222222222222" } } as Deployment;
   const other = { ...real, chainId: 31337 } as Deployment;
   it("replaces only the override's chain", () => {
-    const o = { ...real, contracts: { ...real.contracts, PulseVault: "0x3333333333333333333333333333333333333333" } };
+    const o = { ...real, contracts: { ...real.contracts, MeridianVault: "0x3333333333333333333333333333333333333333" } };
     const out = withOverride([real, other], JSON.stringify(o));
     expect(out).toHaveLength(2);
-    expect(out.find((d) => d.chainId === 10143)?.contracts.PulseVault).toBe("0x3333333333333333333333333333333333333333");
+    expect(out.find((d) => d.chainId === 10143)?.contracts.MeridianVault).toBe("0x3333333333333333333333333333333333333333");
     expect(out.find((d) => d.chainId === 31337)).toBe(other);
   });
   it("ignores an absent or broken override", () => {

@@ -7,7 +7,7 @@ import { big, int, postGql } from "./stats";
 
 export type CandleTable = "Candle1m" | "Candle1h";
 
-export const candlesQuery = (table: CandleTable) => `query PulseCandles($market: String!, $limit: Int!) {
+export const candlesQuery = (table: CandleTable) => `query MeridianCandles($market: String!, $limit: Int!) {
   ${table}(where: { market: { _ilike: $market } }, order_by: { bucketStart: desc }, limit: $limit) {
     id market bucketStart open high low close volumeBaseWad volumeQuoteWad trades
   }

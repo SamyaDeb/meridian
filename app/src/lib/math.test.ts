@@ -134,7 +134,7 @@ describe("AUSD boundary and gas", () => {
     expect(wadToToken(10n ** 12n - 1n)).toBe(0n);
     expect(sharePriceWadFromAssets(1_000_420n)).toBe(1_000_420n * 10n ** 12n);
   });
-  it("vault share price = (totalAssets + 1)·1e30/(totalSupply + 1e12), as PulseVault.sharePrice()", () => {
+  it("vault share price = (totalAssets + 1)·1e30/(totalSupply + 1e12), as MeridianVault.sharePrice()", () => {
     expect(vaultSharePriceWad(10_000_000_000n, 10_000n * WAD)).toBe(WAD); // par, virtual offset 12
     expect(vaultSharePriceWad(0n, 0n)).toBe(WAD);
     // +15 token units of funding on 10,000 AUSD is visible (convertToAssets(1e18) would round it away)

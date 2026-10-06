@@ -37,7 +37,7 @@ D1 shell + Privy · D2 trade screen (mock) · D3 positions + ticker · D4 vault 
 
 ## Kickoff prompt
 ```
-You are the engineer for WS-07 (mobile-first Next.js PWA with Privy, AUSD) of Pulse.
+You are the engineer for WS-07 (mobile-first Next.js PWA with Privy, AUSD) of Meridian.
 Read CLAUDE.md, docs/TEAM_PLAN.md, docs/PRD.md (user stories US1–US10), docs/DEMO_SCRIPT.md, docs/BOUNTY_MAP.md, docs/INTERFACES.md, docs/MATH_SPEC.md (§1.8 oracle APR, §3.2 liq price, §6 swaps) and docs/workstreams/WS-07-frontend.md.
 Work only in app/ on branch ws-07-frontend.
 Start with the shell (Next.js App Router, wagmi/viem, and the single login chosen by the team: Privy or @category-labs/mera) and a typed mock data layer matching indexer/SCHEMA.md (or INTERFACES §3 if SCHEMA.md isn't there yet).

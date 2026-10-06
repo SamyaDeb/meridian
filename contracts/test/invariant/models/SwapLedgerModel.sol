@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {PulseConstants} from "../../../src/interfaces/PulseTypes.sol";
+import {MeridianConstants} from "../../../src/interfaces/MeridianTypes.sol";
 
 /// @notice Reference model of the funding-swap ledger (MATH_SPEC §6.2), used by the invariant suite until
 ///         WS-05's FundingSwapMarket lands. The driver swaps this for the real market then; the invariants
@@ -12,8 +12,8 @@ import {PulseConstants} from "../../../src/interfaces/PulseTypes.sol";
 ///      - net is ONE floor division of (q·ΔF·YEAR − K·ΔG)/(1e18·YEAR), so Σnet ∈ [−#settlements, 0]
 ///        (rounding each leg separately widens the bound to −2·#settlements).
 contract SwapLedgerModel {
-    int256 internal constant W = PulseConstants.IWAD;
-    int256 internal constant YEAR = int256(PulseConstants.SECONDS_PER_YEAR);
+    int256 internal constant W = MeridianConstants.IWAD;
+    int256 internal constant YEAR = int256(MeridianConstants.SECONDS_PER_YEAR);
 
     struct Account {
         int256 q; // MON notional, WAD (+ long = receive floating, pay fixed)

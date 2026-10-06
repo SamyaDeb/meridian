@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {PulseConstants} from "../interfaces/PulseTypes.sol";
+import {MeridianConstants} from "../interfaces/MeridianTypes.sol";
 
 /// @title SwapMathLib — funding-swap accrual and fill accounting (MATH_SPEC §6.2–§6.3, Phase 2 amendments)
 /// @notice Per account: q (size, + = receive floating), K (fixed-APR notional, += Δq·A on every fill, never
@@ -11,7 +11,7 @@ import {PulseConstants} from "../interfaces/PulseTypes.sol";
 ///         ΔG ≤ 1e32, YEAR ≈ 3.2e7), so plain checked int256 arithmetic is used.
 library SwapMathLib {
     int256 internal constant WAD = 1e18;
-    int256 internal constant YEAR = int256(PulseConstants.SECONDS_PER_YEAR);
+    int256 internal constant YEAR = int256(MeridianConstants.SECONDS_PER_YEAR);
 
     /// @notice Accrued net since the last settlement, credited to the account (+ = receives).
     /// @dev MATH_SPEC §6.2 (amended): net = ⌊(q·ΔF·YEAR − K·ΔG) / (1e18·YEAR)⌋ in ONE division, rounds down

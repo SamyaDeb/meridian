@@ -9,12 +9,12 @@ const DISCORD = "https://discord.com/api/webhooks/123456789/abc-DEF_1";
 describe("planPages: de-dup, reminders, resolve, rate limit", () => {
   it("pages on the first cycle only, reminds after repeat, resolves once", () => {
     const st = newPagerState();
-    expect(planPages(st, [crit], 0, C, "Pulse 143")).toEqual(["[Pulse 143] 🔴 oracle_stale: oracle reports stale"]);
-    expect(planPages(st, [crit], 15, C, "Pulse 143")).toEqual([]);
-    expect(planPages(st, [crit], 899, C, "Pulse 143")).toEqual([]);
-    expect(planPages(st, [crit], 900, C, "Pulse 143")[0]).toContain("still firing, 900 s");
-    expect(planPages(st, [], 960, C, "Pulse 143")).toEqual(["[Pulse 143] ✅ RESOLVED oracle_stale (fired for 960 s)"]);
-    expect(planPages(st, [], 975, C, "Pulse 143")).toEqual([]);
+    expect(planPages(st, [crit], 0, C, "Meridian 143")).toEqual(["[Meridian 143] 🔴 oracle_stale: oracle reports stale"]);
+    expect(planPages(st, [crit], 15, C, "Meridian 143")).toEqual([]);
+    expect(planPages(st, [crit], 899, C, "Meridian 143")).toEqual([]);
+    expect(planPages(st, [crit], 900, C, "Meridian 143")[0]).toContain("still firing, 900 s");
+    expect(planPages(st, [], 960, C, "Meridian 143")).toEqual(["[Meridian 143] ✅ RESOLVED oracle_stale (fired for 960 s)"]);
+    expect(planPages(st, [], 975, C, "Meridian 143")).toEqual([]);
   });
 
   it("warn repeats every 2 h, and a flapping code re-pages as new", () => {

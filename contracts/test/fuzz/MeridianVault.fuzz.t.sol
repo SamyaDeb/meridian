@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {PulseVaultBase} from "../unit/PulseVault.t.sol";
+import {MeridianVaultBase} from "../unit/MeridianVault.t.sol";
 
 /// @notice ERC-4626 rounding (MATH_SPEC §5.4): shares minted ↓, assets out ↓, shares burned ↑.
-contract PulseVaultFuzzTest is PulseVaultBase {
+contract MeridianVaultFuzzTest is MeridianVaultBase {
     /// I10: deposit → redeem with no price move returns ≤ the deposit (and ≥ deposit − fee − 1).
     function testFuzz_roundTripNoFreeMoney(uint256 a, uint256 b, uint256 donation) public {
         a = bound(a, 1, 4000e6);

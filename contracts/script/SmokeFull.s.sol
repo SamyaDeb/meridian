@@ -10,12 +10,12 @@ import {IClearingHouse} from "../src/interfaces/IClearingHouse.sol";
 import {IFundingRateOracle} from "../src/interfaces/IFundingRateOracle.sol";
 import {IOrderBook} from "../src/interfaces/IOrderBook.sol";
 import {IInsuranceFund} from "../src/interfaces/IInsuranceFund.sol";
-import {IPulseVault} from "../src/interfaces/IPulseVault.sol";
+import {IMeridianVault} from "../src/interfaces/IMeridianVault.sol";
 import {IFundingSwapMarket} from "../src/interfaces/IFundingSwapMarket.sol";
-import {AccountView, HedgeState, SwapAccountView} from "../src/interfaces/PulseTypes.sol";
+import {AccountView, HedgeState, SwapAccountView} from "../src/interfaces/MeridianTypes.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-/// @notice Full-stack local rehearsal (Phase 4 step 4) after `DeployPulse` with DEPLOY_VAULT=1 DEPLOY_SWAPS=1 on a
+/// @notice Full-stack local rehearsal (Phase 4 step 4) after `DeployMeridian` with DEPLOY_VAULT=1 DEPLOY_SWAPS=1 on a
 ///         LOCAL anvil (chain id 10143 with LOCAL_REHEARSAL=1, or 31337). Entry points (see script/README.md):
 ///   run()        seed: price, IF, collateral (keeper, MM, taker, swap taker) on perp + swap market; the MM rests asks,
 ///                a taker goes 25,000 MON long (the MM ends short = the skew the vault may absorb); the MM rests a
@@ -47,7 +47,7 @@ contract SmokeFull is Script {
     IClearingHouse ch;
     IOrderBook ob;
     IInsuranceFund fund;
-    IPulseVault vault;
+    IMeridianVault vault;
     IFundingSwapMarket swap;
     IOrderBook sob;
     MockKuruHedger hedger;
@@ -64,7 +64,7 @@ contract SmokeFull is Script {
         ch = IClearingHouse(dep.readAddress(".contracts.ClearingHouse"));
         ob = IOrderBook(dep.readAddress(".contracts.OrderBook"));
         fund = IInsuranceFund(dep.readAddress(".contracts.InsuranceFund"));
-        vault = IPulseVault(dep.readAddress(".contracts.PulseVault"));
+        vault = IMeridianVault(dep.readAddress(".contracts.MeridianVault"));
         swap = IFundingSwapMarket(dep.readAddress(".contracts.FundingSwapMarket"));
         sob = IOrderBook(dep.readAddress(".contracts.SwapOrderBook"));
         hedger = MockKuruHedger(dep.readAddress(".contracts.KuruHedger"));
@@ -83,7 +83,7 @@ contract SmokeFull is Script {
 
         vm.startBroadcast(PK_DEPLOYER);
         oracle.pushPrice(PRICE0, block.timestamp);
-        hedger.setPrice(PRICE0); // testnet vault spot leg = labelled mock at the index (DeployPulse)
+        hedger.setPrice(PRICE0); // testnet vault spot leg = labelled mock at the index (DeployMeridian)
         ausd.mint(vm.addr(PK_DEPLOYER), 100_000e6);
         ausd.approve(address(fund), type(uint256).max);
         ausd.approve(address(ch), type(uint256).max);

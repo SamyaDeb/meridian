@@ -14,13 +14,13 @@ import {IFundingRateOracle} from "../../src/interfaces/IFundingRateOracle.sol";
 import {IPythMinimal} from "../../src/interfaces/external/IPythMinimal.sol";
 import {AggregatorV3Interface} from "../../src/interfaces/external/AggregatorV3Interface.sol";
 import {
-    PulseConstants,
+    MeridianConstants,
     RiskParams,
     FundingParams,
     FundingState,
     Position,
     AccountView
-} from "../../src/interfaces/PulseTypes.sol";
+} from "../../src/interfaces/MeridianTypes.sol";
 import {OracleMockPyth} from "./OracleMockPyth.sol";
 
 /// @notice CP1 gate logic (PHASES G2): the REAL OrderBook + ClearingHouse + InsuranceFund with MATH_SPEC defaults.
@@ -279,11 +279,11 @@ contract IntegrationTest is IntegrationBase {
             uint256 target = block.number - windows[k];
             uint256 j = ckBlock.length - 1;
             while (ckBlock[j] > target) --j;
-            int256 expected = (lastF - ckF[j]) * 1e18 / (lastG - ckG[j]) * int256(PulseConstants.SECONDS_PER_YEAR);
+            int256 expected = (lastF - ckF[j]) * 1e18 / (lastG - ckG[j]) * int256(MeridianConstants.SECONDS_PER_YEAR);
             assertEq(ch.averageFundingApr(windows[k]), expected, "APR from events");
         }
         // 10.95% APR at the interest floor over the last hour of steady state (within rounding of the δ ramp)
-        assertApproxEqRel(ch.averageFundingApr(6000), INTEREST * int256(PulseConstants.SECONDS_PER_YEAR), 1e12);
+        assertApproxEqRel(ch.averageFundingApr(6000), INTEREST * int256(MeridianConstants.SECONDS_PER_YEAR), 1e12);
 
         // settle both: collateral moves by exactly the pending amounts
         int256 ca = ch.collateralOf(alice);

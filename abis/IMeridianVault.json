@@ -1,129 +1,5 @@
 [
   {
-    "type": "constructor",
-    "inputs": [
-      {
-        "name": "asset_",
-        "type": "address",
-        "internalType": "contract IERC20"
-      },
-      {
-        "name": "clearingHouse_",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "orderBook_",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "hedger_",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "p",
-        "type": "tuple",
-        "internalType": "struct VaultParams",
-        "components": [
-          {
-            "name": "leverage",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "driftBand",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "targetMarginRatio",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "minMarginRatio",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "exitHorizonSec",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "roundTripFee",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maxSlippage",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "idleBuffer",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "depositCap",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "skewCapacity",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "entryHorizonSec",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maxSliceAssets",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
-      },
-      {
-        "name": "owner_",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "FUNDING_WINDOW_BLOCKS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "WITHDRAW_FEE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
     "type": "function",
     "name": "allowance",
     "inputs": [
@@ -177,7 +53,7 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "assetTokenAddress",
         "type": "address",
         "internalType": "address"
       }
@@ -228,7 +104,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "assets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -247,7 +123,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "shares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -300,19 +176,6 @@
   },
   {
     "type": "function",
-    "name": "entered",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "exitHedge",
     "inputs": [],
     "outputs": [],
@@ -324,7 +187,7 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "h",
+        "name": "",
         "type": "tuple",
         "internalType": "struct HedgeState",
         "components": [
@@ -393,36 +256,17 @@
   },
   {
     "type": "function",
-    "name": "isKeeper",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "maxDeposit",
     "inputs": [
       {
-        "name": "",
+        "name": "receiver",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "maxAssets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -441,7 +285,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "maxShares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -460,7 +304,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "maxShares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -472,14 +316,14 @@
     "name": "maxWithdraw",
     "inputs": [
       {
-        "name": "owner_",
+        "name": "owner",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "maxAssets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -529,9 +373,9 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "reason",
         "type": "uint8",
-        "internalType": "enum IPulseVault.RebalanceReason"
+        "internalType": "enum IMeridianVault.RebalanceReason"
       }
     ],
     "stateMutability": "view"
@@ -539,19 +383,6 @@
   {
     "type": "function",
     "name": "orderBook",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "owner",
     "inputs": [],
     "outputs": [
       {
@@ -574,7 +405,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "shares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -593,7 +424,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "assets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -612,7 +443,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "assets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -631,7 +462,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "shares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -646,7 +477,7 @@
       {
         "name": "reason",
         "type": "uint8",
-        "internalType": "enum IPulseVault.RebalanceReason"
+        "internalType": "enum IMeridianVault.RebalanceReason"
       }
     ],
     "stateMutability": "nonpayable"
@@ -663,9 +494,9 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "reason",
         "type": "uint8",
-        "internalType": "enum IPulseVault.RebalanceReason"
+        "internalType": "enum IMeridianVault.RebalanceReason"
       }
     ],
     "stateMutability": "nonpayable"
@@ -685,7 +516,7 @@
         "internalType": "address"
       },
       {
-        "name": "owner_",
+        "name": "owner",
         "type": "address",
         "internalType": "address"
       }
@@ -697,13 +528,6 @@
         "internalType": "uint256"
       }
     ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "renounceOwnership",
-    "inputs": [],
-    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -726,28 +550,10 @@
   },
   {
     "type": "function",
-    "name": "setSkewProvider",
-    "inputs": [
-      {
-        "name": "provider",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "isProvider",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "setVaultParams",
     "inputs": [
       {
-        "name": "p",
+        "name": "params",
         "type": "tuple",
         "internalType": "struct VaultParams",
         "components": [
@@ -836,7 +642,7 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "baseWad",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -852,25 +658,6 @@
         "name": "",
         "type": "bool",
         "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "skewProviders",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -894,7 +681,7 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "totalManagedAssets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -965,19 +752,6 @@
         "internalType": "bool"
       }
     ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "transferOwnership",
-    "inputs": [
-      {
-        "name": "newOwner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -1070,7 +844,7 @@
         "internalType": "address"
       },
       {
-        "name": "owner_",
+        "name": "owner",
         "type": "address",
         "internalType": "address"
       }
@@ -1218,32 +992,13 @@
   },
   {
     "type": "event",
-    "name": "OwnershipTransferred",
-    "inputs": [
-      {
-        "name": "previousOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "Rebalanced",
     "inputs": [
       {
         "name": "reason",
         "type": "uint8",
         "indexed": true,
-        "internalType": "enum IPulseVault.RebalanceReason"
+        "internalType": "enum IMeridianVault.RebalanceReason"
       },
       {
         "name": "spotDeltaBase",
@@ -1416,176 +1171,6 @@
   },
   {
     "type": "error",
-    "name": "ERC20InsufficientAllowance",
-    "inputs": [
-      {
-        "name": "spender",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "allowance",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "needed",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC20InsufficientBalance",
-    "inputs": [
-      {
-        "name": "sender",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "balance",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "needed",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC20InvalidApprover",
-    "inputs": [
-      {
-        "name": "approver",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC20InvalidReceiver",
-    "inputs": [
-      {
-        "name": "receiver",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC20InvalidSender",
-    "inputs": [
-      {
-        "name": "sender",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC20InvalidSpender",
-    "inputs": [
-      {
-        "name": "spender",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC4626ExceededMaxDeposit",
-    "inputs": [
-      {
-        "name": "receiver",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "assets",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "max",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC4626ExceededMaxMint",
-    "inputs": [
-      {
-        "name": "receiver",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "shares",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "max",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC4626ExceededMaxRedeem",
-    "inputs": [
-      {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "shares",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "max",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC4626ExceededMaxWithdraw",
-    "inputs": [
-      {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "assets",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "max",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "InvalidParams",
     "inputs": []
   },
@@ -1598,44 +1183,6 @@
     "type": "error",
     "name": "OnlyKeeper",
     "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "OwnableInvalidOwner",
-    "inputs": [
-      {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "OwnableUnauthorizedAccount",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ReentrancyGuardReentrantCall",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "SafeERC20FailedOperation",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
   },
   {
     "type": "error",

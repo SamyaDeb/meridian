@@ -1,16 +1,5 @@
 [
   {
-    "type": "constructor",
-    "inputs": [
-      {
-        "name": "asset_",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
     "type": "function",
     "name": "allowance",
     "inputs": [
@@ -64,7 +53,7 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "assetTokenAddress",
         "type": "address",
         "internalType": "address"
       }
@@ -101,7 +90,7 @@
         "internalType": "address"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -115,7 +104,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "assets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -134,7 +123,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "shares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -171,7 +160,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "shares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -198,7 +187,7 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "h",
+        "name": "",
         "type": "tuple",
         "internalType": "struct HedgeState",
         "components": [
@@ -263,21 +252,21 @@
         "internalType": "address"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "view"
   },
   {
     "type": "function",
     "name": "maxDeposit",
     "inputs": [
       {
-        "name": "",
+        "name": "receiver",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "maxAssets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -289,14 +278,14 @@
     "name": "maxMint",
     "inputs": [
       {
-        "name": "",
+        "name": "receiver",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "maxShares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -315,7 +304,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "maxShares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -334,7 +323,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "maxAssets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -358,37 +347,11 @@
     ],
     "outputs": [
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "mockGain",
-    "inputs": [
-      {
         "name": "assets",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "mockLoss",
-    "inputs": [
-      {
-        "name": "assets",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -410,12 +373,12 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "reason",
         "type": "uint8",
-        "internalType": "enum IPulseVault.RebalanceReason"
+        "internalType": "enum IMeridianVault.RebalanceReason"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -428,7 +391,7 @@
         "internalType": "address"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -442,7 +405,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "shares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -461,7 +424,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "assets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -480,7 +443,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "assets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -499,7 +462,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "shares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -512,9 +475,9 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "reason",
         "type": "uint8",
-        "internalType": "enum IPulseVault.RebalanceReason"
+        "internalType": "enum IMeridianVault.RebalanceReason"
       }
     ],
     "stateMutability": "nonpayable"
@@ -524,16 +487,16 @@
     "name": "rebalanceWithRoute",
     "inputs": [
       {
-        "name": "",
+        "name": "spotRoute",
         "type": "bytes",
         "internalType": "bytes"
       }
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "reason",
         "type": "uint8",
-        "internalType": "enum IPulseVault.RebalanceReason"
+        "internalType": "enum IMeridianVault.RebalanceReason"
       }
     ],
     "stateMutability": "nonpayable"
@@ -560,7 +523,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "assets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -590,7 +553,7 @@
     "name": "setVaultParams",
     "inputs": [
       {
-        "name": "p",
+        "name": "params",
         "type": "tuple",
         "internalType": "struct VaultParams",
         "components": [
@@ -679,12 +642,12 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "baseWad",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -697,7 +660,7 @@
         "internalType": "bool"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -718,7 +681,7 @@
     "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "totalManagedAssets",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -888,7 +851,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "shares",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -1035,7 +998,7 @@
         "name": "reason",
         "type": "uint8",
         "indexed": true,
-        "internalType": "enum IPulseVault.RebalanceReason"
+        "internalType": "enum IMeridianVault.RebalanceReason"
       },
       {
         "name": "spotDeltaBase",
@@ -1208,176 +1171,6 @@
   },
   {
     "type": "error",
-    "name": "ERC20InsufficientAllowance",
-    "inputs": [
-      {
-        "name": "spender",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "allowance",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "needed",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC20InsufficientBalance",
-    "inputs": [
-      {
-        "name": "sender",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "balance",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "needed",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC20InvalidApprover",
-    "inputs": [
-      {
-        "name": "approver",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC20InvalidReceiver",
-    "inputs": [
-      {
-        "name": "receiver",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC20InvalidSender",
-    "inputs": [
-      {
-        "name": "sender",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC20InvalidSpender",
-    "inputs": [
-      {
-        "name": "spender",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC4626ExceededMaxDeposit",
-    "inputs": [
-      {
-        "name": "receiver",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "assets",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "max",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC4626ExceededMaxMint",
-    "inputs": [
-      {
-        "name": "receiver",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "shares",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "max",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC4626ExceededMaxRedeem",
-    "inputs": [
-      {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "shares",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "max",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ERC4626ExceededMaxWithdraw",
-    "inputs": [
-      {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "assets",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "max",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "InvalidParams",
     "inputs": []
   },
@@ -1390,17 +1183,6 @@
     "type": "error",
     "name": "OnlyKeeper",
     "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "SafeERC20FailedOperation",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
   },
   {
     "type": "error",

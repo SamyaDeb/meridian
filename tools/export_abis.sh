@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Writes abis/<Contract>.json (plain ABI arrays) from contracts/out for the TS packages (@pulse/abis).
+# Writes abis/<Contract>.json (plain ABI arrays) from contracts/out for the TS packages (@meridian/abis).
 # Exported: frozen interfaces (+ external), mocks, and implementations as they merge.
 # Usage: bash tools/export_abis.sh   (CI checks the output is committed and up to date)
 set -euo pipefail
@@ -22,7 +22,7 @@ n = 0
 for fname, name in sorted(wanted.items()):
     art = out / fname / f"{name}.json"
     if not art.exists():
-        continue  # e.g. PulseTypes.sol has no contract named PulseTypes
+        continue  # e.g. MeridianTypes.sol has no contract named MeridianTypes
     abi = json.loads(art.read_text())["abi"]
     if not abi:
         continue

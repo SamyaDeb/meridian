@@ -8,7 +8,7 @@ import {MockOracleAdapter} from "../src/mocks/MockOracleAdapter.sol";
 import {IClearingHouse} from "../src/interfaces/IClearingHouse.sol";
 import {IOrderBook} from "../src/interfaces/IOrderBook.sol";
 import {IInsuranceFund} from "../src/interfaces/IInsuranceFund.sol";
-import {AccountView} from "../src/interfaces/PulseTypes.sol";
+import {AccountView} from "../src/interfaces/MeridianTypes.sol";
 
 /// @notice Shared end-to-end scenario on anvil after DeployLocal (B's keeper/MM and C's indexer/app use it):
 ///   1. fund 3 anvil accounts with tAUSD and deposit (maker 10,000; long 60; liquidator 1,000); seed the IF

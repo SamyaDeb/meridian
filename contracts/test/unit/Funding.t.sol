@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {FundingLib} from "../../src/libs/FundingLib.sol";
-import {FundingParams, FundingState} from "../../src/interfaces/PulseTypes.sol";
+import {FundingParams, FundingState} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @dev Exposes FundingLib's internal functions.
 contract FundingLibHarness {

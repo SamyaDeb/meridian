@@ -5,7 +5,7 @@ import { useAccount } from "wagmi";
 import { Card } from "./ui";
 
 // Onboarding card (C7): shown until the viewer connects or dismisses it. Full guide: docs/outputs/ONBOARDING.md.
-const KEY = "pulse.getStarted.dismissed";
+const KEY = "meridian.getStarted.dismissed";
 const listeners = new Set<() => void>();
 let hiddenInMemory = false;
 

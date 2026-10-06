@@ -10,7 +10,7 @@ import {IKuruHedger} from "../interfaces/IKuruHedger.sol";
 import {IKuruOrderBook} from "../interfaces/external/IKuruOrderBook.sol";
 import {IWrappedNative} from "./IWrappedNative.sol";
 
-/// @title KuruHedger — stateless spot leg for the PulseVault (CR-001, CR-002)
+/// @title KuruHedger — stateless spot leg for the MeridianVault (CR-001, CR-002)
 /// @notice Empty `route` ⇒ a market order on the configured Kuru market (native-MON base, `quoteToken` quote; the
 ///         only shape verified on a mainnet fork, ARCHITECTURE R17). Non-empty ⇒ a low-level call ONLY to the
 ///         KuruFlowEntrypoint with the keeper-supplied calldata (ws.kuru.io/api/quote), with an exact-amount

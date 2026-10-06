@@ -13,14 +13,14 @@ export const CHAIN = 31337 as const;
 export const A = {
   CH: dep.contracts.ClearingHouse!,
   OB: dep.contracts.OrderBook!,
-  VAULT: dep.contracts.PulseVault!,
+  VAULT: dep.contracts.MeridianVault!,
   ORACLE: dep.contracts.OracleAdapter!,
   IF: dep.contracts.InsuranceFund!,
   HEDGER: dep.contracts.KuruHedger!,
   FACTORY: dep.contracts.MarketFactory ?? cs(TEST_FILL.MarketFactory),
   SWAP: cs(TEST_FILL.FundingSwapMarket),
   SWAP_OB: cs(TEST_FILL.SwapOrderBook),
-  RECEIVER: cs(TEST_FILL.PulseKeeperReceiver),
+  RECEIVER: cs(TEST_FILL.MeridianKeeperReceiver),
 };
 export const ALICE = "0xa11ce00000000000000000000000000000000001" as const;
 export const BOB = "0xb0b0000000000000000000000000000000000002" as const;

@@ -228,7 +228,7 @@ export function shouldReadSource(nowMs: number, lastReadMs: number, everyMs: num
 
 // ───────────────────────────── (d) vault ─────────────────────────────
 
-/** IPulseVault.RebalanceReason names (enum order in the frozen interface). */
+/** IMeridianVault.RebalanceReason names (enum order in the frozen interface). */
 export const REBALANCE_REASONS = ["None", "Deploy", "DeltaDrift", "MarginLow", "ExitHedge", "EnterHedge", "Withdraw", "SkewCap"] as const;
 
 /**

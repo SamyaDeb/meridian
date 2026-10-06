@@ -1,4 +1,4 @@
-// IOracleAdapter, IInsuranceFund, IMarketFactory, IPulseKeeperReceiver events.
+// IOracleAdapter, IInsuranceFund, IMarketFactory, IMeridianKeeperReceiver events.
 import { indexer } from "envio";
 import { FIELDS, evId, blockOf, tsOf, getMarket, updateProtocol, logAdmin, isTestMarket } from "../lib/common.js";
 
@@ -97,7 +97,7 @@ indexer.onEvent({ contract: "MarketFactory", event: "MarketStatusChanged", field
 
 // ─── Chainlink CRE receiver ───────────────────────────────────────────────────
 
-indexer.onEvent({ contract: "PulseKeeperReceiver", event: "ReportExecuted", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianKeeperReceiver", event: "ReportExecuted", fields: FIELDS }, async ({ event, context }) => {
   const p = event.params;
   context.KeeperReport.set({
     id: evId(event),
@@ -114,6 +114,6 @@ indexer.onEvent({ contract: "PulseKeeperReceiver", event: "ReportExecuted", fiel
   }), { block: blockOf(event) });
 });
 
-indexer.onEvent({ contract: "PulseKeeperReceiver", event: "ForwarderUpdated", fields: FIELDS }, async ({ event, context }) => {
+indexer.onEvent({ contract: "MeridianKeeperReceiver", event: "ForwarderUpdated", fields: FIELDS }, async ({ event, context }) => {
   await logAdmin(context, event, "ForwarderUpdated", event.params);
 });

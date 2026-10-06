@@ -5,7 +5,7 @@ import { clearingHouseAbi, orderBookAbi, swapAbi, vaultAbi } from "@/lib/abi";
 import { snapshotsFromLogs, swapPositionFromViews } from "@/lib/earnfix";
 import { rateToAprWad, vaultApyWad } from "@/lib/math";
 import { SECONDS_PER_YEAR } from "@/lib/units";
-import type { PulseDataSource } from "../source";
+import type { MeridianDataSource } from "../source";
 import type { AccountMarket, AccountSummary, Address, FundingTick, Market, RiskParamsView, SwapMarketInfo, SwapPosition, SwapStats, Trade, Vault, VaultSnapshot, VaultUser } from "../types";
 
 export interface ChainAddresses {
@@ -39,7 +39,7 @@ export interface FundingSettlement {
   payment: bigint;
 }
 
-export interface ChainSource extends PulseDataSource {
+export interface ChainSource extends MeridianDataSource {
   openOrders(account: Address): Promise<OpenOrder[]>;
   /** FundingSettled of `account` over the log lookback window (newest first) and the window's first block. */
   fundingSettlements(account: Address): Promise<{ fromBlock: bigint; items: FundingSettlement[] }>;
@@ -60,7 +60,7 @@ const WINDOWS: Array<[keyof Pick<Market, "realizedApr1hWad" | "realizedApr8hWad"
   ["realizedApr24hWad", 86_400],
 ];
 
-export function createChainSource(client: PublicClient, a: ChainAddresses, fallback: PulseDataSource): ChainSource {
+export function createChainSource(client: PublicClient, a: ChainAddresses, fallback: MeridianDataSource): ChainSource {
   const ch = { address: a.clearingHouse, abi: clearingHouseAbi } as const;
   const ob = { address: a.orderBook, abi: orderBookAbi } as const;
   let units: Promise<{ tick: bigint; lot: bigint }> | undefined;
@@ -243,7 +243,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     };
   }
 
-  // ─── vault (PulseVault) ───
+  // ─── vault (MeridianVault) ───
   const vt = a.vault ? ({ address: a.vault, abi: vaultAbi } as const) : undefined;
   /** chain time of `block` ≈ head timestamp − (head − block)·blockTime (one header read, no per-log block reads) */
   async function clock(): Promise<(b: bigint) => bigint> {

@@ -10,7 +10,7 @@ import {MockERC20} from "../../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../../src/mocks/MockOracleAdapter.sol";
 import {IClearingHouse} from "../../../src/interfaces/IClearingHouse.sol";
 import {IOrderBook} from "../../../src/interfaces/IOrderBook.sol";
-import {FundingState, AccountView} from "../../../src/interfaces/PulseTypes.sol";
+import {FundingState, AccountView} from "../../../src/interfaces/MeridianTypes.sol";
 
 /// @title RealStackHandler — WS-08 handler over the REAL OrderBook ⇄ ClearingHouse (PHASES G2, C1 §2)
 /// @notice Every action goes through the public entry points (the book calls the CH hooks itself), so the hook

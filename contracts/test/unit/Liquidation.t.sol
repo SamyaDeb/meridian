@@ -6,7 +6,7 @@ import {ClearingHouseBase} from "./ClearingHouseBase.t.sol";
 import {ClearingHouse} from "../../src/clearing/ClearingHouse.sol";
 import {IClearingHouse} from "../../src/interfaces/IClearingHouse.sol";
 import {IMarginEngine} from "../../src/interfaces/IMarginEngine.sol";
-import {RiskParams, AccountView} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, AccountView} from "../../src/interfaces/MeridianTypes.sol";
 
 /// MATH_SPEC §3.3. Alice opens a 5x long of 100 at 2 (C = 40 after the 0.1 fee); bob is the short.
 contract LiquidationTest is ClearingHouseBase {

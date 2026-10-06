@@ -9,7 +9,7 @@ import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
 import {MockClearingHouse} from "../../src/mocks/MockClearingHouse.sol";
 import {IClearingHouse} from "../../src/interfaces/IClearingHouse.sol";
-import {RiskParams, FundingParams, SwapParams} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, SwapParams} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @dev The two harnesses share this test-only surface.
 interface IBadDebtHarness {

@@ -1,11 +1,11 @@
-// Thin RPC wiring for the Pulse TS fallback keeper. All decisions live in decide.ts (pure, unit-tested).
+// Thin RPC wiring for the Meridian TS fallback keeper. All decisions live in decide.ts (pure, unit-tested).
 // Per block: (a) oracle push — Pyth Hermes (only with PYTH_API_KEY) or, on testnet without a key, the keeper-fed
 // TestnetKeeperOracle from a keyless source (pricesource.ts) — (b) funding poke, (c) perp liquidations.
 // RPC budget (Phase 4 step 1): ONE eth_getLogs per block (CH PositionChanged + FundingUpdated, oracle PriceUpdated)
 // feeds every step: the open-position set, the funding decision (last FundingUpdated block, observed gaps) and
 // "an oracle push landed" (full liquidation sweep + vault read). getAccount only for accounts that changed, whose
 // mark move could have crossed maintenance (decide.ts accountsToCheck), or on a full sweep. Throttled requests are
-// retried with jittered back-off (@pulse/bot-rpc) instead of failing the step.
+// retried with jittered back-off (@meridian/bot-rpc) instead of failing the step.
 // MARKET=demo runs the same loop against the clearly labelled MON-PERP-DEMO test market (deployments.demoMarket).
 // Funding swaps (Phase 4 step 2): an extra step of the MAIN keeper (not a separate process: it shares the tick, the one
 // log scan, the nonce and the block polling), on when deployments has FundingSwapMarket (SWAP_DUTIES=0 turns it off):
@@ -27,8 +27,8 @@ import {
   nonceManager,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { RateWindow, burnPerHourWei, createCountingFetch, newRpcStats, pruneSamples, type BalanceSample } from "@pulse/bot-rpc";
-import { clearingHouseAbi, fundingSwapAbi, fundingSwapImplAbi, kuruHedgerAbi, oracleAdapterAbi, pulseVaultAbi } from "./abi.js";
+import { RateWindow, burnPerHourWei, createCountingFetch, newRpcStats, pruneSamples, type BalanceSample } from "@meridian/bot-rpc";
+import { clearingHouseAbi, fundingSwapAbi, fundingSwapImplAbi, kuruHedgerAbi, oracleAdapterAbi, meridianVaultAbi } from "./abi.js";
 import { type CallFrame, FlowClient, findHedgerCalls, parseQuote, quoteRequest, routeAmount } from "./kuruflow.js";
 import { type SwapSnapshot, shouldPokeSwapMark, shouldSettleMaturity, swapAccountIsInert, swapAccountsToCheck, swapIsHot, swapLiquidationCandidates } from "./swap.js";
 import {
@@ -122,9 +122,9 @@ interface Deployments {
   chainId: number;
   startBlock: number;
   deployed?: boolean;
-  /** Oracle of the main market (DeployPulse); absent on anvil (mock oracle). */
+  /** Oracle of the main market (DeployMeridian); absent on anvil (mock oracle). */
   oracleKind?: OracleKind;
-  contracts: MarketDeployment & { PulseVault?: Address; FundingSwapMarket?: Address; SwapOrderBook?: Address };
+  contracts: MarketDeployment & { MeridianVault?: Address; FundingSwapMarket?: Address; SwapOrderBook?: Address };
   /** MON-PERP-DEMO: separate OB + CH with a keeper-fed test oracle, used only for the crash/liquidation demo. */
   demoMarket?: MarketDeployment & { symbol: string; testMarket: true; oracleKind: OracleKind };
 }
@@ -158,7 +158,7 @@ const SCAN_ADDRESSES: Address[] = SWAP === undefined ? [CH, ORACLE] : [CH, ORACL
 
 const chain = defineChain({
   id: CHAIN_ID,
-  name: `pulse-${CHAIN_ID}`,
+  name: `meridian-${CHAIN_ID}`,
   nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
   rpcUrls: { default: { http: [RPC_URL] } },
 });
@@ -550,17 +550,17 @@ async function maturityStep(): Promise<void> {
 }
 
 async function vaultStep(block: bigint): Promise<void> {
-  const v = dep.contracts.PulseVault;
+  const v = dep.contracts.MeridianVault;
   if (!VAULT_REBALANCE || MARKET !== "main" || v === undefined) return;
   // Read every VAULT_EVERY_BLOCKS, and right after an oracle push (MarginLow can only follow a price move).
   if (!shouldCheckVault(block, VAULT_EVERY_BLOCKS, forceSweepAfterPush(block, lastPushBlock, SWEEP_AFTER_PUSH_BLOCKS))) return;
-  const reason = await pub.readContract({ address: v, abi: pulseVaultAbi, functionName: "needsRebalance" });
+  const reason = await pub.readContract({ address: v, abi: meridianVaultAbi, functionName: "needsRebalance" });
   const a = vaultAction(reason);
   if (!a.act) return;
   const data =
     VAULT_ROUTE === "flow"
       ? await flowRebalanceData(v)
-      : encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalance" });
+      : encodeFunctionData({ abi: meridianVaultAbi, functionName: "rebalance" });
   if ((await send(`vault rebalance (${a.name}, ${VAULT_ROUTE})`, v, data)) !== null) {
     health.vaultRebalances++;
   }
@@ -572,7 +572,7 @@ let hedgerWiring: { hedger: Address; entry: Address; base: Address; quote: Addre
 /** rebalanceWithRoute calldata: the vault's exact spot amount from a trace, a Kuru Flow quote for it (− haircut). */
 async function flowRebalanceData(v: Address): Promise<Hex> {
   if (hedgerWiring === undefined) {
-    const hedger = await pub.readContract({ address: v, abi: pulseVaultAbi, functionName: "hedger" });
+    const hedger = await pub.readContract({ address: v, abi: meridianVaultAbi, functionName: "hedger" });
     const [entry, base, quote] = await Promise.all([
       pub.readContract({ address: hedger, abi: kuruHedgerAbi, functionName: "flowEntrypoint" }),
       pub.readContract({ address: hedger, abi: kuruHedgerAbi, functionName: "baseToken" }),
@@ -582,19 +582,19 @@ async function flowRebalanceData(v: Address): Promise<Hex> {
   }
   const w = hedgerWiring;
   flow ??= new FlowClient(fetch as never, w.hedger, { staticJwt: env("KURU_FLOW_JWT"), apiKey: env("KURU_API_KEY") });
-  const probe = encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalanceWithRoute", args: ["0x00"] });
+  const probe = encodeFunctionData({ abi: meridianVaultAbi, functionName: "rebalanceWithRoute", args: ["0x00"] });
   const trace = (await pub.request({
     method: "debug_traceCall" as never,
     params: [{ from: account.address, to: v, data: probe }, "latest", { tracer: "callTracer" }] as never,
   })) as CallFrame;
   const r = routeAmount(findHedgerCalls(trace, w.hedger), KURU_FLOW_HAIRCUT_BPS);
   // no spot leg in this rebalance (e.g. MarginLow topped up from idle): the empty route is never used
-  if (r === null) return encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalance" });
+  if (r === null) return encodeFunctionData({ abi: meridianVaultAbi, functionName: "rebalance" });
   const [tokenIn, tokenOut] = r.kind === "buy" ? [w.quote, w.base] : [w.base, w.quote];
   const q = await flow.quote(quoteRequest({ hedger: w.hedger, tokenIn, tokenOut, amountIn: r.amountIn, slippageBps: KURU_FLOW_SLIPPAGE_BPS }));
   const route = parseQuote(q, w.entry);
   log("kuru flow route", { kind: r.kind, amountIn: r.amountIn, expectedOut: route.expectedOut, bytes: (route.data.length - 2) / 2 });
-  return encodeFunctionData({ abi: pulseVaultAbi, functionName: "rebalanceWithRoute", args: [route.data] });
+  return encodeFunctionData({ abi: meridianVaultAbi, functionName: "rebalanceWithRoute", args: [route.data] });
 }
 
 async function balanceStep(): Promise<void> {

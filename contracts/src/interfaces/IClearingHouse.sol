@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {RiskParams, FundingParams, FundingState, Position, AccountView} from "./PulseTypes.sol";
+import {RiskParams, FundingParams, FundingState, Position, AccountView} from "./MeridianTypes.sol";
 import {IMarginEngine} from "./IMarginEngine.sol";
 import {IFundingRateOracle} from "./IFundingRateOracle.sol";
 

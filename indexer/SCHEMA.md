@@ -1,4 +1,4 @@
-# Pulse indexer: GraphQL schema for the app (WS-06 → WS-07)
+# Meridian indexer: GraphQL schema for the app (WS-06 → WS-07)
 
 Source of truth: [`schema.graphql`](schema.graphql). This page is the contract for WS-07. Changes are announced in the WS-06 PR description.
 Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil via `DeployLocal`, RPC), 10143 and 143 (HyperSync, no RPC mode).
@@ -97,12 +97,12 @@ Enforced by `test/config.test.ts`, which diffs `abis/*.json` and `contracts/src/
 | ClearingHouse (`IClearingHouse` + `IFundingRateOracle`) | Deposited, Withdrawn, FundingUpdated, FundingSettled, PositionChanged, Liquidated, BadDebtSocialized, OrderMarginChanged, FeesCollected, RiskParamsUpdated, FundingParamsUpdated, PausedSet, FundingCheckpoint | `src/handlers/clearingHouse.ts` |
 | OrderBook, SwapOrderBook (`IOrderBook`) | OrderPlaced, OrderCancelled, OrderEvicted, MakerFillSkipped, Trade | `src/handlers/orderBook.ts` |
 | FundingSwapMarket | Deposited, Withdrawn, SwapPositionChanged, SwapAccrualSettled, SwapLiquidated, MaturitySettled, SwapParamsUpdated | `src/handlers/fundingSwap.ts` |
-| PulseVault (`IPulseVault` + ERC-4626) | Deposit, Withdraw, Transfer, Rebalanced, HedgeExited, HedgeEntered, NavSnapshot, VaultParamsUpdated, KeeperUpdated (`Approval` intentionally skipped) | `src/handlers/vault.ts` |
+| MeridianVault (`IMeridianVault` + ERC-4626) | Deposit, Withdraw, Transfer, Rebalanced, HedgeExited, HedgeEntered, NavSnapshot, VaultParamsUpdated, KeeperUpdated (`Approval` intentionally skipped) | `src/handlers/vault.ts` |
 | KuruHedger | SpotBought, SpotSold | `src/handlers/vault.ts` |
 | OracleAdapter | PriceUpdated, DeviationGuardTripped, OracleParamsUpdated | `src/handlers/periphery.ts` |
 | InsuranceFund | Funded, BadDebtCovered, MarketAuthorized | `src/handlers/periphery.ts` |
 | MarketFactory | MarketRegistered (also registers the new OB/CH/oracle), MarketStatusChanged | `src/handlers/periphery.ts` |
-| PulseKeeperReceiver | ReportExecuted, ForwarderUpdated | `src/handlers/periphery.ts` |
+| MeridianKeeperReceiver | ReportExecuted, ForwarderUpdated | `src/handlers/periphery.ts` |
 
 **Replay evidence on real chain data** (handlers via `createTestIndexer` simulate): `test/replay.test.ts` = the Phase 2 perp stack (`fixtures/anvil-e2e.json`); `test/replay-fullstack.test.ts` = the Phase 4 full-stack rehearsal (`fixtures/anvil-fullstack-10143.json`: perp + vault + hedger + funding swaps, 97k blocks of funding history, keeper rebalances incl. SkewCap, a crash liquidation, swap maturity). It checks every vault/hedger/swap event type recorded, and entities against the contracts' own answers at the same block: `VaultSnapshot.sharePriceWad` = `sharePrice()`, `VaultUser.shares` = `balanceOf`, Σ shares = `totalSupply`, `SwapPosition` q/K = `getPosition`, Σq = ΣK = 0, OI, the maturity snapshot, and realized 8 h APR = `FundingSwapMarket.realizedApr(96,000)` = `averageFundingApr(96,000)`. `SwapLiquidated`, `Withdrawn` (swap), `Withdraw` / `HedgeExited` (vault) did not occur in the rehearsal; they are covered by the unit tests with synthetic events.
 

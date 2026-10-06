@@ -6,7 +6,7 @@ pragma solidity ^0.8.24;
 ///         Instrument-agnostic (CR-003): every fill settles synchronously in the market's IMarginEngine —
 ///         the perp ClearingHouse (price = AUSD per MON) or the FundingSwapMarket (price = 1 + fixed APR).
 ///         No offchain matching.
-///         Loops are bounded by PulseConstants.MAX_FILLS_PER_ORDER / MAX_BATCH.
+///         Loops are bounded by MeridianConstants.MAX_FILLS_PER_ORDER / MAX_BATCH.
 interface IOrderBook {
     // ─── Flags for placeLimitOrder ─────────────────────────────────────────────
     // uint8 bitmask: FLAG_POST_ONLY = 1, FLAG_IOC = 2, FLAG_REDUCE_ONLY = 4

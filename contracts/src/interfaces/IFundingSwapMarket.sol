@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {SwapParams, SwapPosition, SwapAccountView} from "./PulseTypes.sol";
+import {SwapParams, SwapPosition, SwapAccountView} from "./MeridianTypes.sol";
 import {IMarginEngine} from "./IMarginEngine.sol";
 
 /// @title IFundingSwapMarket — fixed-for-floating MON-PERP funding swaps, one maturity (FROZEN, CR-003)

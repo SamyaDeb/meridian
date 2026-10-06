@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {OrderBook} from "../../src/orderbook/OrderBook.sol";
 import {IOrderBook} from "../../src/interfaces/IOrderBook.sol";
 import {IMarginEngine} from "../../src/interfaces/IMarginEngine.sol";
-import {PulseConstants} from "../../src/interfaces/PulseTypes.sol";
+import {MeridianConstants} from "../../src/interfaces/MeridianTypes.sol";
 import {TickBitmap} from "../../src/orderbook/libraries/TickBitmap.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {RecordingEngine} from "./OrderBookEngine.t.sol";
@@ -125,7 +125,7 @@ contract OrderBookTest is Test {
     }
 
     function test_place_openOrderCap() public {
-        for (uint256 i; i < PulseConstants.MAX_OPEN_ORDERS_PER_ACCOUNT; ++i) {
+        for (uint256 i; i < MeridianConstants.MAX_OPEN_ORDERS_PER_ACCOUNT; ++i) {
             _limit(alice, true, uint32(100 + i), 1);
         }
         vm.prank(alice);
@@ -355,12 +355,12 @@ contract OrderBookTest is Test {
     }
 
     function test_match_boundedByMaxFills_remainderDroppedWhileCrossing() public {
-        uint256 n = PulseConstants.MAX_FILLS_PER_ORDER + 8;
+        uint256 n = MeridianConstants.MAX_FILLS_PER_ORDER + 8;
         for (uint256 i; i < n; ++i) {
             _limit(address(uint160(0x1000 + i)), false, 105, 1);
         }
         (uint64 id, uint64 filled) = _limit(carol, true, 105, uint64(n));
-        assertEq(filled, PulseConstants.MAX_FILLS_PER_ORDER);
+        assertEq(filled, MeridianConstants.MAX_FILLS_PER_ORDER);
         assertEq(id, 0, "remainder would cross: never rests (bestBid < bestAsk)");
         assertEq(ob.bestAsk(), 105);
         assertEq(ob.bestBid(), 0);
@@ -515,7 +515,7 @@ contract OrderBookTest is Test {
         ob.cancelOrders(ids);
         assertEq(ob.openOrderCount(alice), 0);
         assertEq(ob.bestAsk(), NO_ASK);
-        uint64[] memory tooMany = new uint64[](PulseConstants.MAX_BATCH + 1);
+        uint64[] memory tooMany = new uint64[](MeridianConstants.MAX_BATCH + 1);
         vm.prank(alice);
         vm.expectRevert(IOrderBook.BatchTooLarge.selector);
         ob.cancelOrders(tooMany);
@@ -560,7 +560,7 @@ contract OrderBookTest is Test {
     // ─── views ────────────────────────────────────────────────────────────────────────────────────────
     function test_getDepth_bounds() public {
         vm.expectRevert(IOrderBook.BatchTooLarge.selector);
-        ob.getDepth(true, PulseConstants.MAX_BATCH + 1);
+        ob.getDepth(true, MeridianConstants.MAX_BATCH + 1);
         (uint32[] memory t,) = ob.getDepth(true, 3);
         assertEq(t.length, 0);
         assertEq(ob.getOrder(12_345).maker, address(0));
@@ -604,7 +604,7 @@ contract OrderBookTest is Test {
     }
 
     function test_match_evictionsCountTowardFillCap() public {
-        uint256 cap = PulseConstants.MAX_FILLS_PER_ORDER;
+        uint256 cap = MeridianConstants.MAX_FILLS_PER_ORDER;
         for (uint256 i; i < cap; ++i) {
             address m = address(uint160(0x1000 + i));
             _limit(m, false, 105, 1);
@@ -623,7 +623,7 @@ contract OrderBookTest is Test {
     }
 
     function test_match_capReached_remainderRestsWhenNoLongerCrossing() public {
-        uint256 cap = PulseConstants.MAX_FILLS_PER_ORDER;
+        uint256 cap = MeridianConstants.MAX_FILLS_PER_ORDER;
         for (uint256 i; i < cap; ++i) {
             _limit(address(uint160(0x1000 + i)), false, 105, 1);
         }
@@ -700,13 +700,13 @@ contract OrderBookTest is Test {
     // ─── audit: replace, views ────────────────────────────────────────────────────────────────────────
     function test_replace_atOpenOrderCap() public {
         uint64 last;
-        for (uint256 i; i < PulseConstants.MAX_OPEN_ORDERS_PER_ACCOUNT; ++i) {
+        for (uint256 i; i < MeridianConstants.MAX_OPEN_ORDERS_PER_ACCOUNT; ++i) {
             (last,) = _limit(alice, true, uint32(100 + i), 1);
         }
         vm.prank(alice);
         (uint64 id,) = ob.replaceOrder(last, 50, 2, 0);
         assertGt(id, 0, "replace frees its own slot before the cap check");
-        assertEq(ob.openOrderCount(alice), PulseConstants.MAX_OPEN_ORDERS_PER_ACCOUNT);
+        assertEq(ob.openOrderCount(alice), MeridianConstants.MAX_OPEN_ORDERS_PER_ACCOUNT);
     }
 
     function test_replace_losesTimePriority() public {
@@ -724,7 +724,7 @@ contract OrderBookTest is Test {
         for (uint256 i; i < 40; ++i) {
             _limit(address(uint160(0x1000 + i)), false, uint32(200 + 3 * i), 1);
         }
-        (uint32[] memory t, uint64[] memory l) = ob.getDepth(false, PulseConstants.MAX_BATCH);
+        (uint32[] memory t, uint64[] memory l) = ob.getDepth(false, MeridianConstants.MAX_BATCH);
         assertEq(t.length, 32);
         assertEq(l.length, 32);
         for (uint256 i; i < 32; ++i) {

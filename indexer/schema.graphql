@@ -1,4 +1,4 @@
-# Pulse indexer schema (WS-06). Consumers: WS-07 app (see SCHEMA.md), keeper, benchmarks.
+# Meridian indexer schema (WS-06). Consumers: WS-07 app (see SCHEMA.md), keeper, benchmarks.
 # Units (MATH_SPEC §0): *Wad = 1e18 fixed point (BigInt); *Token = AUSD 6 dp; rates = per-second WAD;
 # *AprWad = APR as WAD (0.1e18 = 10%). Addresses are checksummed strings. Ids are per chain
 # (disable_default_cross_chain), so the same id on 10143 and 143 is two rows.
@@ -285,7 +285,7 @@ type InsuranceFund {
 # ─── Vault ─────────────────────────────────────────────────────────────────────
 
 type Vault {
-  id: ID! # PulseVault address
+  id: ID! # MeridianVault address
   navToken: BigInt! # AUSD 6 dp
   totalShares: BigInt! # 18 dp
   sharePriceWad: BigInt!
@@ -448,7 +448,7 @@ type AdminEvent {
   txHash: String!
 }
 
-# IPulseKeeperReceiver.ReportExecuted (Chainlink CRE).
+# IMeridianKeeperReceiver.ReportExecuted (Chainlink CRE).
 type KeeperReport {
   id: ID!
   action: Int!

@@ -1,5 +1,5 @@
 // Mobile smoke (390×844) for Earn + Fix on the Phase 4 full-stack local rehearsal (contracts/script/README.md):
-// anvil --chain-id 10143 + DeployPulse (vault + swaps) + SmokeFull + 8 h history + keeper (VAULT_REBALANCE=1) + perp and
+// anvil --chain-id 10143 + DeployMeridian (vault + swaps) + SmokeFull + 8 h history + keeper (VAULT_REBALANCE=1) + perp and
 // swap MMs, and the app built with
 //   NEXT_PUBLIC_DATA_SOURCE=chain NEXT_PUBLIC_CHAIN_ID=10143 NEXT_PUBLIC_LOCAL_CHAIN_ID=10143
 //   NEXT_PUBLIC_LOCAL_RPC_URL=http://127.0.0.1:8546 NEXT_PUBLIC_DEV_ACCOUNT=<unlocked anvil account holding tAUSD>

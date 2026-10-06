@@ -64,7 +64,7 @@ export const erc20Abi = parseAbi([
   "function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)",
 ]);
 
-// PulseVault (ERC-4626 + IPulseVault, interfaces-v1.5).
+// MeridianVault (ERC-4626 + IMeridianVault, interfaces-v1.5).
 export const vaultAbi = parseAbi([
   "struct HedgeState { uint256 spotBase; int256 perpSize; int256 perpEquity; uint256 idleAssets; uint256 nav; int256 netDelta; uint256 marginRatio; bool hedged; uint64 lastRebalanceBlock; }",
   "function asset() view returns (address)",

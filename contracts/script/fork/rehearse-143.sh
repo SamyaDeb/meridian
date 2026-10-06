@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mainnet-FORK rehearsal of DeployPulse with the real config/143.json (Phase 3 P2).
+# Mainnet-FORK rehearsal of DeployMeridian with the real config/143.json (Phase 3 P2).
 #
 #   anvil --fork-url $MONAD_RPC_URL --fork-block-number <N> --host 127.0.0.1 --port 8545 --code-size-limit 131072 &
 #   bash script/fork/rehearse-143.sh            # from contracts/
@@ -45,10 +45,10 @@ restore() {
   rm -f "$BAK"
   # forge's records for chain 143 would look like a mainnet run: move the broadcast record into the run folder and
   # drop the cache entry (forge's "sensitive values" file; here only anvil dev data), on success and on failure.
-  if [ -f broadcast/DeployPulse.s.sol/143/run-latest.json ]; then
-    mv broadcast/DeployPulse.s.sol/143/run-latest.json "$OUT_DIR/deploy.broadcast.json"
+  if [ -f broadcast/DeployMeridian.s.sol/143/run-latest.json ]; then
+    mv broadcast/DeployMeridian.s.sol/143/run-latest.json "$OUT_DIR/deploy.broadcast.json"
   fi
-  rm -rf broadcast/DeployPulse.s.sol/143 cache/DeployPulse.s.sol/143
+  rm -rf broadcast/DeployMeridian.s.sol/143 cache/DeployMeridian.s.sol/143
 }
 trap restore EXIT
 jq --arg o "$OWNER" '.owner = $o' "$BAK" > "$CFG"
@@ -57,7 +57,7 @@ echo "mainnet fork @ block $FORK_BLOCK, chain id $CHAIN_ID, owner $OWNER (FORK S
 DEPLOYER_PK=$DEPLOYER_PK_ANVIL KEEPER_ADDRESS=$KEEPER MM_ADDRESS=$MM DEPLOY_VAULT=1 DEPLOY_SWAPS=1 \
   SWAP_MATURITY_IN_SEC=0 REUSE_DEPLOYMENT= DEPLOY_CRE_RECEIVER=false DEPLOY_CONFIG= \
   DEPLOYMENTS_OUT=dry-run/143-fork.json \
-  forge script script/DeployPulse.s.sol --rpc-url "$RPC" --broadcast --slow \
+  forge script script/DeployMeridian.s.sol --rpc-url "$RPC" --broadcast --slow \
   --code-size-limit 131072 --gas-estimate-multiplier "$GAS_MULT" 2>&1 | tee "$OUT_DIR/deploy.log"
 
 DEP="$ROOT/deployments/dry-run/143-fork.json"

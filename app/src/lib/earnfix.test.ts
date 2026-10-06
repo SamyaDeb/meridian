@@ -18,7 +18,7 @@ const LOT = 1_000n * 10n ** 18n;
 const V = "0x00000000000000000000000000000000000000aa" as const;
 const U = "0x00000000000000000000000000000000000000bb" as const;
 
-describe("vault withdrawals (PulseVault.previewRedeem, _ensureIdle)", () => {
+describe("vault withdrawals (MeridianVault.previewRedeem, _ensureIdle)", () => {
   it("5 bps fee rounds up: 100 AUSD ⇒ 0.05; 1 unit ⇒ 1 unit", () => {
     expect(vaultWithdrawFeeToken(100_000_000n)).toBe(50_000n);
     expect(vaultWithdrawFeeToken(1n)).toBe(1n);

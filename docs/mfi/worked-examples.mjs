@@ -1,7 +1,7 @@
 // Verifies the worked examples in docs/MFI.md §8. bigint only; run: node docs/mfi/worked-examples.mjs
 // Inputs are SYNTHETIC (illustrative numbers, not recorded Perpl or Meridian data).
 const WAD = 10n ** 18n;
-const YEAR = 31_536_000n; // 365 d, SECONDS_PER_YEAR in PulseConstants
+const YEAR = 31_536_000n; // 365 d, SECONDS_PER_YEAR in MeridianConstants
 const assert = (c, m) => { if (!c) throw new Error(`FAIL: ${m}`); };
 const tdiv = (a, b) => a / b; // bigint division truncates toward zero = "rounds neutral (toward zero)" (§4.4)
 

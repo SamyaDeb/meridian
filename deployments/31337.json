@@ -9,14 +9,14 @@
     "MarketFactory": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
     "OracleAdapter": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
     "OrderBook": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
-    "PulseVault": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    "MeridianVault": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
     "WMON": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
   },
   "mockContracts": [
     "AUSD",
     "WMON",
     "OracleAdapter",
-    "PulseVault",
+    "MeridianVault",
     "KuruHedger"
   ],
   "mocks": false,

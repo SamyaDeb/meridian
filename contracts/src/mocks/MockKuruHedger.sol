@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IKuruHedger} from "../interfaces/IKuruHedger.sol";
 import {MockERC20} from "./MockERC20.sol";
-import {PulseConstants} from "../interfaces/PulseTypes.sol";
+import {MeridianConstants} from "../interfaces/MeridianTypes.sol";
 
 /// @notice Ignores `route`. Swaps at a settable price by burning/minting MockERC20s (infinite liquidity) minus `spreadWad`
 ///         on each side. base = 18 dp, quote = 6 dp (AUSD). Rounds output down.
@@ -30,16 +30,16 @@ contract MockKuruHedger is IKuruHedger {
     }
 
     function _ask() internal view returns (uint256) {
-        return priceWad * (PulseConstants.WAD + spreadWad) / PulseConstants.WAD;
+        return priceWad * (MeridianConstants.WAD + spreadWad) / MeridianConstants.WAD;
     }
 
     function _bid() internal view returns (uint256) {
-        return priceWad * (PulseConstants.WAD - spreadWad) / PulseConstants.WAD;
+        return priceWad * (MeridianConstants.WAD - spreadWad) / MeridianConstants.WAD;
     }
 
     function buySpot(uint256 quoteInToken, uint256 minBaseOut, bytes calldata) external returns (uint256 baseOut) {
         MockERC20(quoteToken).burn(msg.sender, quoteInToken);
-        baseOut = quoteInToken * PulseConstants.AUSD_TO_WAD * PulseConstants.WAD / _ask();
+        baseOut = quoteInToken * MeridianConstants.AUSD_TO_WAD * MeridianConstants.WAD / _ask();
         if (baseOut < minBaseOut) revert SlippageExceeded();
         MockERC20(baseToken).mint(msg.sender, baseOut);
         emit SpotBought(msg.sender, quoteInToken, baseOut, _ask());
@@ -47,7 +47,7 @@ contract MockKuruHedger is IKuruHedger {
 
     function sellSpot(uint256 baseIn, uint256 minQuoteOut, bytes calldata) external returns (uint256 quoteOut) {
         MockERC20(baseToken).burn(msg.sender, baseIn);
-        quoteOut = baseIn * _bid() / PulseConstants.WAD / PulseConstants.AUSD_TO_WAD;
+        quoteOut = baseIn * _bid() / MeridianConstants.WAD / MeridianConstants.AUSD_TO_WAD;
         if (quoteOut < minQuoteOut) revert SlippageExceeded();
         MockERC20(quoteToken).mint(msg.sender, quoteOut);
         emit SpotSold(msg.sender, baseIn, quoteOut, _bid());

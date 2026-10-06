@@ -6,7 +6,7 @@
 
 | Interface | Implemented by (WS, founder) | Called by | Mock |
 |---|---|---|---|
-| `PulseTypes.sol` | WS-00 (A) | all | — |
+| `MeridianTypes.sol` | WS-00 (A) | all | — |
 | `IOrderBook` | OrderBook (WS-01, A), deployed twice: perp + swap | traders, MM bot, vault, app | `MockOrderBook` |
 | `IMarginEngine` | ClearingHouse (WS-02, A), FundingSwapMarket (WS-05, A) | OrderBook hooks | `MockClearingHouse` |
 | `IClearingHouse` (+ IMarginEngine, IFundingRateOracle) | ClearingHouse (WS-02, A) | OB, vault, keeper, swap market, app | `MockClearingHouse` (`mockAccrue`) |
@@ -15,14 +15,14 @@
 | `IOracleAdapter` | PythChainlinkOracleAdapter (WS-03, B) | CH, keeper, MM bot | `MockOracleAdapter` |
 | `IInsuranceFund` | InsuranceFund (WS-02, A) | CH, swap market | `MockInsuranceFund` |
 | `IMarketFactory` | MarketFactory (WS-02, A) | deploy script, indexer, app | — |
-| `IPulseVault` | PulseVault (WS-04, B) | users/app, keeper | `MockPulseVault` |
+| `IMeridianVault` | MeridianVault (WS-04, B) | users/app, keeper | `MockMeridianVault` |
 | `IKuruHedger` | KuruHedger (WS-04, B) | vault | `MockKuruHedger` |
-| `IPulseKeeperReceiver` | PulseKeeperReceiver (WS-03, B), should-tier | CRE forwarder | — |
+| `IMeridianKeeperReceiver` | MeridianKeeperReceiver (WS-03, B), should-tier | CRE forwarder | — |
 | `external/*` | Kuru / Pyth / Chainlink | adapters | `MockKuruHedger`, `MockAggregatorV3` |
 | `deferred/*` (PT/YT) | not built in the hackathon | — | — |
 
 ## 2. Cross-module rules (normative)
-1. **Units:** see `PulseTypes.sol` header and MATH_SPEC §0. `*Token` params = AUSD 6 dp; `*Wad` = 1e18.
+1. **Units:** see `MeridianTypes.sol` header and MATH_SPEC §0. `*Token` params = AUSD 6 dp; `*Wad` = 1e18.
 2. **OrderBook ⇄ IMarginEngine protocol** (perp ClearingHouse and FundingSwapMarket alike):
    - Before an order rests: `reserveOrderMargin` (may revert ⇒ whole placement reverts).
    - On cancel / eviction / fill: `releaseOrderMargin` for the cancelled/evicted remainder; `settleMakerFill` releases the filled part itself.
@@ -54,19 +54,19 @@
 | `IClearingHouse.FundingSettled` | `AccountMarket.fundingPaid` |
 | `IClearingHouse.Liquidated / BadDebtSocialized` | `Liquidation` |
 | `IClearingHouse.Deposited / Withdrawn` | `AccountMarket.collateral` |
-| `IPulseVault.Deposit / Withdraw` (ERC-4626) , `NavSnapshot`, `Rebalanced` | `VaultSnapshot`, `VaultUser` |
+| `IMeridianVault.Deposit / Withdraw` (ERC-4626) , `NavSnapshot`, `Rebalanced` | `VaultSnapshot`, `VaultUser` |
 
 ## 4. Verbatim interface sources
 
 <!-- BEGIN GENERATED: do not edit below; run tools/gen_interfaces_md.py -->
 
-### `contracts/src/interfaces/PulseTypes.sol`
+### `contracts/src/interfaces/MeridianTypes.sol`
 
 ```solidity
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title PulseTypes — shared constants, enums and structs (FROZEN, see docs/INTERFACES.md)
+/// @title MeridianTypes — shared constants, enums and structs (FROZEN, see docs/INTERFACES.md)
 /// @notice Units convention (normative, see docs/MATH_SPEC.md §0):
 ///  - "Wad"   suffix / WAD scale = 1e18 fixed point.
 ///  - Prices  : quote (AUSD) per 1 base unit, WAD.
@@ -75,7 +75,7 @@ pragma solidity ^0.8.24;
 ///  - Token amounts crossing a token boundary ("amountToken"): native token decimals (AUSD = 6).
 ///  - Rates   : per-second fractions, WAD (e.g. 1e18 = 100%/s).
 ///  - Block time: milliseconds.
-library PulseConstants {
+library MeridianConstants {
     uint256 internal constant WAD = 1e18;
     int256 internal constant IWAD = 1e18;
     uint256 internal constant BPS = 10_000;
@@ -224,7 +224,7 @@ pragma solidity ^0.8.24;
 ///         Instrument-agnostic (CR-003): every fill settles synchronously in the market's IMarginEngine —
 ///         the perp ClearingHouse (price = AUSD per MON) or the FundingSwapMarket (price = 1 + fixed APR).
 ///         No offchain matching.
-///         Loops are bounded by PulseConstants.MAX_FILLS_PER_ORDER / MAX_BATCH.
+///         Loops are bounded by MeridianConstants.MAX_FILLS_PER_ORDER / MAX_BATCH.
 interface IOrderBook {
     // ─── Flags for placeLimitOrder ─────────────────────────────────────────────
     // uint8 bitmask: FLAG_POST_ONLY = 1, FLAG_IOC = 2, FLAG_REDUCE_ONLY = 4
@@ -364,7 +364,7 @@ interface IMarginEngine {
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {RiskParams, FundingParams, FundingState, Position, AccountView} from "./PulseTypes.sol";
+import {RiskParams, FundingParams, FundingState, Position, AccountView} from "./MeridianTypes.sol";
 import {IMarginEngine} from "./IMarginEngine.sol";
 import {IFundingRateOracle} from "./IFundingRateOracle.sol";
 
@@ -519,7 +519,7 @@ interface IFundingRateOracle {
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {SwapParams, SwapPosition, SwapAccountView} from "./PulseTypes.sol";
+import {SwapParams, SwapPosition, SwapAccountView} from "./MeridianTypes.sol";
 import {IMarginEngine} from "./IMarginEngine.sol";
 
 /// @title IFundingSwapMarket — fixed-for-floating MON-PERP funding swaps, one maturity (FROZEN, CR-003)
@@ -724,22 +724,22 @@ interface IMarketFactory {
 }
 ```
 
-### `contracts/src/interfaces/IPulseVault.sol`
+### `contracts/src/interfaces/IMeridianVault.sol`
 
 ```solidity
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import {VaultParams, HedgeState} from "./PulseTypes.sol";
+import {VaultParams, HedgeState} from "./MeridianTypes.sol";
 
-/// @title IPulseVault — delta-neutral funding vault, ERC-4626 over AUSD (FROZEN)
+/// @title IMeridianVault — delta-neutral funding vault, ERC-4626 over AUSD (FROZEN)
 /// @notice "Skew absorber" basis vault. Deposit AUSD; keeper deploys it into spot MON (via IKuruHedger / Kuru Flow)
 ///         + short MON-PERP. Short size is capped by other traders' net long skew (VaultParams.skewCapacity) and
 ///         the hedge is only entered when funding pays for costs (MATH_SPEC §5).
 ///         totalAssets() = NAV in AUSD (6 dp). Shares have 18 decimals (decimals offset 12, inflation guard).
 ///         Deposits stay idle until the next rebalance, so a deposit never trades (sandwich-safe, cheap).
-interface IPulseVault is IERC4626 {
+interface IMeridianVault is IERC4626 {
     enum RebalanceReason {
         None,
         Deploy, // idle above buffer
@@ -837,7 +837,7 @@ interface IKuruHedger {
 }
 ```
 
-### `contracts/src/interfaces/IPulseKeeperReceiver.sol`
+### `contracts/src/interfaces/IMeridianKeeperReceiver.sol`
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -845,7 +845,7 @@ pragma solidity ^0.8.24;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-/// @title IPulseKeeperReceiver — onchain target for Chainlink CRE workflow reports (FROZEN)
+/// @title IMeridianKeeperReceiver — onchain target for Chainlink CRE workflow reports (FROZEN)
 /// @notice CRE delivers signed reports through a Chainlink KeystoneForwarder which calls onReport.
 ///         IReceiver.onReport(bytes metadata, bytes report) confirmed in CRE docs; the forwarder checks ERC-165
 ///         support first. Monad KeystoneForwarder (CRE Forwarder Directory, verified has code):
@@ -856,7 +856,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 ///           2 LIQUIDATE        payload = abi.encode(address clearingHouse, address[] accounts)  (len <= 32)
 ///           3 FUNDING_POKE     payload = abi.encode(address[] clearingHouses)                    (len <= 32)
 ///           4 ORACLE_UPDATE    payload = abi.encode(address oracleAdapter, bytes[] updateData)
-interface IPulseKeeperReceiver is IERC165 {
+interface IMeridianKeeperReceiver is IERC165 {
     event ReportExecuted(uint8 indexed action, bool success, bytes32 workflowId);
     event ForwarderUpdated(address indexed forwarder);
 

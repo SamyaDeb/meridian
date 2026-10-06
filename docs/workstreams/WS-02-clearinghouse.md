@@ -8,7 +8,7 @@
 `contracts/src/clearing/**` (ClearingHouse, InsuranceFund, MarketFactory), `contracts/src/libs/**` (FundingLib, MarkPriceLib, MarginLib, SignedMath helpers), `contracts/test/unit/{ClearingHouse,Funding,Mark,Margin,Liquidation,InsuranceFund,MarketFactory}*.t.sol`, `contracts/test/fuzz/{Funding,Margin,Mark}*.t.sol`, `contracts/test/invariant/handlers/ClearingHouseHandler.sol`.
 
 ## Interfaces
-Provides: `IClearingHouse` (is `IMarginEngine` + `IFundingRateOracle`), `IInsuranceFund` (authorize both CH and the swap market), `IMarketFactory`. Consumes: `IOrderBook` views (`midPrice`, `lastTrade`), `IOracleAdapter.tryGetIndexPrice`, `PulseTypes`. Build against `MockOrderBook` + `MockOracleAdapter` (prank as the OB for hooks).
+Provides: `IClearingHouse` (is `IMarginEngine` + `IFundingRateOracle`), `IInsuranceFund` (authorize both CH and the swap market), `IMarketFactory`. Consumes: `IOrderBook` views (`midPrice`, `lastTrade`), `IOracleAdapter.tryGetIndexPrice`, `MeridianTypes`. Build against `MockOrderBook` + `MockOracleAdapter` (prank as the OB for hooks).
 
 ## Task checklist (ordered)
 1. [ ] `libs/FundingLib.sol`: pure `update(state, params, index, fairPrice, blocksElapsed) → newState` per MATH_SPEC §1.2 (F **and G**; δ-clamp then cap-clamp; single fullMulDiv per index; interest default 10.95% APR) including exact `αeff = 1 − (1−α)^n` (pow by squaring in WAD, ↑ on the power), rate clamp, δ·n cap, F accrual with Δt from blocks. `owed(q, F_now, F_entry)` ceil-rounded (§1.4).
@@ -44,7 +44,7 @@ D1 libs · D2 accounts/deposit/withdraw · D3 hooks + funding touch · D4 liquid
 
 ## Kickoff prompt
 ```
-You are the engineer for WS-02 (ClearingHouse: margin, funding, mark, liquidation, insurance) of Pulse.
+You are the engineer for WS-02 (ClearingHouse: margin, funding, mark, liquidation, insurance) of Meridian.
 Read CLAUDE.md, docs/TEAM_PLAN.md, docs/PRD.md, docs/MATH_SPEC.md (all of §0–§3, §1.8 and §7 are normative), docs/ARCHITECTURE.md, docs/INTERFACES.md and docs/workstreams/WS-02-clearinghouse.md.
 Work only in your owned paths on branch ws-02-clearinghouse.
 Start with the task checklist and write tests first: reproduce the MATH_SPEC §1.7 worked example and the rounding-direction fuzz tests before implementing FundingLib/MarginLib.

@@ -3,19 +3,19 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {DeployPulse} from "../../script/DeployPulse.s.sol";
-import {PulseVault} from "../../src/vault/PulseVault.sol";
+import {DeployMeridian} from "../../script/DeployMeridian.s.sol";
+import {MeridianVault} from "../../src/vault/MeridianVault.sol";
 import {KuruHedger} from "../../src/vault/KuruHedger.sol";
 import {FundingSwapMarket} from "../../src/swaps/FundingSwapMarket.sol";
 import {InsuranceFund} from "../../src/clearing/InsuranceFund.sol";
 import {ClearingHouse} from "../../src/clearing/ClearingHouse.sol";
 
-/// @notice `DeployPulse` against a Monad MAINNET fork (chain 143) with the real `script/config/143.json`, patched only
+/// @notice `DeployMeridian` against a Monad MAINNET fork (chain 143) with the real `script/config/143.json`, patched only
 ///         where the file is still open (owner = a test Safe stand-in). Proves:
 ///         every Ownable ends with the owner (Safe), the deployer holds no role, the swap maturity is listing + 30 d,
 ///         the launch vault cap, and the mainnet refusals (no tAUSD, no demo market, no mocks, no keeper-fed oracle,
 ///         no deployer owner). Runs only with MONAD_RPC_URL (skips otherwise). Nothing is broadcast: forge test.
-contract DeployPulseMainnetForkTest is Test {
+contract DeployMeridianMainnetForkTest is Test {
     string constant TMP = "tmp/143-test.json";
     address constant SAFE = address(0x5AFE00000000000000000000000000000000005A); // stand-in, not the real Safe
     uint256 constant PK = 0xA11CE5AFE;
@@ -53,16 +53,16 @@ contract DeployPulseMainnetForkTest is Test {
         vm.setEnv("DEPLOY_CRE_RECEIVER", "false");
     }
 
-    function _run(string memory json, bool vault, bool swaps) internal returns (DeployPulse.Deployed memory) {
+    function _run(string memory json, bool vault, bool swaps) internal returns (DeployMeridian.Deployed memory) {
         _env(json, vault, swaps);
-        return new DeployPulse().run();
+        return new DeployMeridian().run();
     }
 
     /// @dev Asserts the deploy reverts (with `reason` when non-empty), then restores the fork state.
     function _refuses(string memory json, bool vault, string memory reason) internal {
         uint256 snap = vm.snapshotState();
         _env(json, vault, false);
-        DeployPulse s = new DeployPulse();
+        DeployMeridian s = new DeployMeridian();
         if (bytes(reason).length != 0) vm.expectRevert(bytes(reason));
         else vm.expectRevert();
         s.run();
@@ -78,7 +78,7 @@ contract DeployPulseMainnetForkTest is Test {
 
     function _fullDeploy() internal {
         uint256 t0 = block.timestamp;
-        DeployPulse.Deployed memory d = _run(base, true, true);
+        DeployMeridian.Deployed memory d = _run(base, true, true);
         address[7] memory owned =
             [d.insuranceFund, d.marketFactory, d.perp.oracle, d.perp.clearingHouse, d.swapMarket, d.vault, d.hedger];
         for (uint256 i; i < owned.length; ++i) {
@@ -90,7 +90,7 @@ contract DeployPulseMainnetForkTest is Test {
         assertEq(d.ausd, 0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a, "real AUSD (ARCHITECTURE R9)");
         assertEq(d.demo.clearingHouse, address(0), "no demo market on mainnet");
         // roles: keeper + MM are the bots, never the deployer
-        PulseVault v = PulseVault(d.vault);
+        MeridianVault v = MeridianVault(d.vault);
         assertFalse(v.isKeeper(deployer));
         assertTrue(v.isKeeper(keeper));
         assertEq(v.skewProviders(0), mm);

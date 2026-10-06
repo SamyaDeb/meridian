@@ -2,15 +2,15 @@
 pragma solidity ^0.8.24;
 
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import {VaultParams, HedgeState} from "./PulseTypes.sol";
+import {VaultParams, HedgeState} from "./MeridianTypes.sol";
 
-/// @title IPulseVault — delta-neutral funding vault, ERC-4626 over AUSD (FROZEN)
+/// @title IMeridianVault — delta-neutral funding vault, ERC-4626 over AUSD (FROZEN)
 /// @notice "Skew absorber" basis vault. Deposit AUSD; keeper deploys it into spot MON (via IKuruHedger / Kuru Flow)
 ///         + short MON-PERP. Short size is capped by other traders' net long skew (VaultParams.skewCapacity) and
 ///         the hedge is only entered when funding pays for costs (MATH_SPEC §5).
 ///         totalAssets() = NAV in AUSD (6 dp). Shares have 18 decimals (decimals offset 12, inflation guard).
 ///         Deposits stay idle until the next rebalance, so a deposit never trades (sandwich-safe, cheap).
-interface IPulseVault is IERC4626 {
+interface IMeridianVault is IERC4626 {
     enum RebalanceReason {
         None,
         Deploy, // idle above buffer

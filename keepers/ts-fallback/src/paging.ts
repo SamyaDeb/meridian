@@ -38,7 +38,7 @@ const line = (a: Alert): string => `${a.severity === "critical" ? "🔴" : "🟠
 
 /**
  * One watcher cycle: update what is firing and return the messages to send now (≤ the rate budget). Mutates `st`.
- * `label` prefixes every message (e.g. "Pulse 143").
+ * `label` prefixes every message (e.g. "Meridian 143").
  */
 export function planPages(st: PagerState, alerts: Alert[], nowSec: number, cfg: PagerConfig, label: string): string[] {
   const lines: string[] = [];

@@ -4,16 +4,16 @@ pragma solidity ^0.8.24;
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IPulseVault} from "../interfaces/IPulseVault.sol";
-import {VaultParams, HedgeState} from "../interfaces/PulseTypes.sol";
+import {IMeridianVault} from "../interfaces/IMeridianVault.sol";
+import {VaultParams, HedgeState} from "../interfaces/MeridianTypes.sol";
 import {MockERC20} from "./MockERC20.sol";
 
 /// @notice Plain ERC-4626 over a MockERC20 with no strategy. Simulate yield with mockGain / mockLoss.
 ///         Used by WS-05 (tokenizer), WS-06/07 before the real vault lands. Decimals offset 12 (18-dp shares).
-contract MockPulseVault is ERC4626, IPulseVault {
+contract MockMeridianVault is ERC4626, IMeridianVault {
     VaultParams internal _params;
 
-    constructor(address asset_) ERC20("Pulse Vault Share (mock)", "pvAUSD") ERC4626(IERC20(asset_)) {}
+    constructor(address asset_) ERC20("Meridian Vault Share (mock)", "pvAUSD") ERC4626(IERC20(asset_)) {}
 
     function _decimalsOffset() internal pure override returns (uint8) {
         return 12;

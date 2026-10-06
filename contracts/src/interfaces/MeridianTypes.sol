@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title PulseTypes — shared constants, enums and structs (FROZEN, see docs/INTERFACES.md)
+/// @title MeridianTypes — shared constants, enums and structs (FROZEN, see docs/INTERFACES.md)
 /// @notice Units convention (normative, see docs/MATH_SPEC.md §0):
 ///  - "Wad"   suffix / WAD scale = 1e18 fixed point.
 ///  - Prices  : quote (AUSD) per 1 base unit, WAD.
@@ -10,7 +10,7 @@ pragma solidity ^0.8.24;
 ///  - Token amounts crossing a token boundary ("amountToken"): native token decimals (AUSD = 6).
 ///  - Rates   : per-second fractions, WAD (e.g. 1e18 = 100%/s).
 ///  - Block time: milliseconds.
-library PulseConstants {
+library MeridianConstants {
     uint256 internal constant WAD = 1e18;
     int256 internal constant IWAD = 1e18;
     uint256 internal constant BPS = 10_000;

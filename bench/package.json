@@ -1,8 +1,8 @@
 {
-  "name": "@pulse/bench",
+  "name": "@meridian/bench",
   "version": "0.1.0",
   "private": true,
-  "description": "Pulse benchmarks B1/B2 (gas from receipts) and B4 (multi-market load) \u2014 WS-08",
+  "description": "Meridian benchmarks B1/B2 (gas from receipts) and B4 (multi-market load) \u2014 WS-08",
   "type": "module",
   "scripts": {
     "gas": "tsx gas_onchain.ts",
@@ -13,7 +13,7 @@
     "crash-sanity": "tsx crash_sanity.ts"
   },
   "dependencies": {
-    "@pulse/abis": "workspace:*",
+    "@meridian/abis": "workspace:*",
     "viem": "^2.57.0"
   },
   "devDependencies": {

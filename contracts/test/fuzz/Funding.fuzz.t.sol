@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {FixedPointMathLib as FPM} from "solady/utils/FixedPointMathLib.sol";
 import {FundingLib} from "../../src/libs/FundingLib.sol";
-import {FundingParams, FundingState} from "../../src/interfaces/PulseTypes.sol";
+import {FundingParams, FundingState} from "../../src/interfaces/MeridianTypes.sol";
 
 contract FundingLibFuzzTest is Test {
     uint256 constant MAX_CAP = 2_777_777_777_778; // 1%/h: the admin hard bound on rateCap

@@ -2,7 +2,7 @@
 
 **Founder:** C
 
-**Goal:** Index every Pulse event into entities that power the app: per-block funding history (F, G), oracle APR windows, positions, trades/candles (perp + swap books), liquidations, vault NAV/APY, swap positions/accrual, and protocol metrics for the demo.
+**Goal:** Index every Meridian event into entities that power the app: per-block funding history (F, G), oracle APR windows, positions, trades/candles (perp + swap books), liquidations, vault NAV/APY, swap positions/accrual, and protocol metrics for the demo.
 
 ## Owned paths
 `indexer/**`.
@@ -35,7 +35,7 @@ D1 schema · D2 handlers on mocks · D3 local-node indexing · D5 CP1 · D6 vaul
 
 ## Kickoff prompt
 ```
-You are the engineer for WS-06 (Envio HyperIndex indexer) of Pulse.
+You are the engineer for WS-06 (Envio HyperIndex indexer) of Meridian.
 Read CLAUDE.md, docs/TEAM_PLAN.md, docs/PRD.md, docs/INTERFACES.md (especially §3 event→entity map and the verbatim event definitions), docs/ARCHITECTURE.md (§0 R20) and docs/workstreams/WS-06-indexer.md.
 Work only in indexer/ on branch ws-06-indexer.
 First verify Envio support for Monad chain 143/10143 from docs.envio.dev. Then design schema.graphql and write handler tests against the frozen event signatures; run against a local anvil deployment from WS-00's DeployLocal script (or emit events from a tiny local script if it isn't ready yet).

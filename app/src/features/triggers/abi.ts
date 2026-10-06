@@ -33,5 +33,5 @@ export type TriggerView = {
   tipToken: bigint;
 };
 
-/** Max open triggers per account (CR-012: MAX_TRIGGERS_PER_ACCOUNT = 8, proposed). > VERIFY in PulseConstants. */
+/** Max open triggers per account (CR-012: MAX_TRIGGERS_PER_ACCOUNT = 8, proposed). > VERIFY in MeridianConstants. */
 export const MAX_TRIGGERS_PER_ACCOUNT = 8;

@@ -8,7 +8,7 @@ import {InsuranceFund} from "../../src/clearing/InsuranceFund.sol";
 import {OrderBook} from "../../src/orderbook/OrderBook.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
-import {RiskParams, FundingParams, AccountView} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, AccountView} from "../../src/interfaces/MeridianTypes.sol";
 import {RealStackHandler} from "./handlers/RealStackHandler.sol";
 import {MarkPriceLib} from "../../src/libs/MarkPriceLib.sol";
 import {FixedPointMathLib as FPM} from "solady/utils/FixedPointMathLib.sol";

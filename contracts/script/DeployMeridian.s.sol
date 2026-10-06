@@ -12,7 +12,7 @@ import {OrderBook} from "../src/orderbook/OrderBook.sol";
 import {PythChainlinkOracleAdapter} from "../src/oracle/PythChainlinkOracleAdapter.sol";
 import {TestnetKeeperOracle} from "../src/oracle/TestnetKeeperOracle.sol";
 import {KuruHedger} from "../src/vault/KuruHedger.sol";
-import {PulseVault} from "../src/vault/PulseVault.sol";
+import {MeridianVault} from "../src/vault/MeridianVault.sol";
 import {MockKuruHedger} from "../src/mocks/MockKuruHedger.sol";
 import {IOracleAdapter} from "../src/interfaces/IOracleAdapter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -21,8 +21,8 @@ import {IPythMinimal} from "../src/interfaces/external/IPythMinimal.sol";
 import {AggregatorV3Interface} from "../src/interfaces/external/AggregatorV3Interface.sol";
 import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
 
-/// @notice Pulse deployment for Monad testnet (10143) and mainnet (143), ARCHITECTURE §7 order.
-///   Dry-run:  forge script script/DeployPulse.s.sol --fork-url $MONAD_TESTNET_RPC_URL --code-size-limit 131072
+/// @notice Meridian deployment for Monad testnet (10143) and mainnet (143), ARCHITECTURE §7 order.
+///   Dry-run:  forge script script/DeployMeridian.s.sol --fork-url $MONAD_TESTNET_RPC_URL --code-size-limit 131072
 ///   Deploy:   … --rpc-url $MONAD_TESTNET_RPC_URL --broadcast --slow --code-size-limit 131072
 ///   env: DEPLOYER_PK (required), KEEPER_ADDRESS (feeder of the keeper-fed oracles; optional),
 ///        DEPLOY_VAULT / DEPLOY_SWAPS (Phase 4, default false), DEPLOY_CRE_RECEIVER (should-tier, default false),
@@ -37,7 +37,7 @@ import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
 ///        `transferOwnership` is immediate, so the Safe address must be right).
 ///      - `demoMarket.enabled` ⇒ a second, clearly labelled test market (own OB + CH + keeper-fed oracle, shared IF)
 ///        used only for the crash/liquidation demo, so the main market's price and parameters are never forced.
-contract DeployPulse is DeployBase {
+contract DeployMeridian is DeployBase {
     using stdJson for string;
 
     uint256 internal constant MAINNET = 143;
@@ -150,8 +150,8 @@ contract DeployPulse is DeployBase {
                 j.readString(".demoMarket.oracleKind")
             );
         }
-        if (!vm.envOr("DEPLOY_VAULT", false) && vm.keyExistsJson(j, ".contracts.PulseVault")) {
-            d.vault = j.readAddress(".contracts.PulseVault");
+        if (!vm.envOr("DEPLOY_VAULT", false) && vm.keyExistsJson(j, ".contracts.MeridianVault")) {
+            d.vault = j.readAddress(".contracts.MeridianVault");
             d.hedger = j.readAddress(".contracts.KuruHedger");
         }
         if (!vm.envOr("DEPLOY_SWAPS", false) && vm.keyExistsJson(j, ".contracts.FundingSwapMarket")) {
@@ -230,8 +230,9 @@ contract DeployPulse is DeployBase {
             require(keeper != address(0) && mmBot != address(0), "mainnet vault: set KEEPER_ADDRESS and MM_ADDRESS");
             require(keeper != deployer && mmBot != deployer, "mainnet vault: keeper/MM must not be the deployer");
         }
-        PulseVault v =
-            new PulseVault(IERC20(d.ausd), d.perp.clearingHouse, d.perp.orderBook, d.hedger, _vaultParams(), deployer);
+        MeridianVault v = new MeridianVault(
+            IERC20(d.ausd), d.perp.clearingHouse, d.perp.orderBook, d.hedger, _vaultParams(), deployer
+        );
         d.vault = address(v);
         if (flowEntry != address(0)) KuruHedger(payable(d.hedger)).setVault(d.vault);
         if (keeper != address(0)) v.setKeeper(keeper, true);
@@ -257,7 +258,8 @@ contract DeployPulse is DeployBase {
         d.swapOrderBook = address(sob);
         if (vm.envOr("DEPLOY_CRE_RECEIVER", false)) {
             d.keeperReceiver = deployCode(
-                "PulseKeeperReceiver.sol:PulseKeeperReceiver", abi.encode(cfg.readAddress(".cre.keystoneForwarder"))
+                "MeridianKeeperReceiver.sol:MeridianKeeperReceiver",
+                abi.encode(cfg.readAddress(".cre.keystoneForwarder"))
             );
         }
     }
@@ -297,7 +299,9 @@ contract DeployPulse is DeployBase {
             require(Ownable(owned[i]).owner() == owner, "hand-over: owner not set");
         }
         // the deployer keeps no role: it is never a vault keeper on a handed-over deployment
-        if (d.vault != address(0)) require(!PulseVault(d.vault).isKeeper(deployer), "hand-over: deployer is keeper");
+        if (d.vault != address(0)) {
+            require(!MeridianVault(d.vault).isKeeper(deployer), "hand-over: deployer is keeper");
+        }
     }
 
     /// @dev Same keys as deployments/31337.json (consumers unchanged) + oracleKind, owner and the labelled demo market.
@@ -311,10 +315,10 @@ contract DeployPulse is DeployBase {
         _ser(c, "OracleAdapter", d.perp.oracle);
         _ser(c, "ClearingHouse", d.perp.clearingHouse);
         _ser(c, "KuruHedger", d.hedger);
-        _ser(c, "PulseVault", d.vault);
+        _ser(c, "MeridianVault", d.vault);
         _ser(c, "FundingSwapMarket", d.swapMarket);
         _ser(c, "SwapOrderBook", d.swapOrderBook);
-        _ser(c, "PulseKeeperReceiver", d.keeperReceiver);
+        _ser(c, "MeridianKeeperReceiver", d.keeperReceiver);
         string memory contracts = c.serialize("OrderBook", d.perp.orderBook);
 
         string memory root = "root";

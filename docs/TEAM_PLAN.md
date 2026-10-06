@@ -1,6 +1,6 @@
 # TEAM_PLAN: 3 founders, 15 days, one product
 
-**Pulse = Monad's funding-rate layer.** Per-block funding perp → public funding-rate oracle → floating yield (basis vault) → fixed yield (funding swaps).
+**Meridian = Monad's funding-rate layer.** Per-block funding perp → public funding-rate oracle → floating yield (basis vault) → fixed yield (funding swaps).
 **Track:** 01 Onchain Finance & Trading (+ Grand Champion, automatic). **Deadline:** Tue 13 Oct, submit by 18:00.
 Specs: PRD · ARCHITECTURE · MATH_SPEC · INTERFACES · MILESTONES. This file covers who does what, when, and how you work together.
 
@@ -17,7 +17,7 @@ Specs: PRD · ARCHITECTURE · MATH_SPEC · INTERFACES · MILESTONES. This file c
 
 Skills swap: if B is the stronger frontend engineer and C the stronger Solidity engineer, swap WS-04 ↔ WS-07 and keep everything else.
 
-**Lane D: WS-09 MFI (Meridian Funding Index), added 4–5 Oct (CR-013, owner decision D8).** Owned paths: `mfi/` (`@pulse/mfi`: Perpl client + index service, in `pnpm-workspace.yaml`), `docs/MFI.md`, `docs/mfi/`, `docs/outputs/MFI_HOSTING.md`. Offchain only, read-only; it never touches `contracts/src`. Consumers: the app's `/rates` page (`NEXT_PUBLIC_MFI_URL`, WS-07).
+**Lane D: WS-09 MFI (Meridian Funding Index), added 4–5 Oct (CR-013, owner decision D8).** Owned paths: `mfi/` (`@meridian/mfi`: Perpl client + index service, in `pnpm-workspace.yaml`), `docs/MFI.md`, `docs/mfi/`, `docs/outputs/MFI_HOSTING.md`. Offchain only, read-only; it never touches `contracts/src`. Consumers: the app's `/rates` page (`NEXT_PUBLIC_MFI_URL`, WS-07).
 
 ## 2. Critical path (what blocks whom)
 

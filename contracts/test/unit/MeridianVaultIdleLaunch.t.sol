@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {PulseVaultBase} from "./PulseVault.t.sol";
+import {MeridianVaultBase} from "./MeridianVault.t.sol";
 import {RouteOnlyHedger} from "../review/ReviewA.t.sol";
-import {PulseVault} from "../../src/vault/PulseVault.sol";
-import {IPulseVault} from "../../src/interfaces/IPulseVault.sol";
-import {VaultParams} from "../../src/interfaces/PulseTypes.sol";
+import {MeridianVault} from "../../src/vault/MeridianVault.sol";
+import {IMeridianVault} from "../../src/interfaces/IMeridianVault.sol";
+import {VaultParams} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @notice A-01 idle launch (PHASES decision, 5 Oct 2026): until CR-010 lands, the mainnet vault launches with
 ///         `skewCapacity = 0`, so the hedge target is 0 whatever the keeper does and every redemption is served from
 ///         idle AUSD. The hedger here is the 143 shape (route-only: the empty route cannot fill), the entry rule is
-///         fully on (skew available, funding at +30% APR), the keeper and the skew provider are wired as DeployPulse
+///         fully on (skew available, funding at +30% APR), the keeper and the skew provider are wired as DeployMeridian
 ///         wires them, and the cap is the launch cap (1,200 AUSD).
-abstract contract IdleLaunchBase is PulseVaultBase {
+abstract contract IdleLaunchBase is MeridianVaultBase {
     RouteOnlyHedger rh;
     bytes constant FLOW = hex"01";
     uint256 constant LAUNCH_CAP = 1200e6;
@@ -26,7 +26,7 @@ abstract contract IdleLaunchBase is PulseVaultBase {
     function setUp() public virtual override {
         super.setUp();
         rh = new RouteOnlyHedger(address(wmon), address(ausd), I0);
-        vault = new PulseVault(ausd, address(ch), address(ob), address(rh), _params(), owner);
+        vault = new MeridianVault(ausd, address(ch), address(ob), address(rh), _params(), owner);
         vm.startPrank(owner);
         vault.setKeeper(keeper, true);
         vault.setSkewProvider(mm, true);
@@ -36,22 +36,22 @@ abstract contract IdleLaunchBase is PulseVaultBase {
     }
 }
 
-contract PulseVaultIdleLaunchTest is IdleLaunchBase {
+contract MeridianVaultIdleLaunchTest is IdleLaunchBase {
     function test_idle_noCapacityNoHedgeTarget() public {
         _deposit(alice, 700e6);
         assertEq(vault.shortCapacity(), 0, "skewCapacity 0 gives capacity 0");
-        assertEq(uint256(vault.needsRebalance()), uint256(IPulseVault.RebalanceReason.None), "nothing to do");
+        assertEq(uint256(vault.needsRebalance()), uint256(IMeridianVault.RebalanceReason.None), "nothing to do");
     }
 
     function test_idle_keeperCannotHedge() public {
         _deposit(alice, 700e6);
         vm.startPrank(keeper);
         // NothingToDo is raised before any trade (`_deploySlice`: add == 0), so no route is ever called
-        vm.expectRevert(IPulseVault.NothingToDo.selector);
+        vm.expectRevert(IMeridianVault.NothingToDo.selector);
         vault.rebalance();
-        vm.expectRevert(IPulseVault.NothingToDo.selector);
+        vm.expectRevert(IMeridianVault.NothingToDo.selector);
         vault.rebalanceWithRoute(FLOW);
-        vm.expectRevert(IPulseVault.NothingToDo.selector);
+        vm.expectRevert(IMeridianVault.NothingToDo.selector);
         vault.enterHedge();
         vm.stopPrank();
         assertFalse(vault.hedgeState().hedged, "still idle");

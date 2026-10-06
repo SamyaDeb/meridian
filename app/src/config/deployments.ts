@@ -1,5 +1,5 @@
 // Contract addresses come from deployments/<chainId>.json (never hard-coded). 10143/143 files are
-// written by DeployPulse.s.sol; until a network is broadcast its file is a `deployed: false` placeholder
+// written by DeployMeridian.s.sol; until a network is broadcast its file is a `deployed: false` placeholder
 // and the network is left out of DEPLOYMENTS (the app then stays on the mock layer for it). 143 (mainnet) is bundled by
 // scripts/sync-mainnet.mjs because deployments/143.json doesn't exist until A commits it.
 import local from "../../../deployments/31337.json";
@@ -15,11 +15,11 @@ export type ContractKey =
   | "OracleAdapter"
   | "InsuranceFund"
   | "KuruHedger"
-  | "PulseVault"
+  | "MeridianVault"
   | "MarketFactory"
   | "FundingSwapMarket"
   | "SwapOrderBook"
-  | "PulseKeeperReceiver"
+  | "MeridianKeeperReceiver"
   /** CR-012 (Proposed): present only once the trigger manager is deployed; the trigger UI is hidden without it */
   | "TriggerOrderManager";
 

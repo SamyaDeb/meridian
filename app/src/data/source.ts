@@ -18,7 +18,7 @@ import type {
   VaultUser,
 } from "./types";
 
-export interface PulseDataSource {
+export interface MeridianDataSource {
   readonly kind: "mock" | "indexer" | "chain";
   market(): Promise<Market>;
   fundingTicks(limit: number): Promise<FundingTick[]>;

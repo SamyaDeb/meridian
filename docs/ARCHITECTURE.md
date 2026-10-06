@@ -1,4 +1,4 @@
-# ARCHITECTURE — Pulse
+# ARCHITECTURE — Meridian
 
 Status: v1.1 (interfaces-v1.1: CR-001..003 applied 29 Sep). Changes go through `docs/CHANGE_REQUESTS.md`.
 
@@ -45,8 +45,8 @@ Status: v1.1 (interfaces-v1.1: CR-001..003 applied 29 Sep). Changes go through `
 | Finding | Consequence | Recommended action |
 |---|---|---|
 | Kuru MON/AUSD dead, AUSD/USDC thin | The vault's spot leg can't be a simple `placeAndExecuteMarketBuy` on MON/AUSD | **CR-002 (proposed):** KuruHedger executes a keeper-supplied **Kuru Flow** route (calldata to KuruFlowEntrypoint), enforcing output by balance delta ≥ index-based minOut. Plus: our MM bot revives **Kuru MON/AUSD** by quoting it (hedged on MON/USDC), which is also a strong "new markets/liquidity on Kuru" story. Vault deposit cap ↓ to 10k AUSD at launch |
-| `deployProxy` is owner-only | A PT/AUSD listing would depend on Kuru | **Resolved by CR-003:** fixed rate = funding swaps on Pulse's own order book. PT/YT is deferred |
-| MON ≈ $0.029 | Tick/lot sizing | Pulse MON-PERP: tickSize 1e-6 AUSD (≈3.4 bps, same as Kuru), lotSize 100 MON (≈$2.9) |
+| `deployProxy` is owner-only | A PT/AUSD listing would depend on Kuru | **Resolved by CR-003:** fixed rate = funding swaps on Meridian's own order book. PT/YT is deferred |
+| MON ≈ $0.029 | Tick/lot sizing | Meridian MON-PERP: tickSize 1e-6 AUSD (≈3.4 bps, same as Kuru), lotSize 100 MON (≈$2.9) |
 | Pyth push cadence 10–30 s | Premium sampling freshness | Keeper pushes Hermes updates when older than 3 s or moved > 5 bps (WS-03) |
 | MIP-8: first write to a page costs 2,800, and 17k per new slot | OB gas | Recycle order slots (free-list) instead of zeroing; the header and level slots in one page |
 | Market choice | MON has deepest Kuru activity (70k trades/day); WETH has deeper 1% book but ~6× fewer trades | **Keep MON-PERP** |
@@ -65,7 +65,7 @@ flowchart LR
   FS -- reads F, G (O(1)) --> CH
   CH -- getIndexPrice --> OA[OracleAdapter<br/>Pyth primary · Chainlink guard]
   CH & FS -- coverBadDebt / surplus --> IF[InsuranceFund]
-  V[PulseVault ERC-4626<br/>skew absorber] -- short, deposit --> CH & OB
+  V[MeridianVault ERC-4626<br/>skew absorber] -- short, deposit --> CH & OB
   V -. stretch: lock fixed .-> OB2
   V -- buy/sell spot --> KH[KuruHedger] --> KF[(Kuru Flow / Kuru CLOB)]
   subgraph Offchain
@@ -84,8 +84,8 @@ flowchart LR
 | InsuranceFund | `contracts/src/clearing/InsuranceFund.sol` | WS-02 | 1 global |
 | MarketFactory (registry) | `contracts/src/clearing/MarketFactory.sol` | WS-02 | 1 global |
 | OracleAdapter | `contracts/src/oracle/PythChainlinkOracleAdapter.sol` | WS-03 | 1 per market |
-| KeeperReceiver | `contracts/src/automation/PulseKeeperReceiver.sol` | WS-03 | 1 global |
-| PulseVault + KuruHedger | `contracts/src/vault/` | WS-04 | 1 each |
+| KeeperReceiver | `contracts/src/automation/MeridianKeeperReceiver.sol` | WS-03 | 1 global |
+| MeridianVault + KuruHedger | `contracts/src/vault/` | WS-04 | 1 each |
 | FundingSwapMarket (+ its OrderBook instance) | `contracts/src/swaps/` | WS-05 | 1 per maturity |
 
 ## 2. Call flows
@@ -176,4 +176,4 @@ Design rules applied:
 **Non-upgradeable for the MVP** (decision). Rationale: smaller audit surface, no proxy storage-collision risk for 9 parallel engineers, judges read plain contracts. Migration path = deploy v2 markets and close v1 (reduce-only). Params are mutable within bounds; code is not.
 
 ## 7. Deployment order (script owned by WS-00 skeleton, filled by WS-08)
-1. InsuranceFund(AUSD) → 2. OracleAdapter(MON/USD) → 3. ClearingHouse(AUSD, oracle, IF, params) → 4. OrderBook(CH, tickSize, lotSize) → 5. `CH.setOrderBook(OB)` → 6. `IF.setMarketAuthorized(CH)` → 7. `MarketFactory.registerMarket` → 8. KuruHedger(Kuru Flow entrypoint; see CR-002) → 9. PulseVault(AUSD, CH, OB, hedger) → 10. FundingSwapMarket(CH, AUSD, IF, maturity, params) → 11. OrderBook(FS, tick 1e14 = 1 bp APR, lot 1,000 MON) → 12. `FS.setOrderBook` + `IF.setMarketAuthorized(FS)` → 13. KeeperReceiver(forwarder) (if CRE).
+1. InsuranceFund(AUSD) → 2. OracleAdapter(MON/USD) → 3. ClearingHouse(AUSD, oracle, IF, params) → 4. OrderBook(CH, tickSize, lotSize) → 5. `CH.setOrderBook(OB)` → 6. `IF.setMarketAuthorized(CH)` → 7. `MarketFactory.registerMarket` → 8. KuruHedger(Kuru Flow entrypoint; see CR-002) → 9. MeridianVault(AUSD, CH, OB, hedger) → 10. FundingSwapMarket(CH, AUSD, IF, maturity, params) → 11. OrderBook(FS, tick 1e14 = 1 bp APR, lot 1,000 MON) → 12. `FS.setOrderBook` + `IF.setMarketAuthorized(FS)` → 13. KeeperReceiver(forwarder) (if CRE).

@@ -1,5 +1,5 @@
 // Record real Perpl public market-data responses as fixtures (run where perpl.xyz is reachable).
-//   pnpm --filter @pulse/mfi record:perpl [testnet|mainnet] [SYMBOL=MON]
+//   pnpm --filter @meridian/mfi record:perpl [testnet|mainnet] [SYMBOL=MON]
 // Writes fixtures/recorded/<network>/{context,ticker-<id>,funding-<id>}.json with the raw bodies plus `_recorded` metadata.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

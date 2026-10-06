@@ -9,7 +9,7 @@ import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
 import {IClearingHouse} from "../../src/interfaces/IClearingHouse.sol";
 import {IOrderBook} from "../../src/interfaces/IOrderBook.sol";
-import {RiskParams, FundingParams, AccountView} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, AccountView} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @notice Audit finding M-1 (docs/HARDENING_PLAN.md P2.1): two of the three perp mark inputs (book mid, last trade)
 ///         come from our own book, so on a thin book an attacker can sweep one side, print a wash trade from a second

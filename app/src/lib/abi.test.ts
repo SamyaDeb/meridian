@@ -17,7 +17,7 @@ describe("app ABI fragments match the committed ABIs", () => {
   it.each([
     ["ClearingHouse", clearingHouseAbi],
     ["OrderBook", orderBookAbi],
-    ["PulseVault", vaultAbi],
+    ["MeridianVault", vaultAbi],
     ["FundingSwapMarket", swapAbi],
   ] as const)("%s", (name, frag) => {
     const committed = selectors(load(name));

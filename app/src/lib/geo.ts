@@ -2,7 +2,7 @@
 // The list of jurisdictions comes from the founders (GEO_BLOCKED_COUNTRIES); nothing is hard-coded here.
 
 /** Cookie the proxy sets for restricted viewers; the write gate reads it client-side. */
-export const GEO_COOKIE = "pulse_geo";
+export const GEO_COOKIE = "meridian_geo";
 export const GEO_RESTRICTED = "restricted";
 
 /**

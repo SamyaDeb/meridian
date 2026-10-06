@@ -1,11 +1,11 @@
-// Thin RPC wiring for the Pulse market maker. All pricing lives in as.ts / plan.ts (pure, unit-tested).
+// Thin RPC wiring for the Meridian market maker. All pricing lives in as.ts / plan.ts (pure, unit-tested).
 // Per block: read index + inventory → A–S quotes (MATH_SPEC §4) → 3-level ladder → replace/place/cancel.
 // Requotes when the index moved > 2 bps since the last quote, inventory moved, or a level is missing (filled).
 // Kill switch: the KILL_FILE exists, or the oracle is stale ⇒ cancel every resting order and stop quoting.
 // RPC/gas budget (Phase 4 step 1): tick every TICK_EVERY_BLOCKS; per tick the index + our account (parallel) and ONE
 // eth_getLogs for our Trade/OrderEvicted since the last tick; getOrder only for ids those logs mention (plus a full
 // refresh every FULL_REFRESH_TICKS); per-tx gas limits (send.ts gasLimitsForBatch) instead of the batch max; reads can
-// go to a separate READ_RPC_URL; throttled requests retry with jittered back-off (@pulse/bot-rpc).
+// go to a separate READ_RPC_URL; throttled requests retry with jittered back-off (@meridian/bot-rpc).
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
@@ -21,7 +21,7 @@ import {
   nonceManager,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { RateWindow, createCountingFetch, newRpcStats } from "@pulse/bot-rpc";
+import { RateWindow, createCountingFetch, newRpcStats } from "@meridian/bot-rpc";
 import { clearingHouseAbi, fundingSwapAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
 import { DEFAULTS, buildLadder, inventoryRatio, quoteBps, sigmaForQuoting } from "./as.js";
 import { type AnchorSource, aprSigma, aprWadToBps, blocksFor, buildAprLadder, chooseAnchor, movedAprBps } from "./aprbook.js";
@@ -80,7 +80,7 @@ interface Deployments {
   chainId: number;
   deployed?: boolean;
   contracts: MarketDeployment & { FundingSwapMarket?: Address; SwapOrderBook?: Address };
-  /** MON-PERP-DEMO test market (DeployPulse on 10143); quote it with MARKET=demo. */
+  /** MON-PERP-DEMO test market (DeployMeridian on 10143); quote it with MARKET=demo. */
   demoMarket?: MarketDeployment & { symbol: string; testMarket: true };
 }
 const dep = JSON.parse(readFileSync(DEPLOYMENTS, "utf8")) as Deployments;
@@ -109,7 +109,7 @@ const ORACLE: Address = market.OracleAdapter;
 
 const chain = defineChain({
   id: CHAIN_ID,
-  name: `pulse-${CHAIN_ID}`,
+  name: `meridian-${CHAIN_ID}`,
   nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
   rpcUrls: { default: { http: [RPC_URL] } },
 });

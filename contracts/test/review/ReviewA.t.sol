@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {PulseVaultBase} from "../unit/PulseVault.t.sol";
-import {PulseVault} from "../../src/vault/PulseVault.sol";
+import {MeridianVaultBase} from "../unit/MeridianVault.t.sol";
+import {MeridianVault} from "../../src/vault/MeridianVault.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {IKuruHedger} from "../../src/interfaces/IKuruHedger.sol";
-import {IPulseVault} from "../../src/interfaces/IPulseVault.sol";
-import {PulseConstants, HedgeState, VaultParams, RiskParams} from "../../src/interfaces/PulseTypes.sol";
+import {IMeridianVault} from "../../src/interfaces/IMeridianVault.sol";
+import {MeridianConstants, HedgeState, VaultParams, RiskParams} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @notice SCRATCH (security review A, docs/outputs/security/review-A.md). Each test states the behaviour the fix must
 ///         produce and FAILS on the reviewed code (main @ 47ea85f). Handed to B: move them into the vault's unit tests
@@ -33,7 +33,7 @@ contract RouteOnlyHedger is IKuruHedger {
     function buySpot(uint256 quoteIn, uint256 minBaseOut, bytes calldata route) external returns (uint256 baseOut) {
         if (route.length == 0) revert SlippageExceeded(); // dead direct market: nothing fills
         MockERC20(quoteToken).burn(msg.sender, quoteIn);
-        baseOut = quoteIn * PulseConstants.AUSD_TO_WAD * PulseConstants.WAD / priceWad;
+        baseOut = quoteIn * MeridianConstants.AUSD_TO_WAD * MeridianConstants.WAD / priceWad;
         if (baseOut < minBaseOut) revert SlippageExceeded();
         MockERC20(baseToken).mint(msg.sender, baseOut);
     }
@@ -41,7 +41,7 @@ contract RouteOnlyHedger is IKuruHedger {
     function sellSpot(uint256 baseIn, uint256 minQuoteOut, bytes calldata route) external returns (uint256 quoteOut) {
         if (route.length == 0) revert SlippageExceeded();
         MockERC20(baseToken).burn(msg.sender, baseIn);
-        quoteOut = baseIn * priceWad / PulseConstants.WAD / PulseConstants.AUSD_TO_WAD;
+        quoteOut = baseIn * priceWad / MeridianConstants.WAD / MeridianConstants.AUSD_TO_WAD;
         if (quoteOut < minQuoteOut) revert SlippageExceeded();
         MockERC20(quoteToken).mint(msg.sender, quoteOut);
     }
@@ -57,14 +57,14 @@ contract RouteOnlyHedger is IKuruHedger {
 /// SlippageExceeded on the current code and are skipped unless REVIEW_A01_OPEN=true, so main stays green while the
 /// finding is recorded (assertions untouched):
 ///   REVIEW_A01_OPEN=true forge test --match-path test/review/ReviewA.t.sol -vv
-contract ReviewA01_RouteOnlyUnwind is PulseVaultBase {
+contract ReviewA01_RouteOnlyUnwind is MeridianVaultBase {
     RouteOnlyHedger rh;
     bytes constant FLOW = hex"01";
 
     function setUp() public override {
         super.setUp();
         rh = new RouteOnlyHedger(address(wmon), address(ausd), I0);
-        vault = new PulseVault(ausd, address(ch), address(ob), address(rh), _params(), owner);
+        vault = new MeridianVault(ausd, address(ch), address(ob), address(rh), _params(), owner);
         vm.startPrank(owner);
         vault.setKeeper(keeper, true);
         vault.setSkewProvider(mm, true);
@@ -76,7 +76,7 @@ contract ReviewA01_RouteOnlyUnwind is PulseVaultBase {
         _setAvgApr(0.3e18);
         _deposit(alice, 5000e6);
         _deposit(bob, 5000e6);
-        for (uint256 i; i < 20 && vault.needsRebalance() != IPulseVault.RebalanceReason.None; ++i) {
+        for (uint256 i; i < 20 && vault.needsRebalance() != IMeridianVault.RebalanceReason.None; ++i) {
             vm.prank(keeper);
             vault.rebalanceWithRoute(FLOW);
             vm.roll(block.number + 1);
@@ -110,7 +110,7 @@ contract ReviewA01_RouteOnlyUnwind is PulseVaultBase {
 
 /// A-02 (Medium): one lot (100 MON ≈ $2.7) of WMON donated to a flat, not-entered vault makes `_needs` return
 /// ExitHedge forever and `_exitSlice` revert NothingToDo (q = 0 ⇒ `_reduceBoth(0)`): the entry rule can never fire.
-contract ReviewA02_DonationBricksRule is PulseVaultBase {
+contract ReviewA02_DonationBricksRule is MeridianVaultBase {
     function test_A02_wmonDonation_doesNotBlockRuleBasedEntry() public {
         _whaleLong(3000);
         _deposit(alice, 5000e6);
@@ -136,7 +136,7 @@ contract ReviewA02_DonationBricksRule is PulseVaultBase {
 /// A-03 (Medium): MarginLow tops up only from idle and reduces the legs only when idle == 0 exactly. A griefer who
 /// sends 1 unit (1e-6 AUSD) before each keeper rebalance keeps the top-up at dust: no margin added, no reduction,
 /// and a further pump liquidates the vault's short.
-contract ReviewA03_DustIdleMarginLow is PulseVaultBase {
+contract ReviewA03_DustIdleMarginLow is MeridianVaultBase {
     function test_A03_dustIdle_marginLowStillMakesProgress() public {
         _whaleLong(3000);
         _setAvgApr(0.3e18);
@@ -148,7 +148,7 @@ contract ReviewA03_DustIdleMarginLow is PulseVaultBase {
         vm.prank(keeper);
         vault.rebalance();
         vm.roll(block.number + 1);
-        assertEq(uint8(vault.needsRebalance()), uint8(IPulseVault.RebalanceReason.MarginLow), "still low");
+        assertEq(uint8(vault.needsRebalance()), uint8(IMeridianVault.RebalanceReason.MarginLow), "still low");
         assertEq(ausd.balanceOf(address(vault)), 0, "idle spent");
         HedgeState memory h0 = vault.hedgeState();
         // griefer front-runs the keeper with 1 unit
@@ -168,7 +168,7 @@ contract ReviewA03_DustIdleMarginLow is PulseVaultBase {
 /// vault depositCap 1,200 AUSD, PHASES decision 12) the target N/P = 0.57·1,200/P exceeds 25k MON whenever MON <
 /// ≈ $0.0274 (today ≈ 0.0272): the first (only) slice reverts PositionCapExceeded and the vault never deploys, while
 /// needsRebalance keeps reporting EnterHedge/Deploy.
-contract ReviewA04_TargetIgnoresPositionCap is PulseVaultBase {
+contract ReviewA04_TargetIgnoresPositionCap is MeridianVaultBase {
     function _params() internal pure override returns (VaultParams memory p) {
         p = super._params();
         p.depositCap = 1200e6;

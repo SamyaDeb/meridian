@@ -76,7 +76,7 @@ importers:
 
   bench:
     dependencies:
-      '@pulse/abis':
+      '@meridian/abis':
         specifier: workspace:*
         version: link:../abis
       viem:
@@ -133,10 +133,10 @@ importers:
 
   keepers/ts-fallback:
     dependencies:
-      '@pulse/abis':
+      '@meridian/abis':
         specifier: workspace:*
         version: link:../../abis
-      '@pulse/bot-rpc':
+      '@meridian/bot-rpc':
         specifier: workspace:*
         version: link:../rpc
       viem:
@@ -165,7 +165,7 @@ importers:
         specifier: ^2.57.0
         version: 2.57.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(zod@4.6.5)
     devDependencies:
-      '@pulse/abis':
+      '@meridian/abis':
         specifier: workspace:*
         version: link:../abis
       '@types/node':
@@ -183,10 +183,10 @@ importers:
 
   mm-bot:
     dependencies:
-      '@pulse/abis':
+      '@meridian/abis':
         specifier: workspace:*
         version: link:../abis
-      '@pulse/bot-rpc':
+      '@meridian/bot-rpc':
         specifier: workspace:*
         version: link:../keepers/rpc
       viem:

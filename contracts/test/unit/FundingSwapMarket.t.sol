@@ -12,7 +12,7 @@ import {MockOrderBook} from "../../src/mocks/MockOrderBook.sol";
 import {IFundingSwapMarket} from "../../src/interfaces/IFundingSwapMarket.sol";
 import {IMarginEngine} from "../../src/interfaces/IMarginEngine.sol";
 import {IOrderBook} from "../../src/interfaces/IOrderBook.sol";
-import {SwapParams, SwapAccountView, FundingParams} from "../../src/interfaces/PulseTypes.sol";
+import {SwapParams, SwapAccountView, FundingParams} from "../../src/interfaces/MeridianTypes.sol";
 
 /// @dev Shared fixture: MockClearingHouse (hand-driven F, G, rate) + MockOrderBook (tick 1e14 = 1 bp APR, lot 1,000 MON).
 abstract contract FundingSwapBase is Test {

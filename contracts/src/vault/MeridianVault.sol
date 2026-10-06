@@ -10,29 +10,29 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {FixedPointMathLib as FPM} from "solady/utils/FixedPointMathLib.sol";
-import {IPulseVault} from "../interfaces/IPulseVault.sol";
+import {IMeridianVault} from "../interfaces/IMeridianVault.sol";
 import {IClearingHouse} from "../interfaces/IClearingHouse.sol";
 import {IOrderBook} from "../interfaces/IOrderBook.sol";
 import {IKuruHedger} from "../interfaces/IKuruHedger.sol";
-import {PulseConstants, VaultParams, HedgeState, Position, AccountView} from "../interfaces/PulseTypes.sol";
+import {MeridianConstants, VaultParams, HedgeState, Position, AccountView} from "../interfaces/MeridianTypes.sol";
 
-/// @title PulseVault — "skew absorber" basis vault, ERC-4626 over AUSD (MATH_SPEC §5)
+/// @title MeridianVault — "skew absorber" basis vault, ERC-4626 over AUSD (MATH_SPEC §5)
 /// @notice Deposits stay idle; a keeper deploys them in slices into spot MON (IKuruHedger) + a short MON-PERP of the
 ///         same base size, L = leverage. The short never exceeds `shortCapacity()` = skewCapacity·(other longs −
 ///         other shorts)⁺, and the hedge is entered only when the oracle's 8 h funding pays for the round trip
 ///         (r̄·entryHorizon > 2c) and exited only when it is expected to cost (r̄·exitHorizon < −c): hysteresis.
-///         NAV values both legs at the ORACLE INDEX (§5.4), so trading on Kuru or Pulse cannot move it.
+///         NAV values both legs at the ORACLE INDEX (§5.4), so trading on Kuru or Meridian cannot move it.
 ///         Every keeper slice moves ≤ maxSliceAssets through the spot leg, with the spot minOut and the perp limit
 ///         tick computed from the index ± maxSlippage (never from the keeper).
 ///         Withdrawals: served from idle; otherwise a bounded pro-rata unwind (one perp buy-back, one spot sell, one
 ///         CH withdraw). The withdrawer bears the unwind's cost (measured as the NAV change) plus a 5 bps fee that
 ///         stays with the remaining holders, so neither can dilute them (I8). ERC-4626 previews assume no unwind.
-contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
+contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
     using Math for uint256;
 
     uint256 internal constant WAD = 1e18;
-    uint256 internal constant TO_WAD = PulseConstants.AUSD_TO_WAD;
+    uint256 internal constant TO_WAD = MeridianConstants.AUSD_TO_WAD;
     /// @notice Withdrawal fee (MATH_SPEC §5.3: 5 bps, to the remaining holders). No VaultParams field: constant.
     uint256 public constant WITHDRAW_FEE = 0.0005e18;
     /// @notice Window of the entry/exit funding test: 8 h of 300 ms blocks (MATH_SPEC §5.3).
@@ -40,11 +40,11 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
     /// @dev Unwind for a withdrawal asks for 2% more than missing (slippage + rounding headroom).
     uint256 internal constant UNWIND_HEADROOM = 1.02e18;
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     address public immutable clearingHouse;
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     address public immutable orderBook;
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     address public immutable hedger;
     address internal immutable _wmon;
     uint256 internal immutable _lot;
@@ -53,7 +53,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
     VaultParams internal _p;
     mapping(address => bool) public isKeeper;
     /// @notice Registered liquidity providers (our MM bots) whose perp inventory carries the long skew the vault
-    ///         replaces; bounded by PulseConstants.MAX_BATCH (MATH_SPEC §5.2 amendment, PHASES decision 11).
+    ///         replaces; bounded by MeridianConstants.MAX_BATCH (MATH_SPEC §5.2 amendment, PHASES decision 11).
     address[] public skewProviders;
     /// @dev Hysteresis state: set when the hedge is entered, cleared when an exit starts.
     bool internal _entered;
@@ -82,7 +82,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         address hedger_,
         VaultParams memory p,
         address owner_
-    ) ERC20("Pulse Basis Vault AUSD", "pbAUSD") ERC4626(asset_) Ownable(owner_) {
+    ) ERC20("Meridian Basis Vault AUSD", "pbAUSD") ERC4626(asset_) Ownable(owner_) {
         if (
             clearingHouse_ == address(0) || orderBook_ == address(0) || hedger_ == address(0)
                 || IClearingHouse(clearingHouse_).collateralToken() != address(asset_)
@@ -211,17 +211,17 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
 
     // ═══ Keeper ═════════════════════════════════════════════════════════════════
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     function rebalance() external onlyKeeper nonReentrant returns (RebalanceReason reason) {
         return _rebalance("");
     }
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     function rebalanceWithRoute(bytes calldata spotRoute) external onlyKeeper nonReentrant returns (RebalanceReason) {
         return _rebalance(spotRoute);
     }
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     /// @dev Forced exit (keeper): clears the entered state and unwinds one slice; `rebalance` continues it.
     function exitHedge() external onlyKeeper nonReentrant {
         Nav memory n = _nav();
@@ -230,7 +230,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         _afterRebalance(RebalanceReason.ExitHedge, n);
     }
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     /// @dev Forced entry (keeper): sets the entered state and deploys one slice within the skew capacity.
     function enterHedge() external onlyKeeper nonReentrant {
         Nav memory n = _nav();
@@ -275,7 +275,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
 
     // ═══ Rules (MATH_SPEC §5.2–§5.3) ════════════════════════════════════════════
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     function needsRebalance() external view returns (RebalanceReason) {
         return _needs(_nav());
     }
@@ -299,7 +299,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         return RebalanceReason.None;
     }
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     /// @dev MATH_SPEC §5.3: exit ⇔ r̄·exitHorizon < −c (c = roundTripFee, the one-way cost), rounds neutral.
     function shouldExitHedge() public view returns (bool) {
         (bool ok, int256 r) = _avgRate();
@@ -320,7 +320,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         }
     }
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     /// @dev MATH_SPEC §5.2 as amended (PHASES decision 11): skewCapacity · the net long of every account except the
     ///      vault and the registered liquidity providers. Σq = 0 makes that −(vaultSize + Σ providerSize), computed
     ///      in O(#providers ≤ MAX_BATCH). (The literal §5.2 form, longOI − (shortOI − |vaultShort|), equals
@@ -350,7 +350,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
             }
         }
         if (!isProvider) return;
-        if (n >= PulseConstants.MAX_BATCH) revert InvalidParams();
+        if (n >= MeridianConstants.MAX_BATCH) revert InvalidParams();
         skewProviders.push(provider);
     }
 
@@ -551,7 +551,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
 
     // ═══ Views / admin ═══════════════════════════════════════════════════════════
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     function hedgeState() external view returns (HedgeState memory h) {
         Nav memory n = _nav();
         h.spotBase = n.spot;
@@ -565,7 +565,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         h.lastRebalanceBlock = _lastRebalanceBlock;
     }
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     /// @dev (totalAssets + 1)·1e30 / (totalSupply + 1e12): the ERC-4626 conversion (virtual offset 12) at full WAD
     ///      precision, so per-block funding shows up (convertToAssets(1e18) only resolves 1 token unit). 1e18 at par,
     ///      rounds down.
@@ -573,7 +573,7 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         return FPM.fullMulDiv(totalAssets() + 1, 1e30, totalSupply() + 10 ** _decimalsOffset());
     }
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     function vaultParams() external view returns (VaultParams memory) {
         return _p;
     }
@@ -583,12 +583,12 @@ contract PulseVault is IPulseVault, ERC4626, Ownable, ReentrancyGuardTransient {
         return _entered;
     }
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     function setVaultParams(VaultParams calldata p) external onlyOwner {
         _storeParams(p);
     }
 
-    /// @inheritdoc IPulseVault
+    /// @inheritdoc IMeridianVault
     function setKeeper(address keeper, bool allowed) external onlyOwner {
         if (keeper == address(0)) revert InvalidParams();
         isKeeper[keeper] = allowed;

@@ -4,10 +4,10 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {DeployBase} from "../../script/DeployBase.s.sol";
-import {RiskParams, FundingParams, SwapParams, VaultParams} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, SwapParams, VaultParams} from "../../src/interfaces/MeridianTypes.sol";
 import {FundingSwapMarket} from "../../src/swaps/FundingSwapMarket.sol";
 
-/// @dev Exposes DeployBase's own parsers, so the test reads `143.json` exactly as DeployPulse does.
+/// @dev Exposes DeployBase's own parsers, so the test reads `143.json` exactly as DeployMeridian does.
 contract Config143Reader is DeployBase {
     /// @dev Same file and chain-id check as `_loadConfig`, without `DEPLOY_CONFIG`: env vars are process-global and
     ///      the fork test sets that one while suites run in parallel.
@@ -227,7 +227,7 @@ contract Config143Test is Test {
         assertEq(s.maxOpenInterest, 2_000_000e18, "swap OI cap 2M MON");
         assertEq(s.maxPositionSize, 200_000e18, "swap position cap 200k MON");
         assertLe(s.maxPositionSize, s.maxOpenInterest);
-        // MATH_SPEC §6.1: maturity = listing + 30 d, computed by DeployPulse (so `maturity` stays null)
+        // MATH_SPEC §6.1: maturity = listing + 30 d, computed by DeployMeridian (so `maturity` stays null)
         assertEq(r.optUint(".params.swap.maturity"), 0, "maturity set at deploy");
         assertEq(r.optUint(".params.swap.maturityInSec"), 30 days, "30-day contract");
         assertEq(vm.parseUint(cfg.readString(".params.swap.tickSizeWad")), 1e14, "1 bp APR");

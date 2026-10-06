@@ -2,7 +2,7 @@
 // each shown with the block height it's valid at. Product stats: test markets excluded; MM volume disclosed (RISKS E9).
 // > VERIFY: root-field names and bigint encoding against the live `envio dev` Hasura console (indexer/SCHEMA.md).
 
-export const STATS_QUERY = `query PulseStats {
+export const STATS_QUERY = `query MeridianStats {
   ProtocolStats(where: { id: { _eq: "protocol" } }) {
     externalUsers users perpVolumeQuoteWad perpVolumeMmQuoteWad swapVolumeWad feesWad tvlToken trades liquidations updatedBlock
   }

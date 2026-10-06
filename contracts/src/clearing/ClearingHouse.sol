@@ -14,13 +14,13 @@ import {IOracleAdapter} from "../interfaces/IOracleAdapter.sol";
 import {IOrderBook} from "../interfaces/IOrderBook.sol";
 import {IInsuranceFund} from "../interfaces/IInsuranceFund.sol";
 import {
-    PulseConstants,
+    MeridianConstants,
     RiskParams,
     FundingParams,
     FundingState,
     Position,
     AccountView
-} from "../interfaces/PulseTypes.sol";
+} from "../interfaces/MeridianTypes.sol";
 import {FundingLib} from "../libs/FundingLib.sol";
 import {MarkPriceLib} from "../libs/MarkPriceLib.sol";
 import {MarginLib} from "../libs/MarginLib.sol";
@@ -36,9 +36,9 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
     using SafeCast for int256;
 
     uint256 internal constant WAD = 1e18;
-    uint256 internal constant TO_WAD = PulseConstants.AUSD_TO_WAD;
-    uint256 internal constant CKPT_BLOCKS = PulseConstants.CHECKPOINT_BLOCKS;
-    /// @dev = PulseConstants.CHECKPOINT_SLOTS (a literal: array lengths need one; equality asserted in tests)
+    uint256 internal constant TO_WAD = MeridianConstants.AUSD_TO_WAD;
+    uint256 internal constant CKPT_BLOCKS = MeridianConstants.CHECKPOINT_BLOCKS;
+    /// @dev = MeridianConstants.CHECKPOINT_SLOTS (a literal: array lengths need one; equality asserted in tests)
     uint256 internal constant CKPT_SLOTS = 1440;
 
     // ─── Hard bounds on admin parameters ───────────────────────────────────────
@@ -856,7 +856,7 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
 
     /// @inheritdoc IFundingRateOracle
     function averageFundingApr(uint64 blocksAgo) external view returns (int256) {
-        return averageFundingRate(blocksAgo) * int256(PulseConstants.SECONDS_PER_YEAR);
+        return averageFundingRate(blocksAgo) * int256(MeridianConstants.SECONDS_PER_YEAR);
     }
 
     /// @notice Raw checkpoint (for the oracle invariant handler / indexer backfill).

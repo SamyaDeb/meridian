@@ -76,7 +76,7 @@ export function swapPositionValueWad(q: bigint, k: bigint, markAprWad: bigint, i
 export const isLockedSpread = (q: bigint, k: bigint): boolean => q === 0n && k !== 0n;
 
 /**
- * Vault share price (WAD, 1e18 at par) exactly as PulseVault.sharePrice(): (totalAssets + 1)·1e30 / (totalSupply + 1e12)
+ * Vault share price (WAD, 1e18 at par) exactly as MeridianVault.sharePrice(): (totalAssets + 1)·1e30 / (totalSupply + 1e12)
  * (ERC-4626 virtual offset 12). Prefer reading sharePrice() onchain; this is for previews / indexer data. Rounds down.
  */
 export const vaultSharePriceWad = (totalAssetsToken: bigint, totalSupply: bigint): bigint =>

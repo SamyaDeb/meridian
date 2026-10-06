@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-/// @title IPulseKeeperReceiver — onchain target for Chainlink CRE workflow reports (FROZEN)
+/// @title IMeridianKeeperReceiver — onchain target for Chainlink CRE workflow reports (FROZEN)
 /// @notice CRE delivers signed reports through a Chainlink KeystoneForwarder which calls onReport.
 ///         IReceiver.onReport(bytes metadata, bytes report) confirmed in CRE docs; the forwarder checks ERC-165
 ///         support first. Monad KeystoneForwarder (CRE Forwarder Directory, verified has code):
@@ -14,7 +14,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 ///           2 LIQUIDATE        payload = abi.encode(address clearingHouse, address[] accounts)  (len <= 32)
 ///           3 FUNDING_POKE     payload = abi.encode(address[] clearingHouses)                    (len <= 32)
 ///           4 ORACLE_UPDATE    payload = abi.encode(address oracleAdapter, bytes[] updateData)
-interface IPulseKeeperReceiver is IERC165 {
+interface IMeridianKeeperReceiver is IERC165 {
     event ReportExecuted(uint8 indexed action, bool success, bytes32 workflowId);
     event ForwarderUpdated(address indexed forwarder);
 

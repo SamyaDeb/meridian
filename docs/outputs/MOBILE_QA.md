@@ -1,10 +1,10 @@
 # Mobile QA checklist (C4): run by a founder on real phones
 
-Build: production (`pnpm --filter @pulse/app build && start`, or the deployed URL), on the network under test. Fill in one column per device with ✅ / ❌ + a note. A ❌ is a bug on `ws-07*` before Wed 7 Oct.
+Build: production (`pnpm --filter @meridian/app build && start`, or the deployed URL), on the network under test. Fill in one column per device with ✅ / ❌ + a note. A ❌ is a bug on `ws-07*` before Wed 7 Oct.
 
 | # | Check | iOS Safari (model, iOS ver) | Android Chrome (model, ver) |
 |---|---|---|---|
-| 1 | Add to home screen → opens standalone (no browser bar), icon + name "Pulse" | | |
+| 1 | Add to home screen → opens standalone (no browser bar), icon + name "Meridian" | | |
 | 2 | Login (provider per the decision) → address + AUSD balance visible; **time it: < 30 s (US1)** | | |
 | 3 | First write shows the terms gate once; after Accept it doesn't ask again | | |
 | 4 | Deposit AUSD (one signature + one tx with permit) | | |

@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import {Script} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {stdJson} from "forge-std/StdJson.sol";
-import {RiskParams, FundingParams, SwapParams, VaultParams} from "../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, SwapParams, VaultParams} from "../src/interfaces/MeridianTypes.sol";
 
 /// @notice Shared config loading for the deploy scripts. Reads `script/config/<chainid>.json`
 ///         (addresses from ARCHITECTURE §0, params from MATH_SPEC; WAD values are decimal strings).

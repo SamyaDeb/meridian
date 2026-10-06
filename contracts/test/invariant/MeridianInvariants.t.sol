@@ -8,16 +8,16 @@ import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
 import {MockClearingHouse} from "../../src/mocks/MockClearingHouse.sol";
 import {MockOrderBook} from "../../src/mocks/MockOrderBook.sol";
 import {MockInsuranceFund} from "../../src/mocks/MockInsuranceFund.sol";
-import {MockPulseVault} from "../../src/mocks/MockPulseVault.sol";
-import {PulseConstants, FundingParams, Position, AccountView} from "../../src/interfaces/PulseTypes.sol";
+import {MockMeridianVault} from "../../src/mocks/MockMeridianVault.sol";
+import {MeridianConstants, FundingParams, Position, AccountView} from "../../src/interfaces/MeridianTypes.sol";
 import {SwapLedgerModel} from "./models/SwapLedgerModel.sol";
 import {MockStackDriver} from "./drivers/MockStackDriver.sol";
 
-/// @title PulseInvariants: MATH_SPEC §7 (I1–I11) against the Day-1 mock stack
+/// @title MeridianInvariants: MATH_SPEC §7 (I1–I11) against the Day-1 mock stack
 /// @notice Skeleton suite (WS-08). As WS-01/02/04/05 merge, their contracts replace the mocks in setUp and their
 ///         handlers (test/invariant/handlers/*Handler.sol) join the driver. Where the mocks lack the spec's rounding
 ///         discipline, the check uses a documented MOCK tolerance; `STRICT` flips every check to the spec bound.
-contract PulseInvariantsTest is StdInvariant, Test {
+contract MeridianInvariantsTest is StdInvariant, Test {
     /// @dev false while the stack is mocks (no rounding discipline, no fees). Set true when real WS-02 lands.
     bool internal constant STRICT = false;
 
@@ -25,7 +25,7 @@ contract PulseInvariantsTest is StdInvariant, Test {
     MockOracleAdapter oracle;
     MockClearingHouse ch;
     MockOrderBook ob;
-    MockPulseVault vault;
+    MockMeridianVault vault;
     SwapLedgerModel swaps;
     MockStackDriver d;
 
@@ -48,7 +48,7 @@ contract PulseInvariantsTest is StdInvariant, Test {
                 premiumBandWad: 0.05e18
             })
         );
-        vault = new MockPulseVault(address(ausd));
+        vault = new MockMeridianVault(address(ausd));
         swaps = new SwapLedgerModel();
         d = new MockStackDriver(ausd, oracle, ch, ob, vault, swaps);
 
@@ -99,7 +99,7 @@ contract PulseInvariantsTest is StdInvariant, Test {
             sumON += ch.getPosition(a).openNotional;
             sumPending += ch.getAccount(a).pendingFunding;
         }
-        int256 assets = int256(ausd.balanceOf(address(ch)) * PulseConstants.AUSD_TO_WAD);
+        int256 assets = int256(ausd.balanceOf(address(ch)) * MeridianConstants.AUSD_TO_WAD);
         int256 liabilities = sumC - sumON - sumPending + int256(ch.accruedFees());
         // The mock truncates funding (spec: owed rounds up), so it may be short by ≤ 1 wei per settlement/account.
         int256 dust = STRICT ? int256(0) : int256(d.ghostSettlements() + _nAccounts());

@@ -9,7 +9,7 @@ import {OrderBook} from "../../src/orderbook/OrderBook.sol";
 import {FundingSwapMarket} from "../../src/swaps/FundingSwapMarket.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../src/mocks/MockOracleAdapter.sol";
-import {RiskParams, FundingParams, SwapParams} from "../../src/interfaces/PulseTypes.sol";
+import {RiskParams, FundingParams, SwapParams} from "../../src/interfaces/MeridianTypes.sol";
 import {FundingSwapHandler} from "./handlers/FundingSwapHandler.sol";
 
 /// @notice MATH_SPEC I9 on the REAL stack (perp CH + OB driving F and G; FundingSwapMarket + its own real OrderBook):

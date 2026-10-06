@@ -9,10 +9,10 @@ import {MockERC20} from "../../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../../src/mocks/MockOracleAdapter.sol";
 import {MockClearingHouse} from "../../../src/mocks/MockClearingHouse.sol";
 import {MockOrderBook} from "../../../src/mocks/MockOrderBook.sol";
-import {MockPulseVault} from "../../../src/mocks/MockPulseVault.sol";
+import {MockMeridianVault} from "../../../src/mocks/MockMeridianVault.sol";
 import {IClearingHouse} from "../../../src/interfaces/IClearingHouse.sol";
 import {IOrderBook} from "../../../src/interfaces/IOrderBook.sol";
-import {PulseConstants, FundingParams} from "../../../src/interfaces/PulseTypes.sol";
+import {MeridianConstants, FundingParams} from "../../../src/interfaces/MeridianTypes.sol";
 import {SwapLedgerModel} from "../models/SwapLedgerModel.sol";
 
 /// @notice Invariant driver over the Day-1 mock stack (WS-08). Module owners' handlers
@@ -23,7 +23,7 @@ import {SwapLedgerModel} from "../models/SwapLedgerModel.sol";
 ///      "double credit" report was a ghost artefact: Σq must come from PositionChanged only (the Liquidated event
 ///      repeats the transferred size). MockClearingHouse keeps Σq = 0 (test/mocks/MockFixes.t.sol).
 contract MockStackDriver is CommonBase, StdCheats, StdUtils {
-    int256 internal constant W = PulseConstants.IWAD;
+    int256 internal constant W = MeridianConstants.IWAD;
     uint256 public constant N_ACTORS = 4;
     uint256 public constant P0 = 2e18; // initial mark (mock price units)
     uint256 public constant BAND_BPS = 450; // mark within ±4.5% of P0: worst adverse move 9% < 10% IM ⇒ no account goes underwater
@@ -34,7 +34,7 @@ contract MockStackDriver is CommonBase, StdCheats, StdUtils {
     MockOracleAdapter public immutable oracle;
     MockClearingHouse public immutable ch;
     MockOrderBook public immutable ob;
-    MockPulseVault public immutable vault;
+    MockMeridianVault public immutable vault;
     SwapLedgerModel public immutable swaps;
 
     address[N_ACTORS] public actors;
@@ -81,7 +81,7 @@ contract MockStackDriver is CommonBase, StdCheats, StdUtils {
         MockOracleAdapter oracle_,
         MockClearingHouse ch_,
         MockOrderBook ob_,
-        MockPulseVault vault_,
+        MockMeridianVault vault_,
         SwapLedgerModel swaps_
     ) {
         ausd = ausd_;
@@ -116,7 +116,7 @@ contract MockStackDriver is CommonBase, StdCheats, StdUtils {
 
     function withdraw(uint256 actorSeed, uint256 amountToken) external {
         address a = _actor(actorSeed);
-        amountToken = bound(amountToken, 1, ch.collateralOf(a) / PulseConstants.AUSD_TO_WAD + 1);
+        amountToken = bound(amountToken, 1, ch.collateralOf(a) / MeridianConstants.AUSD_TO_WAD + 1);
         vm.prank(a);
         vm.recordLogs();
         try ch.withdraw(amountToken) {
@@ -234,7 +234,7 @@ contract MockStackDriver is CommonBase, StdCheats, StdUtils {
         ausd.approve(address(ch), amountToken);
         vm.recordLogs();
         ch.deposit(amountToken);
-        uint256 back = ch.collateralOf(a) / PulseConstants.AUSD_TO_WAD; // rounds down (user receives less)
+        uint256 back = ch.collateralOf(a) / MeridianConstants.AUSD_TO_WAD; // rounds down (user receives less)
         ch.withdraw(back);
         vm.stopPrank();
         _ingest();
@@ -363,7 +363,7 @@ contract MockStackDriver is CommonBase, StdCheats, StdUtils {
 
     /// @dev Mock reservation formula (size·price/1e18·imr/1e18, truncating). MATH_SPEC §3.2 rounds up (real CH).
     function _reserve(uint256 sizeWad, uint256 priceWad) internal view returns (uint256) {
-        return sizeWad * priceWad / PulseConstants.WAD * ch.riskParams().imr / PulseConstants.WAD;
+        return sizeWad * priceWad / MeridianConstants.WAD * ch.riskParams().imr / MeridianConstants.WAD;
     }
 
     /// @dev vm.getRecordedLogs() also returns logs of calls that reverted inside try/catch: drop them.

@@ -1,5 +1,5 @@
 {
-  "name": "@pulse/mfi",
+  "name": "@meridian/mfi",
   "version": "0.1.0",
   "private": true,
   "description": "Meridian Funding Index v0: Perpl API client + index service (lane D, docs/MFI.md)",
@@ -11,7 +11,7 @@
     "record:perpl": "tsx scripts/record-perpl.ts"
   },
   "devDependencies": {
-    "@pulse/abis": "workspace:*",
+    "@meridian/abis": "workspace:*",
     "@types/node": "^26.6.3",
     "railway": "3.12.0",
     "typescript": "^7.0.2",
