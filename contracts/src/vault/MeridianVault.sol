@@ -7,6 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {FixedPointMathLib as FPM} from "solady/utils/FixedPointMathLib.sol";
@@ -24,9 +25,14 @@ import {MeridianConstants, VaultParams, HedgeState, Position, AccountView} from 
 ///         NAV values both legs at the ORACLE INDEX (§5.4), so trading on Kuru or Meridian cannot move it.
 ///         Every keeper slice moves ≤ maxSliceAssets through the spot leg, with the spot minOut and the perp limit
 ///         tick computed from the index ± maxSlippage (never from the keeper).
-///         Withdrawals: served from idle; otherwise a bounded pro-rata unwind (one perp buy-back, one spot sell, one
-///         CH withdraw). The withdrawer bears the unwind's cost (measured as the NAV change) plus a 5 bps fee that
-///         stays with the remaining holders, so neither can dilute them (I8). ERC-4626 previews assume no unwind.
+///         Withdrawals (CR-014, MATH_SPEC §5.6): sync `withdraw` / `redeem` are idle-only (max* capped at idleFree =
+///         idle − claimableAssets, so they never unwind and never revert inside the max). Beyond idle: `requestRedeem`
+///         escrows the shares (still in totalSupply, priced at fulfilment), the keeper's `fulfillRedeems` prices a
+///         batch at the current NAV and, if idle can't pay it, unwinds a bounded pro-rata slice of both legs through a
+///         keeper route (one perp buy-back, one spot sell, one CH withdraw); the batch bears the unwind's cost
+///         (measured as the NAV change) plus the 5 bps fee that stays with the remaining holders, so neither dilutes
+///         them (I8). The payout moves into `claimableAssets` (not NAV) until `claimRedeem` pays the receiver.
+///         Forced keeper paths have a cooldown (A-09); the owner (Safe) has `emergencyUnwind`.
 contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
     using Math for uint256;
@@ -39,6 +45,8 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
     uint64 public constant FUNDING_WINDOW_BLOCKS = 96_000;
     /// @dev Unwind for a withdrawal asks for 2% more than missing (slippage + rounding headroom).
     uint256 internal constant UNWIND_HEADROOM = 1.02e18;
+    /// @notice Blocks between a rebalance and the next forced keeper call (enter / exit / exit with route), A-09.
+    uint256 public constant MIN_FORCED_INTERVAL_BLOCKS = 10;
 
     /// @inheritdoc IMeridianVault
     address public immutable clearingHouse;
@@ -59,8 +67,15 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
     bool internal _entered;
     uint64 internal _lastRebalanceBlock;
 
+    /// @inheritdoc IMeridianVault
+    uint256 public pendingRedeemShares;
+    /// @inheritdoc IMeridianVault
+    uint256 public claimableAssets;
+    uint256 internal _lastRequestId;
+    mapping(uint256 => RedeemRequest) internal _requests;
+
     struct Nav {
-        uint256 idle; // AUSD token units
+        uint256 idle; // idleFree = AUSD balance − claimableAssets, token units
         uint256 spot; // WMON base WAD
         uint256 index; // WAD
         int256 size; // perp size (≤ 0)
@@ -105,7 +120,7 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
         return 12;
     }
 
-    /// @notice NAV at the oracle index (MATH_SPEC §5.4), AUSD token units, rounds down.
+    /// @notice NAV at the oracle index minus claimableAssets (MATH_SPEC §5.4, §5.6), AUSD token units, rounds down.
     function totalAssets() public view override(ERC4626, IERC4626) returns (uint256) {
         return _nav().nav;
     }
@@ -134,8 +149,16 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
         return super.previewWithdraw(gross);
     }
 
+    /// @dev Idle-only (CR-014): min(owner's assets after the fee, idleFree). Never reverts inside it (A-11).
     function maxWithdraw(address owner_) public view override(ERC4626, IERC4626) returns (uint256) {
-        return previewRedeem(balanceOf(owner_));
+        return FPM.min(previewRedeem(balanceOf(owner_)), _idleFree());
+    }
+
+    /// @dev Idle-only (CR-014): the largest shares whose payout fits idleFree. MATH_SPEC §5.6: gross = idleFree/(1 − fee)
+    ///      rounds down, shares = convertToShares(gross) rounds down, so previewRedeem(max) ≤ idleFree.
+    function maxRedeem(address owner_) public view override(ERC4626, IERC4626) returns (uint256) {
+        uint256 gross = _idleFree().mulDiv(WAD, WAD - WITHDRAW_FEE);
+        return FPM.min(balanceOf(owner_), convertToShares(gross));
     }
 
     function deposit(uint256 assets, address receiver)
@@ -160,53 +183,178 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
         _snapshot();
     }
 
-    /// @dev Burns previewWithdraw(assets) + the shares worth the unwind's NAV cost at the pre-unwind price.
+    /// @dev Idle-only: OZ checks maxWithdraw, burns previewWithdraw(assets) (rounds up), pays from idleFree.
     function withdraw(uint256 assets, address receiver, address owner_)
         public
         override(ERC4626, IERC4626)
         nonReentrant
         returns (uint256 shares)
     {
-        uint256 ta0 = totalAssets();
-        uint256 ts0 = totalSupply();
-        shares = previewWithdraw(assets);
-        uint256 cost = _ensureIdle(assets);
-        // MATH_SPEC §5.4: shares burned round up (the withdrawer pays the unwind)
-        if (cost != 0) shares += cost.mulDiv(ts0 + 10 ** _decimalsOffset(), ta0 + 1, Math.Rounding.Ceil);
-        if (shares > balanceOf(owner_)) revert ERC4626ExceededMaxWithdraw(owner_, assets, maxWithdraw(owner_));
-        _withdraw(_msgSender(), receiver, owner_, assets, shares);
+        shares = super.withdraw(assets, receiver, owner_);
         _snapshot();
     }
 
-    /// @dev Pays previewRedeem(shares) minus the unwind's NAV cost (rounds down).
+    /// @dev Idle-only: OZ checks maxRedeem, pays previewRedeem(shares) (rounds down) from idleFree.
     function redeem(uint256 shares, address receiver, address owner_)
         public
         override(ERC4626, IERC4626)
         nonReentrant
         returns (uint256 assets)
     {
-        uint256 maxShares = maxRedeem(owner_);
-        if (shares > maxShares) revert ERC4626ExceededMaxRedeem(owner_, shares, maxShares);
-        assets = previewRedeem(shares);
-        uint256 cost = _ensureIdle(assets);
-        assets = assets > cost ? assets - cost : 0;
-        _withdraw(_msgSender(), receiver, owner_, assets, shares);
+        assets = super.redeem(shares, receiver, owner_);
         _snapshot();
     }
 
-    /// @dev Make `assets` idle, unwinding a pro-rata slice of both legs if needed. Returns the NAV lost doing it.
-    function _ensureIdle(uint256 assets) internal returns (uint256 cost) {
-        uint256 idle = IERC20(asset()).balanceOf(address(this));
-        if (idle >= assets) return 0;
+    // ═══ Async withdrawals (CR-014, MATH_SPEC §5.6) ════════════════════════════════
+
+    /// @inheritdoc IMeridianVault
+    function requestRedeem(uint256 shares, address receiver, address owner_)
+        external
+        nonReentrant
+        returns (uint256 id)
+    {
+        if (shares == 0) revert NothingToDo();
+        if (receiver == address(0)) revert InvalidParams();
+        // one request ≤ one slice of unwind (users split larger exits), at the current NAV, rounds down
+        if (previewRedeem(shares) > _p.maxSliceAssets) revert RequestTooLarge();
+        address sender = _msgSender();
+        if (sender != owner_) _spendAllowance(owner_, sender, shares);
+        _transfer(owner_, address(this), shares);
+        pendingRedeemShares += shares;
+        id = ++_lastRequestId;
+        _requests[id] = RedeemRequest({
+            owner: owner_,
+            requestedBlock: uint64(block.number),
+            status: RedeemStatus.Pending,
+            receiver: receiver,
+            shares: SafeCast.toUint128(shares),
+            assets: 0
+        });
+        emit RedeemRequested(id, owner_, receiver, shares);
+    }
+
+    /// @inheritdoc IMeridianVault
+    function cancelRedeem(uint256 id) external nonReentrant {
+        RedeemRequest storage r = _requests[id];
+        address owner_ = r.owner;
+        if (owner_ == address(0)) revert RequestNotFound();
+        if (_msgSender() != owner_) revert NotRequestOwner();
+        if (r.status != RedeemStatus.Pending) revert NothingToDo();
+        r.status = RedeemStatus.Cancelled;
+        uint256 shares = r.shares;
+        pendingRedeemShares -= shares;
+        _transfer(address(this), owner_, shares);
+        emit RedeemCancelled(id);
+    }
+
+    /// @inheritdoc IMeridianVault
+    /// @dev Effects first (statuses), then the bounded unwind (external calls), then the payout accounting that
+    ///      depends on the measured cost; `nonReentrant` covers the window. Loops ≤ MAX_BATCH; ids that aren't Pending
+    ///      (unknown, cancelled, already fulfilled, or a duplicate within the batch) are skipped without an event.
+    function fulfillRedeems(uint256[] calldata ids, bytes calldata spotRoute) external onlyKeeper nonReentrant {
+        uint256 len = ids.length;
+        if (len > MeridianConstants.MAX_BATCH) revert InvalidParams();
+        uint256[] memory shareOf = new uint256[](len);
+        uint256 total;
+        for (uint256 i; i < len; ++i) {
+            RedeemRequest storage r = _requests[ids[i]];
+            if (r.owner == address(0) || r.status != RedeemStatus.Pending) continue;
+            r.status = RedeemStatus.Claimable;
+            shareOf[i] = r.shares;
+            total += r.shares;
+        }
+        if (total == 0) revert NothingToDo();
+        // MATH_SPEC §5.6: the batch at the current NAV, same formula and fee as redeem, rounds down
+        uint256 gross = previewRedeem(total);
+        uint256 cost = _unwindFor(gross, spotRoute);
+        // the batch pays its own unwind; never socialize a cost above the payout (A-07)
+        if (cost != 0 && cost >= gross) revert SlippageExceeded();
+        _burn(address(this), total);
+        pendingRedeemShares -= total;
+        claimableAssets += _assignPayouts(ids, shareOf, total, gross - cost, cost);
+        _snapshot();
+    }
+
+    /// @dev MATH_SPEC §5.6: each fulfilled id gets net·shares/total, rounds down (dust stays with the remaining
+    ///      holders); its event carries the same pro-rata share of the unwind cost. Returns the sum paid.
+    function _assignPayouts(uint256[] calldata ids, uint256[] memory shareOf, uint256 total, uint256 net, uint256 cost)
+        internal
+        returns (uint256 paid)
+    {
+        for (uint256 i; i < ids.length; ++i) {
+            uint256 sh = shareOf[i];
+            if (sh == 0) continue;
+            uint256 a = net.mulDiv(sh, total);
+            _requests[ids[i]].assets = uint128(a); // a ≤ net ≤ previewRedeem(total) < 2^128
+            paid += a;
+            emit RedeemFulfilled(ids[i], a, cost.mulDiv(sh, total));
+        }
+    }
+
+    /// @inheritdoc IMeridianVault
+    function claimRedeem(uint256 id) external nonReentrant returns (uint256 assets) {
+        RedeemRequest storage r = _requests[id];
+        if (r.owner == address(0)) revert RequestNotFound();
+        if (r.status != RedeemStatus.Claimable) revert NothingToDo();
+        r.status = RedeemStatus.Claimed;
+        assets = r.assets;
+        address to = r.receiver;
+        claimableAssets -= assets;
+        emit RedeemClaimed(id, to, assets);
+        IERC20(asset()).safeTransfer(to, assets);
+    }
+
+    /// @inheritdoc IMeridianVault
+    /// @dev Reverts SlippageExceeded where fulfillRedeems would (an unwind with the perp leg under water, A-07).
+    function previewFulfill(uint256[] calldata ids) external view returns (uint256 assets, uint256 spotToSell) {
+        uint256 len = ids.length;
+        if (len > MeridianConstants.MAX_BATCH) revert InvalidParams(); // O(n²) duplicate scan: bounded like fulfil
+        uint256 total;
+        for (uint256 i; i < len; ++i) {
+            RedeemRequest storage r = _requests[ids[i]];
+            if (r.owner == address(0) || r.status != RedeemStatus.Pending) continue;
+            bool dup;
+            for (uint256 j; j < i && !dup; ++j) {
+                dup = ids[j] == ids[i];
+            }
+            if (!dup) total += r.shares;
+        }
+        assets = previewRedeem(total);
         Nav memory n = _nav();
-        // spot + perp equity (token units); 0 if the perp leg is under water (nav < idle) ⇒ unwind everything
-        uint256 hedgedValue = n.nav > n.idle ? n.nav - n.idle : 0;
-        uint256 missing = (assets - idle).mulDiv(UNWIND_HEADROOM, WAD, Math.Rounding.Ceil);
-        uint256 f = hedgedValue == 0 ? WAD : FPM.min(WAD, missing.mulDiv(WAD, hedgedValue, Math.Rounding.Ceil));
-        _unwind(n, f, "");
-        uint256 navAfter = totalAssets();
+        if (n.idle >= assets) return (assets, 0);
+        uint256 f = _unwindFraction(n, assets);
+        spotToSell = FPM.abs(n.size) == 0 ? n.spot : FPM.min(n.spot, FPM.mulWadUp(n.spot, f));
+    }
+
+    /// @inheritdoc IMeridianVault
+    function getRedeemRequest(uint256 id) external view returns (RedeemRequest memory r) {
+        r = _requests[id];
+        if (r.owner == address(0)) revert RequestNotFound();
+    }
+
+    /// @dev Make `assets` idle-free, unwinding a pro-rata slice of both legs through `route` if needed.
+    ///      Returns the NAV lost doing it (token units).
+    function _unwindFor(uint256 assets, bytes calldata route) internal returns (uint256 cost) {
+        Nav memory n = _nav();
+        if (n.idle >= assets) return 0;
+        _unwind(n, _unwindFraction(n, assets), route);
+        uint256 navAfter = _nav().nav;
         cost = n.nav > navAfter ? n.nav - navAfter : 0;
-        if (IERC20(asset()).balanceOf(address(this)) < assets - FPM.min(assets, cost)) revert SlippageExceeded();
+        if (_idleFree() < assets - FPM.min(assets, cost)) revert SlippageExceeded();
+    }
+
+    /// @dev MATH_SPEC §5.6: f = (assets − idleFree)·1.02 / (spot + perp equity) rounds up, ≤ 1. Refused when the perp
+    ///      leg is under water (A-07: a small batch must not unwind everything); the Safe uses emergencyUnwind.
+    function _unwindFraction(Nav memory n, uint256 assets) internal pure returns (uint256) {
+        if (n.perpEquity <= 0 || n.nav <= n.idle) revert SlippageExceeded();
+        uint256 missing = (assets - n.idle).mulDiv(UNWIND_HEADROOM, WAD, Math.Rounding.Ceil);
+        return FPM.min(WAD, missing.mulDiv(WAD, n.nav - n.idle, Math.Rounding.Ceil));
+    }
+
+    function _idleFree() internal view returns (uint256) {
+        uint256 bal = IERC20(asset()).balanceOf(address(this));
+        uint256 owed = claimableAssets;
+        return bal > owed ? bal - owed : 0;
     }
 
     // ═══ Keeper ═════════════════════════════════════════════════════════════════
@@ -224,15 +372,31 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
     /// @inheritdoc IMeridianVault
     /// @dev Forced exit (keeper): clears the entered state and unwinds one slice; `rebalance` continues it.
     function exitHedge() external onlyKeeper nonReentrant {
+        _forcedExit("");
+    }
+
+    /// @inheritdoc IMeridianVault
+    function exitHedgeWithRoute(bytes calldata spotRoute) external onlyKeeper nonReentrant {
+        _forcedExit(spotRoute);
+    }
+
+    function _forcedExit(bytes memory route) internal {
+        _cooldown();
         Nav memory n = _nav();
         _entered = false;
-        _exitSlice(n, "");
+        _exitSlice(n, route);
         _afterRebalance(RebalanceReason.ExitHedge, n);
+    }
+
+    /// @dev A-09: forced keeper calls need MIN_FORCED_INTERVAL_BLOCKS since the last rebalance of any kind.
+    function _cooldown() internal view {
+        if (block.number < uint256(_lastRebalanceBlock) + MIN_FORCED_INTERVAL_BLOCKS) revert CooldownActive();
     }
 
     /// @inheritdoc IMeridianVault
     /// @dev Forced entry (keeper): sets the entered state and deploys one slice within the skew capacity.
     function enterHedge() external onlyKeeper nonReentrant {
+        _cooldown();
         Nav memory n = _nav();
         _entered = true;
         emit HedgeEntered(n.nav);
@@ -271,6 +435,30 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
         emit Rebalanced(reason, int256(a.spot) - int256(before.spot), a.size - before.size, a.nav, sharePrice());
         if (reason == RebalanceReason.ExitHedge && a.size == 0 && a.spot < _lot) emit HedgeExited(a.nav);
         _snapshot();
+    }
+
+    /// @inheritdoc IMeridianVault
+    /// @dev Exempt from the cooldown. Buys back x = min(|short|, maxBase) whole lots (↓, reduce-only, ≤ I·(1 + s)),
+    ///      sells min(spot, x) (or min(spot, maxBase) once the perp is flat) at ≥ I·(1 − s) through the route, and
+    ///      withdraws the collateral when flat. Clears `_entered`, so the rule path keeps exiting.
+    function emergencyUnwind(uint256 maxBase, bytes calldata spotRoute) external onlyOwner nonReentrant {
+        Nav memory n = _nav();
+        uint256 q = FPM.abs(n.size);
+        uint256 x = FPM.min(q, _floorLots(maxBase));
+        uint256 sell = FPM.min(n.spot, q == 0 ? maxBase : x);
+        _entered = false;
+        _lastRebalanceBlock = uint64(block.number);
+        if (x != 0) _perpOrder(true, x, n.index, true);
+        if (sell != 0) _sellSpot(sell, n.index, spotRoute);
+        uint256 freed;
+        if (q == x) {
+            freed = IClearingHouse(clearingHouse).getAccount(address(this)).collateral / TO_WAD;
+            if (freed != 0) IClearingHouse(clearingHouse).withdraw(freed);
+        }
+        if (x == 0 && sell == 0 && freed == 0) revert NothingToDo();
+        Nav memory a = _nav();
+        emit EmergencyUnwind(sell, x, a.nav);
+        emit NavSnapshot(a.nav, totalSupply(), sharePrice(), -a.pending);
     }
 
     // ═══ Rules (MATH_SPEC §5.2–§5.3) ════════════════════════════════════════════
@@ -400,11 +588,14 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
         _perpOrder(false, add, n.index, false);
     }
 
-    /// @dev Largest lot-rounded add the idle cash (above the buffer) and the slice cap allow.
+    /// @dev Largest lot-rounded add the idle cash (above the buffer and the Pending requests' value) and the slice cap
+    ///      allow. MATH_SPEC §5.6: reserve = convertToAssets(pendingRedeemShares) rounds up (≥ what the fulfil pays),
+    ///      so a rebalance never deploys cash the next fulfil would have to unwind (Found #24).
     function _deployBudget(Nav memory n) internal view returns (uint256) {
-        uint256 buffer = FPM.mulWadUp(n.nav, _p.idleBuffer);
-        if (n.idle <= buffer) return 0;
-        uint256 cash = n.idle - buffer;
+        uint256 reserve = FPM.mulWadUp(n.nav, _p.idleBuffer)
+            + pendingRedeemShares.mulDiv(n.nav + 1, totalSupply() + 10 ** _decimalsOffset(), Math.Rounding.Ceil);
+        if (n.idle <= reserve) return 0;
+        uint256 cash = n.idle - reserve;
         // cost per base (quote WAD per 1e18 base): I spot + I/L margin
         uint256 perBase = n.index + FPM.divWadUp(n.index, _p.leverage);
         uint256 byCash = FPM.mulDiv(cash * TO_WAD, WAD, perBase);
@@ -448,10 +639,10 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
         uint256 q = FPM.abs(n.size);
         uint256 want = FPM.mulWadUp(FPM.mulWadUp(q, n.index), _p.targetMarginRatio);
         uint256 need = n.perpEquity >= int256(want) ? 0 : FPM.divUp(want - uint256(FPM.max(n.perpEquity, 0)), TO_WAD);
-        uint256 idle = IERC20(asset()).balanceOf(address(this));
+        uint256 idle = n.idle; // idleFree: claimable AUSD is never margin
         if (idle * 10 < need) {
             _reduceBoth(n, FPM.min(q, _ceilLots(_sliceBase(n.index))), route);
-            idle = IERC20(asset()).balanceOf(address(this));
+            idle = _idleFree();
         }
         uint256 amount = FPM.min(FPM.min(need, idle), _p.maxSliceAssets);
         if (amount == 0) revert NothingToDo();
@@ -467,7 +658,9 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
             _sellSpot(FPM.min(uint256(net), slice), n.index, route);
         } else {
             uint256 base = FPM.min(uint256(-net), slice);
-            uint256 quoteIn = FPM.divUp(FPM.mulWadUp(base, n.index), TO_WAD);
+            // capped at idleFree: claimable AUSD never buys spot
+            uint256 quoteIn = FPM.min(FPM.divUp(FPM.mulWadUp(base, n.index), TO_WAD), n.idle);
+            if (quoteIn == 0) revert NothingToDo();
             IERC20(asset()).forceApprove(hedger, quoteIn);
             IKuruHedger(hedger).buySpot(quoteIn, _baseFor(quoteIn, n.index), route);
         }
@@ -526,10 +719,11 @@ contract MeridianVault is IMeridianVault, ERC4626, Ownable, ReentrancyGuardTrans
 
     // ═══ NAV (MATH_SPEC §5.4) ════════════════════════════════════════════════════
 
-    /// @dev NAV = idle + spot·I + (collateral + size·I − ON − pending), all at the ORACLE INDEX, rounds down.
+    /// @dev NAV = idleFree + spot·I + (collateral + size·I − ON − pending), all at the ORACLE INDEX, rounds down.
+    ///      idleFree excludes claimableAssets, so `nav` is totalAssets() (MATH_SPEC §5.6).
     function _nav() internal view returns (Nav memory n) {
         IClearingHouse ch = IClearingHouse(clearingHouse);
-        n.idle = IERC20(asset()).balanceOf(address(this));
+        n.idle = _idleFree();
         n.spot = IERC20(_wmon).balanceOf(address(this));
         n.index = ch.indexPrice();
         Position memory pos = ch.getPosition(address(this));

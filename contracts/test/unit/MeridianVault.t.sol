@@ -398,8 +398,9 @@ contract MeridianVaultTest is MeridianVaultBase {
         assertEq(ausd.balanceOf(address(vault)), 0.5e6, "fee stays for the remaining holders");
     }
 
-    /// I8: an unwind for a withdrawal never lowers the remaining holders' share price (the withdrawer pays it).
-    function test_withdrawUnwindsProRata_remainingSharePriceNotDiluted() public {
+    /// I8: an unwind for a withdrawal never lowers the remaining holders' share price (the batch pays it). CR-014: the
+    ///     unwind runs in the keeper's `fulfillRedeems` (the sync path is idle-only, MeridianVaultQueue.t.sol).
+    function test_fulfilUnwindsProRata_remainingSharePriceNotDiluted() public {
         _whaleLong(3000);
         _setAvgApr(0.3e18);
         _deposit(alice, 5000e6);
@@ -407,13 +408,17 @@ contract MeridianVaultTest is MeridianVaultBase {
         _rebalanceAll();
         hedger.setSpread(0.004e18); // unwinding costs 0.4% on the spot leg
         uint256 p0 = vault.sharePrice();
-        uint256 half = vault.balanceOf(bob);
         uint256 idle0 = ausd.balanceOf(address(vault));
         vm.prank(bob);
-        uint256 out = vault.redeem(half, bob, bob);
+        uint256 id = vault.requestRedeem(2400e18, bob, bob);
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = id;
+        vm.prank(keeper);
+        vault.fulfillRedeems(ids, "");
+        uint256 out = vault.claimRedeem(id);
         assertGt(out, idle0, "needed an unwind");
         assertGe(vault.sharePrice(), p0, "remaining holders not diluted");
-        assertLt(out, 5000e6, "withdrawer pays fee + unwind cost");
+        assertLt(out, 2400e6, "withdrawer pays fee + unwind cost");
         (uint256 lo, uint256 so) = ch.openInterest();
         assertEq(lo, so);
     }

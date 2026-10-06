@@ -1,0 +1,27 @@
+{
+  "_label": "VAULT V2 FORK REHEARSAL (anvil, chain id 143): NOT a deployment; dev-key actors",
+  "fork": true,
+  "chainId": 143,
+  "contracts": {
+    "AUSD": "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a",
+    "ClearingHouse": "0x4Dd5336F3C0D70893A7a86c6aEBe9B953E87c891",
+    "FundingSwapMarket": "0xb6aA91E8904d691a10372706e57aE1b390D26353",
+    "InsuranceFund": "0x3C2BafebbB0c8c58f39A976e725cD20D611d01e9",
+    "MarketFactory": "0x5f246ADDCF057E0f778CD422e20e413be70f9a0c",
+    "OracleAdapter": "0xaD82Ecf79e232B0391C5479C7f632aA1EA701Ed1",
+    "OrderBook": "0x91A1EeE63f300B8f41AE6AF67eDEa2e2ed8c3f79",
+    "SwapOrderBook": "0x6fFa22292b86D678fF6621eEdC9B15e68dC44DcD",
+    "WMON": "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A",
+    "MeridianVault": "0x9Bb65b12162a51413272d10399282E730822Df44",
+    "KuruHedger": "0xCA87833e830652C2ab07E1e03eBa4F2c246D3b58"
+  },
+  "deployed": true,
+  "mockContracts": [],
+  "mocks": false,
+  "oracleKind": "pyth",
+  "owner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  "startBlock": 111118192,
+  "symbol": "MON-PERP",
+  "vaultStartBlock": 111118209,
+  "vaultVersion": "2 (CR-014: async withdrawals, interfaces-v1.7)"
+}

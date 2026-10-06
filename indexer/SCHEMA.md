@@ -33,6 +33,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 | `VaultSnapshot` | `<block>-<logIndex>` | `navToken`, `sharePriceWad`, `fundingAccruedWad`, `timestamp` | NAV chart |
 | `VaultUser` | `<vault>-<user>` | `shares`, `depositedToken`, `withdrawnToken` | Earn (my position) |
 | `VaultRebalance`, `HedgeTrade` | `<block>-<logIndex>` | reason, deltas, Kuru fills | Earn activity |
+| `VaultRedeemRequest` (CR-014) | `<vault>-<requestId>` | `owner`, `receiver`, `shares`, `status` (Pending / Claimable / Claimed / Cancelled), `assets` + `unwindCost` (set at fulfilment), `requestedBlock`, `fulfilledBlock`, `claimedBlock` | Earn: my pending withdrawals, Claim button |
 | `SwapStats` | swap market address | `markAprWad` (last traded), `realizedApr8hWad`, `openInterestWad`, `volumeWad`, `matured`, `cumFundingAtMaturity` | Fix |
 | `SwapPosition` | `<swapMarket>-<account>` | `size` (q), `fixedAprNotional` (K), `avgFixedAprWad`, **`lockedSpread`**, `netAccrued`, `floatingReceived`, `fixedPaid`, `collateralWad` | Fix (my swap) |
 | `SwapTrade` | `<block>-<logIndex>` | `sizeDelta`, `newSize`, `aprWad`, `fee`, `isMaker` | Fix history |
@@ -46,6 +47,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 - **Bad-debt split (PHASES 36, 6 Oct).** Liquidation bad debt runs IF → accrued protocol fees → uncovered. Perp: `BadDebtSocialized(requested, coveredByInsurance, uncovered)` (WAD) fires whenever the IF falls short; **fee-covered part = `requested − coveredByInsurance − uncovered`** (no separate event; can be > 0 with `uncovered = 0`). No event ⇒ the IF covered all of `Liquidated.badDebt`. Swap: no `BadDebtSocialized` on `IFundingSwapMarket`; derive from `SwapLiquidated.badDebt` and the InsuranceFund's `BadDebtCovered(market, requestedToken, coveredToken)` in the same tx: IF part = `min(coveredToken·1e12, badDebt)`, fees + uncovered = the rest (split them by reading `totalBadDebt()` at that block if needed). `BadDebtEvent` should store `feeCoveredWad` for the perp.
 - **Realized funding APR (oracle), MATH_SPEC §1.8.** `avgRate = (F₂ − F₁)·1e18 / (G₂ − G₁)`, `aprWad = avgRate · 31,536,000`, display `aprWad / 1e18`. (F₂, G₂) comes from the latest `FundingUpdated`. (F₁, G₁) is the `FundingCheckpoint` at or before `block − window`, with `window = seconds·1000/blockTimeMs` (1 h = 12,000 blocks at 300 ms). This is the same semantics and operation order as `averageFundingApr(blocksAgo)`. It is `null` until the window has history.
 - **Rate APR:** `rateAprWad = rate · 31,536,000`.
+- **Vault v2 queue (CR-014).** `Vault.pendingRedeemShares` = shares escrowed by Pending requests (they stay in `totalShares` until fulfilment; the vault's own share balance is NOT a `VaultUser` and doesn't count in `userCount`). `Vault.claimableToken` = AUSD owed to Claimable requests (held by the vault, excluded from `navToken`). A claim adds `assets` to the owner's `VaultUser.withdrawnToken` and to `Vault.withdrawnToken` (the async path emits no ERC-4626 `Withdraw`). Status changes are idempotent: a duplicate fulfil / claim log for an id not in the expected state is ignored. `EmergencyUnwind` (owner/Safe) increments `Vault.emergencyUnwinds` and is logged as an `AdminEvent`.
 - **Vault APY:** simple annualized share-price change vs the hourly price 24 h / 7 d back: `(sp₁ − sp₀)·1e18·YEAR / (sp₀·Δt)`. `null` means not enough history, so the app shows "Waiting for funding…" (never a fake APY).
 - **Swaps:** `aprWad = priceWad − 1e18`. `K += Δq·A/1e18`. `avgFixedAprWad = K·1e18/q`. **`lockedSpread = (q == 0 && K != 0)`**: show "locked +x AUSD until maturity", not zero.
 - **Perp mirror:** `openNotional` follows MATH_SPEC §3.1 (released rounds toward +∞). `entryPrice = |ON|·1e18/|q|`.
@@ -79,7 +81,8 @@ query Me($chainId: Int!, $me: String!) {
 }
 # Earn: vault + NAV chart
 query Earn($chainId: Int!) {
-  Vault(where: { chainId: { _eq: $chainId } }) { id navToken sharePriceWad hedged apy24hWad apy7dWad lastRebalanceReason }
+  Vault(where: { chainId: { _eq: $chainId } }) { id navToken sharePriceWad hedged apy24hWad apy7dWad lastRebalanceReason pendingRedeemShares claimableToken }
+  VaultRedeemRequest(where: { chainId: { _eq: $chainId }, owner: { _eq: $me }, status: { _in: [Pending, Claimable] } }, order_by: { requestId: desc }) { requestId shares status assets unwindCost requestedAt receiver }
   VaultSnapshot(where: { chainId: { _eq: $chainId } }, order_by: { block: desc }, limit: 500) { timestamp sharePriceWad navToken }
 }
 # Stats
@@ -97,7 +100,7 @@ Enforced by `test/config.test.ts`, which diffs `abis/*.json` and `contracts/src/
 | ClearingHouse (`IClearingHouse` + `IFundingRateOracle`) | Deposited, Withdrawn, FundingUpdated, FundingSettled, PositionChanged, Liquidated, BadDebtSocialized, OrderMarginChanged, FeesCollected, RiskParamsUpdated, FundingParamsUpdated, PausedSet, FundingCheckpoint | `src/handlers/clearingHouse.ts` |
 | OrderBook, SwapOrderBook (`IOrderBook`) | OrderPlaced, OrderCancelled, OrderEvicted, MakerFillSkipped, Trade | `src/handlers/orderBook.ts` |
 | FundingSwapMarket | Deposited, Withdrawn, SwapPositionChanged, SwapAccrualSettled, SwapLiquidated, MaturitySettled, SwapParamsUpdated | `src/handlers/fundingSwap.ts` |
-| MeridianVault (`IMeridianVault` + ERC-4626) | Deposit, Withdraw, Transfer, Rebalanced, HedgeExited, HedgeEntered, NavSnapshot, VaultParamsUpdated, KeeperUpdated (`Approval` intentionally skipped) | `src/handlers/vault.ts` |
+| MeridianVault (`IMeridianVault` + ERC-4626) | Deposit, Withdraw, Transfer, Rebalanced, HedgeExited, HedgeEntered, NavSnapshot, VaultParamsUpdated, KeeperUpdated, RedeemRequested, RedeemCancelled, RedeemFulfilled, RedeemClaimed, EmergencyUnwind (CR-014; `Approval` intentionally skipped) | `src/handlers/vault.ts` |
 | KuruHedger | SpotBought, SpotSold | `src/handlers/vault.ts` |
 | OracleAdapter | PriceUpdated, DeviationGuardTripped, OracleParamsUpdated | `src/handlers/periphery.ts` |
 | InsuranceFund | Funded, BadDebtCovered, MarketAuthorized | `src/handlers/periphery.ts` |

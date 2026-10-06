@@ -9,10 +9,12 @@ import {MockERC20} from "../../../src/mocks/MockERC20.sol";
 import {MockOracleAdapter} from "../../../src/mocks/MockOracleAdapter.sol";
 import {MockKuruHedger} from "../../../src/mocks/MockKuruHedger.sol";
 import {IFundingRateOracle} from "../../../src/interfaces/IFundingRateOracle.sol";
+import {IMeridianVault} from "../../../src/interfaces/IMeridianVault.sol";
 
 /// @notice WS-04 handler for I8 / I10 on the REAL perp ClearingHouse + OrderBook (MockKuruHedger spot leg).
-///         Actions: deposit, redeem, withdraw, keeper rebalance, funding regime (r̄ pinned), price moves (index +
-///         Kuru together), taker skew changes, block rolls. try/catch everywhere; ghosts only on success.
+///         Actions: deposit, redeem, withdraw (idle-only, CR-014), requestRedeem / cancelRedeem / keeper
+///         fulfillRedeems / claimRedeem (the async queue), keeper rebalance, funding regime (r̄ pinned), price moves
+///         (index + Kuru together), taker skew changes, block rolls. try/catch everywhere; ghosts only on success.
 ///         Ghosts: per-actor net cash (withdrawn − deposited) for I10 checks at no price move; share-price floor
 ///         across deposit/withdraw-only steps for I8.
 contract VaultHandler is Test {
@@ -30,7 +32,15 @@ contract VaultHandler is Test {
 
     uint256 public depositsOk;
     uint256 public withdrawalsOk;
-    uint256 public unwindWithdrawals; // withdrawals that needed an inline unwind
+    uint256 public unwindWithdrawals; // fulfils that needed an unwind (CR-014: the sync path never unwinds)
+    uint256 public syncBeyondIdle; // sync withdrawals that paid more than idleFree (must stay 0)
+    uint256 public requestsOk;
+    uint256 public cancelsOk;
+    uint256 public fulfilsOk; // fulfillRedeems calls that succeeded
+    uint256 public fulfilledIds;
+    uint256 public claimsOk;
+    uint256 public claimedAssets;
+    uint256[] internal _openIds; // requested, not yet claimed or cancelled (bounded by the run depth)
     uint256 public rebalancesOk;
     uint256 public priceMoves;
     /// @dev I8: share price fell across a deposit/withdraw (must stay false)
@@ -98,16 +108,23 @@ contract VaultHandler is Test {
         _checkFlow(p0);
     }
 
+    function _idleFree() internal view returns (uint256) {
+        uint256 b = ausd.balanceOf(address(vault));
+        uint256 c = vault.claimableAssets();
+        return b > c ? b - c : 0;
+    }
+
+    /// Sync redeem within maxRedeem (idle-only): must succeed and pay ≤ idleFree.
     function redeem(uint256 who, uint256 frac) external {
         address a = _actor(who);
-        uint256 shares = vault.balanceOf(a) * bound(frac, 1, 100) / 100;
+        uint256 shares = vault.maxRedeem(a) * bound(frac, 1, 100) / 100;
         if (shares == 0) return;
-        uint256 idle = ausd.balanceOf(address(vault));
+        uint256 free = _idleFree();
         uint256 p0 = vault.sharePrice();
         vm.prank(a);
         try vault.redeem(shares, a, a) returns (uint256 out) {
             ++withdrawalsOk;
-            if (out > idle) ++unwindWithdrawals;
+            if (out > free) ++syncBeyondIdle;
         } catch {}
         _checkFlow(p0);
     }
@@ -117,14 +134,101 @@ contract VaultHandler is Test {
         uint256 max = vault.maxWithdraw(a);
         if (max == 0) return;
         amt = bound(amt, 1, max);
-        uint256 idle = ausd.balanceOf(address(vault));
+        uint256 free = _idleFree();
         uint256 p0 = vault.sharePrice();
         vm.prank(a);
         try vault.withdraw(amt, a, a) {
             ++withdrawalsOk;
-            if (amt > idle) ++unwindWithdrawals;
+            if (amt > free) ++syncBeyondIdle;
         } catch {}
         _checkFlow(p0);
+    }
+
+    // ─── CR-014 queue ─────────────────────────────────────────────────────────
+    function requestRedeem(uint256 who, uint256 frac) external {
+        address a = _actor(who);
+        uint256 shares = vault.balanceOf(a) * bound(frac, 1, 100) / 100;
+        if (shares == 0) return;
+        // one request ≤ one slice (RequestTooLarge): shrink to fit
+        while (shares != 0 && vault.previewRedeem(shares) > 2500e6) {
+            shares /= 2;
+        }
+        if (shares == 0) return;
+        vm.prank(a);
+        try vault.requestRedeem(shares, a, a) returns (uint256 id) {
+            ++requestsOk;
+            _openIds.push(id);
+        } catch {}
+    }
+
+    function cancelRedeem(uint256 idx) external {
+        if (_openIds.length == 0) return;
+        uint256 id = _openIds[idx % _openIds.length];
+        try vault.getRedeemRequest(id) returns (IMeridianVault.RedeemRequest memory r) {
+            if (r.status != IMeridianVault.RedeemStatus.Pending) return;
+            vm.prank(r.owner);
+            try vault.cancelRedeem(id) {
+                ++cancelsOk;
+                _drop(idx % _openIds.length);
+            } catch {}
+        } catch {}
+    }
+
+    /// Keeper fulfils up to `k` open ids (≤ MAX_BATCH) in one batch; claimable and already-final ids are skipped by
+    /// the vault. I8 on the batch: the remaining holders' share price must not fall.
+    function fulfil(uint256 k) external {
+        uint256 n = _openIds.length;
+        if (n == 0) return;
+        k = bound(k, 1, n < 32 ? n : 32);
+        uint256[] memory ids = new uint256[](k);
+        for (uint256 i; i < k; ++i) {
+            ids[i] = _openIds[n - 1 - i];
+        }
+        uint256 free = _idleFree();
+        (uint256 assets,) = _preview(ids);
+        uint256 pendingBefore = _countStatus(ids, IMeridianVault.RedeemStatus.Pending); // ids are distinct
+        uint256 p0 = vault.sharePrice();
+        vm.prank(keeper);
+        try vault.fulfillRedeems(ids, hex"01") {
+            ++fulfilsOk;
+            fulfilledIds += pendingBefore;
+            if (assets > free) ++unwindWithdrawals;
+        } catch {}
+        _checkFlow(p0);
+    }
+
+    function _countStatus(uint256[] memory ids, IMeridianVault.RedeemStatus st) internal view returns (uint256 c) {
+        for (uint256 i; i < ids.length; ++i) {
+            if (vault.getRedeemRequest(ids[i]).status == st) ++c;
+        }
+    }
+
+    function _preview(uint256[] memory ids) internal view returns (uint256 assets, uint256 sell) {
+        try vault.previewFulfill(ids) returns (uint256 a, uint256 s) {
+            return (a, s);
+        } catch {
+            return (0, 0);
+        }
+    }
+
+    function claim(uint256 idx) external {
+        if (_openIds.length == 0) return;
+        uint256 j = idx % _openIds.length;
+        uint256 id = _openIds[j];
+        IMeridianVault.RedeemRequest memory r = vault.getRedeemRequest(id);
+        if (r.status != IMeridianVault.RedeemStatus.Claimable) return;
+        uint256 p0 = vault.sharePrice();
+        try vault.claimRedeem(id) returns (uint256 out) {
+            ++claimsOk;
+            claimedAssets += out;
+            _drop(j);
+        } catch {}
+        _checkFlow(p0);
+    }
+
+    function _drop(uint256 j) internal {
+        _openIds[j] = _openIds[_openIds.length - 1];
+        _openIds.pop();
     }
 
     function rebalance() external {

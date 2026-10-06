@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {ClearingHouse} from "../../src/clearing/ClearingHouse.sol";
 import {InsuranceFund} from "../../src/clearing/InsuranceFund.sol";
@@ -14,8 +15,9 @@ import {RiskParams, FundingParams, VaultParams} from "../../src/interfaces/Merid
 import {VaultHandler} from "./handlers/VaultHandler.sol";
 
 /// @notice MATH_SPEC I8 (vault shares) and I10 (no free money, see also test/fuzz/MeridianVault.fuzz.t.sol) on the REAL
-///         ClearingHouse + OrderBook with MockKuruHedger. fail_on_revert; coverage appended per run to
-///         bench-out/vault_invariant_coverage.csv.
+///         ClearingHouse + OrderBook with MockKuruHedger, incl. the CR-014 queue. fail_on_revert; coverage appended per
+///         run to bench-out/vault_invariant_coverage.csv (columns: deposits, withdrawals, fulfils with an unwind,
+///         rebalances, price moves, requests, fulfil calls, fulfilled ids, claims, cancels).
 /// forge-config: default.invariant.fail-on-revert = true
 contract VaultInvariantsTest is StdInvariant, Test {
     VaultHandler handler;
@@ -74,7 +76,7 @@ contract VaultInvariantsTest is StdInvariant, Test {
         handler.skew(true, 3000); // takers start net long 300,000 MON
         handler.fundingRegime(70); // +30% APR
 
-        bytes4[] memory sel = new bytes4[](12);
+        bytes4[] memory sel = new bytes4[](17);
         sel[0] = handler.deposit.selector;
         sel[1] = handler.deposit.selector;
         sel[2] = handler.redeem.selector;
@@ -87,6 +89,11 @@ contract VaultInvariantsTest is StdInvariant, Test {
         sel[9] = handler.skew.selector;
         sel[10] = handler.roll.selector;
         sel[11] = handler.requote.selector;
+        sel[12] = handler.requestRedeem.selector;
+        sel[13] = handler.requestRedeem.selector;
+        sel[14] = handler.cancelRedeem.selector;
+        sel[15] = handler.fulfil.selector;
+        sel[16] = handler.claim.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: sel}));
         targetContract(address(handler));
     }
@@ -109,6 +116,21 @@ contract VaultInvariantsTest is StdInvariant, Test {
         assertFalse(handler.sharePriceFellOnFlow(), "I8: share price fell on a deposit/withdraw");
     }
 
+    /// CR-014: claimable AUSD is always held by the vault (no idle read spends it).
+    function invariant_claimableBacked() public view {
+        assertGe(IERC20(vault.asset()).balanceOf(address(vault)), vault.claimableAssets());
+    }
+
+    /// CR-014: escrowed shares = the vault's own share balance; they stay in totalSupply until fulfilment.
+    function invariant_escrowMatchesPending() public view {
+        assertEq(vault.balanceOf(address(vault)), vault.pendingRedeemShares());
+    }
+
+    /// A-11: the sync path never pays beyond idleFree (it is capped, it never unwinds).
+    function invariant_syncPathIdleOnly() public view {
+        assertEq(handler.syncBeyondIdle(), 0);
+    }
+
     /// The vault is never long the perp (MATH_SPEC §5.2).
     function invariant_vaultNeverLong() public view {
         assertLe(ch.getPosition(address(vault)).size, 0);
@@ -127,7 +149,17 @@ contract VaultInvariantsTest is StdInvariant, Test {
                 ",",
                 vm.toString(handler.rebalancesOk()),
                 ",",
-                vm.toString(handler.priceMoves())
+                vm.toString(handler.priceMoves()),
+                ",",
+                vm.toString(handler.requestsOk()),
+                ",",
+                vm.toString(handler.fulfilsOk()),
+                ",",
+                vm.toString(handler.fulfilledIds()),
+                ",",
+                vm.toString(handler.claimsOk()),
+                ",",
+                vm.toString(handler.cancelsOk())
             )
         );
     }

@@ -86,7 +86,7 @@ REUSE_DEPLOYMENT=10143.json DEPLOY_VAULT=1 DEPLOY_SWAPS=1 SWAP_MATURITY_IN_SEC=3
 2. `PythChainlinkOracleAdapter(deployer, pyth, MON/USD id, chainlink MON/USD, maxStaleness, maxDeviation, 3600 s)`
 3. `ClearingHouse(AUSD, oracle, IF, risk, funding, deployer)` → `OrderBook(CH, tick, lot)` → `CH.setOrderBook(OB)` (one-shot)
 4. `IF.setMarketAuthorized(CH, true)`, `MarketFactory.registerMarket("MON-PERP", OB, CH, oracle, WMON)`
-5. `KuruHedger(deployer, WMON, AUSD, flowEntrypoint, monAusdMarket)` → `MeridianVault(AUSD, CH, OB, hedger, vault params, deployer)` → `hedger.setVault(vault)` (one-shot) → `vault.setKeeper(KEEPER_ADDRESS)` → `vault.setSkewProvider(MM_ADDRESS)` (MATH_SPEC §5.2 amendment)
+5. `KuruHedger(deployer, WMON, AUSD, flowEntrypoint, address(0))` (Flow routes only; the dead `monAusdMarket` is never wired, Found #25; `DeployVaultV2` does the same) → `MeridianVault(AUSD, CH, OB, hedger, vault params, deployer)` → `hedger.setVault(vault)` (one-shot) → `vault.setKeeper(KEEPER_ADDRESS)` → `vault.setSkewProvider(MM_ADDRESS)` (MATH_SPEC §5.2 amendment)
 6. `FundingSwapMarket(CH, AUSD, IF, now + 30 d, swap params, deployer)` → `OrderBook(swap, 1e14, 1,000 MON)` → `swap.setOrderBook` (one-shot) → `IF.setMarketAuthorized(swap, true)`
 7. `transferOwnership(safe)` × 7, with asserts
 

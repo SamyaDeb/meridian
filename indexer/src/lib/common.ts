@@ -239,6 +239,9 @@ export async function getVault(context: Ctx, vault: string): Promise<Vault> {
     apy7dWad: undefined,
     params: undefined,
     keepers: [],
+    pendingRedeemShares: 0n,
+    claimableToken: 0n,
+    emergencyUnwinds: 0,
   });
 }
 

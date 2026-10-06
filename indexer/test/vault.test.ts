@@ -87,4 +87,67 @@ describe("MeridianVault", () => {
     v = await indexer.Vault.getOrThrow(A.VAULT);
     expect(v).toMatchObject({ hedged: false, keepers: [] });
   });
+
+  it("CR-014 queue: request → fulfil → claim, cancel, escrow not a user, emergency unwind", async () => {
+    const indexer = createTestIndexer();
+    const V = A.VAULT;
+    await indexer.process({
+      chains: {
+        [CHAIN]: {
+          simulate: [
+            { contract: "MeridianVault", event: "Deposit", srcAddress: V, block: at(1, T0), params: { sender: ALICE, owner: ALICE, assets: 1_000_000_000n, shares: 1_000n * WAD } },
+            { contract: "MeridianVault", event: "Transfer", srcAddress: V, block: at(1, T0), params: { from: ZERO, to: ALICE, value: 1_000n * WAD } },
+            // request #1 (600 shares to BOB as receiver) and #2 (100 shares): shares move into the vault (escrow)
+            { contract: "MeridianVault", event: "Transfer", srcAddress: V, block: at(2, T0 + 1), params: { from: ALICE, to: V, value: 600n * WAD } },
+            { contract: "MeridianVault", event: "RedeemRequested", srcAddress: V, block: at(2, T0 + 1), params: { id: 1n, owner: ALICE, receiver: BOB, shares: 600n * WAD } },
+            { contract: "MeridianVault", event: "Transfer", srcAddress: V, block: at(3, T0 + 2), params: { from: ALICE, to: V, value: 100n * WAD } },
+            { contract: "MeridianVault", event: "RedeemRequested", srcAddress: V, block: at(3, T0 + 2), params: { id: 2n, owner: ALICE, receiver: ALICE, shares: 100n * WAD } },
+          ],
+        },
+      },
+    });
+    let v = await indexer.Vault.getOrThrow(V);
+    expect(v).toMatchObject({ pendingRedeemShares: 700n * WAD, claimableToken: 0n, userCount: 1 }); // the vault isn't a user
+    expect(await indexer.VaultUser.get(`${V}-${V}`)).toBeUndefined();
+    expect((await indexer.VaultUser.getOrThrow(`${V}-${ALICE}`)).shares).toBe(300n * WAD);
+    expect(await indexer.VaultRedeemRequest.getOrThrow(`${V}-1`)).toMatchObject({ owner: ALICE, receiver: BOB, status: "Pending", requestedBlock: 2n });
+
+    await indexer.process({
+      chains: {
+        [CHAIN]: {
+          simulate: [
+            // #2 cancelled: shares back to ALICE
+            { contract: "MeridianVault", event: "RedeemCancelled", srcAddress: V, block: at(4, T0 + 3), params: { id: 2n } },
+            { contract: "MeridianVault", event: "Transfer", srcAddress: V, block: at(4, T0 + 3), params: { from: V, to: ALICE, value: 100n * WAD } },
+            // #1 fulfilled (escrow burned) with an unwind cost, then a duplicate fulfil log is ignored
+            { contract: "MeridianVault", event: "Transfer", srcAddress: V, block: at(5, T0 + 4), params: { from: V, to: ZERO, value: 600n * WAD } },
+            { contract: "MeridianVault", event: "RedeemFulfilled", srcAddress: V, block: at(5, T0 + 4), params: { id: 1n, assets: 599_000_000n, unwindCost: 700_000n } },
+            { contract: "MeridianVault", event: "RedeemFulfilled", srcAddress: V, block: at(5, T0 + 4), params: { id: 1n, assets: 1n, unwindCost: 0n } },
+            { contract: "MeridianVault", event: "EmergencyUnwind", srcAddress: V, block: at(6, T0 + 5), params: { baseSold: 10n * WAD, perpBought: 10n * WAD, navAfter: 400_000_000n } },
+          ],
+        },
+      },
+    });
+    v = await indexer.Vault.getOrThrow(V);
+    expect(v).toMatchObject({ pendingRedeemShares: 0n, claimableToken: 599_000_000n, emergencyUnwinds: 1 });
+    expect(await indexer.VaultRedeemRequest.getOrThrow(`${V}-1`)).toMatchObject({ status: "Claimable", assets: 599_000_000n, unwindCost: 700_000n, fulfilledBlock: 5n });
+    expect((await indexer.VaultRedeemRequest.getOrThrow(`${V}-2`)).status).toBe("Cancelled");
+    expect((await indexer.VaultUser.getOrThrow(`${V}-${ALICE}`)).shares).toBe(400n * WAD);
+    expect((await indexer.AdminEvent.getAll()).map((a) => a.name)).toContain("EmergencyUnwind");
+
+    await indexer.process({
+      chains: {
+        [CHAIN]: {
+          simulate: [
+            { contract: "MeridianVault", event: "RedeemClaimed", srcAddress: V, block: at(7, T0 + 6), params: { id: 1n, receiver: BOB, assets: 599_000_000n } },
+            { contract: "MeridianVault", event: "RedeemClaimed", srcAddress: V, block: at(8, T0 + 7), params: { id: 1n, receiver: BOB, assets: 599_000_000n } }, // ignored
+          ],
+        },
+      },
+    });
+    v = await indexer.Vault.getOrThrow(V);
+    expect(v).toMatchObject({ claimableToken: 0n, withdrawnToken: 599_000_000n });
+    expect(await indexer.VaultRedeemRequest.getOrThrow(`${V}-1`)).toMatchObject({ status: "Claimed", claimedBlock: 7n });
+    expect((await indexer.VaultUser.getOrThrow(`${V}-${ALICE}`)).withdrawnToken).toBe(599_000_000n);
+  });
 });

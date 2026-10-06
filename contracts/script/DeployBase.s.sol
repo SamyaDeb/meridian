@@ -110,4 +110,13 @@ abstract contract DeployBase is Script {
         p.entryHorizonSec = cfg.readUint(string.concat(k, "entryHorizonSec"));
         p.maxSliceAssets = _u(string.concat(k, "maxSliceAssets"));
     }
+
+    /// @dev Vault v2 at deploy (HARDENING_PLAN P5.3i, HARDENING_LOOP Found #17): the config's params with the hedge off
+    ///      (`skewCapacity` 0) and the launch cap (`depositCap` 1,200 AUSD, PHASES decision 12) on every chain. The
+    ///      owner raises skewCapacity later with `setVaultParams` (P6 step 3).
+    function _vaultV2DeployParams() internal view returns (VaultParams memory p) {
+        p = _vaultParams();
+        p.skewCapacity = 0;
+        p.depositCap = 1200e6;
+    }
 }

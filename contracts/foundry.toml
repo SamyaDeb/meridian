@@ -19,6 +19,7 @@ remappings = [
 fs_permissions = [
   { access = "read-write", path = "./bench-out" },
   { access = "read", path = "./script/config" },
+  { access = "read", path = "./test/fixtures" },
   { access = "read-write", path = "./script/config/tmp" },
   { access = "read-write", path = "../deployments" },
 ]

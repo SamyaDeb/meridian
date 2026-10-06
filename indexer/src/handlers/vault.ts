@@ -57,15 +57,16 @@ indexer.onEvent({ contract: "MeridianVault", event: "Withdraw", fields: FIELDS }
   context.Vault.set({ ...v, withdrawnToken: v.withdrawnToken + assets });
 });
 
-// Share balances come from Transfer only (Deposit/Withdraw also emit mint/burn Transfers).
+// Share balances come from Transfer only (Deposit/Withdraw also emit mint/burn Transfers). The vault's own balance
+// (CR-014 escrow of Pending requests) is not a user: it is tracked as Vault.pendingRedeemShares instead.
 indexer.onEvent({ contract: "MeridianVault", event: "Transfer", fields: FIELDS }, async ({ event, context }) => {
   const { from, to, value } = event.params;
   const block = blockOf(event);
-  if (from !== ZERO_ADDRESS) {
+  if (from !== ZERO_ADDRESS && from !== event.srcAddress) {
     const u = await getVaultUser(context, event.srcAddress, from, block);
     context.VaultUser.set({ ...u, shares: u.shares - value, updatedBlock: block });
   }
-  if (to !== ZERO_ADDRESS) {
+  if (to !== ZERO_ADDRESS && to !== event.srcAddress) {
     const u = await getVaultUser(context, event.srcAddress, to, block);
     context.VaultUser.set({ ...u, shares: u.shares + value, updatedBlock: block });
   }
@@ -146,6 +147,71 @@ indexer.onEvent({ contract: "MeridianVault", event: "KeeperUpdated", fields: FIE
   const rest = v.keepers.filter((k) => k !== keeper);
   context.Vault.set({ ...v, keepers: allowed ? [...rest, keeper] : rest });
   await logAdmin(context, event, "KeeperUpdated", event.params);
+});
+
+// ─── CR-014: request → fulfil → claim (and cancel), emergency unwind ─────────────────────────────────────────────
+
+const reqId = (vault: string, id: bigint) => `${vault}-${id}`;
+
+indexer.onEvent({ contract: "MeridianVault", event: "RedeemRequested", fields: FIELDS }, async ({ event, context }) => {
+  const { id, owner, receiver, shares } = event.params;
+  const block = blockOf(event);
+  context.VaultRedeemRequest.set({
+    id: reqId(event.srcAddress, id),
+    vault: event.srcAddress,
+    requestId: id,
+    owner,
+    receiver,
+    shares,
+    status: "Pending",
+    assets: undefined,
+    unwindCost: undefined,
+    requestedBlock: block,
+    requestedAt: tsOf(event),
+    fulfilledBlock: undefined,
+    claimedBlock: undefined,
+    updatedBlock: block,
+    txHash: event.transaction.hash,
+  });
+  const v = await getVault(context, event.srcAddress);
+  context.Vault.set({ ...v, pendingRedeemShares: v.pendingRedeemShares + shares });
+});
+
+indexer.onEvent({ contract: "MeridianVault", event: "RedeemCancelled", fields: FIELDS }, async ({ event, context }) => {
+  const r = await context.VaultRedeemRequest.get(reqId(event.srcAddress, event.params.id));
+  if (!r || r.status !== "Pending") return;
+  context.VaultRedeemRequest.set({ ...r, status: "Cancelled", updatedBlock: blockOf(event) });
+  const v = await getVault(context, event.srcAddress);
+  context.Vault.set({ ...v, pendingRedeemShares: v.pendingRedeemShares - r.shares });
+});
+
+indexer.onEvent({ contract: "MeridianVault", event: "RedeemFulfilled", fields: FIELDS }, async ({ event, context }) => {
+  const { id, assets, unwindCost } = event.params;
+  const r = await context.VaultRedeemRequest.get(reqId(event.srcAddress, id));
+  if (!r || r.status !== "Pending") return;
+  const block = blockOf(event);
+  context.VaultRedeemRequest.set({ ...r, status: "Claimable", assets, unwindCost, fulfilledBlock: block, updatedBlock: block });
+  const v = await getVault(context, event.srcAddress);
+  context.Vault.set({ ...v, pendingRedeemShares: v.pendingRedeemShares - r.shares, claimableToken: v.claimableToken + assets });
+});
+
+indexer.onEvent({ contract: "MeridianVault", event: "RedeemClaimed", fields: FIELDS }, async ({ event, context }) => {
+  const { id, assets } = event.params;
+  const r = await context.VaultRedeemRequest.get(reqId(event.srcAddress, id));
+  if (!r || r.status !== "Claimable") return;
+  const block = blockOf(event);
+  context.VaultRedeemRequest.set({ ...r, status: "Claimed", claimedBlock: block, updatedBlock: block });
+  // the claim is the withdrawal of the owner's position (the sync path's Withdraw event is not emitted here)
+  const u = await getVaultUser(context, event.srcAddress, r.owner, block);
+  context.VaultUser.set({ ...u, withdrawnToken: u.withdrawnToken + assets, updatedBlock: block });
+  const v = await getVault(context, event.srcAddress);
+  context.Vault.set({ ...v, claimableToken: v.claimableToken - assets, withdrawnToken: v.withdrawnToken + assets });
+});
+
+indexer.onEvent({ contract: "MeridianVault", event: "EmergencyUnwind", fields: FIELDS }, async ({ event, context }) => {
+  const v = await getVault(context, event.srcAddress);
+  context.Vault.set({ ...v, emergencyUnwinds: v.emergencyUnwinds + 1 });
+  await logAdmin(context, event, "EmergencyUnwind", event.params);
 });
 
 indexer.onEvent({ contract: "KuruHedger", event: "SpotBought", fields: FIELDS }, async ({ event, context }) => {

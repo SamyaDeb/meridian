@@ -22,7 +22,7 @@ contract KuruHedgerForkTest is Test {
 
     function setUp() public {
         string memory rpc = vm.envOr("MONAD_RPC_URL", string(""));
-        if (bytes(rpc).length == 0) return;
+        if (bytes(rpc).length == 0) vm.skip(true); // no MONAD_RPC_URL: SKIPPED, not a silent PASS
         vm.createSelectFork(rpc);
         live = true;
         h = new KuruHedger(address(this), WMON, USDC, FLOW, MON_USDC);
@@ -33,7 +33,7 @@ contract KuruHedgerForkTest is Test {
     }
 
     function test_fork_directBuyThenSell() public {
-        if (!live) return;
+        if (!live) vm.skip(true);
         (uint256 bid, uint256 ask) = h.bestBidAsk();
         assertGt(bid, 0);
         assertGt(ask, bid);
@@ -55,9 +55,9 @@ contract KuruHedgerForkTest is Test {
     }
 
     function test_fork_flowRoute() public {
-        if (!live) return;
+        if (!live) vm.skip(true);
         bytes memory route = vm.envOr("KURU_FLOW_ROUTE", bytes(""));
-        if (route.length == 0) return; // no fresh route supplied: skip
+        if (route.length == 0) vm.skip(true); // no fresh route supplied
         uint256 amountIn = vm.envUint("KURU_FLOW_AMOUNT_IN");
         (, uint256 ask) = h.bestBidAsk();
         uint256 minOut = amountIn * 1e12 * 1e18 / (ask * 102 / 100);

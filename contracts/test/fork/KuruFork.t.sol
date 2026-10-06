@@ -27,7 +27,7 @@ contract KuruForkTest is Test {
 
     function test_buyThenSell() public {
         string memory rpc = vm.envOr("MONAD_RPC_URL", string("")); // fork tests run only with MONAD_RPC_URL
-        if (bytes(rpc).length == 0) return;
+        if (bytes(rpc).length == 0) vm.skip(true); // no MONAD_RPC_URL: SKIPPED, not a silent PASS
         vm.createSelectFork(rpc);
         (uint256 bid, uint256 ask) = OB.bestBidAsk();
         emit log_named_uint("bid 1e18", bid);

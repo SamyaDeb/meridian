@@ -207,8 +207,8 @@ contract DeployMeridian is DeployBase {
         return address(o);
     }
 
-    /// @dev Steps 8–9 (Phase 4). Real KuruHedger when `kuru.flowEntrypoint` is set (mainnet: R16; `kuru.monAusdMarket`
-    ///      may be null ⇒ Flow routes only). Testnet has no verified Kuru deployment ⇒ a clearly labelled
+    /// @dev Steps 8–9 (Phase 4). Real KuruHedger when `kuru.flowEntrypoint` is set (mainnet: R16), always
+    ///      Flow routes only (`kuruMarket = 0`, whatever `kuru.monAusdMarket` says; Found #25). Testnet has no verified Kuru deployment ⇒ a clearly labelled
     ///      MockKuruHedger over a mock "tWMON" priced at the oracle index (refused on 143). Wiring: hedger.setVault,
     ///      keeper (`KEEPER_ADDRESS`), skew provider = the MM bot (`MM_ADDRESS`, MATH_SPEC §5.2 amendment).
     function _deployVault() internal {
@@ -221,7 +221,8 @@ contract DeployMeridian is DeployBase {
             d.hedger = address(new MockKuruHedger(spotWmon, d.ausd, ok ? px : 0.029e18));
             hedgerIsMock = true;
         } else {
-            KuruHedger kh = new KuruHedger(deployer, d.wmon, d.ausd, flowEntry, _optAddress(".kuru.monAusdMarket"));
+            // kuruMarket = address(0): Flow routes only, like DeployVaultV2 (P5.2; the direct market is dead, Found #25)
+            KuruHedger kh = new KuruHedger(deployer, d.wmon, d.ausd, flowEntry, address(0));
             d.hedger = address(kh);
         }
         address mmBot = vm.envOr("MM_ADDRESS", address(0));

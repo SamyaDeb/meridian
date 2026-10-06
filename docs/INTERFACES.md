@@ -1,6 +1,6 @@
 # INTERFACES — frozen cross-workstream contracts
 
-**Frozen: `interfaces-v1.6` (6 Oct 2026, CR-001..007).** The `.sol` files in `contracts/src/interfaces/` are the source of truth. The second half of this document is generated verbatim from them (`python3 tools/gen_interfaces_md.py`; CI runs `--check`). To change anything, file an entry in `docs/CHANGE_REQUESTS.md`.
+**Frozen: `interfaces-v1.7` (7 Oct 2026, CR-001..007, CR-014).** The `.sol` files in `contracts/src/interfaces/` are the source of truth. The second half of this document is generated verbatim from them (`python3 tools/gen_interfaces_md.py`; CI runs `--check`). To change anything, file an entry in `docs/CHANGE_REQUESTS.md`.
 
 ## 1. Who implements / who calls
 
@@ -772,6 +772,68 @@ interface IMeridianVault is IERC4626 {
     /// @notice Constructor / `setVaultParams` bounds, zero addresses (CR-009, additive).
     error InvalidParams();
 
+    // ─── CR-014 (interfaces-v1.7): async withdrawals beyond idle, routed exits, emergency unwind ───────────────
+    /// @notice Pending: shares escrowed in the vault (still in totalSupply). Claimable: priced and paid into
+    ///         `claimableAssets`, waiting for `claimRedeem`. Claimed / Cancelled: final.
+    enum RedeemStatus {
+        Pending,
+        Claimable,
+        Claimed,
+        Cancelled
+    }
+
+    /// @notice One redemption request. `assets` (AUSD token units) is 0 until fulfilment, then the fixed payout.
+    ///         An id whose `owner` is address(0) does not exist.
+    struct RedeemRequest {
+        address owner;
+        uint64 requestedBlock;
+        RedeemStatus status;
+        address receiver;
+        uint128 shares;
+        uint128 assets;
+    }
+
+    event RedeemRequested(uint256 indexed id, address indexed owner, address receiver, uint256 shares);
+    event RedeemCancelled(uint256 indexed id);
+    /// @param unwindCost this request's pro-rata share of the batch's unwind cost (NAV lost), AUSD token units
+    event RedeemFulfilled(uint256 indexed id, uint256 assets, uint256 unwindCost);
+    event RedeemClaimed(uint256 indexed id, address indexed receiver, uint256 assets);
+    event EmergencyUnwind(uint256 baseSold, uint256 perpBought, uint256 navAfter);
+
+    error RequestNotFound();
+    error NotRequestOwner();
+    /// @notice previewRedeem(shares) of one request exceeds `maxSliceAssets` (split it).
+    error RequestTooLarge();
+    /// @notice A forced keeper path ran less than MIN_FORCED_INTERVAL_BLOCKS after the last rebalance (A-09).
+    error CooldownActive();
+
+    /// @notice Escrow `shares` of `owner` (ERC-4626 allowance rules when msg.sender ≠ owner) for an async
+    ///         redemption beyond idle. The shares keep NAV exposure until fulfilment (priced then).
+    function requestRedeem(uint256 shares, address receiver, address owner) external returns (uint256 id);
+    /// @notice Owner only, Pending only: the escrowed shares go back to the owner.
+    function cancelRedeem(uint256 id) external;
+    /// @notice Keeper: price the Pending ids among `ids` (≤ MAX_BATCH; others are skipped) at the current NAV, unwind
+    ///         a pro-rata slice of both legs through `spotRoute` if idle can't pay them, burn their shares and move
+    ///         the payout into `claimableAssets`. The unwind cost is charged to this batch.
+    function fulfillRedeems(uint256[] calldata ids, bytes calldata spotRoute) external;
+    /// @notice Anyone: pay a Claimable request to its receiver (pull pattern).
+    function claimRedeem(uint256 id) external returns (uint256 assets);
+    /// @notice Keeper: forced exit of one slice with a Kuru Flow route (cooldown, A-09).
+    function exitHedgeWithRoute(bytes calldata spotRoute) external;
+    /// @notice Owner (Safe): buy back ≤ maxBase of the short (reduce-only), sell the same spot through `spotRoute`,
+    ///         withdraw the perp collateral once flat, and clear the entered state. No cooldown; works while entered.
+    function emergencyUnwind(uint256 maxBase, bytes calldata spotRoute) external;
+    /// @notice Shares escrowed by Pending requests (included in totalSupply).
+    function pendingRedeemShares() external view returns (uint256);
+    /// @notice AUSD (token units) owed to Claimable requests; held by the vault, excluded from totalAssets().
+    function claimableAssets() external view returns (uint256);
+    /// @notice Reverts RequestNotFound for an unknown id.
+    function getRedeemRequest(uint256 id) external view returns (RedeemRequest memory);
+    /// @notice What `fulfillRedeems(ids, ·)` would do now: total payout before the unwind cost (AUSD token units)
+    ///         and the spot base it would sell (WAD; 0 when idle covers the batch). For quoting the route (A-13).
+    ///         Duplicate ids are counted once.
+    function previewFulfill(uint256[] calldata ids) external view returns (uint256 assets, uint256 spotToSell);
+
     /// @notice Keeper entrypoint. Does whatever needsRebalance() reports using the direct Kuru route.
     function rebalance() external returns (RebalanceReason reason);
     /// @notice Same, with a Kuru Flow route for the spot leg (CR-002). minOut is computed by the vault from the
@@ -779,6 +841,7 @@ interface IMeridianVault is IERC4626 {
     function rebalanceWithRoute(bytes calldata spotRoute) external returns (RebalanceReason reason);
     /// @notice Current cap on the vault's short from the skew rule, base WAD.
     function shortCapacity() external view returns (uint256 baseWad);
+    /// @notice Forced exit / entry of one slice (keeper, empty route). CR-014: cooldown (CooldownActive).
     function exitHedge() external;
     function enterHedge() external;
 

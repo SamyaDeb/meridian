@@ -51,12 +51,12 @@ contract RouteOnlyHedger is IKuruHedger {
     }
 }
 
-/// A-01 (High): on the mainnet wiring every withdrawal that needs an unwind, and both forced keeper paths, use the
-/// empty route ⇒ the dead direct market ⇒ revert. Deposits beyond idle are locked until the funding rule exits.
-/// OPEN FINDING (needs CR-010, not applied; owner chose to gate on 5 Oct). The two tests below fail with
-/// SlippageExceeded on the current code and are skipped unless REVIEW_A01_OPEN=true, so main stays green while the
-/// finding is recorded (assertions untouched):
-///   REVIEW_A01_OPEN=true forge test --match-path test/review/ReviewA.t.sol -vv
+/// A-01 (High), acceptance tests for CR-014 (vault v2, HARDENING_PLAN P5): on the mainnet wiring the empty route is
+/// the dead direct market, so every path that sells spot must take a keeper/Safe route. Before CR-014 a hedged vault
+/// locked every deposit beyond idle (sync redeem unwound through the empty route ⇒ SlippageExceeded) and neither the
+/// keeper nor the Safe could force it flat. After: sync withdrawals are idle-only (capped, never reverting inside the
+/// max), beyond idle a request is fulfilled by the keeper WITH a route and claimed, the keeper has a routed forced
+/// exit, and the Safe has `emergencyUnwind`. These tests run always (the REVIEW_A01_OPEN gate is gone).
 contract ReviewA01_RouteOnlyUnwind is MeridianVaultBase {
     RouteOnlyHedger rh;
     bytes constant FLOW = hex"01";
@@ -71,40 +71,93 @@ contract ReviewA01_RouteOnlyUnwind is MeridianVaultBase {
         vm.stopPrank();
     }
 
+    /// alice 5,000 + bob 2,400 AUSD (one request ≤ maxSliceAssets 2,500), hedged through the Flow route.
     function _hedgeViaFlow() internal {
         _whaleLong(3000);
         _setAvgApr(0.3e18);
         _deposit(alice, 5000e6);
-        _deposit(bob, 5000e6);
+        _deposit(bob, 2400e6);
         for (uint256 i; i < 20 && vault.needsRebalance() != IMeridianVault.RebalanceReason.None; ++i) {
             vm.prank(keeper);
             vault.rebalanceWithRoute(FLOW);
             vm.roll(block.number + 1);
         }
         assertTrue(vault.hedgeState().hedged, "setup: hedged through the Flow route");
+        vm.roll(block.number + 10); // past the forced-path cooldown
     }
 
-    /// Expected after the fix: a holder can redeem more than the idle buffer (or the vault offers a documented,
-    /// working exit path). Today: reverts SlippageExceeded from the spot sell on the empty route.
-    function test_A01_redeemBeyondIdle_worksWithRouteOnlyHedger() public {
-        if (!vm.envOr("REVIEW_A01_OPEN", false)) vm.skip(true);
+    /// Beyond idle: request → keeper fulfils with a route → anyone claims; bob is paid more than the idle buffer.
+    function test_A01_requestFulfilClaim_beyondIdle_withRoute() public {
         _hedgeViaFlow();
         uint256 idle = ausd.balanceOf(address(vault));
         uint256 shares = vault.balanceOf(bob);
         assertGt(vault.previewRedeem(shares), idle, "bob's claim exceeds idle");
         vm.prank(bob);
-        uint256 out = vault.redeem(shares, bob, bob);
-        assertGt(out, idle);
+        uint256 id = vault.requestRedeem(shares, bob, bob);
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = id;
+        // the empty route still can't sell spot: the fulfil reverts clearly instead of locking anything
+        vm.prank(keeper);
+        vm.expectRevert(IKuruHedger.SlippageExceeded.selector);
+        vault.fulfillRedeems(ids, "");
+        vm.prank(keeper);
+        vault.fulfillRedeems(ids, FLOW);
+        vm.prank(alice); // anyone may claim; the AUSD goes to the receiver
+        uint256 out = vault.claimRedeem(id);
+        assertEq(ausd.balanceOf(bob), out);
+        assertGt(out, idle, "paid beyond idle");
+        assertApproxEqRel(out, 2400e6, 0.003e18, "fee + unwind cost only");
+        assertEq(vault.balanceOf(bob), 0);
     }
 
-    /// Expected after the fix: the keeper/Safe can force the vault flat in an incident. Today the only forced exit
-    /// (`exitHedge()`, no route parameter) reverts, and `rebalanceWithRoute` exits only when r̄ < −c·365/3.
-    function test_A01_forcedExit_worksWithRouteOnlyHedger() public {
-        if (!vm.envOr("REVIEW_A01_OPEN", false)) vm.skip(true);
+    /// The sync path beyond idle is capped (maxRedeem / maxWithdraw ≤ idle) and never reverts inside the max (A-11).
+    function test_A01_syncRedeemBeyondIdle_isCappedNotReverting() public {
         _hedgeViaFlow();
+        uint256 idle = ausd.balanceOf(address(vault));
+        uint256 maxShares = vault.maxRedeem(bob);
+        assertLt(maxShares, vault.balanceOf(bob), "capped below bob's balance");
+        assertLe(vault.previewRedeem(maxShares), idle);
+        assertLe(vault.maxWithdraw(bob), idle);
+        vm.prank(bob);
+        uint256 out = vault.redeem(maxShares, bob, bob);
+        assertGt(out, 0);
+        assertLe(out, idle);
+        uint256 mw = vault.maxWithdraw(alice);
+        vm.prank(alice);
+        vault.withdraw(mw, alice, alice); // what's left of idle: also inside the max
+    }
+
+    /// The keeper's routed forced exit works; the empty-route forced exit still reverts clearly.
+    function test_A01_forcedExit_worksWithRouteOnlyHedger() public {
+        _hedgeViaFlow();
+        int256 size0 = vault.hedgeState().perpSize;
         vm.prank(keeper);
+        vm.expectRevert(IKuruHedger.SlippageExceeded.selector);
         vault.exitHedge();
-        assertLt(uint256(-vault.hedgeState().perpSize), 206_897e18);
+        vm.prank(keeper);
+        vault.exitHedgeWithRoute(FLOW);
+        assertGt(vault.hedgeState().perpSize, size0, "short reduced");
+        assertFalse(vault.entered());
+    }
+
+    /// The Safe can force a hedged vault flat through a route, in one call, while entered.
+    function test_A01_emergencyUnwind_flattensHedgedVault() public {
+        _hedgeViaFlow();
+        assertTrue(vault.entered());
+        uint256 nav0 = vault.totalAssets();
+        vm.prank(owner);
+        vault.emergencyUnwind(type(uint256).max, FLOW);
+        HedgeState memory h = vault.hedgeState();
+        assertEq(h.perpSize, 0, "perp flat");
+        assertLt(h.spotBase, 100e18, "spot sold (< 1 lot)");
+        assertLt(ch.getAccount(address(vault)).collateral, 1e12, "collateral back in the vault (< 1 token unit)");
+        assertFalse(vault.entered());
+        assertApproxEqRel(vault.totalAssets(), nav0, 0.003e18, "NAV kept, minus the unwind cost");
+        // everyone can now leave through the sync path
+        uint256 bobShares = vault.balanceOf(bob);
+        assertEq(vault.maxRedeem(bob), bobShares, "all of bob's shares are redeemable from idle");
+        vm.prank(bob);
+        vault.redeem(bobShares, bob, bob);
     }
 }
 

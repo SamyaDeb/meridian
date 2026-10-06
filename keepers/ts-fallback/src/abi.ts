@@ -29,6 +29,12 @@ export const meridianVaultAbi = parseAbi([
   "function rebalanceWithRoute(bytes spotRoute) returns (uint8 reason)",
   "function hedger() view returns (address)",
   "function sharePrice() view returns (uint256)",
+  // CR-014 (interfaces-v1.7): the fulfil loop (src/redeem.ts)
+  "function fulfillRedeems(uint256[] ids, bytes spotRoute)",
+  "function previewFulfill(uint256[] ids) view returns (uint256 assets, uint256 spotToSell)",
+  "event RedeemRequested(uint256 indexed id, address indexed owner, address receiver, uint256 shares)",
+  "event RedeemCancelled(uint256 indexed id)",
+  "event RedeemFulfilled(uint256 indexed id, uint256 assets, uint256 unwindCost)",
 ]);
 
 // IKuruHedger (CR-002): the vault's spot leg; the keeper decodes its calls from a trace and reads its wiring.

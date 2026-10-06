@@ -42,6 +42,8 @@ export const CONTRACTS = [
     events: [
       "Deposit", "Withdraw", "Transfer", "Rebalanced", "HedgeExited", "HedgeEntered", "NavSnapshot",
       "VaultParamsUpdated", "KeeperUpdated",
+      // CR-014 (interfaces-v1.7): async withdrawals + emergency unwind
+      "RedeemRequested", "RedeemCancelled", "RedeemFulfilled", "RedeemClaimed", "EmergencyUnwind",
     ],
   },
   { name: "OracleAdapter", abi: "IOracleAdapter", events: ["PriceUpdated", "DeviationGuardTripped", "OracleParamsUpdated"] },

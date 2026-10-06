@@ -142,7 +142,9 @@ export function parseQuote(resp: unknown, entrypoint: Address): FlowRoute {
   if (!isObj(b)) throw new Error("Kuru quote: no buildResponse");
   const tx = isObj(pick(b, ["transaction", "tx", "request"])) ? (pick(b, ["transaction", "tx", "request"]) as Obj) : b;
   const to = pick(tx, ["to", "target", "destination"]);
-  const data = pick(tx, ["data", "calldata", "input"]);
+  // the live API (recorded 7 Oct 2026, test/fixtures/kuru-quote.live-buy.json) returns `calldata` WITHOUT 0x
+  const raw = pick(tx, ["data", "calldata", "input"]);
+  const data = typeof raw === "string" && /^[0-9a-fA-F]+$/.test(raw) ? `0x${raw}` : raw;
   const value = pick(tx, ["value"]);
   if (typeof to !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error("Kuru quote: missing transaction target");
   if (getAddress(to) !== getAddress(entrypoint)) {

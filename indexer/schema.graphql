@@ -21,6 +21,14 @@ enum OracleSource {
   Secondary
 }
 
+# CR-014 vault v2 queue (IMeridianVault.RedeemStatus)
+enum RedeemStatus {
+  Pending
+  Claimable
+  Claimed
+  Cancelled
+}
+
 enum RebalanceReason {
   None
   Deploy
@@ -300,7 +308,30 @@ type Vault {
   apy7dWad: BigInt
   params: Json
   keepers: [String!]!
+  # CR-014: shares escrowed by Pending requests (still in totalShares) and AUSD owed to Claimable ones (not in NAV)
+  pendingRedeemShares: BigInt!
+  claimableToken: BigInt!
+  emergencyUnwinds: Int!
   snapshots: [VaultSnapshot!]! @derivedFrom(field: "vault")
+}
+
+# One per redemption request (CR-014). id = "<vault>-<requestId>". assets / unwindCost are set at fulfilment.
+type VaultRedeemRequest @index(fields: ["vault", "owner"]) @index(fields: ["vault", "status"]) {
+  id: ID!
+  vault: String!
+  requestId: BigInt!
+  owner: String!
+  receiver: String!
+  shares: BigInt! # 18 dp, escrowed at request
+  status: RedeemStatus!
+  assets: BigInt # AUSD 6 dp, fixed at fulfilment (paid by claimRedeem)
+  unwindCost: BigInt # this request's share of the batch's unwind cost, AUSD 6 dp
+  requestedBlock: BigInt!
+  requestedAt: BigInt!
+  fulfilledBlock: BigInt
+  claimedBlock: BigInt
+  updatedBlock: BigInt!
+  txHash: String! # of the request
 }
 
 # One per NavSnapshot.

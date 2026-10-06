@@ -61,6 +61,11 @@ contracts:
       - event: NavSnapshot
       - event: VaultParamsUpdated
       - event: KeeperUpdated
+      - event: RedeemRequested
+      - event: RedeemCancelled
+      - event: RedeemFulfilled
+      - event: RedeemClaimed
+      - event: EmergencyUnwind
   - name: OracleAdapter
     abi_file_path: ../abis/IOracleAdapter.json
     events:

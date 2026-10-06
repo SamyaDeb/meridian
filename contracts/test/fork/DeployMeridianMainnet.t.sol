@@ -95,6 +95,7 @@ contract DeployMeridianMainnetForkTest is Test {
         assertTrue(v.isKeeper(keeper));
         assertEq(v.skewProviders(0), mm);
         assertEq(KuruHedger(payable(d.hedger)).vault(), d.vault, "hedger wired once");
+        assertEq(KuruHedger(payable(d.hedger)).kuruMarket(), address(0), "Flow routes only (Found #25)");
         assertEq(v.vaultParams().depositCap, 1200e6, "PHASES decision 12");
         assertEq(v.vaultParams().skewCapacity, 0, "idle launch (PHASES decision 17)");
         assertEq(v.shortCapacity(), 0, "idle vault cannot hedge");

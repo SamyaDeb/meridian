@@ -15,7 +15,7 @@ contract OracleAdapterForkTest is Test {
 
     function test_fork_realFeeds() public {
         string memory rpc = vm.envOr("MONAD_RPC_URL", string(""));
-        if (bytes(rpc).length == 0) return;
+        if (bytes(rpc).length == 0) vm.skip(true); // no MONAD_RPC_URL: SKIPPED, not a silent PASS
         vm.createSelectFork(rpc);
 
         assertEq(CL_MON_USD.decimals(), 8, "chainlink decimals");
@@ -60,7 +60,7 @@ contract OracleAdapterForkTest is Test {
     /// market (stale ⇒ reduce-only) at that block although neither feed was broken.
     function test_fork_chosenParams_worstObservedDeviation() public {
         string memory rpc = vm.envOr("MONAD_RPC_URL", string(""));
-        if (bytes(rpc).length == 0) return;
+        if (bytes(rpc).length == 0) vm.skip(true); // no MONAD_RPC_URL: SKIPPED, not a silent PASS
         vm.createSelectFork(rpc, WORST_BLOCK);
         PythChainlinkOracleAdapter o = _adapter(STALENESS_143, DEVIATION_143);
         (bool ok, uint256 p,) = o.tryGetIndexPrice();
@@ -73,7 +73,7 @@ contract OracleAdapterForkTest is Test {
     /// Live head with the chosen parameters: usable whenever the sponsored price is ≤ 60 s old.
     function test_fork_chosenParams_head() public {
         string memory rpc = vm.envOr("MONAD_RPC_URL", string(""));
-        if (bytes(rpc).length == 0) return;
+        if (bytes(rpc).length == 0) vm.skip(true); // no MONAD_RPC_URL: SKIPPED, not a silent PASS
         vm.createSelectFork(rpc);
         PythChainlinkOracleAdapter o = _adapter(STALENESS_143, DEVIATION_143);
         IPythMinimal.Price memory px = PYTH.getPriceUnsafe(MON_USD);

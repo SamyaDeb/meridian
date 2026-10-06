@@ -55,6 +55,7 @@ import {
 import { DEFAULT_HERMES_URL, fetchHermesLatest } from "./hermes.js";
 import { type SourcedPrice, decimalToWad, encodeTestOracleUpdate, feedPoint, latestKeylessPrice } from "./pricesource.js";
 import { LiquidationLatency } from "./latency.js";
+import { FulfilRetry, MAX_BATCH, RedeemQueue, classifyFulfilError, fulfilRoutePlan, nextLogRange } from "./redeem.js";
 
 // ───────────────────────────── config ─────────────────────────────
 
@@ -92,6 +93,8 @@ const VAULT_ROUTE = env("VAULT_ROUTE") ?? "direct";
 const KURU_FLOW_HAIRCUT_BPS = BigInt(env("KURU_FLOW_HAIRCUT_BPS") ?? "10"); // quote 0.1% under the vault's amount
 const KURU_FLOW_SLIPPAGE_BPS = Number(env("KURU_FLOW_SLIPPAGE_BPS") ?? "50"); // advisory; the vault's minOut binds
 const VAULT_EVERY_BLOCKS = BigInt(env("VAULT_EVERY_BLOCKS") ?? "20");
+// Vault v2 fulfil loop (CR-014, src/redeem.ts): on by default when the record has a vault. VAULT_FULFIL=0 disables.
+const VAULT_FULFIL = env("VAULT_FULFIL") !== "0";
 
 const MAX_FUNDING_GAP_BLOCKS = BigInt(env("MAX_FUNDING_GAP_BLOCKS") ?? "20"); // WS-03 acceptance
 // Blocks between reading a block and our tx landing. Default per chain (decide.ts defaultInclusionLag): 6 on
@@ -125,6 +128,10 @@ interface Deployments {
   /** Oracle of the main market (DeployMeridian); absent on anvil (mock oracle). */
   oracleKind?: OracleKind;
   contracts: MarketDeployment & { MeridianVault?: Address; FundingSwapMarket?: Address; SwapOrderBook?: Address };
+  /** Contracts that are labelled mocks on this chain (10143: AUSD, and the vault's KuruHedger after DeployVaultV2). */
+  mockContracts?: string[];
+  /** Block the vault was deployed at (DeployVaultV2); the queue log scan starts there. */
+  vaultStartBlock?: number;
   /** MON-PERP-DEMO: separate OB + CH with a keeper-fed test oracle, used only for the crash/liquidation demo. */
   demoMarket?: MarketDeployment & { symbol: string; testMarket: true; oracleKind: OracleKind };
 }
@@ -151,6 +158,10 @@ const SWAP_LIQ_MAX_SIZE = env("SWAP_LIQ_MAX_SIZE_WAD") === undefined ? maxUint25
 const SCAN_EVENTS = [...clearingHouseAbi, ...oracleAdapterAbi, ...fundingSwapAbi].filter(
   (x): x is Extract<(typeof clearingHouseAbi)[number] | (typeof oracleAdapterAbi)[number] | (typeof fundingSwapAbi)[number], { type: "event" }> =>
     x.type === "event",
+);
+const REDEEM_EVENTS = meridianVaultAbi.filter(
+  (x): x is Extract<(typeof meridianVaultAbi)[number], { type: "event" }> =>
+    x.type === "event" && (x.name === "RedeemRequested" || x.name === "RedeemCancelled" || x.name === "RedeemFulfilled"),
 );
 const SCAN_ADDRESSES: Address[] = SWAP === undefined ? [CH, ORACLE] : [CH, ORACLE, SWAP];
 
@@ -189,6 +200,12 @@ const health = {
   pythPushes: 0,
   feedPushes: 0,
   vaultRebalances: 0,
+  // CR-014 fulfil loop
+  pendingRedeems: 0,
+  oldestPendingBlocks: 0n,
+  redeemFulfils: 0,
+  redeemFulfilFailures: 0,
+  redeemScannedTo: -1n,
   lastFeedSource: "",
   openPositions: 0,
   liquidationLatency: new LiquidationLatency().summary(),
@@ -549,6 +566,63 @@ async function maturityStep(): Promise<void> {
   }
 }
 
+const redeemQueue = new RedeemQueue();
+const fulfilRetry = new FulfilRetry();
+let redeemScannedTo = -1n;
+const REDEEM_SPANS_PER_TICK = 5n; // catch-up bound per tick (LOG_SPAN each)
+
+/** Vault queue: scan RedeemRequested / Cancelled / Fulfilled (bounded spans), then fulfil the oldest ≤ 32 ids. */
+async function redeemStep(block: bigint): Promise<void> {
+  const v = dep.contracts.MeridianVault;
+  if (!VAULT_FULFIL || MARKET !== "main" || v === undefined) return;
+  if (redeemScannedTo < 0n) redeemScannedTo = BigInt(dep.vaultStartBlock ?? dep.startBlock) - 1n;
+  for (let i = 0n; i < REDEEM_SPANS_PER_TICK; i++) {
+    const r = nextLogRange(redeemScannedTo, block, LOG_SPAN);
+    if (r === null) break;
+    const logs = await pub.getLogs({ address: v, events: REDEEM_EVENTS, fromBlock: r.from, toBlock: r.to });
+    for (const l of logs) {
+      if (l.eventName === "RedeemRequested") redeemQueue.requested(l.args.id as bigint, l.blockNumber as bigint);
+      else redeemQueue.done(l.args.id as bigint);
+    }
+    redeemScannedTo = r.to;
+  }
+  health.redeemScannedTo = redeemScannedTo;
+  health.pendingRedeems = redeemQueue.size;
+  health.oldestPendingBlocks = redeemQueue.oldestPendingBlocks(block);
+  // act only once the scan has caught up (an older span may hold a cancel for an id we'd send)
+  if (redeemQueue.size === 0 || redeemScannedTo < block) return;
+  const ids = redeemQueue.batch(MAX_BATCH);
+  try {
+    const [, spotToSell] = await pub.readContract({ address: v, abi: meridianVaultAbi, functionName: "previewFulfill", args: [ids] });
+    const plan = fulfilRoutePlan({
+      chainId: CHAIN_ID,
+      spotToSell,
+      haircutBps: KURU_FLOW_HAIRCUT_BPS,
+      mockHedger: dep.mockContracts?.includes("KuruHedger") ?? false,
+    });
+    let route: Hex = "0x";
+    if (plan.kind === "quote") {
+      const w = await hedgerWiringFor(v);
+      flow ??= new FlowClient(fetch as never, w.hedger, { staticJwt: env("KURU_FLOW_JWT"), apiKey: env("KURU_API_KEY") });
+      const q = await flow.quote(quoteRequest({ hedger: w.hedger, tokenIn: w.base, tokenOut: w.quote, amountIn: plan.amountIn, slippageBps: KURU_FLOW_SLIPPAGE_BPS }));
+      route = parseQuote(q, w.entry).data;
+    }
+    const data = encodeFunctionData({ abi: meridianVaultAbi, functionName: "fulfillRedeems", args: [ids, route] });
+    const landed = await send(`vault fulfillRedeems (${ids.length} ids, ${plan.kind === "quote" ? "flow route" : plan.reason})`, v, data);
+    if (landed === null) throw new Error("fulfillRedeems: tx reverted");
+    for (const id of ids) redeemQueue.done(id); // the RedeemFulfilled logs confirm it on the next scan
+    fulfilRetry.ok();
+    health.redeemFulfils++;
+  } catch (e) {
+    const kind = classifyFulfilError(e);
+    health.redeemFulfilFailures++;
+    if (fulfilRetry.failed(kind)) {
+      alert("vault fulfil failing", { consecutive: fulfilRetry.consecutiveFailures, kind, ids: ids.length, oldestPendingBlocks: health.oldestPendingBlocks });
+    }
+    throw e; // logged by tick(); a route failure retries next tick with a fresh quote
+  }
+}
+
 async function vaultStep(block: bigint): Promise<void> {
   const v = dep.contracts.MeridianVault;
   if (!VAULT_REBALANCE || MARKET !== "main" || v === undefined) return;
@@ -569,8 +643,7 @@ async function vaultStep(block: bigint): Promise<void> {
 let flow: FlowClient | undefined;
 let hedgerWiring: { hedger: Address; entry: Address; base: Address; quote: Address } | undefined;
 
-/** rebalanceWithRoute calldata: the vault's exact spot amount from a trace, a Kuru Flow quote for it (− haircut). */
-async function flowRebalanceData(v: Address): Promise<Hex> {
+async function hedgerWiringFor(v: Address): Promise<{ hedger: Address; entry: Address; base: Address; quote: Address }> {
   if (hedgerWiring === undefined) {
     const hedger = await pub.readContract({ address: v, abi: meridianVaultAbi, functionName: "hedger" });
     const [entry, base, quote] = await Promise.all([
@@ -580,7 +653,12 @@ async function flowRebalanceData(v: Address): Promise<Hex> {
     ]);
     hedgerWiring = { hedger, entry, base, quote };
   }
-  const w = hedgerWiring;
+  return hedgerWiring;
+}
+
+/** rebalanceWithRoute calldata: the vault's exact spot amount from a trace, a Kuru Flow quote for it (− haircut). */
+async function flowRebalanceData(v: Address): Promise<Hex> {
+  const w = await hedgerWiringFor(v);
   flow ??= new FlowClient(fetch as never, w.hedger, { staticJwt: env("KURU_FLOW_JWT"), apiKey: env("KURU_API_KEY") });
   const probe = encodeFunctionData({ abi: meridianVaultAbi, functionName: "rebalanceWithRoute", args: ["0x00"] });
   const trace = (await pub.request({
@@ -628,6 +706,7 @@ async function tick(block: bigint): Promise<void> {
       ["swap liquidation", () => (scannedTo >= block ? swapLiquidationStep(block) : Promise.resolve())],
       ["maturity", () => maturityStep()],
       ["clock", () => (SWAP !== undefined && (clockReadBlock < 0n || block - clockReadBlock >= CLOCK_EVERY_BLOCKS) ? readClock(block) : Promise.resolve())],
+      ["vault fulfil", () => redeemStep(block)],
       ["vault", () => vaultStep(block)],
     ];
     for (const [name, fn] of steps) await fn().catch((e: unknown) => fail(name, e));

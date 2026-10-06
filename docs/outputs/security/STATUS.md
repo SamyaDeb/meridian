@@ -22,10 +22,19 @@ Branch `ws-00i-phase1-merge` (nothing pushed). Reviews: [review-A.md](review-A.m
 | A-16 `maxDeviationWad` unset | Info | Closed: 3% (+ `maxStalenessSec` 60 s) in `config/143.json` | `7a8d7ed`, `62e7c12` | `OracleAdapterFork.t.sol: test_fork_chosenParams_worstObservedDeviation` (needs RPC), `DeployMeridianMainnet.t.sol` |
 | A-17 unused bool parameter | Info | Fixed | `7dd2bd5` | compile |
 
+## Vault v2 (CR-014, HARDENING_PLAN P5, 7 Oct 2026; branch `ws-04c-vault-v2`, not pushed)
+
+| ID | Sev | Status | Fix (commit) | Tests proving it |
+|---|---|---|---|---|
+| **A-01** vault withdraw / forced-exit route | High | **Closed** (hedged mode). Withdrawals beyond idle are a request the keeper fulfils **with a route**; the sync path is idle-only and never unwinds; the keeper has `exitHedgeWithRoute`; the owner/Safe has `emergencyUnwind(maxBase, route)`; the 143 hedger is deployed Flow-only (`kuruMarket = 0`) so an empty route fails loudly. | `fe58160` (CR-014), `f0922a4`, `790f2a4` (DeployVaultV2) | **Fork proof (real Kuru Flow routes, 143 fork @ 111,116,022):** `test/fork/VaultV2Fork.t.sol: test_fork_A01_hedgedVault_requestFulfilClaim_realFlowRoutes` (hedged through a real route; bob's 400 AUSD beyond 241.55 idle fulfilled with a real sell route, paid 399.27) and `test_fork_A01_emergencyUnwind_realFlowRoute` (flat in one call). Ungated acceptance tests `test/review/ReviewA.t.sol`: `test_A01_requestFulfilClaim_beyondIdle_withRoute`, `test_A01_syncRedeemBeyondIdle_isCappedNotReverting`, `test_A01_forcedExit_worksWithRouteOnlyHedger`, `test_A01_emergencyUnwind_flattensHedgedVault` (were red: `NothingToDo` / not capped). |
+| A-07 tiny redeem unwinds everything | Low | **Closed.** The sync path can't unwind; `fulfillRedeems` refuses (`SlippageExceeded`) when perp equity ≤ 0 instead of `f = WAD`, and never socializes a cost ≥ the batch payout. | `f0922a4` | `MeridianVaultQueue.t.sol: test_fulfil_perpEquityNonPositive_revertsNoFullUnwind`, `test_fulfil_beyondIdle_unwindsAndChargesBatch`; fuzz `testFuzz_fulfilMovesNonRedeemersWithinSlippage` |
+| A-09 compromised keeper repeats forced calls | Low | **Mitigated.** ≥ 10 blocks (`MIN_FORCED_INTERVAL_BLOCKS`) between a rebalance and any forced keeper call; revoke via `setKeeper` (RUNBOOK §9b). A per-hour slippage budget is not implemented. | `f0922a4` | `test_cooldown_forcedPaths`, `test_emergencyUnwind_partialThenFull_noCooldown` |
+| A-11 max* may revert | Info | **Closed.** `maxWithdraw` / `maxRedeem` are capped at idleFree and the sync path never unwinds, so they never revert inside the max. | `f0922a4` | `test_sync_hedged_maxCappedAtIdleFree`, `test_A01_syncRedeemBeyondIdle_isCappedNotReverting`, fuzz `testFuzz_syncMaxNeverRevertsNorSpendsClaimable`, invariant `invariant_syncPathIdleOnly` |
+| A-13 route amount vs onchain amount | Info | Mitigated for fulfils: `previewFulfill(ids)` gives the exact base the batch sells (the fork test asserts it equals the actual call); the keeper quotes it minus a haircut and re-quotes on failure. | `fe58160`, `3850348` | `test_fork_vaultV2_probeAmounts`, `test_fulfil_beyondIdle_unwindsAndChargesBatch` |
+
 ## Still open
 
 | ID | Sev | Note |
 |---|---|---|
-| A-01 (hedged mode) | High for a hedged mainnet vault | Needs CR-010 (interface v1.6) or a verified live direct market; post-launch |
-| A-07 … A-09, A-11 … A-13 | Low / Info | As in review-A.md (A-09 cooldown and A-11 are vault-hedging items, moot while idle) |
+| A-08, A-12 | Low / Info | As in review-A.md (A-08 skew-rule griefing is keeper-side; A-12 oracle stale / empty book ⇒ only idle is withdrawable, now also the queue waits) |
 | B-03 … B-15 | Low / Info | As in review-B.md (not re-triaged in Phase 1) |

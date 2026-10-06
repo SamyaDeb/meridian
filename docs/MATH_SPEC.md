@@ -268,6 +268,34 @@ Both legs at the same index ⇒ NAV is price-neutral when hedged and cannot be m
 ### 5.5 Worked example
 D = 10,000, L = 1.5, P = 0.029: N = 6,000 AUSD → ≈ 206,897 MON spot; M = 4,000; short 206,897 MON (if shortCapacity allows, e.g. other traders net long ≥ 258,621 MON). At 10.95% floor funding: 6,000 × 10.95% ≈ 657 AUSD/yr ≈ 6.6% on D. Round trip (open + close) ≈ 2 × 0.15% × 6,000 = 18 AUSD ≈ 10 days of yield (657/365 = 1.8 AUSD/day) ⇒ the 7-day entry test fails at the bare 10.95% floor; it needs ≈ 15.6%, i.e. premium adding ≈ 4.7 APR points. That is intentional: the vault only works when the market pays.
 
+### 5.6 Withdrawals (v2) *(amended 7 Oct 2026, CR-014, PHASES 39; audit A-01 / A-07 / A-09 / A-11)*
+```
+claimable   = Σ assets of Claimable requests                 // AUSD token units, held by the vault
+idleFree    = max(0, idle − claimable)                       // every idle read uses this (NAV, deploy budget,
+                                                             //   margin top-up, drift buys, maxDeposit)
+totalAssets = NAV(§5.4 with idleFree) = NAV − claimable      // claimable AUSD is owed, not owned (I8)
+deployCash  = idleFree − buffer − convertToAssets(pendingRedeemShares)  ↑ reserve   // a rebalance never deploys
+                                                             //   what the next fulfil pays (8 Oct, Found #24)
+
+sync path (withdraw / redeem): idle-only
+  maxWithdraw(o) = min(previewRedeem(balance(o)), idleFree)
+  maxRedeem(o)   = min(balance(o), convertToShares(⌊idleFree / (1 − fee)⌋))   ↓ ⇒ previewRedeem(maxRedeem) ≤ idleFree
+  never unwinds, so it never reverts inside the max and never touches a route.
+
+async path: requestRedeem(s) → fulfillRedeems(ids, route) → claimRedeem(id)
+  request:  s shares move owner → vault (escrow; still in totalSupply ⇒ priced at fulfilment);
+            refused if previewRedeem(s) > maxSliceAssets (one request ≤ one slice).
+  fulfil:   S = Σ shares of the Pending ids in the batch (≤ MAX_BATCH; others skipped)
+            gross = previewRedeem(S)                                       ↓ (5 bps fee stays with the holders)
+            if idleFree < gross:  refuse if perpEquity ≤ 0 (A-07)
+                f = min(1, (gross − idleFree)·1.02 / (NAV − idleFree))     ↑
+                unwind f of both legs through the keeper's route (perp reduce-only at ≤ I(1+s), spot ≥ I(1−s))
+                cost = NAV_before − NAV_after;  refuse if cost ≥ gross or idleFree_after < gross − cost
+            net = gross − cost;  burn S (exact);  assets_i = ⌊net·s_i / S⌋ ↓;  claimable += Σ assets_i
+  claim:    pay assets_i to the receiver (pull); claimable −= assets_i
+```
+The batch bears its own unwind cost and the fee; the dust of the per-id floors stays with the remaining holders, so a fulfilment never lowers their share price (I8) and moves it up by at most the fee + slippage (`testFuzz_fulfilMovesNonRedeemersWithinSlippage`). Forced keeper paths (`enterHedge`, `exitHedge`, `exitHedgeWithRoute`) need ≥ `MIN_FORCED_INTERVAL_BLOCKS` = 10 blocks since the last rebalance (A-09); the rule path (`rebalance*`) keeps its own gating; the owner's `emergencyUnwind(maxBase, route)` buys back ⌊maxBase⌋ lots of the short (≤ its size), sells the same spot, withdraws the collateral when flat and clears the entered state (no cooldown). `hedgeState().idleAssets` reports idleFree.
+
 ## 6. Funding swaps (fixed-for-floating, one maturity): the "fix it" layer
 *(PT/YT is deferred to post-hackathon. Its interfaces live in `contracts/src/interfaces/deferred/`.)*
 
@@ -337,10 +365,10 @@ The book price is the APR itself (p − 1), simple (non-compounded) APR. UI show
 | I5 Rate bounds | `|r| ≤ cap` always; `|r_b − r_prev| ≤ δ·n` (except the update right after an admin lowers cap) |
 | I6 Book integrity | bestBid < bestAsk when both exist; level.totalLots = Σ orders; bitmap bit ⇔ level non-empty |
 | I7 Margin reservation | Σ reserved(maker) = Σ open-order reservations |
-| I8 Vault shares | `convertToAssets(totalSupply) ≤ totalAssets()`; share price never decreases from deposit/withdraw alone |
+| I8 Vault shares | `convertToAssets(totalSupply) ≤ totalAssets()`; share price never decreases from deposit/withdraw alone. *(CR-014)* `totalAssets` excludes `claimableAssets`, which the vault's AUSD balance always covers; a fulfil never lowers the remaining holders' share price; escrowed shares = the vault's own share balance |
 | I9 Swaps | `Σq == 0` and `ΣK == 0` (ghost sums); `longOI == shortOI`; Σ net accrual over settled swap accounts ≤ 0 and ≥ −#settlements wei; after maturity no account's accrual changes; equity ≥ 0 for all accounts in fuzz runs where the rate path respects cap/δ and liquidations run within liqHorizon |
 | I11 Oracle | G never decreases; `|F_b − F_a| ≤ cap·(G_b − G_a)/1e18` for any two checkpoints; checkpoint blocks strictly increasing around the ring; `averageFundingRate(w)` ∈ [−cap, cap] |
-| I10 No free money | any sequence of deposit→withdraw by one actor with no price move returns ≤ deposit |
+| I10 No free money | any sequence of deposit→withdraw by one actor with no price move returns ≤ deposit *(CR-014: also deposit → request → fulfil → claim)* |
 
 ## 8. References
 Web-verified 29 Sep: Shiller 1993 (J. Finance 48(3):911–931); He, Manela, Ross, von Wachter (arXiv 2212.06888); Ackerer, Hugonnier, Jermann (Mathematical Finance, doi 10.1111/mafi.70018; arXiv 2310.11771); Angeris, Chitra, Evans, Lorig (arXiv 2209.03307; SIAM J. Financial Math.); Schmeling, Schrimpf, Todorov (BIS WP 1087; Management Science); Mackinga, Nadahalli, Wattenhofer (IEEE ICBC 2022, "TWAP Oracle Attacks: Easier Done than Said?"). The others are standard references and were not re-checked this session; confirm venue/year in the write-up.

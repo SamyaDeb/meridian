@@ -12,7 +12,7 @@ interface IAUSD {
 contract AusdPermitTest is Test {
     function test_permit() public {
         string memory rpc = vm.envOr("MONAD_RPC_URL", string("")); // fork tests run only with MONAD_RPC_URL
-        if (bytes(rpc).length == 0) return;
+        if (bytes(rpc).length == 0) vm.skip(true); // no MONAD_RPC_URL: SKIPPED, not a silent PASS
         vm.createSelectFork(rpc);
         IAUSD a = IAUSD(0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a);
         (address owner, uint256 pk) = makeAddrAndKey("owner");

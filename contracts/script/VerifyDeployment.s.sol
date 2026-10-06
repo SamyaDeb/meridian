@@ -251,6 +251,7 @@ contract VerifyDeployment is DeployBase {
     function _vaultParamsCheck() internal {
         MeridianVault v = MeridianVault(x.vault);
         VaultParams memory vp = v.vaultParams();
+        if (_isVaultV2()) return _vaultV2Check(v, vp);
         _check(vp.depositCap == _vaultParams().depositCap, "vault depositCap == config");
         _check(vp.skewCapacity == 0, "vault skewCapacity == 0 (idle launch, decision 17)");
         _check(keccak256(abi.encode(vp)) == keccak256(abi.encode(_vaultParams())), "VaultParams == config (all fields)");
@@ -258,6 +259,39 @@ contract VerifyDeployment is DeployBase {
         _check(
             uint8(v.needsRebalance()) == uint8(IMeridianVault.RebalanceReason.None), "vault needsRebalance() == None"
         );
+    }
+
+    /// @dev CR-014 bytecode (DeployVaultV2) answers `claimableAssets()`; a v1 vault reverts.
+    function _isVaultV2() internal view returns (bool) {
+        try IMeridianVault(x.vault).claimableAssets() returns (uint256) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /// @dev Vault v2 at deploy (P5.3i): config params with the hedge off and the launch cap (Found #17), an empty
+    ///      queue, the A-09 cooldown, and on 143 a Flow-only hedger (no direct market: an empty route fails loudly).
+    function _vaultV2Check(MeridianVault v, VaultParams memory vp) internal {
+        VaultParams memory want = _vaultV2DeployParams();
+        _check(vp.skewCapacity == 0, "vault v2 skewCapacity == 0 at deploy (Found #17)");
+        _check(vp.depositCap == 1200e6, "vault v2 depositCap == 1,200 AUSD (decision 12)");
+        _check(keccak256(abi.encode(vp)) == keccak256(abi.encode(want)), "vault v2 params == config (hedge off, cap)");
+        _check(v.shortCapacity() == 0, "vault shortCapacity() == 0 (cannot hedge at deploy)");
+        _check(v.claimableAssets() == 0 && v.pendingRedeemShares() == 0, "vault v2 queue empty at deploy");
+        _check(v.MIN_FORCED_INTERVAL_BLOCKS() == 10, "vault v2 forced-path cooldown 10 blocks (A-09)");
+        _check(v.isKeeper(x.keeper), "vault v2 keeper registered");
+        if (_hedgerIsMock()) {
+            _check(block.chainid != MAINNET, "mock hedger only off mainnet");
+        } else {
+            _check(
+                KuruHedger(payable(x.hedger)).kuruMarket() == address(0), "hedger has no direct Kuru market (Flow only)"
+            );
+            _check(
+                KuruHedger(payable(x.hedger)).flowEntrypoint() == _optAddress(".kuru.flowEntrypoint"),
+                "hedger flowEntrypoint == config"
+            );
+        }
     }
 
     /// @dev Oracle params == config and a fresh live price. `pyth`: feed, Pyth contract and guard; `keeper-fed`
