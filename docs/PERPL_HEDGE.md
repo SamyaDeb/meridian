@@ -105,13 +105,15 @@ Verified on testnet, 7 Oct 2026:
 - **Market-data sockets do drop:** one capture was closed by the server with `1008 "ping timeout"` within 50 min; a probe socket went **silent for 70 s** and then died `1006` after 37 min. Both are why the MFI socket has a 15 s silence watchdog and reconnects (and why REST stays as the fallback).
 - **Collateral:** README lists testnet collateral `0xdf5b718d…c027` ("USD"), but `/v1/pub/context` on testnet returns token id 1 = **AUSD `0xa9012a055bd4e0edff8ce09f960291c09d5322dc`, 6 decimals**, `min_account_open_amount` 100 AUSD. The context endpoint is what the docs say to read at runtime; we follow it.
 
+- **Read-only trading session (8 Oct, hedge account 969):** signed sign-in accepted; snapshots arrive 19 → 23 → 26; heartbeats every block with `sn` = wallet-snapshot `sn` + 1; **no pings for 45 s and the socket stayed open** (the 10 s idle timeout applies before sign-in only, so the documented 30 s keep-alive is enough). Fixture `mm-bot/fixtures/recorded/testnet/trading-session.jsonl`, test `perpl-recorded.test.ts`. Signed REST `GET /v1/trading/{wallet,orders,positions,fills}` → 200.
+- **Account setup done by script (8 Oct):** test AUSD from Agora's testnet faucet `0xd236c18D274E54FAccC3dd9DDA4b27965a73ee6C` (`requestFunds(address)`, 10,000 per call, ≤ 1/min, ≤ 100,000 held; `token()` = Perpl's collateral), then Perpl's documented calls: `approve`, `createAccount(5,000 AUSD)` → account **969**, `allowOrderForwarding(true)`; API key enrolled with `mm-bot/scripts/perpl-enroll.ts` (integrations.md flow, no Origin header; Perpl's typed data carries integers as strings such as `chainId: "0x279f"`, which must be hashed as numbers or enroll answers 400).
+
 Open:
-- > VERIFY: whether a signed-in trading socket needs client frames inside the 10 s idle window (the docs' keep-alive is 30 s). Covered either way (auto-tighten), measured in the read-only session (K3.0).
 - > VERIFY (MFI.md §2 b): positive funding ⇒ longs pay. The optional funding bias stays off until a recorded settlement proves the sign.
 - > VERIFY: per-account fee tier `ft` on our hedge account (fees on `/v1/mfi/spread` are the base tier).
 
 ## 9. Owner setup (one time)
 1. New hedge wallet (not the MM key); ~1 testnet MON.
-2. testnet.perpl.xyz: connect, create the exchange account, deposit test collateral (≥ 100 AUSD to open; ~5,000 recommended), enable **One-Click Trading** (= `allowOrderForwarding(true)`).
-3. testnet.perpl.xyz/apikeys: key with **trade** scope ⇒ `PERPL_API_KEY`, `PERPL_API_KEY_SECRET` in the gitignored `.env`.
+2. Test AUSD: `requestFunds(<hedge wallet>)` on Agora's faucet `0xd236…ee6C` (any sender may pay the gas). Then on the Perpl exchange: `approve` + `createAccount(amount)` (≥ 100 AUSD; ~5,000 recommended) and `allowOrderForwarding(true)` (= the UI's **One-Click Trading**). The testnet.perpl.xyz UI does the same.
+3. API key with **trade** scope: testnet.perpl.xyz/apikeys, or `mm-bot/scripts/perpl-enroll.ts` ⇒ `PERPL_API_KEY`, `PERPL_API_KEY_SECRET` in the gitignored `.env`.
 4. MON for the MM, keeper and flow for the run (RUNBOOK §2b: ≈ 15 MON/h for all three).
