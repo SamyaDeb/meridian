@@ -78,7 +78,8 @@ export function useTx() {
         setStatus(`${label} ✓ (no transaction sent)`);
         pushNotification("info", `${label}: done locally, no transaction sent`);
       } else {
-        setStatus(`${label} ✓ block ${r.block} · gas ${r.gasUsed}/${r.gasLimit}`);
+        // a sponsored send lands inside the sponsor's bundle: its receipt gas is the bundle's, not this call's, and not paid by the user
+        setStatus(sponsored ? `${label} ✓ block ${r.block} · gas sponsored` : `${label} ✓ block ${r.block} · gas ${r.gasUsed}/${r.gasLimit}`);
         pushNotification("ok", `${label} confirmed in block ${r.block}`);
       }
       await qc.invalidateQueries();

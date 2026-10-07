@@ -19,6 +19,8 @@ test("Privy email → sponsored onboarding → first fill with 0 MON", async ({ 
   const email = process.env.PRIVY_TEST_EMAIL!;
   const otp = process.env.PRIVY_TEST_OTP!;
   const pub = createPublicClient({ chain: monadTestnet, transport: http(process.env.NEXT_PUBLIC_MONAD_TESTNET_RPC_URL) });
+  page.on("console", (m) => (m.type() === "error" || m.type() === "warning") && console.log(`[browser ${m.type()}] ${m.text().slice(0, 300)}`));
+  page.on("pageerror", (e) => console.log(`[pageerror] ${e.message.slice(0, 300)}`));
   await page.addInitScript(() => {
     (window as unknown as { __taps: number }).__taps = 0;
     document.addEventListener("click", (e) => e.isTrusted && ((window as unknown as { __taps: number }).__taps += 1), true);
@@ -33,8 +35,12 @@ test("Privy email → sponsored onboarding → first fill with 0 MON", async ({ 
   // Privy's modal (its own DOM: > VERIFY these selectors against the installed SDK if Privy changes the modal)
   await page.getByPlaceholder(/email/i).fill(email);
   await page.getByRole("button", { name: /submit/i }).click();
-  await page.waitForTimeout(1_500);
-  await page.keyboard.type(otp, { delay: 80 }); // the code inputs take focus and submit themselves
+  // the code screen: wait for its first input, focus it, type (the inputs advance and submit themselves)
+  const code = page.locator('input[autocomplete="one-time-code"], input[inputmode="numeric"]').first();
+  await code.waitFor({ state: "visible", timeout: 30_000 });
+  await page.screenshot({ path: `${SHOTS}/privy-otp.png` });
+  await code.click();
+  await page.keyboard.type(otp, { delay: 120 });
 
   // embedded wallet ready: the account pill shows its address
   const pill = page.getByRole("button", { name: "Account" });
@@ -50,22 +56,31 @@ test("Privy email → sponsored onboarding → first fill with 0 MON", async ({ 
     if (await tos.isVisible()) await tos.check();
     await cta.click();
     const sheet = page.getByRole("dialog", { name: "Setting up your account" });
-    for (const step of ["mint", "approve", "deposit"])
-      await expect(sheet.locator(`[data-step="${step}"]`)).toHaveAttribute("data-status", /done|skipped/, { timeout: 90_000 });
-    const links = await sheet.getByRole("link", { name: /View transaction/ }).evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href));
-    console.log(`[K1 privy] onboarding txs: ${links.join(" ")}`);
-    await page.screenshot({ path: `${SHOTS}/privy-onboard-sheet.png` });
+    // record each step's tx link while the sheet is open (it closes itself a moment after the deposit lands)
+    const links = new Set<string>();
+    for (const step of ["mint", "approve", "deposit"]) {
+      const li = sheet.locator(`[data-step="${step}"]`);
+      await expect(li).toHaveAttribute("data-status", /done|skipped/, { timeout: 120_000 });
+      for (const h of await li.getByRole("link").evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href))) links.add(`${step} ${h}`);
+      if (step === "deposit") await page.screenshot({ path: `${SHOTS}/privy-onboard-sheet.png` });
+    }
+    console.log(`[K1 privy] onboarding txs:\n  ${[...links].join("\n  ")}`);
     await expect(sheet).toBeHidden({ timeout: 15_000 });
   }
 
-  await expect(page.getByLabel("Size", { exact: true })).not.toHaveValue("", { timeout: 20_000 });
+  const size = page.getByLabel("Size", { exact: true });
+  if ((await size.inputValue()) === "") await size.fill("100"); // an already-funded test account gets no prefill: 1 lot
+  await expect(size).not.toHaveValue("", { timeout: 20_000 });
   await expect(cta).toHaveText(/^Market (long|short)$/, { timeout: 30_000 });
   await cta.click();
-  await expect(page.getByText(/market (long|short) \d+ lots confirmed in block/).first()).toBeVisible({ timeout: 60_000 });
+  const fill = page.getByText(/market (long|short) \d+ lots confirmed in block \d+/).first();
+  await expect(fill).toBeVisible({ timeout: 60_000 });
+  console.log(`[K1 privy] fill: ${await fill.textContent()}`);
   const ms = Date.now() - t0;
   const taps = await page.evaluate(() => (window as unknown as { __taps: number }).__taps);
   const monAfter = await pub.getBalance({ address });
-  console.log(`[K1 privy] taps ${taps} (Privy modal clicks included); time to first fill ${(ms / 1000).toFixed(1)} s; MON after: ${monAfter}`);
+  // two of the counted clicks are the test's own (focusing the code field, opening the account pill to read the address)
+  console.log(`[K1 privy] taps ${taps} (${taps - 2} by a user: Privy's Submit included, the test's 2 helper clicks excluded); time to first fill ${(ms / 1000).toFixed(1)} s; MON after: ${monAfter}`);
   await page.screenshot({ path: `${SHOTS}/privy-filled.png` });
   expect(monBefore).toBe(0n);
   expect(monAfter).toBe(0n);

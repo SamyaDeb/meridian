@@ -86,6 +86,11 @@ describe("firstTradeSizeMon", () => {
     // MON at 0.029: one lot (100 MON) = 2.9 AUSD ⇒ 17 lots = 1,700 MON ≈ 49.3 AUSD
     expect(firstTradeSizeMon(29n * 10n ** 15n, LOT)).toBe("1700");
   });
+  it("capped at what the book can fill (testnet MM quotes 5 lots a side); no depth ⇒ no prefill", () => {
+    expect(firstTradeSizeMon(29n * 10n ** 15n, LOT, 50n, 5n)).toBe("500");
+    expect(firstTradeSizeMon(29n * 10n ** 15n, LOT, 50n, 100n)).toBe("1700");
+    expect(firstTradeSizeMon(29n * 10n ** 15n, LOT, 50n, 0n)).toBeUndefined();
+  });
   it("at least one lot; no price ⇒ no prefill", () => {
     expect(firstTradeSizeMon(10n * WAD, LOT)).toBe("100");
     expect(firstTradeSizeMon(0n, LOT)).toBeUndefined();

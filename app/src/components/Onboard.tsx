@@ -80,7 +80,9 @@ export function useOnboarding({ onDone }: { onDone?: () => void } = {}) {
     });
   };
 
-  return { available, open, close: () => setOpen(false), state, result, busy: tx.busy, sponsored: tx.sponsored, start: () => start(false), retry: () => start(true) };
+  // ready = wagmi has a wallet client: right after Privy creates the embedded wallet there is a short gap without one, and a
+  // run started in it would stop before the first step (tx.run's "Connect first")
+  return { available, ready: tx.ready, status: tx.status, open, close: () => setOpen(false), state, result, busy: tx.busy, sponsored: tx.sponsored, start: () => start(false), retry: () => start(true) };
 }
 
 const ICON: Record<OnboardState[OnboardStep]["status"], string> = { todo: "○", skipped: "–", running: "…", done: "✓", failed: "!" };
@@ -88,13 +90,15 @@ const ICON: Record<OnboardState[OnboardStep]["status"], string> = { todo: "○",
 export function OnboardSheet({ o }: { o: ReturnType<typeof useOnboarding> }) {
   const explorer = readChain().chain.blockExplorers?.default.url;
   const failed = failedStep(o.state);
+  // the run stopped before any step (wallet not ready, terms cancelled, wrong network): say so and offer a retry
+  const stalled = !o.busy && o.result === null && !failed && ONBOARD_STEPS.every((k) => o.state[k].status === "todo") && Boolean(o.status);
   return (
     <Dialog
       open={o.open}
       onClose={o.close}
       title="Setting up your account"
       footer={
-        failed && !o.busy ? (
+        (failed || stalled) && !o.busy ? (
           <Button variant="brand" block size="lg" onClick={o.retry}>
             Retry from here
           </Button>
@@ -133,6 +137,11 @@ export function OnboardSheet({ o }: { o: ReturnType<typeof useOnboarding> }) {
           );
         })}
       </ol>
+      {stalled && (
+        <p role="alert" className="mt-3 text-sm text-warn">
+          {o.status}
+        </p>
+      )}
       {o.result === "ok" && (
         <p role="status" className="mt-3 text-sm text-long">
           You&apos;re funded. Pick long or short and place your first trade.

@@ -36,17 +36,19 @@ export function failedStep(s: OnboardState): OnboardStep | undefined {
 }
 
 /**
- * Size (in MON, whole lots) for the first-trade prefill: the lot count closest to `notionalAusd` at `priceWad`,
- * at least one lot. Returned as the ticket's MON input string.
+ * Size (in MON, whole lots) for the first-trade prefill: the lot count closest to `notionalAusd` at `priceWad`, at least
+ * one lot, and never more than `maxLots` (what the book can fill inside the ticket's slippage: a prefill the ticket would
+ * refuse is worse than a smaller one). `maxLots` = 0 ⇒ no prefill. Returned as the ticket's MON input string.
  */
-export function firstTradeSizeMon(priceWad: bigint, lotSizeWad: bigint, notionalAusd: bigint = FIRST_TRADE_NOTIONAL_AUSD): string | undefined {
-  if (priceWad <= 0n || lotSizeWad <= 0n) return undefined;
+export function firstTradeSizeMon(priceWad: bigint, lotSizeWad: bigint, notionalAusd: bigint = FIRST_TRADE_NOTIONAL_AUSD, maxLots?: bigint): string | undefined {
+  if (priceWad <= 0n || lotSizeWad <= 0n || maxLots === 0n) return undefined;
   const WAD = 10n ** 18n;
   const lotNotionalWad = (lotSizeWad * priceWad) / WAD; // display only, rounds down
   if (lotNotionalWad === 0n) return undefined;
   const target = notionalAusd * WAD;
   let lots = (target + lotNotionalWad / 2n) / lotNotionalWad; // nearest
   if (lots < 1n) lots = 1n;
+  if (maxLots !== undefined && lots > maxLots) lots = maxLots;
   return ((lots * lotSizeWad) / WAD).toString();
 }
 

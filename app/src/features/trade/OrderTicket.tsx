@@ -166,9 +166,18 @@ export function OrderTicket() {
   const noDeposit = isConnected && account === undefined;
   const sideLabel = isBid ? "long" : "short";
   // K1.4: on testnet / anvil a wallet with no deposit gets the one-tap faucet + deposit, then a prefilled ≈ $50 order
+  // lots the book can fill right now inside the chosen slippage (caps the first-trade prefill)
+  const depthLots = (() => {
+    if (!book || refPx === 0n) return undefined;
+    try {
+      return estimateFill(isBid ? book.asks : book.bids, 10n ** 9n, LOT, isBid, tickToPrice(slippageLimitTick(refPx, TICK, isBid, slip), TICK)).filledLots;
+    } catch {
+      return undefined;
+    }
+  })();
   const onboard = useOnboarding({
     onDone: () => {
-      const size = firstTradeSizeMon(refPx || mark, LOT);
+      const size = firstTradeSizeMon(refPx || mark, LOT, undefined, depthLots);
       setUnit("MON");
       if (size) setDraft({ kind: "market", sizeIn: size });
     },
@@ -179,7 +188,9 @@ export function OrderTicket() {
   const cta = !isConnected
     ? "Start trading"
     : onboarding
-      ? ONBOARD_CTA
+      ? onboard.ready
+        ? ONBOARD_CTA
+        : "Preparing your wallet…"
       : noDeposit
         ? "Deposit AUSD to trade"
         : (problem ?? `${kind === "market" ? "Market" : "Limit"} ${sideLabel}`);
@@ -353,7 +364,7 @@ export function OrderTicket() {
         variant={!isConnected || onboarding ? "brand" : isBid ? "long" : "short"}
         size="lg"
         block
-        disabled={(!isConnected && !startLogin) || tx.busy || onboard.busy || needsTos || (isConnected && !noDeposit && problem !== undefined)}
+        disabled={(!isConnected && !startLogin) || tx.busy || onboard.busy || needsTos || (onboarding && !onboard.ready) || (isConnected && !noDeposit && problem !== undefined)}
         loading={tx.busy || onboard.busy}
         onClick={submit}
         data-testid="place-order"
