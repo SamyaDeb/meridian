@@ -16,7 +16,7 @@ import { ALIGN_OFFSET_SEC, SOURCE_OF, TIMEFRAME_SEC, isOutside, type Bar, type P
 import { LightweightEngine } from "./engine/LightweightEngine";
 import type { ChartCoords, LineOverlay, PaneSpec, PriceLineSpec } from "./engine/types";
 import { estimateBlockTimeSec, wadToNum } from "./series";
-import { DEFAULT_VIEW, setView, useChartView } from "./store";
+import { DEFAULT_VIEW, adoptView, setView, useChartView } from "./store";
 import { DrawingLayer } from "./drawings/DrawingLayer";
 import { ChartToolbar } from "./chrome/ChartToolbar";
 import { ChartFooter, historyNote } from "./chrome/ChartFooter";
@@ -30,6 +30,7 @@ import { buildIndicators } from "./indicators/build";
 const LIMIT: Record<Timeframe, number> = { "1m": 500, "3m": 1_000, "5m": 1_500, "15m": 2_000, "30m": 2_000, "1h": 500, "2h": 1_000, "4h": 1_500, "6h": 2_000, "12h": 2_000, "1D": 2_000, "1W": 2_000 };
 const MARK_ROWS = 2_000; // FundingTick is one row per block: the most recent 2,000 blocks (~10 min at 300 ms)
 const INDEX_ROWS = 2_000; // OraclePrice is one row per oracle update
+const PLACEHOLDER_MARKET = "MON-PERP"; // view key until the market's address has loaded (adoptView carries choices over)
 const SOURCE_NAME: Record<PriceSource, string> = { last: "Last", mark: "Mark", index: "Index", reference: "Reference", perpl: "Reference" };
 /** Venue named in the legend for each source (outside venues by name, never "Meridian"). */
 const VENUE: Record<PriceSource, string> = { last: "Meridian", mark: "Meridian", index: "Meridian", reference: "Uniswap v4 · GeckoTerminal", perpl: PERPL_VENUE };
@@ -61,7 +62,8 @@ type Hover = { time: number; open: number; high: number; low: number; close: num
 export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceClick }: ChartCardProps) {
   const { data: m } = useMarket();
   const pm = usePerpMarket();
-  const market = m?.clearingHouse ?? pm.clearingHouse;
+  const market = m?.clearingHouse ?? pm.clearingHouse ?? PLACEHOLDER_MARKET;
+  useEffect(() => adoptView(PLACEHOLDER_MARKET, market), [market]);
   // the DEX reference is MON/USD: offered on MON-PERP only (K7)
   const refOk = REFERENCE_ENABLED && pm.primary;
   const storedView = useChartView(market);
@@ -256,6 +258,8 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
     if (q.isPending) return { title: "Loading", body: "" };
     return { title: view.source === "last" ? "No trades yet" : "No history yet", body: view.source === "last" ? "Candles appear with the first trade." : "Points appear as the indexer records them." };
   })();
+  // an empty Meridian chart offers the labelled Perpl reference as an explicit click (never a silent switch)
+  const offerPerpl = notice !== undefined && PERPL_ENABLED && !isOutside(view.source) && notice.title !== "Loading";
 
   return (
     <section
@@ -342,7 +346,25 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
           )}
           {notice && (
             <div className="pointer-events-none absolute inset-x-4 top-16 z-10">
-              <Notice tone="info" title={notice.title}>
+              <Notice
+                tone="info"
+                title={notice.title}
+                action={
+                  offerPerpl ? (
+                    <button
+                      type="button"
+                      data-testid="show-perpl"
+                      onClick={() => {
+                        setView(market, { source: "perpl" });
+                        setResetKey((k) => k + 1);
+                      }}
+                      className="pointer-events-auto rounded-control border border-border bg-card px-2.5 py-1 text-[12px] font-medium text-text hover:bg-card-2 pointer-coarse:min-h-11"
+                    >
+                      Show {PERPL_VENUE} (reference)
+                    </button>
+                  ) : undefined
+                }
+              >
                 {notice.body}
               </Notice>
             </div>

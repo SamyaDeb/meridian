@@ -49,3 +49,17 @@ for (const { w, h } of WIDTHS) {
     await expect(page.getByTestId("reference-label")).toHaveCount(0);
   });
 }
+
+test("an empty Meridian chart offers Perpl in one click, and an early choice survives the market loading", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/trade");
+  const show = page.getByTestId("show-perpl");
+  const offered = await show.waitFor({ state: "visible", timeout: 15_000 }).then(() => true, () => false);
+  test.skip(!offered, "Meridian's chart has data, or the flag is off");
+  await show.click();
+  await expect(page.getByTestId("ohlc-legend")).toContainText("Perpl MON-PERP · Monad mainnet", { timeout: 20_000 });
+  await expect(page.getByRole("region", { name: "Market" })).toContainText(/Index\s*0\.\d+/, { timeout: 30_000 });
+  await page.waitForTimeout(2_000); // after the market's address arrived, the source is still Perpl
+  await expect(page.getByTestId("reference-label")).toHaveText("Perpl MON-PERP · Monad mainnet · reference, not Meridian trades");
+  await page.screenshot({ path: `${SHOTS}/one-click-1440.png`, animations: "disabled" });
+});

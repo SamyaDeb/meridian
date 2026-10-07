@@ -53,6 +53,7 @@ export function parseView(raw: string | null, referenceEnabled = REFERENCE_ENABL
 const key = (market: string) => `meridian.chart.v2.${market.toLowerCase()}`; // v2: funding panes default off
 const memory = new Map<string, ChartView>();
 const listeners = new Set<() => void>();
+const changed = new Set<string>(); // markets whose view the viewer changed in this page session
 
 function read(market: string): ChartView {
   const cached = memory.get(market);
@@ -68,15 +69,30 @@ function read(market: string): ChartView {
   return v;
 }
 
+/** Current view of a market (for tests and non-React callers). */
+export const getView = (market: string): ChartView => read(market);
+
 export function setView(market: string, patch: Partial<ChartView>): void {
   const v = { ...read(market), ...patch };
   memory.set(market, v);
+  changed.add(market);
   try {
     globalThis.localStorage?.setItem(key(market), JSON.stringify(v));
   } catch {
     /* storage unavailable: the view lasts for this page session */
   }
   listeners.forEach((l) => l());
+}
+
+/**
+ * The chart keys its view by the market's address, which arrives only once the market has loaded; until then it uses a
+ * placeholder key. A choice made in that window (e.g. a price source picked right after opening the page) is carried
+ * over to the real key instead of being lost. No-op when nothing was changed under the placeholder.
+ */
+export function adoptView(from: string, to: string): void {
+  if (from === to || !changed.has(from)) return;
+  changed.delete(from);
+  setView(to, read(from));
 }
 
 const subscribe = (l: () => void) => {
