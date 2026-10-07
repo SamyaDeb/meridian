@@ -55,11 +55,11 @@ export async function recordMeridianHour(context: Ctx, market: string, ts: bigin
 
 /** Perpl MON funding event: its annualized rate becomes the hour's Perpl value. */
 export async function recordPerplHour(context: Ctx, perpId: bigint, ts: bigint, block: bigint, aprWad: bigint | undefined, feb: bigint) {
-  if (aprWad === undefined) return;
+  const ch = DEPLOYMENTS[context.chain.id]?.ClearingHouse;
+  if (aprWad === undefined || !ch) return; // a Perpl-only chain (mainnet) has no Meridian to compare with
   const row = await getRow(context, hourStart(ts));
   let { meridianMarket, meridianAprWad, meridianBlock } = row;
-  const ch = DEPLOYMENTS[context.chain.id]?.ClearingHouse;
-  if (meridianAprWad === undefined && ch) {
+  if (meridianAprWad === undefined) {
     const m = await context.Market.get(ch); // Meridian's latest trailing 1 h APR (no tick yet this hour)
     if (m?.realizedApr1hWad !== undefined) {
       meridianMarket = m.id;

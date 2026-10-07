@@ -140,6 +140,12 @@ describe("anvil E2E replay: every event type lands in the right entity", () => {
     for (const am of await indexer.AccountMarket.getAll()) {
       expect(am.fundingPaid, am.id).toBe(paid.get(lc(am.account_id)) ?? 0n);
     }
+    // and one FundingPayment row per event, summing to the same per-account totals
+    const rows = await indexer.FundingPayment.getAll();
+    expect(rows.length).toBe(of("ClearingHouse", "FundingSettled").length);
+    const sum = new Map<string, bigint>();
+    for (const r of rows) sum.set(lc(r.account), (sum.get(lc(r.account)) ?? 0n) + r.payment);
+    expect(sum).toEqual(paid);
   });
 
   it("funding is conserved (K2.1 property): Σ over accounts of paid + pending ≈ 0, within rounding per settlement", async () => {

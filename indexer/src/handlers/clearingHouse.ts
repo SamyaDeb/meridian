@@ -211,6 +211,16 @@ indexer.onEvent({ contract: "ClearingHouse", event: "FundingSettled", fields: FI
     lastCumFunding: cumFunding,
     updatedBlock: block,
   });
+  context.FundingPayment.set({
+    id: evId(event),
+    market: event.srcAddress,
+    account,
+    payment,
+    cumFunding,
+    block,
+    timestamp: tsOf(event),
+    txHash: event.transaction.hash,
+  });
 });
 
 indexer.onEvent({ contract: "ClearingHouse", event: "PositionChanged", fields: FIELDS }, async ({ event, context }) => {

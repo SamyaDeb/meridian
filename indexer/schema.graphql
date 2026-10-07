@@ -270,6 +270,19 @@ type AccountMarket @index(fields: ["market", "account"]) {
   updatedBlock: BigInt!
 }
 
+# One per ClearingHouse.FundingSettled (K2.4: the Positions funding tab reads an account's whole history here instead
+# of an RPC log window). payment > 0 = the account paid (INTERFACES §2.8), quote WAD.
+type FundingPayment @index(fields: ["account", ["block", "DESC"]]) {
+  id: ID! # "<block>-<logIndex>"
+  market: String!
+  account: String!
+  payment: BigInt!
+  cumFunding: BigInt! # F the account settled to
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
 type Liquidation @index(fields: ["account", ["block", "DESC"]]) {
   id: ID! # "<block>-<logIndex>"
   kind: BookKind!
