@@ -216,11 +216,16 @@ export function PositionsCard() {
       {tab === "funding" &&
         (disconnected ? (
           <EmptyState compact title="Not connected" body="Connect a wallet to see funding payments." />
-        ) : ds.kind !== "chain" ? (
+        ) : ds.kind !== "chain" && INDEXER_URL === undefined ? (
           <EmptyState compact title="Chain data only" body="Per-block funding payments are read from FundingSettled events on the chain; the sample data layer has none." />
         ) : (
           <>
-            {fund.data && <p className="mb-1 text-[11px] text-muted">FundingSettled events since block #{fund.data.fromBlock.toString()} (the app&apos;s log window). Older payments are in your cumulative funding.</p>}
+            {fund.data &&
+              (fund.data.source === "indexer" ? (
+                <p className="mb-1 text-[11px] text-muted">Every FundingSettled since launch, from the indexer (latest 500).</p>
+              ) : (
+                <p className="mb-1 text-[11px] text-muted">FundingSettled events since block #{fund.data.fromBlock.toString()} (the app&apos;s log window). Older payments are in your cumulative funding.</p>
+              ))}
             <DataTable caption="Funding payments" columns={fundCols} rows={fund.data?.items} rowKey={(f) => `${f.block}-${f.payment}`} empty={<EmptyState compact title="No funding settled in the window" body="Funding settles when your account is touched (trade, deposit, withdraw)." />} />
           </>
         ))}

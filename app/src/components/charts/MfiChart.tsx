@@ -5,8 +5,9 @@ import { SERIES, aprPct, fmtPct, fmtTime, lineModel, nearestIndex } from "./mode
 
 const H = 200;
 
-/** MFI vs its venues, one axis (APR %), crosshair tooltip, legend + end labels, table view. */
-export function MfiChart({ points }: { points: MfiPoint[] }) {
+/** MFI vs its venues, one axis (APR %), crosshair tooltip, legend + end labels, table view. `series` limits the lines
+ *  (the Rates page's indexer card shows Meridian vs Perpl only). */
+export function MfiChart({ points, series = SERIES }: { points: MfiPoint[]; series?: typeof SERIES }) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(358);
   const [hover, setHover] = useState<number | undefined>();
@@ -25,7 +26,7 @@ export function MfiChart({ points }: { points: MfiPoint[] }) {
       <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
         {/* the legend is hidden from assistive tech in table view (the table has its own headers); the toggle never is */}
         <span className="contents" aria-hidden={table}>
-          {SERIES.map((s) => (
+          {series.map((s) => (
             <span key={s.key} className="inline-flex items-center gap-1.5">
               <svg width="14" height="4" aria-hidden>
                 <rect width="14" height="4" rx="2" fill={s.color} />
@@ -39,7 +40,7 @@ export function MfiChart({ points }: { points: MfiPoint[] }) {
         </button>
       </div>
       {table || !m ? (
-        <MfiTable points={points} />
+        <MfiTable points={points} series={series} />
       ) : (
         <svg
           width={w}
@@ -62,13 +63,13 @@ export function MfiChart({ points }: { points: MfiPoint[] }) {
             </text>
           ))}
           {/* venues first, the index last so it stays on top where it overlaps a heavily weighted venue */}
-          {[...SERIES].reverse().map((s) => (
+          {[...series].reverse().map((s) => (
             <path key={s.key} d={m.paths[s.key]} fill="none" stroke={s.color} strokeWidth={s.key === "mfi" ? 2.5 : 2} strokeLinejoin="round" strokeLinecap="round" />
           ))}
           {hp && (
             <g>
               <line x1={m.x(hp.t)} x2={m.x(hp.t)} y1={10} y2={H - 22} stroke="var(--muted)" strokeWidth={1} />
-              {SERIES.map((s) => {
+              {series.map((s) => {
                 const v = hp[s.key];
                 return v === null ? null : <circle key={s.key} cx={m.x(hp.t)} cy={m.y(aprPct(v))} r={4} fill={s.color} stroke="var(--card)" strokeWidth={2} />;
               })}
@@ -79,7 +80,7 @@ export function MfiChart({ points }: { points: MfiPoint[] }) {
       {hp && !table && (
         <div role="status" className="num mt-1 flex flex-wrap gap-x-3 text-[11px] text-muted">
           <span>{fmtTime(hp.t)}</span>
-          {SERIES.map((s) => (
+          {series.map((s) => (
             <span key={s.key}>
               {s.label} <span className="text-text">{hp[s.key] === null ? "n/a" : fmtPct(aprPct(hp[s.key]!))}</span>
             </span>
@@ -90,7 +91,7 @@ export function MfiChart({ points }: { points: MfiPoint[] }) {
   );
 }
 
-export function MfiTable({ points }: { points: MfiPoint[] }) {
+export function MfiTable({ points, series = SERIES }: { points: MfiPoint[]; series?: typeof SERIES }) {
   const rows = points.slice(-12).reverse();
   return (
     <table className="num w-full text-left text-xs">
@@ -98,7 +99,7 @@ export function MfiTable({ points }: { points: MfiPoint[] }) {
       <thead className="text-muted">
         <tr>
           <th scope="col" className="py-1 font-normal">Time</th>
-          {SERIES.map((s) => (
+          {series.map((s) => (
             <th key={s.key} scope="col" className="py-1 text-right font-normal">{s.label}</th>
           ))}
         </tr>
@@ -107,7 +108,7 @@ export function MfiTable({ points }: { points: MfiPoint[] }) {
         {rows.map((p) => (
           <tr key={p.t} className="border-t border-border">
             <td className="py-1 text-muted">{fmtTime(p.t)}</td>
-            {SERIES.map((s) => (
+            {series.map((s) => (
               <td key={s.key} className="py-1 text-right">{p[s.key] === null ? "n/a" : fmtPct(aprPct(p[s.key]!))}</td>
             ))}
           </tr>

@@ -1,6 +1,7 @@
 "use client";
 import { useAccount } from "wagmi";
-import { useAccountAddress, useAccountView, useSwap } from "@/data/hooks";
+import { INDEXER_URL, useAccountAddress, useAccountView, usePortfolio, useSwap } from "@/data/hooks";
+import { sumTotals } from "@/data/indexer/portfolio";
 import { Row, toneOf } from "@/components/ui";
 import { Card, EmptyState, NumberCell } from "@/components/ds";
 import { Private } from "@/components/Private";
@@ -25,6 +26,8 @@ export default function PositionsPage() {
   const { isConnected } = useAccount();
   const { data: a } = useAccountView(me);
   const { data: swap } = useSwap(me);
+  const { data: pf } = usePortfolio(me);
+  const all = pf ? sumTotals(pf.markets) : undefined;
   const ratio = a ? marginRatioWad(a) : undefined;
   return (
     <div className="space-y-2">
@@ -39,6 +42,14 @@ export default function PositionsPage() {
         <Kpi label="Free collateral" sub={ratio !== undefined && a?.maintenanceMargin ? `margin ratio ${formatFixed(ratio * 100n, 18, 1)}%` : undefined}>{a ? <Private kind="balance">{formatAusdWad(freeCollateralWad(a))}</Private> : "—"}</Kpi>
       </div>
       {!isConnected && a === undefined && <p className="px-1 text-[11px] text-muted">Connect a wallet to see your account.</p>}
+      {INDEXER_URL !== undefined && isConnected && (
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4" data-testid="all-time">
+          <Kpi label="Realized PnL" sub="all time · indexer">{all ? <Private kind="pnl"><NumberCell value={all.realizedPnlWad} format={formatAusdWad} signed flash={false} /></Private> : "—"}</Kpi>
+          <Kpi label="Funding (settled)" sub="all time · + received">{all ? <Private kind="pnl"><NumberCell value={-all.fundingPaidWad} format={formatAusdWad} signed flash={false} /></Private> : "—"}</Kpi>
+          <Kpi label="Fees paid" sub="all time · rebates net">{all ? <Private kind="pnl">{formatAusdWad(all.feesPaidWad)}</Private> : "—"}</Kpi>
+          <Kpi label="Liquidations" sub="all time">{all ? all.liquidations : "—"}</Kpi>
+        </div>
+      )}
       <div className="h-[420px] lg:h-[460px]">
         <PositionsCard />
       </div>

@@ -7,6 +7,7 @@ import { formatAprWad, formatAusdToken, formatBaseWad, formatSignedAprWad } from
 import { histogram } from "@/lib/liqDistance";
 import { DEFAULT_MMR_WAD } from "@/lib/units";
 import { MfiCard } from "@/features/rates/MfiCard";
+import { CrossVenueCard } from "@/features/rates/CrossVenueCard";
 
 function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub?: string }) {
   return (
@@ -20,8 +21,9 @@ function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub
 
 /**
  * Rates & Risk (decision D3). Real sources only: the funding-rate oracle (chain)
- * for the APR table, the MFI service for the Meridian Funding Index (MfiCard), the indexer for liquidation distance and
- * the insurance fund. A missing source is an empty state, never simulated.
+ * for the APR table (realized windows from the indexer's FundingWindow when connected), the MFI service for the Meridian
+ * Funding Index (MfiCard), the indexer for Meridian vs Perpl funding (CrossVenueCard), liquidation distance and the
+ * insurance fund. A missing source is an empty state, never simulated.
  */
 export default function RatesPage() {
   const { data: m } = useMarket();
@@ -52,6 +54,7 @@ export default function RatesPage() {
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-2 lg:grid-cols-2">
         <MfiCard />
+        <CrossVenueCard />
 
         <Card title="Liquidation distance (open positions)">
           {INDEXER_URL === undefined ? (
