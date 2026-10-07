@@ -70,6 +70,14 @@
 | `OrderBookInvariant` (I6, I7) | 512 × 256 | 2/2 | 2,182 skips / 979 evictions |
 All suites also run at 256 × 128 inside the 499-test default run. Coverage CSVs: `contracts/bench-out/*invariant_coverage.csv`.
 
+## 10. Privy onboarding: first trade in 4 taps with 0 MON (K1)
+| Claim | Evidence |
+|---|---|
+| Landing → first filled market order in **4 taps** (Start trading, ToS checkbox, "Get 10,000 test AUSD & deposit 1,000", Market long), **19.6 s** | `app/e2e/onboarding-anvil.spec.ts` on a local anvil (DeployLocal + SmokeLocal, fresh dev account, Privy off): the spec counts trusted clicks and asserts ≤ 4 (7 Oct run: 4 taps, 19.6 s). With Privy the dev-account tap is Privy's login (email Submit + code entry inside the modal) |
+| Sponsored path routes only embedded wallets on 10143, gas limit = estimate × 1.2 on both paths, both check the receipt, a refused sponsorship never falls back to charging the user | `app/src/lib/{sponsor,tx}.test.ts` (unit, fake Privy sender + fake wallet) |
+| Retry is idempotent (no double mint / approve) | `app/src/lib/onboard.test.ts` |
+| Testnet run, fresh email, embedded wallet with **0 MON before and after** | ⏳ owner's manual run (or `app/e2e/onboarding-privy.spec.ts` with a Privy test account): mint `…`, approve `…`, deposit `…`, order `…`, taps …, time to first fill … s, explorer page of the wallet showing 0 MON |
+
 **Security reviews:** two internal cross-reviews (`docs/outputs/security/review-A.md`, `review-B.md`) plus the 6 Oct audit hardening; status per finding in `docs/outputs/security/STATUS.md`.
 
 **Not claimed (no evidence yet):** mainnet deployment, external users, fees, volume; B4 parallel-market load, B5 funding granularity from the indexer, B9 vault economics; the funding-swap demo on testnet (no swap market maker funded); liquidation ≤ 3 blocks on testnet.
