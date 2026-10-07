@@ -9,6 +9,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {DeployBase} from "./DeployBase.s.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {MeridianKeeperReceiver} from "../src/automation/MeridianKeeperReceiver.sol";
+import {MeridianMfiFeed} from "../src/oracle/MeridianMfiFeed.sol";
 import {IClearingHouse} from "../src/interfaces/IClearingHouse.sol";
 import {MeridianVault} from "../src/vault/MeridianVault.sol";
 
@@ -19,8 +20,10 @@ import {MeridianVault} from "../src/vault/MeridianVault.sol";
 ///            (production DON delivery) with CRE_FORWARDER_MODE=prod; owner = the record's owner;
 ///         2. fund its liquidation margin with `depositFor` in the main and (testnet) the demo ClearingHouse:
 ///            RECEIVER_MARGIN (AUSD token units, default 200e6 each). Testnet mints the mock tAUSD; 143 never mints;
-///         3. vault.setKeeper(receiver, true) when the deployer owns the vault (testnet), else print the owner tx.
-///         Record: `contracts.MeridianKeeperReceiver`, `creForwarder`, `creForwarderMode`, `receiverStartBlock`.
+///         3. vault.setKeeper(receiver, true) when the deployer owns the vault (testnet), else print the owner tx;
+///         4. (CR-016) deploy `MeridianMfiFeed(receiver)`: the onchain MFI, written by receiver action 6.
+///         Record: `contracts.MeridianKeeperReceiver`, `contracts.MeridianMfiFeed`, `creForwarder`, `creForwarderMode`,
+///         `receiverStartBlock`.
 ///   Dry-run: DEPLOYER_PK=… forge script script/DeployKeeperReceiver.s.sol --fork-url $MONAD_TESTNET_RPC_URL
 ///            (writes deployments/dry-run/keeper-receiver-<chainid>.json, labelled SIMULATION)
 ///   Deploy:  … --rpc-url $MONAD_TESTNET_RPC_URL --broadcast --slow
@@ -31,6 +34,7 @@ contract DeployKeeperReceiver is DeployBase {
 
     struct Out {
         address receiver;
+        address mfiFeed;
         address forwarder;
         string mode;
         uint256 marginMain;
@@ -65,6 +69,7 @@ contract DeployKeeperReceiver is DeployBase {
         o.startBlock = block.number;
         vm.startBroadcast(pk);
         o.receiver = address(new MeridianKeeperReceiver(o.forwarder, owner));
+        o.mfiFeed = address(new MeridianMfiFeed(o.receiver));
         if (margin != 0) {
             o.marginMain = _fund(ch, o.receiver, margin, deployer);
             if (demoCh != address(0)) o.marginDemo = _fund(demoCh, o.receiver, margin, deployer);
@@ -77,6 +82,7 @@ contract DeployKeeperReceiver is DeployBase {
 
         require(Ownable(o.receiver).owner() == owner, "receiver owner");
         require(MeridianKeeperReceiver(payable(o.receiver)).forwarder() == o.forwarder, "receiver forwarder");
+        require(MeridianMfiFeed(o.mfiFeed).receiver() == o.receiver, "feed receiver");
         _write(rec, o);
         _log(o, vault);
     }
@@ -105,6 +111,7 @@ contract DeployKeeperReceiver is DeployBase {
             vm.writeJson('"SIMULATION (forge script without --broadcast): addresses are not deployed"', path, "._label");
         }
         vm.writeJson(vm.toString(o.receiver), path, ".contracts.MeridianKeeperReceiver");
+        vm.writeJson(vm.toString(o.mfiFeed), path, ".contracts.MeridianMfiFeed");
         vm.writeJson(vm.toString(o.forwarder), path, ".creForwarder");
         vm.writeJson(string.concat('"', o.mode, '"'), path, ".creForwarderMode");
         vm.writeJson(vm.toString(o.startBlock), path, ".receiverStartBlock");
@@ -112,6 +119,7 @@ contract DeployKeeperReceiver is DeployBase {
 
     function _log(Out memory o, address vault) internal pure {
         console.log("MeridianKeeperReceiver", o.receiver);
+        console.log("MeridianMfiFeed", o.mfiFeed);
         console.log("forwarder", o.forwarder, o.mode);
         console.log("margin main / demo (AUSD units)", o.marginMain, o.marginDemo);
         if (vault == address(0)) {
@@ -121,6 +129,6 @@ contract DeployKeeperReceiver is DeployBase {
         } else {
             console.log("OWNER TX STILL NEEDED: vault.setKeeper(receiver, true) on", vault);
         }
-        console.log("production switch (owner): setForwarder(cre.keystoneForwarder), then CR-016 identity checks");
+        console.log("production switch (owner): setForwarder(cre.keystoneForwarder) + setExpectedWorkflow(owner, id)");
     }
 }
