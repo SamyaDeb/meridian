@@ -1,8 +1,54 @@
 // Write path. Monad bills the gas LIMIT (CONTRIBUTING.md §7): every tx is estimated first and sent with estimate × 1.2.
-import type { Abi, Address, ContractFunctionArgs, ContractFunctionName, PublicClient, WalletClient } from "viem";
-import { clearingHouseAbi, erc20Abi, swapAbi, vaultAbi } from "./abi";
+// Two transports share one core (K1.2): a sponsored send (Privy embedded wallet, `sponsor: true`, testnet only, see
+// lib/sponsor.ts) or the wallet's own writeContract. Both wait for the receipt and refuse a reverted call.
+import {
+  encodeFunctionData,
+  isAddressEqual,
+  parseAbi,
+  parseEventLogs,
+  type Abi,
+  type Address,
+  type ContractFunctionArgs,
+  type ContractFunctionName,
+  type Hex,
+  type PublicClient,
+  type TransactionReceipt,
+  type WalletClient,
+} from "viem";
+import { clearingHouseAbi, erc20Abi, mockTokenAbi, swapAbi, vaultAbi } from "./abi";
 import { gasLimitFromEstimate } from "./gas";
 import { assertPermitUsable, buildPermitTypedData, permitDeadline, splitSignature } from "./permit";
+import { SponsorError, isSponsorRefusal } from "./sponsor";
+
+/** A fully built call handed to the sponsored transport (Privy `sendTransaction(…, { sponsor: true })`). */
+export type SponsoredCall = { from: Address; to: Address; data: Hex; value: bigint; gas: bigint; chainId: number };
+export type SponsoredSend = (call: SponsoredCall) => Promise<Hex>;
+
+// Wallets whose writes go through a sponsored transport. A wrapper copy is registered, never the wagmi client itself,
+// so a non-sponsored caller holding the original can't be routed by accident.
+const sponsoredSenders = new WeakMap<WalletClient, SponsoredSend>();
+
+/** The same wallet, but `sendTx` sends its calls through `send` (gas paid by the app). */
+export function withSponsoredSend(wallet: WalletClient, send: SponsoredSend): WalletClient {
+  const w = { ...wallet } as WalletClient;
+  sponsoredSenders.set(w, send);
+  return w;
+}
+
+export const isSponsoredWallet = (wallet: WalletClient): boolean => sponsoredSenders.has(wallet);
+
+// ERC-4337 EntryPoint event (same signature in v0.6 and v0.7). A sponsored call may land inside a bundle whose outer
+// transaction succeeds while the user's own call reverted; this event carries the inner result.
+const userOpEventAbi = parseAbi([
+  "event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)",
+]);
+
+/** Throws unless the receipt shows the call succeeded, including the inner call of a bundled (sponsored) operation. */
+export function assertReceiptSuccess(rcpt: Pick<TransactionReceipt, "status" | "logs" | "transactionHash">, sender: Address): void {
+  if (rcpt.status !== "success") throw new Error(`tx reverted: ${rcpt.transactionHash}`);
+  const ops = parseEventLogs({ abi: userOpEventAbi, logs: rcpt.logs, strict: true }).filter((l) => isAddressEqual(l.args.sender, sender));
+  if (ops.some((l) => !l.args.success)) throw new Error(`tx reverted: ${rcpt.transactionHash}`);
+}
 
 export async function sendTx<const abi extends Abi, fn extends ContractFunctionName<abi, "nonpayable" | "payable">>(
   pub: PublicClient,
@@ -15,9 +61,26 @@ export async function sendTx<const abi extends Abi, fn extends ContractFunctionN
   const r = req as any;
   const est = await pub.estimateContractGas({ ...r, account });
   const gas = gasLimitFromEstimate(est);
-  const hash = await wallet.writeContract({ ...r, account, chain: wallet.chain, gas });
+  const sponsored = sponsoredSenders.get(wallet);
+  let hash: Hex;
+  if (sponsored) {
+    const data = encodeFunctionData({ abi: r.abi, functionName: r.functionName, args: r.args });
+    const chainId = wallet.chain?.id ?? (await pub.getChainId());
+    try {
+      hash = await sponsored({ from: account.address, to: req.address, data, value: 0n, gas, chainId });
+    } catch (e) {
+      // never fall back to charging the user: surface the refusal and let them choose (add MON, retry later)
+      if (isSponsorRefusal(e)) {
+        console.warn("[meridian] gas sponsorship refused", e);
+        throw new SponsorError(e);
+      }
+      throw e;
+    }
+  } else {
+    hash = await wallet.writeContract({ ...r, account, chain: wallet.chain, gas });
+  }
   const rcpt = await pub.waitForTransactionReceipt({ hash });
-  if (rcpt.status !== "success") throw new Error(`tx reverted: ${hash}`);
+  assertReceiptSuccess(rcpt, account.address);
   return { hash, block: rcpt.blockNumber, gasUsed: rcpt.gasUsed, gasLimit: gas };
 }
 
@@ -86,4 +149,20 @@ export async function approveOrPermit(pub: PublicClient, wallet: WalletClient, t
       await sendTx(pub, wallet, { address: token, abi: erc20Abi, functionName: "approve", args: [ch, amountToken] });
     }
   }
+}
+
+/** Testnet faucet (K1.3): MockERC20.mint(me, amount). Callers gate it with lib/faucet.ts (never on 143). */
+export async function mintTestAusd(pub: PublicClient, wallet: WalletClient, token: Address, amountToken: bigint) {
+  const me = wallet.account?.address;
+  if (!me) throw new Error("wallet not connected");
+  return sendTx(pub, wallet, { address: token, abi: mockTokenAbi, functionName: "mint", args: [me, amountToken] });
+}
+
+/** Plain approve (the onboarding flow runs approve and deposit as separate, separately reported steps). */
+export async function approveToken(pub: PublicClient, wallet: WalletClient, token: Address, spender: Address, amountToken: bigint) {
+  return sendTx(pub, wallet, { address: token, abi: erc20Abi, functionName: "approve", args: [spender, amountToken] });
+}
+
+export async function depositCollateral(pub: PublicClient, wallet: WalletClient, ch: Address, amountToken: bigint) {
+  return sendTx(pub, wallet, { address: ch, abi: clearingHouseAbi, functionName: "deposit", args: [amountToken] });
 }

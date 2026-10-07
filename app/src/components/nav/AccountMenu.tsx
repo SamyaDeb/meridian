@@ -8,11 +8,12 @@ import { readChain } from "@/lib/wagmi";
 import { shortAddress } from "@/lib/format";
 import { privyEnabled } from "@/lib/privy";
 
-const PrivyLogout = privyEnabled ? dynamic(() => import("@/components/PrivyControls").then((m) => m.PrivyLogout)) : null;
+const PrivyAccountActions = privyEnabled ? dynamic(() => import("@/components/PrivyControls").then((m) => m.PrivyAccountActions)) : null;
 
 export const item = "flex min-h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-card-2 pointer-coarse:min-h-11";
 
-/** Address pill → copy, explorer (viem's chain record; none ⇒ no link), disconnect. Not connected ⇒ connect button. */
+/** Address pill → copy, explorer (viem's chain record; none ⇒ no link), then export wallet (embedded, Privy) + log out, or
+ *  disconnect without Privy. Not connected ⇒ connect / log in button. */
 export function AccountMenu() {
   const { isConnected, address } = useAccount();
   const { disconnect } = useDisconnect();
@@ -51,8 +52,8 @@ export function AccountMenu() {
               View on explorer ↗
             </a>
           )}
-          {PrivyLogout ? (
-            <PrivyLogout onDone={close} />
+          {PrivyAccountActions ? (
+            <PrivyAccountActions onDone={close} />
           ) : (
             <button
               type="button"

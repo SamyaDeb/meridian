@@ -5,9 +5,10 @@ import { TERMS_STATUS, TERMS_SUMMARY } from "@/content/terms";
 import { isGeoRestricted } from "@/lib/geo";
 import { isAccepted, readAcceptance, writeAcceptance } from "@/lib/terms";
 
-/** `ensure()` resolves true when a write may go ahead: terms accepted (asks once per version) and not geo-restricted. */
-type Gate = { ensure: () => Promise<boolean> };
-const GateContext = createContext<Gate>({ ensure: async () => true });
+/** `ensure()` resolves true when a write may go ahead: terms accepted (asks once per version) and not geo-restricted.
+ *  `accepted()` / `accept()` let a flow show the same terms checkbox inline (K1.4 onboarding) instead of this dialog. */
+type Gate = { ensure: () => Promise<boolean>; accepted: () => boolean; accept: () => void };
+const GateContext = createContext<Gate>({ ensure: async () => true, accepted: () => true, accept: () => undefined });
 
 export function useWriteGate(): Gate {
   return useContext(GateContext);
@@ -43,6 +44,12 @@ export function WriteGateProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const accepted = useCallback(() => acceptedThisSession.current || isAccepted(readAcceptance()), []);
+  const accept = useCallback(() => {
+    acceptedThisSession.current = true;
+    writeAcceptance(Date.now());
+  }, []);
+
   const close = (ok: boolean) => {
     if (ok) {
       acceptedThisSession.current = true;
@@ -54,7 +61,7 @@ export function WriteGateProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <GateContext.Provider value={{ ensure }}>
+    <GateContext.Provider value={{ ensure, accepted, accept }}>
       {children}
       <dialog
         ref={ref}

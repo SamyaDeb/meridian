@@ -6,6 +6,10 @@ import { useAccount, useChainId } from "wagmi";
 import { useAccountAddress, useAccountView, useDepth, useMarket, useRiskParams } from "@/data/hooks";
 import { Button, Card, Chip, Notice, PillTabs, Tooltip } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
+import { useWriteGate } from "@/components/WriteGate";
+import { useStartLogin } from "@/components/Session";
+import { ONBOARD_CTA, OnboardSheet, useOnboarding } from "@/components/Onboard";
+import { firstTradeSizeMon } from "@/lib/onboard";
 import { contractAddress } from "@/config/deployments";
 import { orderBookAbi } from "@/lib/abi";
 import { sendTx } from "@/lib/tx";
@@ -78,6 +82,9 @@ export function OrderTicket() {
   const [reduceOnly, setReduceOnly] = useState(false);
   const [slip, setSlip] = useState<bigint>(50n);
   const [allowPartial, setAllowPartial] = useState(false);
+  const startLogin = useStartLogin();
+  const gate = useWriteGate();
+  const [tosTicked, setTosTicked] = useState(false);
 
   const isBid = side === "long";
   const imr = risk?.imr ?? DEFAULT_IMR_WAD;
@@ -158,9 +165,39 @@ export function OrderTicket() {
                       : undefined;
   const noDeposit = isConnected && account === undefined;
   const sideLabel = isBid ? "long" : "short";
-  const cta = !isConnected ? `Log in to ${sideLabel}` : noDeposit ? "Deposit AUSD to trade" : (problem ?? `${kind === "market" ? "Market" : "Limit"} ${sideLabel}`);
+  // K1.4: on testnet / anvil a wallet with no deposit gets the one-tap faucet + deposit, then a prefilled ≈ $50 order
+  // lots the book can fill right now inside the chosen slippage (caps the first-trade prefill)
+  const depthLots = (() => {
+    if (!book || refPx === 0n) return undefined;
+    try {
+      return estimateFill(isBid ? book.asks : book.bids, 10n ** 9n, LOT, isBid, tickToPrice(slippageLimitTick(refPx, TICK, isBid, slip), TICK)).filledLots;
+    } catch {
+      return undefined;
+    }
+  })();
+  const onboard = useOnboarding({
+    onDone: () => {
+      const size = firstTradeSizeMon(refPx || mark, LOT, undefined, depthLots);
+      setUnit("MON");
+      if (size) setDraft({ kind: "market", sizeIn: size });
+    },
+  });
+  const onboarding = noDeposit && acct === null && onboard.available; // null = read and empty (undefined = still loading)
+  // the ToS checkbox sits inline above the onboarding CTA (same summary link + checkbox as the write gate's dialog)
+  const needsTos = onboarding && !tosTicked && !gate.accepted();
+  const cta = !isConnected
+    ? "Start trading"
+    : onboarding
+      ? onboard.ready
+        ? ONBOARD_CTA
+        : "Preparing your wallet…"
+      : noDeposit
+        ? "Deposit AUSD to trade"
+        : (problem ?? `${kind === "market" ? "Market" : "Limit"} ${sideLabel}`);
 
   const submit = () => {
+    if (!isConnected) return startLogin?.();
+    if (onboarding) return onboard.start();
     if (noDeposit) return setFunds("deposit");
     tx.run(`${kind} ${sideLabel} ${lots} lots`, (p, w) => {
       if (!ob) throw new Error("no OrderBook for this chain");
@@ -304,12 +341,31 @@ export function OrderTicket() {
         {!risk && <p className="pt-1 text-[10px] text-warn">Risk params not read yet: margin uses the launch defaults (5x cap).</p>}
       </div>
 
+      {onboarding && (needsTos || tosTicked) && (
+        <label className="flex min-h-11 items-center gap-3 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={tosTicked}
+            onChange={(e) => {
+              setTosTicked(e.target.checked);
+              if (e.target.checked) gate.accept();
+            }}
+            className="h-5 w-5 shrink-0 accent-[var(--accent)]"
+          />
+          <span>
+            I have read and accept the{" "}
+            <Link href="/terms" target="_blank" className="text-accent underline">
+              terms and risks
+            </Link>
+          </span>
+        </label>
+      )}
       <Button
-        variant={isBid ? "long" : "short"}
+        variant={!isConnected || onboarding ? "brand" : isBid ? "long" : "short"}
         size="lg"
         block
-        disabled={!isConnected || tx.busy || (!noDeposit && problem !== undefined)}
-        loading={tx.busy}
+        disabled={(!isConnected && !startLogin) || tx.busy || onboard.busy || needsTos || (onboarding && !onboard.ready) || (isConnected && !noDeposit && problem !== undefined)}
+        loading={tx.busy || onboard.busy}
         onClick={submit}
         data-testid="place-order"
       >
@@ -338,6 +394,7 @@ export function OrderTicket() {
         </Notice>
       )}
       </div>
+      <OnboardSheet o={onboard} />
       <FundsDialog mode={funds ?? "deposit"} open={funds !== null} onClose={() => setFunds(null)} freeCollateralWad={free} />
     </Card>
   );
