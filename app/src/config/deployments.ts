@@ -40,6 +40,8 @@ export interface Deployment {
   oracleKind?: "pyth" | "keeper-fed";
   contracts: Partial<Record<ContractKey, Address>>;
   demoMarket?: TestMarket;
+  /** contract keys deployed as our mocks (e.g. AUSD = MockERC20 with an open mint on testnet / anvil) */
+  mockContracts?: string[];
 }
 
 /** A deployment file is usable once it is not a placeholder and has the perp core. Pure. */
@@ -89,6 +91,10 @@ export function deploymentState(chainId: number, deployments: Readonly<Record<nu
 
 export function contractAddress(chainId: number, key: ContractKey): Address | undefined {
   return DEPLOYMENTS[chainId]?.contracts[key];
+}
+
+export function deploymentFor(chainId: number): Deployment | undefined {
+  return DEPLOYMENTS[chainId];
 }
 
 export function testMarket(chainId: number): TestMarket | undefined {

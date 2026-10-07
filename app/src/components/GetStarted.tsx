@@ -3,6 +3,8 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { useAccount } from "wagmi";
 import { Card } from "./ui";
+import { onboardingOffered } from "./Onboard";
+import { privyEnabled } from "@/lib/privy";
 
 // Onboarding card (C7): shown until the viewer connects or dismisses it. Full guide: docs/outputs/ONBOARDING.md.
 const KEY = "meridian.getStarted.dismissed";
@@ -52,9 +54,22 @@ export function GetStarted() {
         </button>
       }
     >
-      <p className="text-sm text-muted">
-        You need <span className="text-text">MON</span> for gas and <span className="text-text">AUSD</span> on Monad. Start small.
-      </p>
+      {onboardingOffered() ? (
+        <p className="text-sm text-muted">
+          {privyEnabled ? (
+            <>
+              Log in with email: you get a wallet, and <span className="text-text">gas is on us</span> (no MON needed).
+            </>
+          ) : (
+            <>Connect a wallet.</>
+          )}{" "}
+          Then one tap gets you <span className="text-text">free test AUSD</span> and deposits it.
+        </p>
+      ) : (
+        <p className="text-sm text-muted">
+          You need <span className="text-text">MON</span> for gas and <span className="text-text">AUSD</span> on Monad. Start small.
+        </p>
+      )}
       <ol className="mt-3 space-y-2">
         {STEPS.map((s, i) => (
           <li key={s.title} className="flex gap-3 text-sm">
