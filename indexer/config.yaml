@@ -93,6 +93,21 @@ contracts:
     events:
       - event: ReportExecuted
       - event: ForwarderUpdated
+  - name: PerplExchange
+    abi_file_path: ./abis/PerplExchange.json
+    events:
+      - event: FundingEventCompleted
+      - event: MarkUpdated
+      - event: PositionOpenedV2
+      - event: PositionIncreasedV2
+      - event: PositionDecreased
+      - event: PositionClosed
+      - event: PositionInverted
+      - event: PositionLiquidated
+      - event: IncreasePositionCollateral
+      - event: CollateralDeposit
+      - event: CollateralWithdrawal
+      - event: AccountCreated
 chains:
   - id: 31337
     start_block: 13

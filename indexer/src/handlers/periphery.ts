@@ -1,6 +1,8 @@
 // IOracleAdapter, IInsuranceFund, IMarketFactory, IMeridianKeeperReceiver events.
 import { indexer } from "envio";
-import { FIELDS, evId, blockOf, tsOf, getMarket, updateProtocol, logAdmin, isTestMarket } from "../lib/common.js";
+import { FIELDS, evId, blockOf, tsOf, getMarket, updateProtocol, logAdmin, isTestMarket, getInsuranceFund } from "../lib/common.js";
+import { DEPLOYMENTS } from "../deployments.gen.js";
+import { AUSD_TO_WAD } from "../lib/math.js";
 
 // ─── Oracle adapter ────────────────────────────────────────────────────────────
 
@@ -33,26 +35,65 @@ indexer.onEvent({ contract: "OracleAdapter", event: "OracleParamsUpdated", field
 
 // ─── Insurance fund ────────────────────────────────────────────────────────────
 
-const getIF = (context: Parameters<typeof updateProtocol>[0], id: string) =>
-  context.InsuranceFund.getOrCreate({ id, fundedToken: 0n, coveredToken: 0n, authorizedMarkets: [] });
+const getIF = getInsuranceFund;
 
 indexer.onEvent({ contract: "InsuranceFund", event: "Funded", fields: FIELDS }, async ({ event, context }) => {
+  const { from, amountToken } = event.params;
   const f = await getIF(context, event.srcAddress);
-  context.InsuranceFund.set({ ...f, fundedToken: f.fundedToken + event.params.amountToken });
+  const balanceToken = f.balanceToken + amountToken;
+  context.InsuranceFund.set({ ...f, fundedToken: f.fundedToken + amountToken, balanceToken });
+  context.InsuranceFundEvent.set({
+    id: `${evId(event)}-0`,
+    fund: event.srcAddress,
+    flow: "Funded",
+    direction: "In",
+    kind: undefined,
+    market: undefined,
+    account: undefined,
+    from,
+    amountWad: amountToken * AUSD_TO_WAD,
+    amountToken,
+    requestedWad: undefined,
+    balanceAfterToken: balanceToken,
+    block: blockOf(event),
+    timestamp: tsOf(event),
+    txHash: event.transaction.hash,
+  });
 });
 
+// Step 1 of the waterfall: the IF pays what it can (it precedes the market's BadDebtSocialized / Liquidated logs).
 indexer.onEvent({ contract: "InsuranceFund", event: "BadDebtCovered", fields: FIELDS }, async ({ event, context }) => {
   const p = event.params;
   const f = await getIF(context, event.srcAddress);
-  context.InsuranceFund.set({ ...f, coveredToken: f.coveredToken + p.coveredToken });
+  const balanceToken = f.balanceToken - p.coveredToken;
+  context.InsuranceFund.set({ ...f, coveredToken: f.coveredToken + p.coveredToken, balanceToken });
   context.BadDebtEvent.set({
     id: evId(event),
     source: event.srcAddress,
     requested: p.requestedToken,
     covered: p.coveredToken,
     uncovered: p.requestedToken - p.coveredToken,
+    feeCoveredWad: undefined,
     block: blockOf(event),
     timestamp: tsOf(event),
+  });
+  const swap = DEPLOYMENTS[context.chain.id]?.FundingSwapMarket;
+  context.InsuranceFundEvent.set({
+    id: `${evId(event)}-0`,
+    fund: event.srcAddress,
+    flow: "CoveredByInsurance",
+    direction: "Out",
+    kind: swap !== undefined && p.market.toLowerCase() === swap.toLowerCase() ? "Swap" : "Perp",
+    market: p.market,
+    account: undefined, // the market's Liquidated log later in the same tx names the account
+    from: undefined,
+    amountWad: p.coveredToken * AUSD_TO_WAD,
+    amountToken: p.coveredToken,
+    requestedWad: p.requestedToken * AUSD_TO_WAD,
+    balanceAfterToken: balanceToken,
+    block: blockOf(event),
+    timestamp: tsOf(event),
+    txHash: event.transaction.hash,
   });
 });
 
@@ -111,7 +152,7 @@ indexer.onEvent({ contract: "MeridianKeeperReceiver", event: "ReportExecuted", f
   await updateProtocol(context, (s) => ({
     keeperReports: s.keeperReports + 1,
     keeperReportFailures: s.keeperReportFailures + (p.success ? 0 : 1),
-  }), { block: blockOf(event) });
+  }), { block: blockOf(event), ts: tsOf(event) });
 });
 
 indexer.onEvent({ contract: "MeridianKeeperReceiver", event: "ForwarderUpdated", fields: FIELDS }, async ({ event, context }) => {

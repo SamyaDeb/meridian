@@ -1,0 +1,2182 @@
+{
+  "chainId": 10143,
+  "perpId": "64",
+  "exchange": "0x1964c32f0be608e7d29302aff5e61268e72080cc",
+  "fromBlock": 68746869,
+  "atBlock": 68994866,
+  "recordedAt": "2026-10-07T14:37:11.693Z",
+  "counts": {
+    "PositionOpenedV2": 106,
+    "PositionIncreasedV2": 6109,
+    "PositionDecreased": 6199,
+    "PositionClosed": 106,
+    "PositionInverted": 5,
+    "PositionLiquidated": 0,
+    "IncreasePositionCollateral": 0,
+    "PositionCollateralDecreased": 0,
+    "FundingEventCompleted": 29,
+    "AccountCreated": 52,
+    "CollateralDeposit": 69,
+    "CollateralWithdrawal": 18
+  },
+  "positionEvents": 12525,
+  "accountsTouched": 8,
+  "continuityBreaks": 0,
+  "depositContinuityBreaks": 0,
+  "inversions": [
+    {
+      "k": "806",
+      "block": 68788096,
+      "before": {
+        "side": 1,
+        "lots": "472"
+      },
+      "positionType": 0,
+      "startLot": "472",
+      "endLot": "252"
+    },
+    {
+      "k": "806",
+      "block": 68809669,
+      "before": {
+        "side": 1,
+        "lots": "133"
+      },
+      "positionType": 0,
+      "startLot": "133",
+      "endLot": "655"
+    },
+    {
+      "k": "806",
+      "block": 68832529,
+      "before": {
+        "side": 1,
+        "lots": "642"
+      },
+      "positionType": 0,
+      "startLot": "642",
+      "endLot": "261"
+    },
+    {
+      "k": "806",
+      "block": 68845238,
+      "before": {
+        "side": 1,
+        "lots": "376"
+      },
+      "positionType": 0,
+      "startLot": "376",
+      "endLot": "487"
+    },
+    {
+      "k": "806",
+      "block": 68865389,
+      "before": {
+        "side": 0,
+        "lots": "735"
+      },
+      "positionType": 1,
+      "startLot": "735",
+      "endLot": "11"
+    }
+  ],
+  "contractCheckedAccounts": 4,
+  "contractMismatches": [],
+  "contractOpenInterest": {
+    "longLNS": "2841581",
+    "shortLNS": "2841581"
+  },
+  "answers": {
+    "710": {
+      "positionType": 0,
+      "lotLNS": "0n",
+      "depositCNS": "0n",
+      "pricePNS": "0n"
+    },
+    "814": {
+      "positionType": 1,
+      "lotLNS": "963n",
+      "depositCNS": "24951330n",
+      "pricePNS": "2577n"
+    },
+    "851": {
+      "positionType": 0,
+      "lotLNS": "0n",
+      "depositCNS": "0n",
+      "pricePNS": "0n"
+    },
+    "959": {
+      "positionType": 0,
+      "lotLNS": "0n",
+      "depositCNS": "0n",
+      "pricePNS": "0n"
+    }
+  },
+  "items": [
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68747913,
+        "timestamp": 1791308783
+      },
+      "transaction": {
+        "hash": "0x3cfbb7b432b5ba2e89192b40417daa45f8b22acd99df4f74aa159ee2ac8c60d5"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68747991n",
+        "specifiedRatePct100k": "-4n",
+        "actualRatePct100k": "-4n",
+        "fundingPricePNS": "2877n",
+        "fundingPaymentPNS": "-115n",
+        "fundingSumPNS": "-22301n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 14,
+      "block": {
+        "number": 68748404,
+        "timestamp": 1791308932
+      },
+      "transaction": {
+        "hash": "0xf102da49ab34022ead44fccd18a5efe51fafc29cdad8ee67582d8f20c5ae278f"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10819254n",
+        "balanceCNS": "12044904n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 3,
+      "block": {
+        "number": 68749564,
+        "timestamp": 1791309284
+      },
+      "transaction": {
+        "hash": "0xcd49765c29f565162df4e963f24e67e9d58c6515ecde9cc96d9c24c26bc246f1"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "12188456n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 38,
+      "block": {
+        "number": 68750700,
+        "timestamp": 1791309631
+      },
+      "transaction": {
+        "hash": "0xbf54090463ff1bc2eedd4e8e49658dc0058b509efde323f81420dff1e3d95de8"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "0n",
+        "leverageHdths": "100n",
+        "depositCNS": "25074210n",
+        "pnlCollateralizedCNS": "25770n",
+        "pricePNS": "2916n",
+        "lotLNS": "859n",
+        "insFeeCNS": "1297n",
+        "protFeeCNS": "7345n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralWithdrawal",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 76,
+      "block": {
+        "number": 68752376,
+        "timestamp": 1791310142
+      },
+      "transaction": {
+        "hash": "0xc91d1b9bf62dc3e3eeaed8edfa6653ccb58ac3f7bb286bcdac7017b8d439d515"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "8588310n",
+        "balanceCNS": "2321375n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68756484,
+        "timestamp": 1791311391
+      },
+      "transaction": {
+        "hash": "0xff20d317d194f26e6bd6477f3aa52aa14ff9f4a2e8cf89da6bae9743ee6df421"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68756562n",
+        "specifiedRatePct100k": "-1n",
+        "actualRatePct100k": "-1n",
+        "fundingPricePNS": "2895n",
+        "fundingPaymentPNS": "-28n",
+        "fundingSumPNS": "-22329n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 6,
+      "block": {
+        "number": 68756733,
+        "timestamp": 1791311467
+      },
+      "transaction": {
+        "hash": "0xada9c917e0c8f9a74ed2eee3b8e8c5c90b916b9b5ae77d6f2a3e12349d52eed7"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "0n",
+        "pricePNS": "2887n",
+        "deltaPnlCNS": "-249110n",
+        "fundingCNS": "240n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68765055,
+        "timestamp": 1791313979
+      },
+      "transaction": {
+        "hash": "0xb288cca3b0d89bfb1903353bcb46062073eb321afe1d1ce3fdfb4ff6ff51e3e5"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68765133n",
+        "specifiedRatePct100k": "0n",
+        "actualRatePct100k": "0n",
+        "fundingPricePNS": "2868n",
+        "fundingPaymentPNS": "0n",
+        "fundingSumPNS": "-22329n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 11,
+      "block": {
+        "number": 68773626,
+        "timestamp": 1791316566
+      },
+      "transaction": {
+        "hash": "0xd15a23d1dbe863a0c3749dc3b1db2569c1b90257928d2ceb7d28588cc1589817"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68773704n",
+        "specifiedRatePct100k": "-4n",
+        "actualRatePct100k": "-4n",
+        "fundingPricePNS": "2884n",
+        "fundingPaymentPNS": "-115n",
+        "fundingSumPNS": "-22444n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68782197,
+        "timestamp": 1791319153
+      },
+      "transaction": {
+        "hash": "0x003d9d57348c6397a79973cedf968d2ba65fa350a17ede3832561727f8998913"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68782275n",
+        "specifiedRatePct100k": "-4n",
+        "actualRatePct100k": "-4n",
+        "fundingPricePNS": "2864n",
+        "fundingPaymentPNS": "-114n",
+        "fundingSumPNS": "-22558n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68790768,
+        "timestamp": 1791321740
+      },
+      "transaction": {
+        "hash": "0xb2e4b9ef55f8b8f0d0d6f5a80089dd9ca32d41d27bb11b6c97db46ddf51a4c2b"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68790846n",
+        "specifiedRatePct100k": "-3n",
+        "actualRatePct100k": "-3n",
+        "fundingPricePNS": "2854n",
+        "fundingPaymentPNS": "-85n",
+        "fundingSumPNS": "-22643n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68799339,
+        "timestamp": 1791324327
+      },
+      "transaction": {
+        "hash": "0x25293e8bdf15f4dc378f4a8e8faebe27d272a5276e0551ab4cca5404e47d8099"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68799417n",
+        "specifiedRatePct100k": "-4n",
+        "actualRatePct100k": "-4n",
+        "fundingPricePNS": "2858n",
+        "fundingPaymentPNS": "-114n",
+        "fundingSumPNS": "-22757n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralWithdrawal",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 36,
+      "block": {
+        "number": 68806098,
+        "timestamp": 1791326367
+      },
+      "transaction": {
+        "hash": "0xe402a6ebf4226e28cc7e39b9cb1fe55ffb6991ddc5311b204bd9387bdcb5680e"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "13568839n",
+        "balanceCNS": "1095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 36,
+      "block": {
+        "number": 68806119,
+        "timestamp": 1791326373
+      },
+      "transaction": {
+        "hash": "0x2dcc221e94874e838677fd9f2df5d7fdcf3b131324974ed0ccaddaf416fb79c1"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "11095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralWithdrawal",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 10,
+      "block": {
+        "number": 68807657,
+        "timestamp": 1791326837
+      },
+      "transaction": {
+        "hash": "0x470b6138c7bd1d60b5babc3aa6e8d1b2a45b623099273b648d12a590ac9e98c6"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "1095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 36,
+      "block": {
+        "number": 68807677,
+        "timestamp": 1791326844
+      },
+      "transaction": {
+        "hash": "0xf50a14dd9eb1b8a09c073ed1203b67c6beda8b7171905007e97644f0da7db57e"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "11095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68807910,
+        "timestamp": 1791326914
+      },
+      "transaction": {
+        "hash": "0x82402cb02dd22bf0a3b31771fa64b38555b030a12773177bce5850cc89231e9a"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68807988n",
+        "specifiedRatePct100k": "-1n",
+        "actualRatePct100k": "-1n",
+        "fundingPricePNS": "2865n",
+        "fundingPaymentPNS": "-28n",
+        "fundingSumPNS": "-22785n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralWithdrawal",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 31,
+      "block": {
+        "number": 68812343,
+        "timestamp": 1791328252
+      },
+      "transaction": {
+        "hash": "0xfaee7c7e82b53c5b25f31f2562e67bb64aff044023f77d901e2875259a03c0bc"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "1095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 3,
+      "block": {
+        "number": 68812361,
+        "timestamp": 1791328257
+      },
+      "transaction": {
+        "hash": "0xd6cf59a71f86c0953f990faa8ab8f35a6b98a7bf56f23c192dd5280d97780dd7"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "11095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralWithdrawal",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 26,
+      "block": {
+        "number": 68815051,
+        "timestamp": 1791329069
+      },
+      "transaction": {
+        "hash": "0x8d903e581384c4d7caf5031b0dd02336898d2f56d995c671730d2a3581234170"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "1095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 9,
+      "block": {
+        "number": 68815070,
+        "timestamp": 1791329075
+      },
+      "transaction": {
+        "hash": "0x92e1a50e20c56bb56efbedf5c2c58d45e605a5a9fef94420eb459d4ab7d7770d"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "11095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralWithdrawal",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68815265,
+        "timestamp": 1791329134
+      },
+      "transaction": {
+        "hash": "0x50bd89e64e174b30d05c3dad10028ec7fbfaac7dddb5b7ed4a3d661d7dc8b6fd"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "1095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 7,
+      "block": {
+        "number": 68815284,
+        "timestamp": 1791329140
+      },
+      "transaction": {
+        "hash": "0x2e4b709144a875b5b8a5a67a1a9b19bc7959d4c336c025f5b76c1f8434847b3a"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "11095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68816482,
+        "timestamp": 1791329501
+      },
+      "transaction": {
+        "hash": "0x36d82bf00d2785942a73fc7cda54b6471bc9281ffad642217d8a66bc2a8ac9fd"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68816559n",
+        "specifiedRatePct100k": "0n",
+        "actualRatePct100k": "0n",
+        "fundingPricePNS": "2843n",
+        "fundingPaymentPNS": "0n",
+        "fundingSumPNS": "-22785n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68818258,
+        "timestamp": 1791330037
+      },
+      "transaction": {
+        "hash": "0xca38c6f0ed27293b70ce2b5683de0597a89caadf408f60737c99dd066d9fd657"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "leverageHdths": "100n",
+        "depositCNS": "25006560n",
+        "pnlCollateralizedCNS": "52980n",
+        "pricePNS": "2826n",
+        "lotLNS": "883n",
+        "insFeeCNS": "1292n",
+        "protFeeCNS": "7317n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralWithdrawal",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 2,
+      "block": {
+        "number": 68819316,
+        "timestamp": 1791330357
+      },
+      "transaction": {
+        "hash": "0xe2ab868aa7ff50892bebda0ae1194a764e29394d4ef464e1d0f5d096307dfa8b"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "1095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 3,
+      "block": {
+        "number": 68819341,
+        "timestamp": 1791330364
+      },
+      "transaction": {
+        "hash": "0x2c07330c77b3aba6f6745963031a678f2828a62c956ac5902d006e71d3ad451d"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "11095725n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 16,
+      "block": {
+        "number": 68819381,
+        "timestamp": 1791330376
+      },
+      "transaction": {
+        "hash": "0xc9611de514832e2c3120bb5ea142233affa740d046cf457fed216cacdf33475a"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "10000000n",
+        "balanceCNS": "18960529n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 4,
+      "block": {
+        "number": 68819391,
+        "timestamp": 1791330379
+      },
+      "transaction": {
+        "hash": "0xa34b47ade26e5f2676a3c35acda6dc2ac668f7217a82d2ea1646bae5913171ac"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "851n",
+        "positionType": "0n",
+        "leverageHdths": "100n",
+        "depositCNS": "12382400n",
+        "pnlCollateralizedCNS": "8720n",
+        "pricePNS": "2838n",
+        "lotLNS": "436n",
+        "insFeeCNS": "641n",
+        "protFeeCNS": "3628n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 17,
+      "block": {
+        "number": 68820246,
+        "timestamp": 1791330637
+      },
+      "transaction": {
+        "hash": "0x5de3434afce4d3299966b4b7a498473b3055796fb71ed6a80e8a1c9c9e9bbd11"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "851n",
+        "positionType": "0n",
+        "pricePNS": "2834n",
+        "deltaPnlCNS": "-17440n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralWithdrawal",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 36,
+      "block": {
+        "number": 68820262,
+        "timestamp": 1791330642
+      },
+      "transaction": {
+        "hash": "0xd1cfd9a764baa5d3d235b524f7732a57e068656b0201bf1441b8060c8751ba6f"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "17702088n",
+        "balanceCNS": "1232469n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 6,
+      "block": {
+        "number": 68820280,
+        "timestamp": 1791330647
+      },
+      "transaction": {
+        "hash": "0x31859cde3259a1cfd49f2f79f2aa24b0201fa60117c455e1b5eaa3be22a1c794"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "39542220n",
+        "balanceCNS": "40774689n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68820311,
+        "timestamp": 1791330657
+      },
+      "transaction": {
+        "hash": "0xb0de282bf5ae7f5ed01889b44a0b1323bed907960493c7ed5e6d7b419088b6b9"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "38632607n",
+        "balanceCNS": "43400314n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 71,
+      "block": {
+        "number": 68820344,
+        "timestamp": 1791330667
+      },
+      "transaction": {
+        "hash": "0xcbf485c422d6c617170c0050860305d6a272c632b83e7b6684bf8cbe11a41006"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "25978507n",
+        "balanceCNS": "34220554n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralWithdrawal",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 2,
+      "block": {
+        "number": 68821970,
+        "timestamp": 1791331158
+      },
+      "transaction": {
+        "hash": "0xa9be32a804b4675a6d25698242c5ffdd89952b19f1112c6c34653876c37c9035"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "100341446n",
+        "balanceCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 40,
+      "block": {
+        "number": 68824218,
+        "timestamp": 1791331836
+      },
+      "transaction": {
+        "hash": "0x27c8b16ffb46ea11bcd67ea03c3138fd25fd87d20a2234b73d56cdc858b9bb8e"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "pricePNS": "2855n",
+        "deltaPnlCNS": "-256070n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68825052,
+        "timestamp": 1791332088
+      },
+      "transaction": {
+        "hash": "0xa0c7c41d638f31a21ab12109bf92897aa20f219b0a9b3d1ecc5058f9e2fb3e74"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68825130n",
+        "specifiedRatePct100k": "-2n",
+        "actualRatePct100k": "-2n",
+        "fundingPricePNS": "2844n",
+        "fundingPaymentPNS": "-56n",
+        "fundingSumPNS": "-22841n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68833623,
+        "timestamp": 1791334676
+      },
+      "transaction": {
+        "hash": "0x5ff1ad9a63948a6b790ae5ae55f61b4e2c07b8c9b37e45623526391d70af408d"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68833701n",
+        "specifiedRatePct100k": "0n",
+        "actualRatePct100k": "0n",
+        "fundingPricePNS": "2863n",
+        "fundingPaymentPNS": "0n",
+        "fundingSumPNS": "-22841n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 38,
+      "block": {
+        "number": 68837108,
+        "timestamp": 1791335728
+      },
+      "transaction": {
+        "hash": "0x50b7f3ddc76135d04bb7aa7ec8c9ae87a6d0570cf384d69ef3bfe80d3179306e"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "leverageHdths": "100n",
+        "depositCNS": "24980070n",
+        "pnlCollateralizedCNS": "26490n",
+        "pricePNS": "2826n",
+        "lotLNS": "883n",
+        "insFeeCNS": "1292n",
+        "protFeeCNS": "7317n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68842195,
+        "timestamp": 1791337263
+      },
+      "transaction": {
+        "hash": "0xc35037e7412106c5e829f75cb413d61cdefe850f91e618189bd582af98d00133"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68842272n",
+        "specifiedRatePct100k": "-4n",
+        "actualRatePct100k": "-4n",
+        "fundingPricePNS": "2803n",
+        "fundingPaymentPNS": "-112n",
+        "fundingSumPNS": "-22953n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 10,
+      "block": {
+        "number": 68850765,
+        "timestamp": 1791339851
+      },
+      "transaction": {
+        "hash": "0xf09d568cb92ceae397825821f2ccf68825b55e1dbb748e9c70265355aaadfa35"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68850843n",
+        "specifiedRatePct100k": "-4n",
+        "actualRatePct100k": "-4n",
+        "fundingPricePNS": "2718n",
+        "fundingPaymentPNS": "-108n",
+        "fundingSumPNS": "-23061n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68853013,
+        "timestamp": 1791340529
+      },
+      "transaction": {
+        "hash": "0x5aa6c4dbaf659b78c4ff423376fdb3271f00173e0c3a8943ca64dcc485ad583f"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "pricePNS": "2734n",
+        "deltaPnlCNS": "812360n",
+        "fundingCNS": "-1943n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 6,
+      "block": {
+        "number": 68859337,
+        "timestamp": 1791342438
+      },
+      "transaction": {
+        "hash": "0x9066cfe94ecf22cc21b059e345cae820015ef96fb205b8c394f166ec736c3265"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68859414n",
+        "specifiedRatePct100k": "4n",
+        "actualRatePct100k": "4n",
+        "fundingPricePNS": "2735n",
+        "fundingPaymentPNS": "109n",
+        "fundingSumPNS": "-22952n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68864965,
+        "timestamp": 1791344138
+      },
+      "transaction": {
+        "hash": "0xf774cacb4a367678431165c313735d2b2047c8cc82373156958f905052493345"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "leverageHdths": "100n",
+        "depositCNS": "24999390n",
+        "pnlCollateralizedCNS": "27870n",
+        "pricePNS": "2688n",
+        "lotLNS": "929n",
+        "insFeeCNS": "1293n",
+        "protFeeCNS": "7323n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68867907,
+        "timestamp": 1791345026
+      },
+      "transaction": {
+        "hash": "0x32c0473e2730db6cb16cf91f38e3091bcf78c831eca0362a4b24e37639d434a2"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68867985n",
+        "specifiedRatePct100k": "-3n",
+        "actualRatePct100k": "-3n",
+        "fundingPricePNS": "2715n",
+        "fundingPaymentPNS": "-81n",
+        "fundingSumPNS": "-23033n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 66,
+      "block": {
+        "number": 68868956,
+        "timestamp": 1791345343
+      },
+      "transaction": {
+        "hash": "0xb99d0805dc6b3be286d0963659d0ef98136ae48a1ff9af20372aa8bff02c9ee2"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "pricePNS": "2717n",
+        "deltaPnlCNS": "-269410n",
+        "fundingCNS": "-753n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68869976,
+        "timestamp": 1791345650
+      },
+      "transaction": {
+        "hash": "0xa78f5f9b94de38b897d6b3c01f8fbb16edfc5c6738a966d89e9c643884df8eb9"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "0n",
+        "leverageHdths": "100n",
+        "depositCNS": "25005600n",
+        "pnlCollateralizedCNS": "9200n",
+        "pricePNS": "2717n",
+        "lotLNS": "920n",
+        "insFeeCNS": "1294n",
+        "protFeeCNS": "7330n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68873994,
+        "timestamp": 1791346864
+      },
+      "transaction": {
+        "hash": "0xdfa6e88bf069c8c76ac4d4206312f1a3825a0a067df587d5913b216bace0f0b8"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "0n",
+        "pricePNS": "2699n",
+        "deltaPnlCNS": "-165600n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 11,
+      "block": {
+        "number": 68875921,
+        "timestamp": 1791347445
+      },
+      "transaction": {
+        "hash": "0xc553dcdca7b13903d93c5ba76376a5f62a288c5e45c294f95a8cf56c71b5ad8a"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "leverageHdths": "100n",
+        "depositCNS": "24967080n",
+        "pnlCollateralizedCNS": "18660n",
+        "pricePNS": "2674n",
+        "lotLNS": "933n",
+        "insFeeCNS": "1292n",
+        "protFeeCNS": "7316n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68876478,
+        "timestamp": 1791347613
+      },
+      "transaction": {
+        "hash": "0xe8bba08ec2e6bd73eaa2a67b33692e4946acf5b0509884170fca2a21ad27dc42"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68876556n",
+        "specifiedRatePct100k": "-4n",
+        "actualRatePct100k": "-4n",
+        "fundingPricePNS": "2674n",
+        "fundingPaymentPNS": "-106n",
+        "fundingSumPNS": "-23139n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 16,
+      "block": {
+        "number": 68883868,
+        "timestamp": 1791349844
+      },
+      "transaction": {
+        "hash": "0x57d88801da41578b5213688fdd384f08c3554841a76b04d1516935dbc2bd1539"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "pricePNS": "2686n",
+        "deltaPnlCNS": "-111960n",
+        "fundingCNS": "-989n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68885049,
+        "timestamp": 1791350200
+      },
+      "transaction": {
+        "hash": "0xc7d4d57e0c29a79b68f1d6df8c79dd352f83fc7dc06449571abf7a10ae5a30d4"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68885127n",
+        "specifiedRatePct100k": "0n",
+        "actualRatePct100k": "0n",
+        "fundingPricePNS": "2688n",
+        "fundingPaymentPNS": "0n",
+        "fundingSumPNS": "-23139n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68892783,
+        "timestamp": 1791352535
+      },
+      "transaction": {
+        "hash": "0xfd0a5b08307d0b945cb54ebda370507243a73fc279e8b4536c5f069d23968f62"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "0n",
+        "leverageHdths": "100n",
+        "depositCNS": "25043040n",
+        "pnlCollateralizedCNS": "27540n",
+        "pricePNS": "2725n",
+        "lotLNS": "918n",
+        "insFeeCNS": "1295n",
+        "protFeeCNS": "7336n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68893620,
+        "timestamp": 1791352787
+      },
+      "transaction": {
+        "hash": "0x5a35ca029e7241572da5e95ae3b4356c787f2555efcd341536fea6098be9d2d1"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68893698n",
+        "specifiedRatePct100k": "-1n",
+        "actualRatePct100k": "-1n",
+        "fundingPricePNS": "2713n",
+        "fundingPaymentPNS": "-27n",
+        "fundingSumPNS": "-23166n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68902191,
+        "timestamp": 1791355382
+      },
+      "transaction": {
+        "hash": "0x7d23c76a4644b36bbd5e8183b611f320c0aaf66d72ec847a93c22cf820d084c8"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68902269n",
+        "specifiedRatePct100k": "-1n",
+        "actualRatePct100k": "-1n",
+        "fundingPricePNS": "2716n",
+        "fundingPaymentPNS": "-27n",
+        "fundingSumPNS": "-23193n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68910762,
+        "timestamp": 1791358003
+      },
+      "transaction": {
+        "hash": "0xbcd1d88126e128999eadbc1453c05eedc5dd88f3b55b40b099f09d3f5b2b5311"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68910840n",
+        "specifiedRatePct100k": "0n",
+        "actualRatePct100k": "0n",
+        "fundingPricePNS": "2715n",
+        "fundingPaymentPNS": "0n",
+        "fundingSumPNS": "-23193n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 9,
+      "block": {
+        "number": 68913554,
+        "timestamp": 1791358856
+      },
+      "transaction": {
+        "hash": "0x797d02c4e803fc922973af7b3ee8ec84310201ecc3d377c6103cfe0ea1b8f475"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "0n",
+        "pricePNS": "2710n",
+        "deltaPnlCNS": "-137700n",
+        "fundingCNS": "495n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68919333,
+        "timestamp": 1791360618
+      },
+      "transaction": {
+        "hash": "0x1a64609e31b1bea018082c3d0526608bb355ed7bdfa5aadc10af5a0cc7eeb5c4"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68919411n",
+        "specifiedRatePct100k": "0n",
+        "actualRatePct100k": "0n",
+        "fundingPricePNS": "2696n",
+        "fundingPaymentPNS": "0n",
+        "fundingSumPNS": "-23193n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 39,
+      "block": {
+        "number": 68920412,
+        "timestamp": 1791360945
+      },
+      "transaction": {
+        "hash": "0xa26a339b36052dae6725cabf95fb9f3db58188b85f96e1c1e95ed0f2369967ce"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "leverageHdths": "100n",
+        "depositCNS": "25034590n",
+        "pnlCollateralizedCNS": "18620n",
+        "pricePNS": "2687n",
+        "lotLNS": "931n",
+        "insFeeCNS": "1295n",
+        "protFeeCNS": "7336n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68927904,
+        "timestamp": 1791363229
+      },
+      "transaction": {
+        "hash": "0x8e6f5bcea33e0af0c464a8c14fdc7765cdad3506a8edb797408b160f1f430ed2"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68927982n",
+        "specifiedRatePct100k": "0n",
+        "actualRatePct100k": "0n",
+        "fundingPricePNS": "2682n",
+        "fundingPaymentPNS": "0n",
+        "fundingSumPNS": "-23193n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68936475,
+        "timestamp": 1791365847
+      },
+      "transaction": {
+        "hash": "0xd5c35c92a002d71016df673e60148dac49008c307d3d1f446fdca81c4083d100"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68936553n",
+        "specifiedRatePct100k": "0n",
+        "actualRatePct100k": "0n",
+        "fundingPricePNS": "2674n",
+        "fundingPaymentPNS": "0n",
+        "fundingSumPNS": "-23193n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 9,
+      "block": {
+        "number": 68945047,
+        "timestamp": 1791368471
+      },
+      "transaction": {
+        "hash": "0x89bd4ca6faccda3fb1aaf05bb4b75bab25fe7a037727b2133492131257327699"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68945124n",
+        "specifiedRatePct100k": "-2n",
+        "actualRatePct100k": "-2n",
+        "fundingPricePNS": "2669n",
+        "fundingPaymentPNS": "-53n",
+        "fundingSumPNS": "-23246n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 10,
+      "block": {
+        "number": 68953617,
+        "timestamp": 1791371086
+      },
+      "transaction": {
+        "hash": "0xb1244d252d130cb6e89138238d5e2dec21c9e4ab9ce0d5cdcdb320b3d5eb3cf1"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68953695n",
+        "specifiedRatePct100k": "0n",
+        "actualRatePct100k": "0n",
+        "fundingPricePNS": "2674n",
+        "fundingPaymentPNS": "0n",
+        "fundingSumPNS": "-23246n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 4,
+      "block": {
+        "number": 68954998,
+        "timestamp": 1791371506
+      },
+      "transaction": {
+        "hash": "0x46f612531e1157e20e48cc0f145462318c3e7be2e53da629639cb67f82c1a76b"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "137318534n",
+        "balanceCNS": "137318534n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 6,
+      "block": {
+        "number": 68955033,
+        "timestamp": 1791371517
+      },
+      "transaction": {
+        "hash": "0xf98b3fda0a9bf0941e973862befaede73523630144a1ab7246512dd3f6993611"
+      },
+      "params": {
+        "accountId": "851n",
+        "amountCNS": "136309464n",
+        "balanceCNS": "154939757n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 10,
+      "block": {
+        "number": 68962188,
+        "timestamp": 1791373683
+      },
+      "transaction": {
+        "hash": "0x41d67e0960fb87c85cb3ceb488e6475f133fc4203617b984beaa95a048ceaaa9"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68962266n",
+        "specifiedRatePct100k": "1n",
+        "actualRatePct100k": "1n",
+        "fundingPricePNS": "2639n",
+        "fundingPaymentPNS": "26n",
+        "fundingSumPNS": "-23220n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "AccountCreated",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 9,
+      "block": {
+        "number": 68963430,
+        "timestamp": 1791374058
+      },
+      "transaction": {
+        "hash": "0x7b39048dd43b99be2a4a54eca20202b86afdc28cb819f0dd334b90b3730dbc24"
+      },
+      "params": {
+        "account": "0x6D6453dEf2bbE5d6470A009715fc0bF83AEc640B",
+        "id": "959n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "CollateralDeposit",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 11,
+      "block": {
+        "number": 68963430,
+        "timestamp": 1791374058
+      },
+      "transaction": {
+        "hash": "0x7b39048dd43b99be2a4a54eca20202b86afdc28cb819f0dd334b90b3730dbc24"
+      },
+      "params": {
+        "accountId": "959n",
+        "amountCNS": "10000000000n",
+        "balanceCNS": "10000000000n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 44,
+      "block": {
+        "number": 68964776,
+        "timestamp": 1791374464
+      },
+      "transaction": {
+        "hash": "0x410de7ad31e00f01c3584aa2b4921a19f17abd8df3db4ad103702b8482f795e4"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "pricePNS": "2667n",
+        "deltaPnlCNS": "186200n",
+        "fundingCNS": "-252n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 37,
+      "block": {
+        "number": 68968181,
+        "timestamp": 1791375492
+      },
+      "transaction": {
+        "hash": "0x7d535186ccdd9d69a5ee4c88915f133a05376616cabd6aa33f10cafdadc68b3c"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "959n",
+        "positionType": "1n",
+        "leverageHdths": "300n",
+        "depositCNS": "87400n",
+        "pnlCollateralizedCNS": "200n",
+        "pricePNS": "2616n",
+        "lotLNS": "10n",
+        "insFeeCNS": "14n",
+        "protFeeCNS": "77n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionIncreasedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 43,
+      "block": {
+        "number": 68968529,
+        "timestamp": 1791375598
+      },
+      "transaction": {
+        "hash": "0x09e5de8eb5f50e532f7496a3f5e90b78949767a0df105fafc63d44388b6e0d70"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "959n",
+        "positionType": "1n",
+        "leverageHdths": "300n",
+        "startDepositCNS": "87400n",
+        "endDepositCNS": "174234n",
+        "pnlCollateralizedCNS": "0n",
+        "premiumPnlSettledCNS": "0n",
+        "maxNegPnlCollatBPS": "1000n",
+        "pricePNS": "2613n",
+        "startLotLNS": "10n",
+        "endLotLNS": "20n",
+        "insFeeCNS": "14n",
+        "protFeeCNS": "77n",
+        "priceResiduePNSQ16": "32768n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 4,
+      "block": {
+        "number": 68969359,
+        "timestamp": 1791375848
+      },
+      "transaction": {
+        "hash": "0x760df1f182c98eaaf7aff89574d9fba39f0cf54f56dc3999cf70a6dfe4e88e9c"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "959n",
+        "positionType": "1n",
+        "pricePNS": "2636n",
+        "deltaPnlCNS": "-4500n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68970760,
+        "timestamp": 1791376271
+      },
+      "transaction": {
+        "hash": "0x6bae97164237d94ca4ea3841ea1bc05d97b95dbee65afa9cad60f40209cbb5fa"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68970837n",
+        "specifiedRatePct100k": "4n",
+        "actualRatePct100k": "4n",
+        "fundingPricePNS": "2625n",
+        "fundingPaymentPNS": "105n",
+        "fundingSumPNS": "-23115n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68979330,
+        "timestamp": 1791378859
+      },
+      "transaction": {
+        "hash": "0xef9f2e6d05b086da012ba73ca4429092e427edd64a0774b7fc22cb16e3ab7ff3"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68979408n",
+        "specifiedRatePct100k": "0n",
+        "actualRatePct100k": "0n",
+        "fundingPricePNS": "2627n",
+        "fundingPaymentPNS": "0n",
+        "fundingSumPNS": "-23115n",
+        "allowOverwrite": false
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 18,
+      "block": {
+        "number": 68983329,
+        "timestamp": 1791380067
+      },
+      "transaction": {
+        "hash": "0x3fad3ab5b735ac8f542b665342161894ae282e0e07f3a565f8b1e36838eee38a"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "leverageHdths": "200n",
+        "depositCNS": "13060n",
+        "pnlCollateralizedCNS": "30n",
+        "pricePNS": "2606n",
+        "lotLNS": "1n",
+        "insFeeCNS": "2n",
+        "protFeeCNS": "7n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 9,
+      "block": {
+        "number": 68983334,
+        "timestamp": 1791380068
+      },
+      "transaction": {
+        "hash": "0x6e5aee117d142be2880c416fe3ceda5604c9041a9d086a7c8d5f6c537e67f1b0"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "pricePNS": "2601n",
+        "deltaPnlCNS": "-50n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 37,
+      "block": {
+        "number": 68983345,
+        "timestamp": 1791380072
+      },
+      "transaction": {
+        "hash": "0x11cb4cab194d652d087b3d1cb4c3a7cf2d9eac43442bdcfef5316489de8ee7b4"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "leverageHdths": "200n",
+        "depositCNS": "13045n",
+        "pnlCollateralizedCNS": "20n",
+        "pricePNS": "2605n",
+        "lotLNS": "1n",
+        "insFeeCNS": "2n",
+        "protFeeCNS": "7n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 4,
+      "block": {
+        "number": 68983349,
+        "timestamp": 1791380073
+      },
+      "transaction": {
+        "hash": "0x863dcf13b3f289ce2a3f0e874ca67e575f881d6c019c50428339f19334306536"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "pricePNS": "2602n",
+        "deltaPnlCNS": "-30n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 4,
+      "block": {
+        "number": 68983360,
+        "timestamp": 1791380076
+      },
+      "transaction": {
+        "hash": "0x18b1f8fa62ea63e01e97ab43e023b13a812dea3590e481bb9fb9d9f5e7139688"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "leverageHdths": "200n",
+        "depositCNS": "13045n",
+        "pnlCollateralizedCNS": "20n",
+        "pricePNS": "2605n",
+        "lotLNS": "1n",
+        "insFeeCNS": "2n",
+        "protFeeCNS": "7n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 17,
+      "block": {
+        "number": 68983365,
+        "timestamp": 1791380078
+      },
+      "transaction": {
+        "hash": "0x9c6fb8a94a5f53802eeadb4ab32377703056230b67f0e5bf38f4ee3546dcc017"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "pricePNS": "2600n",
+        "deltaPnlCNS": "-50n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 8,
+      "block": {
+        "number": 68983376,
+        "timestamp": 1791380081
+      },
+      "transaction": {
+        "hash": "0x319ef0d36046097f1067df676a487fb28fc48e133b354efa419272ddb42b6779"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "leverageHdths": "200n",
+        "depositCNS": "13055n",
+        "pnlCollateralizedCNS": "30n",
+        "pricePNS": "2605n",
+        "lotLNS": "1n",
+        "insFeeCNS": "2n",
+        "protFeeCNS": "7n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 52,
+      "block": {
+        "number": 68983380,
+        "timestamp": 1791380082
+      },
+      "transaction": {
+        "hash": "0x55c95785a76e886c8cc5f8fe295621fed3c23a972efead497f786eabf5b41a65"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "pricePNS": "2602n",
+        "deltaPnlCNS": "-30n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 83,
+      "block": {
+        "number": 68983390,
+        "timestamp": 1791380085
+      },
+      "transaction": {
+        "hash": "0x987ceff1481648a51a828a99af43bd1c59ff117ceb36c07f147df8806549784e"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "leverageHdths": "200n",
+        "depositCNS": "13055n",
+        "pnlCollateralizedCNS": "30n",
+        "pricePNS": "2605n",
+        "lotLNS": "1n",
+        "insFeeCNS": "2n",
+        "protFeeCNS": "7n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 39,
+      "block": {
+        "number": 68983394,
+        "timestamp": 1791380087
+      },
+      "transaction": {
+        "hash": "0xdd79d8726a98e5d392e24eea8ce3ad411473c44679209a53d75598ffc88e0cac"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "pricePNS": "2599n",
+        "deltaPnlCNS": "-60n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 5,
+      "block": {
+        "number": 68983405,
+        "timestamp": 1791380090
+      },
+      "transaction": {
+        "hash": "0x5a651fde5ccb9b604fac82aae8eb63b641fce0034bcff15e488a9f1b9acf4829"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "leverageHdths": "200n",
+        "depositCNS": "13045n",
+        "pnlCollateralizedCNS": "30n",
+        "pricePNS": "2603n",
+        "lotLNS": "1n",
+        "insFeeCNS": "2n",
+        "protFeeCNS": "7n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 6,
+      "block": {
+        "number": 68983409,
+        "timestamp": 1791380091
+      },
+      "transaction": {
+        "hash": "0xc26b60dc224828d45eacde394b5f5e4ec76f1d05516d55c38d51f0eefed4c925"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "pricePNS": "2595n",
+        "deltaPnlCNS": "-80n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 63,
+      "block": {
+        "number": 68983420,
+        "timestamp": 1791380095
+      },
+      "transaction": {
+        "hash": "0x4b28b832ffd197c71d0ab9d38b84c60d98849cc15d84c6ec0adca0ddb471acb4"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "leverageHdths": "200n",
+        "depositCNS": "13105n",
+        "pnlCollateralizedCNS": "70n",
+        "pricePNS": "2607n",
+        "lotLNS": "1n",
+        "insFeeCNS": "2n",
+        "protFeeCNS": "7n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 6,
+      "block": {
+        "number": 68983424,
+        "timestamp": 1791380096
+      },
+      "transaction": {
+        "hash": "0x05b6167e7fb876c5d2c99aab87c13228d4f53a915c5ad06fbc82cdebff1efb05"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "pricePNS": "2595n",
+        "deltaPnlCNS": "-120n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 4,
+      "block": {
+        "number": 68983435,
+        "timestamp": 1791380099
+      },
+      "transaction": {
+        "hash": "0x0be8673d1f398db4a6911ca619ac84fd78000df3b4c69de4daab9b7b6fac817c"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "leverageHdths": "200n",
+        "depositCNS": "13035n",
+        "pnlCollateralizedCNS": "30n",
+        "pricePNS": "2601n",
+        "lotLNS": "1n",
+        "insFeeCNS": "2n",
+        "protFeeCNS": "7n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 6,
+      "block": {
+        "number": 68983439,
+        "timestamp": 1791380100
+      },
+      "transaction": {
+        "hash": "0x52070fca8798e933bc82a003b4f7fc113c1c5172b6738e72379530353f4fb435"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "pricePNS": "2595n",
+        "deltaPnlCNS": "-60n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 15,
+      "block": {
+        "number": 68983582,
+        "timestamp": 1791380143
+      },
+      "transaction": {
+        "hash": "0x93678ade4886c2717ba20730b17e5599565c7000173c622183980fea317e3ea1"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "814n",
+        "positionType": "1n",
+        "leverageHdths": "100n",
+        "depositCNS": "24951330n",
+        "pnlCollateralizedCNS": "134820n",
+        "pricePNS": "2577n",
+        "lotLNS": "963n",
+        "insFeeCNS": "1285n",
+        "protFeeCNS": "7277n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionOpenedV2",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 37,
+      "block": {
+        "number": 68986963,
+        "timestamp": 1791381166
+      },
+      "transaction": {
+        "hash": "0xc414937897df5e65db57fe580f3d0587df24cac772512208f8ad3d2521a5fa62"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "leverageHdths": "200n",
+        "depositCNS": "65000n",
+        "pnlCollateralizedCNS": "50n",
+        "pricePNS": "2598n",
+        "lotLNS": "5n",
+        "insFeeCNS": "7n",
+        "protFeeCNS": "38n",
+        "priceResiduePNSQ16": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "PositionClosed",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 4,
+      "block": {
+        "number": 68986976,
+        "timestamp": 1791381169
+      },
+      "transaction": {
+        "hash": "0x7eaffd201bb7d42b603cbebaedff4229a3b051223dffcfb0a87d2024ce903b05"
+      },
+      "params": {
+        "perpId": "64n",
+        "accountId": "710n",
+        "positionType": "0n",
+        "pricePNS": "2598n",
+        "deltaPnlCNS": "0n",
+        "fundingCNS": "0n"
+      }
+    },
+    {
+      "contract": "PerplExchange",
+      "event": "FundingEventCompleted",
+      "srcAddress": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "logIndex": 14,
+      "block": {
+        "number": 68987902,
+        "timestamp": 1791381449
+      },
+      "transaction": {
+        "hash": "0x28096fe0e4a79050d4a803ca32bc4b6f4b8edfff4ad77cac6a70a253c9aee9d1"
+      },
+      "params": {
+        "perpId": "64n",
+        "fundingEventBlock": "68987979n",
+        "specifiedRatePct100k": "1n",
+        "actualRatePct100k": "1n",
+        "fundingPricePNS": "2601n",
+        "fundingPaymentPNS": "26n",
+        "fundingSumPNS": "-23089n",
+        "allowOverwrite": false
+      }
+    }
+  ]
+}

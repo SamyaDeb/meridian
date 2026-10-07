@@ -93,6 +93,21 @@ contracts:
     events:
       - event: ReportExecuted
       - event: ForwarderUpdated
+  - name: PerplExchange
+    abi_file_path: ./abis/PerplExchange.json
+    events:
+      - event: FundingEventCompleted
+      - event: MarkUpdated
+      - event: PositionOpenedV2
+      - event: PositionIncreasedV2
+      - event: PositionDecreased
+      - event: PositionClosed
+      - event: PositionInverted
+      - event: PositionLiquidated
+      - event: IncreasePositionCollateral
+      - event: CollateralDeposit
+      - event: CollateralWithdrawal
+      - event: AccountCreated
 chains:
   - id: 10143
     start_block: 68739694
@@ -117,3 +132,5 @@ chains:
         address: "0xEB3f3956AC3c13BC9b61a383590F5eEb4Ff6e541"
       - name: KuruHedger
         address: "0xdB9Bc1996dE5A338c7F2B7b7f5f56B9047567191"
+      - name: PerplExchange
+        address: "0x1964c32f0be608e7d29302aff5e61268e72080cc"

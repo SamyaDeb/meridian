@@ -1,0 +1,299 @@
+{
+  "_about": "Perpl (another perp DEX on Monad), indexed next to Meridian for cross-venue funding. Addresses and market metadata are copied from Perpl's public context endpoint; never hard-code them in handlers. Refresh with: node indexer/scripts/seed-perpl.mjs",
+  "abi": {
+    "file": "indexer/abis/PerplExchange.json",
+    "source": "https://github.com/PerplFoundation/dex-sdk/blob/dbb37c59f6aef03e38d0787eb9c968f59f652617/crates/sdk/abi/dex/Exchange.json",
+    "revision": "rc_v1.1.7-203-g0e5902dd",
+    "license": "MIT"
+  },
+  "chains": {
+    "143": {
+      "exchange": "0x34b6552d57a35a1d042ccae1951bd1c370112a6f",
+      "contextUrl": "https://app.perpl.xyz/api/v1/pub/context",
+      "fetched": "2026-10-07",
+      "monMarketId": 10,
+      "collateralSymbol": "AUSD",
+      "collateralDecimals": 6,
+      "collateralToken": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+      "markets": {
+        "1": {
+          "name": "BTC",
+          "symbol": "",
+          "priceDecimals": 1,
+          "sizeDecimals": 5,
+          "fundingSumScalingExp": 0,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "10": {
+          "name": "MON",
+          "symbol": "",
+          "priceDecimals": 6,
+          "sizeDecimals": 0,
+          "fundingSumScalingExp": 2,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "20": {
+          "name": "ETH",
+          "symbol": "ETH",
+          "priceDecimals": 2,
+          "sizeDecimals": 3,
+          "fundingSumScalingExp": 0,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "31": {
+          "name": "SOL",
+          "symbol": "SOL",
+          "priceDecimals": 3,
+          "sizeDecimals": 3,
+          "fundingSumScalingExp": 2,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "40": {
+          "name": "HYPE",
+          "symbol": "HYPE",
+          "priceDecimals": 4,
+          "sizeDecimals": 2,
+          "fundingSumScalingExp": 1,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "50": {
+          "name": "ZEC",
+          "symbol": "ZEC",
+          "priceDecimals": 2,
+          "sizeDecimals": 4,
+          "fundingSumScalingExp": 2,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "60": {
+          "name": "LIT",
+          "symbol": "LIT",
+          "priceDecimals": 5,
+          "sizeDecimals": 1,
+          "fundingSumScalingExp": 1,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "70": {
+          "name": "VVV",
+          "symbol": "VVV",
+          "priceDecimals": 4,
+          "sizeDecimals": 2,
+          "fundingSumScalingExp": 2,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "90": {
+          "name": "PUMP",
+          "symbol": "PUMP",
+          "priceDecimals": 6,
+          "sizeDecimals": 0,
+          "fundingSumScalingExp": 2,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "100": {
+          "name": "NEAR",
+          "symbol": "NEAR",
+          "priceDecimals": 4,
+          "sizeDecimals": 2,
+          "fundingSumScalingExp": 2,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "110": {
+          "name": "UNI",
+          "symbol": "UNI",
+          "priceDecimals": 4,
+          "sizeDecimals": 2,
+          "fundingSumScalingExp": 2,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        }
+      }
+    },
+    "10143": {
+      "exchange": "0x1964c32f0be608e7d29302aff5e61268e72080cc",
+      "contextUrl": "https://testnet.perpl.xyz/api/v1/pub/context",
+      "fetched": "2026-10-07",
+      "monMarketId": 64,
+      "collateralSymbol": "AUSD",
+      "collateralDecimals": 6,
+      "collateralToken": "0xa9012a055bd4e0edff8ce09f960291c09d5322dc",
+      "markets": {
+        "16": {
+          "name": "BTC Perp",
+          "symbol": "BTC",
+          "priceDecimals": 1,
+          "sizeDecimals": 5,
+          "fundingSumScalingExp": 0,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "32": {
+          "name": "ETH Perp",
+          "symbol": "ETH",
+          "priceDecimals": 2,
+          "sizeDecimals": 3,
+          "fundingSumScalingExp": 0,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "48": {
+          "name": "SOL Perp",
+          "symbol": "SOL",
+          "priceDecimals": 2,
+          "sizeDecimals": 3,
+          "fundingSumScalingExp": 3,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "64": {
+          "name": "MON Perp",
+          "symbol": "MON",
+          "priceDecimals": 5,
+          "sizeDecimals": 0,
+          "fundingSumScalingExp": 3,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "256": {
+          "name": "ZEC Perp",
+          "symbol": "ZEC",
+          "priceDecimals": 3,
+          "sizeDecimals": 3,
+          "fundingSumScalingExp": 2,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "272": {
+          "name": "LIT Perp",
+          "symbol": "LIT",
+          "priceDecimals": 5,
+          "sizeDecimals": 1,
+          "fundingSumScalingExp": 1,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "320": {
+          "name": "PUMP Perp",
+          "symbol": "PUMP",
+          "priceDecimals": 6,
+          "sizeDecimals": 0,
+          "fundingSumScalingExp": 2,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        },
+        "336": {
+          "name": "NEAR Perp",
+          "symbol": "NEAR",
+          "priceDecimals": 4,
+          "sizeDecimals": 2,
+          "fundingSumScalingExp": 2,
+          "fundingIntervalSec": 2580,
+          "fundingIntervalBlocks": 8571,
+          "contractVersion": [
+            1,
+            7,
+            5
+          ]
+        }
+      }
+    }
+  }
+}

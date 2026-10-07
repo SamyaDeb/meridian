@@ -100,3 +100,24 @@ export function annualizedChangeWad(sp0: bigint, sp1: bigint, dtSeconds: bigint)
 
 /** Candle bucket start (unix seconds). */
 export const bucketStart = (ts: bigint, sizeSeconds: bigint): bigint => ts - (ts % sizeSeconds);
+
+// ─── Perpl (K2.2): reference conversions, rounding neutral (truncate toward zero), never payments ─────────────
+
+/** Perpl funding rate unit: actualRatePct100k = fraction of notional per interval · 1e5, so ·1e13 → WAD. */
+export const PCT100K_TO_WAD = 10n ** 13n;
+
+/**
+ * Perpl funding rate per interval → APR WAD: rate·1e13·YEAR / intervalSec, rounds neutral (docs/MFI.md §3.2 with the
+ * onchain unit: the API's micros = ratePct100k·10, verified on every funding event of the indexed window).
+ * Undefined when the interval is unknown.
+ */
+export function perplAprWad(ratePct100k: bigint, fundingIntervalSec: number | undefined): bigint | undefined {
+  if (fundingIntervalSec === undefined || !(fundingIntervalSec > 0)) return undefined;
+  return (ratePct100k * PCT100K_TO_WAD * SECONDS_PER_YEAR) / BigInt(fundingIntervalSec);
+}
+
+/** Scaled integer with `decimals` (≤ 18, checked by seed-perpl) → WAD, exact. Undefined when decimals are unknown. */
+export function scaledToWad(x: bigint, decimals: number | undefined): bigint | undefined {
+  if (decimals === undefined || decimals < 0 || decimals > 18) return undefined;
+  return x * 10n ** BigInt(18 - decimals);
+}

@@ -142,6 +142,21 @@ describe("anvil E2E replay: every event type lands in the right entity", () => {
     }
   });
 
+  it("funding is conserved (K2.1 property): Σ over accounts of paid + pending ≈ 0, within rounding per settlement", async () => {
+    // Every account's payments are ∫ q dF over its holding periods; Σq = 0 at every block, so Σ ∫ q dF = 0. Pending =
+    // q·(F_last − lastCumFunding)/1e18 for what is not settled yet. Each settlement rounds by < 1 wei (in the
+    // protocol's favour), so the residue is bounded by the number of FundingSettled events (+ one per account here).
+    const fLast = fx.expected.cumFunding;
+    const ams = await indexer.AccountMarket.getAll();
+    let total = 0n;
+    for (const am of ams) total += am.fundingPaid + (am.size * (fLast - am.lastCumFunding)) / 10n ** 18n;
+    const settlements = BigInt(of("ClearingHouse", "FundingSettled").length + ams.length);
+    expect(of("ClearingHouse", "FundingSettled").length).toBeGreaterThan(10);
+    expect(total >= -settlements && total <= settlements, `residue ${total} wei over ${settlements} settlements`).toBe(true);
+    // and the flows are real money, not zeros: some account paid and some received
+    expect(ams.some((a) => a.fundingPaid > 0n) && ams.some((a) => a.fundingPaid < 0n)).toBe(true);
+  });
+
   it("Liquidation + bad debt + insurance fund", async () => {
     const liq = of("ClearingHouse", "Liquidated");
     const ents = await indexer.Liquidation.getAll();

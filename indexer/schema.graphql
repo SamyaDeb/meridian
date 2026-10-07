@@ -68,6 +68,7 @@ type Market {
   realizedApr1hWad: BigInt
   realizedApr8hWad: BigInt
   realizedApr24hWad: BigInt
+  realizedApr7dWad: BigInt
   # trading
   lastTradePrice: BigInt!
   volumeBaseWad: BigInt!
@@ -115,6 +116,26 @@ type FundingCheckpoint @index(fields: ["market", ["blockNumber", "DESC"]]) {
   realizedApr1hWad: BigInt
   realizedApr8hWad: BigInt
   realizedApr24hWad: BigInt
+}
+
+# Realized funding APR per market over fixed windows (K2.1), updated on every FundingUpdated (id = market address).
+# ΔF/ΔG·YEAR against the FundingCheckpoint at or before block − window (MATH_SPEC §1.8); a window is null until the
+# indexer has that much checkpoint history. fromBlock* = the checkpoint block the window was measured from.
+type FundingWindow {
+  id: ID!
+  market: String!
+  block: BigInt! # block of the FundingUpdated these values are as of
+  timestamp: BigInt!
+  blockTimeMs: BigInt!
+  apr1hWad: BigInt
+  apr8hWad: BigInt
+  apr24hWad: BigInt
+  apr7dWad: BigInt
+  fromBlock1h: BigInt
+  fromBlock8h: BigInt
+  fromBlock24h: BigInt
+  fromBlock7d: BigInt
+  rateAprWad: BigInt! # instantaneous rate·YEAR at `block`
 }
 
 # ─── Order books (perp and swap share IOrderBook) ───────────────────────────────
@@ -232,6 +253,7 @@ type AccountMarket @index(fields: ["market", "account"]) {
   depositedToken: BigInt!
   withdrawnToken: BigInt!
   liquidationCount: Int!
+  lastTradeBlock: BigInt # last PositionChanged (trade or liquidation transfer)
   updatedBlock: BigInt!
 }
 
@@ -259,6 +281,7 @@ type BadDebtEvent {
   requested: BigInt!
   covered: BigInt!
   uncovered: BigInt!
+  feeCoveredWad: BigInt # perp BadDebtSocialized only: requested − covered − uncovered (MATH_SPEC §3.3)
   block: BigInt!
   timestamp: BigInt!
 }
@@ -287,7 +310,45 @@ type InsuranceFund {
   id: ID!
   fundedToken: BigInt! # Σ Funded
   coveredToken: BigInt! # Σ BadDebtCovered.covered
+  penaltyToken: BigInt! # Σ liquidation IF share (toInsurance / 1e12, rounds down, as _payInsurance sends)
+  balanceToken: BigInt! # funded + penalties − covered (event-derived; = balance() unless tokens were sent directly)
   authorizedMarkets: [String!]!
+}
+
+# K2.1 bad-debt waterfall, one row per step (MATH_SPEC §3.3, PHASES 36). Order inside a liquidation tx:
+# CoveredByInsurance (IF BadDebtCovered) → CoveredByFees → Uncovered (both from BadDebtSocialized, perp only) → the
+# Liquidated event (PenaltyIn = IF share of the penalty). Funded = a top-up. Amounts are positive; `direction` says
+# whether the IF balance went up (In) or down (Out); Fees/Uncovered steps don't touch the IF (None).
+enum InsuranceFlow {
+  Funded
+  PenaltyIn
+  CoveredByInsurance
+  CoveredByFees
+  Uncovered
+}
+
+enum FlowDirection {
+  In
+  Out
+  None
+}
+
+type InsuranceFundEvent @index(fields: ["fund", ["block", "DESC"]]) {
+  id: ID! # "<block>-<logIndex>-<step>"
+  fund: String! # InsuranceFund address
+  flow: InsuranceFlow!
+  direction: FlowDirection!
+  kind: BookKind # Perp / Swap for market-originated steps; undefined for Funded
+  market: String # ClearingHouse / FundingSwapMarket (undefined for Funded)
+  account: String # liquidated account (penalty / bad-debt steps when known)
+  from: String # Funded: who topped up
+  amountWad: BigInt! # step size, WAD (token amounts ·1e12, exact)
+  amountToken: BigInt # AUSD 6 dp where the step moves tokens
+  requestedWad: BigInt # bad-debt steps: the liquidation's bad debt
+  balanceAfterToken: BigInt! # IF balance after this step (event-derived)
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
 }
 
 # ─── Vault ─────────────────────────────────────────────────────────────────────
@@ -329,7 +390,13 @@ type VaultRedeemRequest @index(fields: ["vault", "owner"]) @index(fields: ["vaul
   requestedBlock: BigInt!
   requestedAt: BigInt!
   fulfilledBlock: BigInt
+  fulfilledAt: BigInt
+  fulfilTxHash: String
   claimedBlock: BigInt
+  claimedAt: BigInt
+  claimTxHash: String
+  cancelledBlock: BigInt
+  cancelledAt: BigInt
   updatedBlock: BigInt!
   txHash: String! # of the request
 }
@@ -465,7 +532,39 @@ type ProtocolStats {
   fundingTicks: Int!
   keeperReports: Int!
   keeperReportFailures: Int!
+  perpOpenInterestLongWad: BigInt! # product perp markets, base WAD
+  perpOpenInterestShortWad: BigInt!
+  swapOpenInterestWad: BigInt! # Σ positive q over swap markets
   updatedBlock: BigInt! # last block whose events changed these numbers (the dashboard shows it next to them)
+}
+
+# K2.1 one row per UTC day (id = "<dayStart unix s>"), test markets excluded like ProtocolStats. Flow fields are the
+# day's change of the ProtocolStats counters; *Close fields are the value at the day's last update.
+type ProtocolDaily @index(fields: [["day", "DESC"]]) {
+  id: ID!
+  day: BigInt! # unix seconds of 00:00 UTC
+  perpVolumeQuoteWad: BigInt!
+  perpVolumeMmQuoteWad: BigInt!
+  swapVolumeWad: BigInt!
+  feesWad: BigInt!
+  trades: Int!
+  liquidations: Int!
+  fundingTicks: Int!
+  newUsers: Int!
+  newExternalUsers: Int!
+  activeExternalUsers: Int! # distinct non-operator accounts active on a product market that day
+  tvlTokenClose: BigInt!
+  perpCollateralTokenClose: BigInt!
+  vaultNavTokenClose: BigInt!
+  perpOpenInterestLongWadClose: BigInt!
+  perpOpenInterestShortWadClose: BigInt!
+  swapOpenInterestWadClose: BigInt!
+  updatedBlock: BigInt!
+}
+
+# Marker so an account counts once per day in ProtocolDaily.activeExternalUsers (id = "<dayStart>-<account>").
+type AccountDay {
+  id: ID!
 }
 
 # Low-frequency admin/config events (params updates, pause, keeper/forwarder changes, IF authorizations).
@@ -495,4 +594,137 @@ type BookRef {
   id: ID!
   kind: BookKind!
   market: String!
+}
+
+# ─── Perpl (another perp DEX on Monad, indexed for cross-venue funding; K2.2) ───────────────────────────────────
+# Source: Perpl's Exchange proxy (deployments/perpl.json), ABI PerplFoundation/dex-sdk (indexer/abis/README.md).
+# Event units (verified on the deployed contract, indexer/PERPL_EVENTS.md): prices *PNS = integer · 10^-priceDecimals,
+# sizes *LNS (lots) = integer · 10^-sizeDecimals, collateral *CNS = AUSD 6 dp, funding rate *Pct100k = fraction of
+# notional per funding interval · 1e5 (= Perpl API micros / 10). Decimals and the interval come from the seeded
+# context snapshot (src/perpl.gen.ts); *Wad fields are undefined for a perp missing from it. Conversions round neutral
+# (truncate toward zero): these are reference values, never payments.
+
+enum PerplSide {
+  Long # positionType 0
+  Short # positionType 1
+}
+
+# One per perpetual id (id = perpId as a decimal string).
+type PerplMarket {
+  id: ID!
+  perpId: BigInt!
+  name: String
+  symbol: String
+  known: Boolean! # metadata found in the seeded snapshot
+  isMon: Boolean! # the MON market compared with Meridian (CrossVenueFunding)
+  priceDecimals: Int
+  sizeDecimals: Int
+  fundingIntervalSec: Int
+  lastMarkPNS: BigInt
+  lastMarkWad: BigInt
+  lastMarkBlock: BigInt
+  lastFundingEventBlock: BigInt
+  lastRatePct100k: BigInt
+  lastAprWad: BigInt # rate · YEAR / interval (WAD)
+  fundingEvents: Int!
+  openInterestLongLots: BigInt! # Σ open long lots (LNS) from position events
+  openInterestShortLots: BigInt!
+  openInterestLongWad: BigInt # base WAD
+  openInterestShortWad: BigInt
+  openPositions: Int!
+  liquidations: Int!
+  updatedBlock: BigInt!
+}
+
+# One per funding interval and perp (id = "<perpId>-<fundingEventBlock>"). The rate applies from fundingEventBlock;
+# the event is mined ~78 blocks earlier. A re-emitted interval (allowOverwrite) replaces the row, overwrites + 1.
+type PerplFunding @index(fields: ["perpId", ["fundingEventBlock", "DESC"]]) {
+  id: ID!
+  perpId: BigInt!
+  fundingEventBlock: BigInt!
+  ratePct100k: BigInt! # actualRatePct100k
+  specifiedRatePct100k: BigInt!
+  aprWad: BigInt # ratePct100k · 1e13 · YEAR / fundingIntervalSec
+  fundingPricePNS: BigInt!
+  fundingPriceWad: BigInt
+  paymentPNS: BigInt! # funding paid per lot this interval (Perpl API `ppl`)
+  sumPNS: BigInt! # cumulative (API `sum`)
+  overwrites: Int!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+# Perpl account (id = accountId). `address` is known only for accounts created inside the indexed window
+# (AccountCreated); older ones can be resolved with the exchange's account view (K5).
+type PerplAccount @index(fields: ["address"]) {
+  id: ID!
+  accountId: BigInt!
+  address: String
+  balanceCNS: BigInt # last balanceCNS from a collateral event
+  depositedCNS: BigInt!
+  withdrawnCNS: BigInt!
+  createdBlock: BigInt
+  updatedBlock: BigInt!
+}
+
+# Event mirror of one Perpl position (id = "<perpId>-<accountId>"); a closed position keeps its row (open = false).
+type PerplPosition @index(fields: ["perpId", "open"]) @index(fields: ["accountId"]) {
+  id: ID!
+  perpId: BigInt!
+  accountId: BigInt!
+  address: String # from PerplAccount when known
+  side: PerplSide!
+  open: Boolean!
+  lots: BigInt! # LNS
+  sizeWad: BigInt
+  entryPricePNS: BigInt! # the exchange's own entry: pricePNS of the last Opened / IncreasedV2 / Inverted (0 if unknown)
+  entryPriceWad: BigInt
+  entryPriceExact: Boolean! # false only for a position opened before the window and only decreased since
+  depositCNS: BigInt! # position collateral after the last event (end deposit)
+  depositWad: BigInt!
+  leverageHdths: BigInt # leverage · 100 at the last open/increase
+  realizedPnlCNS: BigInt! # Σ deltaPnlCNS
+  fundingCNS: BigInt! # Σ fundingCNS settled on this position
+  feesCNS: BigInt! # Σ insFeeCNS + protFeeCNS
+  liquidations: Int!
+  openedBlock: BigInt!
+  updatedBlock: BigInt!
+}
+
+# One per PositionLiquidated (id = "<block>-<logIndex>").
+type PerplLiquidation @index(fields: ["perpId", ["block", "DESC"]]) @index(fields: ["accountId"]) {
+  id: ID!
+  perpId: BigInt!
+  accountId: BigInt!
+  address: String
+  side: PerplSide!
+  markPricePNS: BigInt!
+  markPriceWad: BigInt
+  liqPricePNS: BigInt!
+  liqPriceWad: BigInt
+  liqLots: BigInt! # lots liquidated
+  remainingLots: BigInt! # posLotLNS after
+  deltaPnlCNS: BigInt!
+  fundingCNS: BigInt!
+  onOrderBook: Boolean!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+# K2.2 hourly cross-venue funding (id = "<hourStart unix s>"): Meridian's realized 1 h APR at the hour's last funding
+# tick (FundingWindow.apr1hWad) vs the Perpl MON rate in force (latest FundingEventCompleted, annualized).
+# spreadAprWad = meridian − perpl, set when both are. A venue with no data yet leaves its side null.
+type CrossVenueFunding @index(fields: [["hour", "DESC"]]) {
+  id: ID!
+  hour: BigInt!
+  meridianMarket: String
+  meridianAprWad: BigInt
+  meridianBlock: BigInt
+  perplPerpId: BigInt
+  perplAprWad: BigInt
+  perplFundingEventBlock: BigInt
+  spreadAprWad: BigInt
+  updatedBlock: BigInt!
 }
