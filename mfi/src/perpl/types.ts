@@ -10,8 +10,11 @@ export type FundingEvent = { at: BlockTimestamp; feb: number; rate: number; idx:
 /** types.md "MarketState" (prices scaled by price_decimals, sizes by size_decimals). */
 export type MarketState = { at: BlockTimestamp; orl: number; mrk: number; lst: number; mid: number; bid: number; ask: number; oi: number };
 
-/** types.md "MarketConfig" (subset). */
-export type MarketConfig = { is_open: boolean; price_decimals: number; size_decimals: number };
+/** Fee schedule of one market, micros (10^-6 of notional; README "Fees & fee tiers": 1000 = 0.1% = 10 bps). */
+export type PerplFees = { makerMicros: number; takerMicros: number; makerTiers?: number[]; takerTiers?: number[] };
+
+/** types.md "MarketConfig" (subset). `fees` from maker_fee/taker_fee (+ per-tier arrays), when present. */
+export type MarketConfig = { is_open: boolean; price_decimals: number; size_decimals: number; fees?: PerplFees };
 
 /** types.md "Market" (subset). */
 export type Market = {
@@ -20,6 +23,8 @@ export type Market = {
   name: string;
   funding_interval_sec: number;
   funding_interval_blocks: number;
+  /** lb ceiling: head < lb <= head + order_ttl_blocks (websocket.md "Last execution block"); absent in old recordings */
+  order_ttl_blocks?: number;
   config: MarketConfig;
 };
 

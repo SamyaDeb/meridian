@@ -9,7 +9,7 @@ export const MERIDIAN_WINDOW_BLOCKS = 12_000n;
 const FALLBACK_WINDOWS = [6_000n, 2_400n, 1_200n, 400n];
 
 export type MeridianRead =
-  | { ok: true; aprWad: bigint; windowBlocks: bigint; oiNotionalWad: bigint; markWad: bigint; asOfBlock: bigint; headBlock: bigint }
+  | { ok: true; aprWad: bigint; windowBlocks: bigint; oiNotionalWad: bigint; markWad: bigint; asOfBlock: bigint; headBlock: bigint; fees?: MeridianFees }
   | { ok: false; status: "stale" | "unavailable" | "oracle-stale"; reason: string; headBlock?: bigint };
 
 const revertName = (e: unknown): string | undefined => {
@@ -20,7 +20,20 @@ const revertName = (e: unknown): string | undefined => {
 
 type Reader = Pick<PublicClient, "readContract" | "getBlockNumber">;
 
-export async function readMeridianVenue(client: Reader, clearingHouse: Address, opts: { maxLagBlocks?: bigint } = {}): Promise<MeridianRead> {
+/** RiskParams fees, fraction of notional in WAD (MeridianTypes.sol: takerFee 0.0005e18 = 5 bps; makerFee < 0 = rebate). */
+export type MeridianFees = { takerWad: bigint; makerWad: bigint };
+
+/** Best effort: fees are display data for the spread route, never a reason to exclude the venue. */
+export async function readMeridianFees(client: Reader, clearingHouse: Address, blockNumber: bigint): Promise<MeridianFees | undefined> {
+  try {
+    const p = await client.readContract({ address: clearingHouse, abi: clearingHouseMfiAbi, functionName: "riskParams", blockNumber });
+    return { takerWad: p.takerFee, makerWad: p.makerFee };
+  } catch {
+    return undefined;
+  }
+}
+
+export async function readMeridianVenue(client: Reader, clearingHouse: Address, opts: { maxLagBlocks?: bigint; withFees?: boolean } = {}): Promise<MeridianRead> {
   const maxLag = opts.maxLagBlocks ?? 200n;
   let head: bigint;
   try {
@@ -48,8 +61,9 @@ export async function readMeridianVenue(client: Reader, clearingHouse: Address, 
       }
     }
     if (aprWad === undefined) return { ok: false, status: "stale", reason: "no checkpoint history yet", headBlock: head };
+    const fees = opts.withFees ? await readMeridianFees(client, clearingHouse, head) : undefined;
     // MATH_SPEC: OI is per side (long = short); notional floors (weights only, MFI.md §3.3)
-    return { ok: true, aprWad, windowBlocks, oiNotionalWad: (oi[0] * mark) / WAD, markWad: mark, asOfBlock, headBlock: head };
+    return { ok: true, aprWad, windowBlocks, oiNotionalWad: (oi[0] * mark) / WAD, markWad: mark, asOfBlock, headBlock: head, ...(fees ? { fees } : {}) };
   } catch (e) {
     if (revertName(e) === "OracleStale") return { ok: false, status: "oracle-stale", reason: "OracleStale", headBlock: head };
     return { ok: false, status: "unavailable", reason: `read: ${(e as Error).message.split("\n")[0]}`, headBlock: head };

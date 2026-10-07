@@ -89,3 +89,37 @@ describe("replay (synthetic sequence)", () => {
     }
   });
 });
+
+describe("spread and fees (K3: APR_meridian − APR_perpl)", () => {
+  it("both venues ⇒ spread = APR_m − APR_p (exact), with per-venue fees as WAD fractions", () => {
+    const s = new MfiService({ chainId: 10143 }).cycle({
+      nowMs: T0,
+      meridian: meridianOk({ fees: { takerWad: 5n * 10n ** 14n, makerWad: -(10n ** 14n) } }),
+      perpl: { ok: true, read: { ...perplRead(T0), fees: { makerMicros: 45, takerMicros: 345 }, source: "ws" } },
+    });
+    expect(s.spread).toEqual({ aprWad: (109_499_999_992_992_000n - 105_120_000_000_000_000n).toString(), meridianAprWad: "109499999992992000", perplAprWad: "105120000000000000" });
+    expect(s.fees).toEqual({ meridian: { takerWad: "500000000000000", makerWad: "-100000000000000" }, perpl: { takerWad: "345000000000000", makerWad: "45000000000000", takerMicros: 345, makerMicros: 45 } });
+    expect(s.venues.find((v) => v.id === "perpl")?.source).toBe("ws");
+  });
+  it("negative spread rounds nothing: Perpl above Meridian ⇒ negative", () => {
+    const s = new MfiService({ chainId: 10143 }).cycle({ nowMs: T0, meridian: meridianOk({ aprWad: 1n }), perpl: { ok: true, read: perplRead(T0, { aprWad: 3n }) } });
+    expect(s.spread?.aprWad).toBe("-2");
+  });
+  it("one venue out ⇒ spread null (never against a stale or missing rate)", () => {
+    const svc = new MfiService({ chainId: 10143 });
+    expect(svc.cycle({ nowMs: T0, meridian: meridianOk(), perpl: { ok: false, error: new PerplUnavailableError("timeout", "t") } }).spread).toBeNull();
+    expect(svc.cycle({ nowMs: T0 + 1, meridian: { ok: false, status: "stale", reason: "x" }, perpl: { ok: true, read: perplRead(T0 + 1) } }).spread).toBeNull();
+    const stale = svc.cycle({ nowMs: T0 + 2, meridian: meridianOk(), perpl: { ok: true, read: perplRead(T0 + 2, { stateAtMs: T0 + 2 - 200_000 }) } });
+    expect(stale.spread).toBeNull();
+  });
+  it("spreadRange: only cycles with both venues, derived from history (old points without a stored spread still serve)", () => {
+    const svc = new MfiService({
+      chainId: 10143,
+      initialHistory: [{ updatedBlock: "1", updatedAt: T0 - 120_000, aprWad: "5", meridianAprWad: "10", perplAprWad: "4", venuesIncluded: ["meridian", "perpl"], stale: false }],
+    });
+    svc.cycle(both(T0));
+    svc.cycle({ nowMs: T0 + 60_000, meridian: meridianOk(), perpl: { ok: false, error: new Error("down") } });
+    const pts = svc.spreadRange(0, T0 + 60_000, 100);
+    expect(pts.map((p) => p.spreadAprWad)).toEqual(["6", (109_499_999_992_992_000n - 105_120_000_000_000_000n).toString()]);
+  });
+});

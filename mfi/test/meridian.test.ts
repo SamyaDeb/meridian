@@ -67,3 +67,18 @@ describe("readMeridianVenue", () => {
     expect(r).toMatchObject({ ok: false, status: "unavailable" });
   });
 });
+
+describe("Meridian fees (RiskParams, for /v1/mfi/spread)", () => {
+  const rp = { imr: 10n ** 17n, mmr: 5n * 10n ** 16n, takerFee: 5n * 10n ** 14n, makerFee: -(10n ** 14n), liqPenalty: 0n, keeperShare: 0n, maxOpenInterest: 0n, maxPositionSize: 0n };
+  it("withFees reads riskParams at the same head", async () => {
+    let at: unknown;
+    const r = await readMeridianVenue(fake({ riskParams: (c) => { at = (c as { blockNumber?: bigint }).blockNumber; return rp; } }), CH, { withFees: true });
+    expect(r).toMatchObject({ ok: true, fees: { takerWad: 5n * 10n ** 14n, makerWad: -(10n ** 14n) } });
+    expect(at).toBe(1_000_000n);
+  });
+  it("a failing fee read never excludes the venue", async () => {
+    const r = await readMeridianVenue(fake({ riskParams: () => { throw new Error("rpc"); } }), CH, { withFees: true });
+    expect(r.ok).toBe(true);
+    expect("fees" in r).toBe(false);
+  });
+});
