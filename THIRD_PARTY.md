@@ -27,6 +27,7 @@ Meridian's own code is [MIT](LICENSE). It depends on the libraries below, which 
 | @privy-io/react-auth | app (login) | Apache-2.0 |
 | @privy-io/wagmi | app (login) | no SPDX field in its package.json. > VERIFY: the LICENSE file shipped in the package |
 | tsx | mfi | MIT |
+| @noble/ed25519 | mm-bot (Perpl API-key signing, as in Perpl's own TS examples) | MIT |
 | envio | indexer | **not OSI-approved** (Envio's own licence: source-available, self-hosting allowed). It's a dev/runtime dependency of the indexer only; none of its code is in this repo |
 
 ## Transitive npm dependencies (production, all workspaces)

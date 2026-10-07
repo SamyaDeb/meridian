@@ -22,5 +22,8 @@
   "dependencies": {
     "tsx": "^4.23.15",
     "viem": "^2.57.0"
+  },
+  "exports": {
+    "./perpl": "./src/perpl/index.ts"
   }
 }
