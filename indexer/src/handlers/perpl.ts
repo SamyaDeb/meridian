@@ -10,6 +10,20 @@ import { recordPerplHour } from "../lib/crossVenue.js";
 import { perplAprWad, scaledToWad } from "../lib/math.js";
 import { perplChain, perplMeta, perplSide } from "../lib/perpl.js";
 
+/**
+ * Registers a handler of the "full" Perpl profile (positions, mark, collateral). The hosted config uses the "lean"
+ * profile (gen-config PERPL_PROFILES: funding, liquidations, account ids, to stay under Envio's free-plan event limit)
+ * and envio 3.12.1 throws at registration for an event the config doesn't list; only that error is swallowed.
+ */
+export function fullProfile(register: () => void): void {
+  try {
+    register();
+  } catch (e) {
+    if (e instanceof Error && / is not configured on /.test(e.message)) return;
+    throw e;
+  }
+}
+
 async function getPerplMarket(context: Ctx, perpId: bigint, block: bigint): Promise<PerplMarket> {
   const meta = perplMeta(context.chain.id, perpId);
   return context.PerplMarket.getOrCreate({
@@ -74,17 +88,19 @@ indexer.onEvent({ contract: "PerplExchange", event: "FundingEventCompleted", fie
   if (m.isMon && newer) await recordPerplHour(context, p.perpId, tsOf(event), block, aprWad, p.fundingEventBlock);
 });
 
-indexer.onEvent({ contract: "PerplExchange", event: "MarkUpdated", fields: FIELDS }, async ({ event, context }) => {
-  const block = blockOf(event);
-  const m = await getPerplMarket(context, event.params.perpId, block);
-  context.PerplMarket.set({
-    ...m,
-    lastMarkPNS: event.params.pricePNS,
-    lastMarkWad: scaledToWad(event.params.pricePNS, m.priceDecimals),
-    lastMarkBlock: block,
-    updatedBlock: block,
-  });
-});
+fullProfile(() =>
+  indexer.onEvent({ contract: "PerplExchange", event: "MarkUpdated", fields: FIELDS }, async ({ event, context }) => {
+    const block = blockOf(event);
+    const m = await getPerplMarket(context, event.params.perpId, block);
+    context.PerplMarket.set({
+      ...m,
+      lastMarkPNS: event.params.pricePNS,
+      lastMarkWad: scaledToWad(event.params.pricePNS, m.priceDecimals),
+      lastMarkBlock: block,
+      updatedBlock: block,
+    });
+  }),
+);
 
 // ─── accounts ──────────────────────────────────────────────────────────────────
 
@@ -107,19 +123,23 @@ indexer.onEvent({ contract: "PerplExchange", event: "AccountCreated", fields: FI
   context.PerplAccount.set({ ...a, address: event.params.account, createdBlock: block, updatedBlock: block });
 });
 
-indexer.onEvent({ contract: "PerplExchange", event: "CollateralDeposit", fields: FIELDS }, async ({ event, context }) => {
-  const p = event.params;
-  const block = blockOf(event);
-  const a = await getPerplAccount(context, p.accountId, block);
-  context.PerplAccount.set({ ...a, balanceCNS: p.balanceCNS, depositedCNS: a.depositedCNS + p.amountCNS, updatedBlock: block });
-});
+fullProfile(() =>
+  indexer.onEvent({ contract: "PerplExchange", event: "CollateralDeposit", fields: FIELDS }, async ({ event, context }) => {
+    const p = event.params;
+    const block = blockOf(event);
+    const a = await getPerplAccount(context, p.accountId, block);
+    context.PerplAccount.set({ ...a, balanceCNS: p.balanceCNS, depositedCNS: a.depositedCNS + p.amountCNS, updatedBlock: block });
+  }),
+);
 
-indexer.onEvent({ contract: "PerplExchange", event: "CollateralWithdrawal", fields: FIELDS }, async ({ event, context }) => {
-  const p = event.params;
-  const block = blockOf(event);
-  const a = await getPerplAccount(context, p.accountId, block);
-  context.PerplAccount.set({ ...a, balanceCNS: p.balanceCNS, withdrawnCNS: a.withdrawnCNS + p.amountCNS, updatedBlock: block });
-});
+fullProfile(() =>
+  indexer.onEvent({ contract: "PerplExchange", event: "CollateralWithdrawal", fields: FIELDS }, async ({ event, context }) => {
+    const p = event.params;
+    const block = blockOf(event);
+    const a = await getPerplAccount(context, p.accountId, block);
+    context.PerplAccount.set({ ...a, balanceCNS: p.balanceCNS, withdrawnCNS: a.withdrawnCNS + p.amountCNS, updatedBlock: block });
+  }),
+);
 
 // ─── positions ─────────────────────────────────────────────────────────────────
 
@@ -216,79 +236,91 @@ async function onPosition(context: Ctx, event: PosEvent, perpId: bigint, account
   return next;
 }
 
-indexer.onEvent({ contract: "PerplExchange", event: "PositionOpenedV2", fields: FIELDS }, async ({ event, context }) => {
-  const p = event.params;
-  await onPosition(context, event, p.perpId, p.accountId, {
-    side: perplSide(p.positionType),
-    lots: p.lotLNS,
-    entryPricePNS: p.pricePNS,
-    fresh: true,
-    depositCNS: p.depositCNS,
-    leverageHdths: p.leverageHdths,
-    feesCNS: p.insFeeCNS + p.protFeeCNS,
-  });
-});
+fullProfile(() =>
+  indexer.onEvent({ contract: "PerplExchange", event: "PositionOpenedV2", fields: FIELDS }, async ({ event, context }) => {
+    const p = event.params;
+    await onPosition(context, event, p.perpId, p.accountId, {
+      side: perplSide(p.positionType),
+      lots: p.lotLNS,
+      entryPricePNS: p.pricePNS,
+      fresh: true,
+      depositCNS: p.depositCNS,
+      leverageHdths: p.leverageHdths,
+      feesCNS: p.insFeeCNS + p.protFeeCNS,
+    });
+  }),
+);
 
-indexer.onEvent({ contract: "PerplExchange", event: "PositionIncreasedV2", fields: FIELDS }, async ({ event, context }) => {
-  const p = event.params;
-  await onPosition(context, event, p.perpId, p.accountId, {
-    side: perplSide(p.positionType),
-    lots: p.endLotLNS,
-    entryPricePNS: p.pricePNS,
-    depositCNS: p.endDepositCNS,
-    leverageHdths: p.leverageHdths,
-    feesCNS: p.insFeeCNS + p.protFeeCNS,
-  });
-});
+fullProfile(() =>
+  indexer.onEvent({ contract: "PerplExchange", event: "PositionIncreasedV2", fields: FIELDS }, async ({ event, context }) => {
+    const p = event.params;
+    await onPosition(context, event, p.perpId, p.accountId, {
+      side: perplSide(p.positionType),
+      lots: p.endLotLNS,
+      entryPricePNS: p.pricePNS,
+      depositCNS: p.endDepositCNS,
+      leverageHdths: p.leverageHdths,
+      feesCNS: p.insFeeCNS + p.protFeeCNS,
+    });
+  }),
+);
 
-indexer.onEvent({ contract: "PerplExchange", event: "PositionDecreased", fields: FIELDS }, async ({ event, context }) => {
-  const p = event.params;
-  await onPosition(context, event, p.perpId, p.accountId, {
-    side: perplSide(p.positionType),
-    lots: p.endLotLNS,
-    depositCNS: p.endDepositCNS,
-    deltaPnlCNS: p.deltaPnlCNS,
-    fundingCNS: p.fundingCNS,
-  });
-});
+fullProfile(() =>
+  indexer.onEvent({ contract: "PerplExchange", event: "PositionDecreased", fields: FIELDS }, async ({ event, context }) => {
+    const p = event.params;
+    await onPosition(context, event, p.perpId, p.accountId, {
+      side: perplSide(p.positionType),
+      lots: p.endLotLNS,
+      depositCNS: p.endDepositCNS,
+      deltaPnlCNS: p.deltaPnlCNS,
+      fundingCNS: p.fundingCNS,
+    });
+  }),
+);
 
-indexer.onEvent({ contract: "PerplExchange", event: "PositionClosed", fields: FIELDS }, async ({ event, context }) => {
-  const p = event.params;
-  await onPosition(context, event, p.perpId, p.accountId, {
-    side: perplSide(p.positionType),
-    lots: 0n,
-    depositCNS: 0n,
-    deltaPnlCNS: p.deltaPnlCNS,
-    fundingCNS: p.fundingCNS,
-  });
-});
+fullProfile(() =>
+  indexer.onEvent({ contract: "PerplExchange", event: "PositionClosed", fields: FIELDS }, async ({ event, context }) => {
+    const p = event.params;
+    await onPosition(context, event, p.perpId, p.accountId, {
+      side: perplSide(p.positionType),
+      lots: 0n,
+      depositCNS: 0n,
+      deltaPnlCNS: p.deltaPnlCNS,
+      fundingCNS: p.fundingCNS,
+    });
+  }),
+);
 
 // positionType is the NEW side; startLotLNS = the old side's lots, endLotLNS = the new side's lots opened at pricePNS
-indexer.onEvent({ contract: "PerplExchange", event: "PositionInverted", fields: FIELDS }, async ({ event, context }) => {
-  const p = event.params;
-  await onPosition(context, event, p.perpId, p.accountId, {
-    side: perplSide(p.positionType),
-    lots: p.endLotLNS,
-    entryPricePNS: p.pricePNS,
-    fresh: true,
-    depositCNS: p.endDepositCNS,
-    leverageHdths: p.leverageHdths,
-    deltaPnlCNS: p.deltaPnlCNS,
-    fundingCNS: p.fundingCNS,
-    feesCNS: p.insFeeCNS + p.protFeeCNS,
-  });
-});
+fullProfile(() =>
+  indexer.onEvent({ contract: "PerplExchange", event: "PositionInverted", fields: FIELDS }, async ({ event, context }) => {
+    const p = event.params;
+    await onPosition(context, event, p.perpId, p.accountId, {
+      side: perplSide(p.positionType),
+      lots: p.endLotLNS,
+      entryPricePNS: p.pricePNS,
+      fresh: true,
+      depositCNS: p.endDepositCNS,
+      leverageHdths: p.leverageHdths,
+      deltaPnlCNS: p.deltaPnlCNS,
+      fundingCNS: p.fundingCNS,
+      feesCNS: p.insFeeCNS + p.protFeeCNS,
+    });
+  }),
+);
 
 // Margin added to an open position (lots unchanged). A position not seen yet is skipped: its next lots-carrying event
 // brings both lots and deposit (the recordings show deposit continuity across every event once this is applied).
-indexer.onEvent({ contract: "PerplExchange", event: "IncreasePositionCollateral", fields: FIELDS }, async ({ event, context }) => {
-  const p = event.params;
-  const prev = await context.PerplPosition.get(`${p.perpId}-${p.accountId}`);
-  if (!prev?.open) return;
-  await onPosition(context, event, p.perpId, p.accountId, { lots: prev.lots, depositCNS: p.positionDepositCNS });
-  const a = await getPerplAccount(context, p.accountId, blockOf(event));
-  context.PerplAccount.set({ ...a, balanceCNS: p.balanceCNS, updatedBlock: blockOf(event) });
-});
+fullProfile(() =>
+  indexer.onEvent({ contract: "PerplExchange", event: "IncreasePositionCollateral", fields: FIELDS }, async ({ event, context }) => {
+    const p = event.params;
+    const prev = await context.PerplPosition.get(`${p.perpId}-${p.accountId}`);
+    if (!prev?.open) return;
+    await onPosition(context, event, p.perpId, p.accountId, { lots: prev.lots, depositCNS: p.positionDepositCNS });
+    const a = await getPerplAccount(context, p.accountId, blockOf(event));
+    context.PerplAccount.set({ ...a, balanceCNS: p.balanceCNS, updatedBlock: blockOf(event) });
+  }),
+);
 
 // Always a PerplLiquidation row. The position row is updated only if the indexer already tracks it: with the hosted
 // "lean" profile (no position events, gen-config PERPL_PROFILES) no half-known position is ever written.
