@@ -256,8 +256,16 @@ export class PerplTrading {
   }
 
   private closed(code: number, reason: string): void {
+    const wasAuthed = this.authed;
     this.ws = undefined;
     this.authed = false;
+    // README: 1008 "idle timeout" = no frame within the idle window (10 s testnet, 5 s mainnet). If that happens on a
+    // signed-in socket, the 30 s keep-alive is too slow for this server: ping well inside the window from now on.
+    if (code === 1008 && /idle/i.test(reason) && wasAuthed) {
+      const tighter = Math.min(this.c.pingEveryMs ?? 30_000, this.c.chainId === 143 ? 4_000 : 8_000);
+      if (tighter !== this.c.pingEveryMs) this.log("perpl ws: idle timeout while signed in; ping interval tightened", { pingEveryMs: tighter });
+      this.c.pingEveryMs = tighter;
+    }
     this.clock.clearTimeout(this.timers.ping);
     this.stats.closes++;
     this.stats.lastClose = `${code} ${reason}`;

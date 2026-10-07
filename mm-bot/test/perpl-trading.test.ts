@@ -170,6 +170,16 @@ describe("trading WebSocket session", () => {
     expect(h.ws().sent.filter((f) => f.mt === 1)).toHaveLength(1);
   });
 
+  it("1008 idle timeout on a signed-in socket ⇒ keep-alive tightened to 8 s (testnet idle window is 10 s)", async () => {
+    const h = await readyHarness({ pingEveryMs: 30_000 });
+    h.ws().serverClose(1008, "idle timeout");
+    h.clock.advance(1_000);
+    h.ws().open();
+    await sentAtLeast(h.ws());
+    h.clock.advance(8_000);
+    expect(h.ws().sent.filter((f) => f.mt === 1)).toHaveLength(1);
+  });
+
   it("refuses to send without a head block or an account", async () => {
     const h = harness();
     h.t.start();
