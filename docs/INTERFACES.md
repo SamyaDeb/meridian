@@ -1,6 +1,6 @@
 # INTERFACES — frozen cross-workstream contracts
 
-**Frozen: `interfaces-v1.7` (7 Oct 2026, CR-001..007, CR-014).** The `.sol` files in `contracts/src/interfaces/` are the source of truth. The second half of this document is generated verbatim from them (`python3 tools/gen_interfaces_md.py`; CI runs `--check`). To change anything, file an entry in `docs/CHANGE_REQUESTS.md`.
+**Frozen: `interfaces-v1.8` (8 Oct 2026, CR-001..007, CR-014, CR-016).** The `.sol` files in `contracts/src/interfaces/` are the source of truth. The second half of this document is generated verbatim from them (`python3 tools/gen_interfaces_md.py`; CI runs `--check`). To change anything, file an entry in `docs/CHANGE_REQUESTS.md`.
 
 ## 1. Who implements / who calls
 
@@ -17,7 +17,8 @@
 | `IMarketFactory` | MarketFactory (WS-02, A) | deploy script, indexer, app | — |
 | `IMeridianVault` | MeridianVault (WS-04, B) | users/app, keeper | `MockMeridianVault` |
 | `IKuruHedger` | KuruHedger (WS-04, B) | vault | `MockKuruHedger` |
-| `IMeridianKeeperReceiver` | MeridianKeeperReceiver (WS-03, B), should-tier | CRE forwarder | — |
+| `IMeridianKeeperReceiver` | MeridianKeeperReceiver (K4, `automation/`) | CRE KeystoneForwarder (simulation: MockKeystoneForwarder) | — |
+| `IMeridianMfiFeed` (CR-016) | MeridianMfiFeed (K4, `oracle/`), written by the receiver's action 6 | any contract (`latest()`), app | — |
 | `external/*` | Kuru / Pyth / Chainlink | adapters | `MockKuruHedger`, `MockAggregatorV3` |
 | `deferred/*` (PT/YT) | not built in the hackathon | — | — |
 
@@ -919,16 +920,41 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 ///           2 LIQUIDATE        payload = abi.encode(address clearingHouse, address[] accounts)  (len <= 32)
 ///           3 FUNDING_POKE     payload = abi.encode(address[] clearingHouses)                    (len <= 32)
 ///           4 ORACLE_UPDATE    payload = abi.encode(address oracleAdapter, bytes[] updateData)
+///           5 UNWIND           payload = abi.encode(address clearingHouse, uint256 maxSizeWad)    (CR-016)
+///           6 MFI_PUBLISH      payload = abi.encode(address feed, int256 mfiAprWad, int256 meridianAprWad,
+///                                                   int256 perplAprWad, uint64 blockNumber, uint64 perplFundingBlock)
+///                                                                                                 (CR-016)
+///         metadata (production KeystoneForwarder) = workflowId (32) ‖ workflowName (10) ‖ workflowOwner (20) ‖
+///         reportId (2) = 64 bytes; the simulation forwarder may pass less.
 interface IMeridianKeeperReceiver is IERC165 {
     event ReportExecuted(uint8 indexed action, bool success, bytes32 workflowId);
     event ForwarderUpdated(address indexed forwarder);
+    /// @notice CR-016: the receiver's reduce-only IOC on the position it inherited from LIQUIDATE.
+    event Unwound(address indexed clearingHouse, bool isBid, uint64 lotsRequested, uint64 lotsFilled);
+    /// @notice CR-016: zero = that check is off (simulation: the mock forwarder carries no owner / name).
+    event ExpectedWorkflowUpdated(address workflowOwner, bytes32 workflowId);
 
     error OnlyForwarder();
     error UnknownAction(uint8 action);
+    /// @notice CR-016: metadata's workflow owner (bytes 42..62) differs from the expected one (or metadata < 62 bytes).
+    error InvalidWorkflowOwner(address got);
+    /// @notice CR-016: metadata's workflowId (bytes 0..32) differs from the expected one (or metadata < 62 bytes).
+    error InvalidWorkflowId(bytes32 got);
 
     function onReport(bytes calldata metadata, bytes calldata report) external;
     function forwarder() external view returns (address);
     function setForwarder(address forwarder) external;
+
+    // ─── CR-016 (interfaces-v1.8) ──────────────────────────────────────────────
+    /// @notice Owner: workflow identity required in every report's metadata (production delivery). Zero disables.
+    function setExpectedWorkflow(address workflowOwner, bytes32 workflowId) external;
+    function expectedWorkflowOwner() external view returns (address);
+    function expectedWorkflowId() external view returns (bytes32);
+    /// @notice Owner: withdraw the receiver's margin from `clearingHouse` (AUSD token units) and send it to `to`.
+    function withdrawMargin(address clearingHouse, uint256 amountToken, address to) external;
+    /// @notice Owner: recover ERC-20s / MON held by the receiver.
+    function sweepToken(address token, address to, uint256 amount) external;
+    function sweepNative(address payable to, uint256 amount) external;
 }
 ```
 
@@ -1080,5 +1106,63 @@ interface IPythMinimal {
     function getPriceUnsafe(bytes32 id) external view returns (Price memory price);
     function getUpdateFee(bytes[] calldata updateData) external view returns (uint256 feeAmount);
     function updatePriceFeeds(bytes[] calldata updateData) external payable;
+}
+```
+
+### `contracts/src/interfaces/IMeridianMfiFeed.sol`
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+/// @title IMeridianMfiFeed — the Meridian Funding Index onchain, under Chainlink CRE DON consensus (CR-016, FROZEN)
+/// @notice MFI = open-interest-weighted mean of the annualized MON-perp funding rate on Meridian and Perpl
+///         (docs/MFI.md §1, §4.2). A CRE workflow computes it from Meridian's `averageFundingApr(12_000)` (EVM read)
+///         and Perpl's funding (HTTP, DON consensus) and publishes it through `IMeridianKeeperReceiver` action 6.
+///         All APRs are annualized WAD (0.1e18 = 10% APR), positive ⇒ longs pay shorts; rounding neutral (MFI §4.4).
+///         Any contract can read `latest()`.
+interface IMeridianMfiFeed {
+    /// @param blockNumber Monad block the workflow read Meridian at (strictly increasing)
+    /// @param perplFundingBlock Monad block of the Perpl funding event used (`FundingEvent.at.b`), 0 if not included
+    event MfiPublished(
+        int256 mfiAprWad,
+        int256 meridianAprWad,
+        int256 perplAprWad,
+        uint64 indexed blockNumber,
+        uint64 perplFundingBlock
+    );
+
+    error OnlyReceiver();
+    /// @notice A report for a block not after the stored one (stale / replayed), or after the current block.
+    error StaleObservation(uint64 got, uint64 last);
+    /// @notice |APR| > MAX_ABS_APR_WAD, or the MFI outside [min, max] of the venue APRs.
+    error AprOutOfBounds(int256 aprWad);
+
+    /// @notice Receiver only. Venue APRs not included are passed equal to the MFI (Meridian-only: perpl = mfi).
+    function publish(
+        int256 mfiAprWad,
+        int256 meridianAprWad,
+        int256 perplAprWad,
+        uint64 blockNumber,
+        uint64 perplFundingBlock
+    ) external;
+
+    /// @return mfiAprWad the index
+    /// @return meridianAprWad Meridian 1 h APR
+    /// @return perplAprWad Perpl APR
+    /// @return blockNumber observation block (0 = never published)
+    /// @return perplFundingBlock Perpl funding event block
+    function latest()
+        external
+        view
+        returns (
+            int256 mfiAprWad,
+            int256 meridianAprWad,
+            int256 perplAprWad,
+            uint64 blockNumber,
+            uint64 perplFundingBlock
+        );
+
+    function receiver() external view returns (address);
 }
 ```

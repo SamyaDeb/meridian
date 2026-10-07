@@ -147,3 +147,22 @@ contract MeridianKeeperReceiverLiquidationFuzz is IntegrationBase {
         _assertI2();
     }
 }
+
+/// @notice UNWIND's limit tick (port of unwind.ts `unwindPlan`): the worst price is the tightest tick within 1% of the
+///         index, never looser (bid floored, ask ceiled).
+contract MeridianKeeperReceiverUnwindTickFuzz is Test {
+    MeridianKeeperReceiver internal r = new MeridianKeeperReceiver(address(1), address(this));
+
+    function testFuzz_unwindLimitTick_neverLooserThanOnePercent(uint256 index, uint256 tick) public view {
+        index = bound(index, 1e9, 1e24);
+        tick = bound(tick, 1, 1e20);
+        uint256 bid = r.unwindLimitTick(true, index, tick);
+        uint256 ask = r.unwindLimitTick(false, index, tick);
+        // bid: tick·size ≤ index·1.01 < (tick + 1)·size
+        assertLe(bid * tick * 10_000, index * 10_100, "bid within 1%");
+        assertGt((bid + 1) * tick * 10_000, index * 10_100 - 10_000, "bid is the highest such tick (floor)");
+        // ask: ask·size ≥ index·0.99 > (ask − 1)·size
+        assertGe(ask * tick * 10_000, index * 9900, "ask within 1%");
+        if (ask != 0) assertLt((ask - 1) * tick * 10_000, index * 9900 + 10_000, "ask is the lowest such tick (ceil)");
+    }
+}
