@@ -38,10 +38,14 @@ export const SOURCE_OF: Record<Timeframe, "Candle1m" | "Candle1h"> = {
 };
 
 /**
- * What the main series draws: trades on Meridian's book, the mark price, the oracle index, or (opt-in, labelled) the
- * outside MON/USD reference (Uniswap v4 MON/USDC on Monad via GeckoTerminal), never Meridian's trades and never mixed in.
+ * What the main series draws: trades on Meridian's book, the mark price, the oracle index, or (opt-in, labelled) an
+ * outside venue: the MON/USD reference (Uniswap v4 MON/USDC on Monad via GeckoTerminal) or Perpl's MON perp (Monad
+ * mainnet). Outside sources are never Meridian's trades and never mixed in.
  */
-export type PriceSource = "last" | "mark" | "index" | "reference";
+export type PriceSource = "last" | "mark" | "index" | "reference" | "perpl";
+/** Sources drawn from another venue (always labelled as such on the chart, never merged with Meridian's series). */
+export const OUTSIDE_SOURCES: readonly PriceSource[] = ["reference", "perpl"];
+export const isOutside = (s: PriceSource): boolean => OUTSIDE_SOURCES.includes(s);
 
 export type Bar = {
   /** bucket start, unix seconds (UTC aligned) */

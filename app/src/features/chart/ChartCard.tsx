@@ -10,8 +10,9 @@ import { aggregate, applyTrade, pointsToBars, toBar } from "./datafeed/candles";
 import { recordSample, sessionSamples } from "./datafeed/session";
 import { usePerpMarket } from "@/data/market";
 import { REFERENCE_ENABLED, UPSTREAM_OF, geckoToBars } from "./datafeed/reference";
+import { PERPL_ENABLED, PERPL_RES_OF, PERPL_VENUE, perplToBars, type PerplCandlesPayload } from "./datafeed/perpl";
 import { SeriesNotes } from "./chrome/SeriesNotes";
-import { ALIGN_OFFSET_SEC, SOURCE_OF, TIMEFRAME_SEC, type Bar, type PriceSource, type Timeframe } from "./datafeed/types";
+import { ALIGN_OFFSET_SEC, SOURCE_OF, TIMEFRAME_SEC, isOutside, type Bar, type PriceSource, type Timeframe } from "./datafeed/types";
 import { LightweightEngine } from "./engine/LightweightEngine";
 import type { ChartCoords, LineOverlay, PaneSpec, PriceLineSpec } from "./engine/types";
 import { estimateBlockTimeSec, wadToNum } from "./series";
@@ -29,7 +30,9 @@ import { buildIndicators } from "./indicators/build";
 const LIMIT: Record<Timeframe, number> = { "1m": 500, "3m": 1_000, "5m": 1_500, "15m": 2_000, "30m": 2_000, "1h": 500, "2h": 1_000, "4h": 1_500, "6h": 2_000, "12h": 2_000, "1D": 2_000, "1W": 2_000 };
 const MARK_ROWS = 2_000; // FundingTick is one row per block: the most recent 2,000 blocks (~10 min at 300 ms)
 const INDEX_ROWS = 2_000; // OraclePrice is one row per oracle update
-const SOURCE_NAME: Record<PriceSource, string> = { last: "Last", mark: "Mark", index: "Index", reference: "Reference" };
+const SOURCE_NAME: Record<PriceSource, string> = { last: "Last", mark: "Mark", index: "Index", reference: "Reference", perpl: "Reference" };
+/** Venue named in the legend for each source (outside venues by name, never "Meridian"). */
+const VENUE: Record<PriceSource, string> = { last: "Meridian", mark: "Meridian", index: "Meridian", reference: "Uniswap v4 · GeckoTerminal", perpl: PERPL_VENUE };
 
 /** Dedupes by second (several 300 ms blocks share a second; the chart needs strictly increasing times): keeps the last. */
 function bySecond(points: { time: number; value: number }[]) {
@@ -97,6 +100,19 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
     refetchInterval: 60_000,
     retry: 1,
   });
+  // labelled outside venue (flag only): Perpl's MON perp candles (Monad mainnet) through our server route, cached there
+  const perpl = useQuery({
+    queryKey: ["perplCandles", tf],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`/api/perpl/candles?res=${PERPL_RES_OF[tf]}`, { signal });
+      const body: unknown = await r.json().catch(() => null);
+      if (!r.ok) throw new Error((body as { error?: string } | null)?.error ?? `HTTP ${r.status}`);
+      return perplToBars(body as PerplCandlesPayload, tf);
+    },
+    enabled: view.source === "perpl" && PERPL_ENABLED,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
   const { data: trades } = useTrades(40);
   const { data: ticks } = useFundingTicks(200); // same query as the funding ticker (one RPC scan, shared cache)
   const now = useNow(1_000);
@@ -121,12 +137,14 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
   const timeOf = (block: bigint, timestamp: bigint) => (timestamp > 0n ? Number(timestamp) : m && now > 0 ? estimateBlockTimeSec(block, m.lastFundingBlock, now, blockMs) : 0);
 
   // main series by price source; without the indexer: this session's chain reads (trades, mark, index)
-  const q = view.source === "last" ? candles : view.source === "mark" ? marks : view.source === "reference" ? reference : index;
+  const q = view.source === "last" ? candles : view.source === "mark" ? marks : view.source === "reference" ? reference : view.source === "perpl" ? perpl : index;
   let bars: Bar[] = [];
   let source: PriceSource = view.source;
   let fellBack = false;
   if (view.source === "reference") {
     bars = reference.data ?? []; // its own series only: never merged with our trades, mark or index
+  } else if (view.source === "perpl") {
+    bars = perpl.data ?? []; // another venue's trades: its own series only, never merged with ours
   } else if (sessionMode) {
     const samples = sessionSamples(market);
     if (source === "last") {
@@ -228,6 +246,10 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
       if (reference.isError) return { title: "Reference unavailable", body: `${reference.error.message}. Our mark and index lines still show.` };
       return reference.isPending ? { title: "Loading", body: "" } : { title: "No reference data", body: "GeckoTerminal returned no MON/USDC candles for this pool." };
     }
+    if (view.source === "perpl") {
+      if (perpl.isError) return { title: "Perpl unavailable", body: `${perpl.error.message}. Our mark and index lines still show.` };
+      return perpl.isPending ? { title: "Loading", body: "" } : { title: "No Perpl data", body: "Perpl returned no MON candles for this window." };
+    }
     if (sessionMode) return { title: "Recording", body: "Prices read from the chain every block are drawn from the moment this page opened." };
     if (view.source === "index" && oracle === undefined) return { title: "Oracle address unknown", body: "The index series is keyed by the market's oracle, which this data source doesn't report." };
     if (q.isError) return { title: "Indexer unavailable", body: "Retrying. Nothing is drawn rather than a made-up history." };
@@ -282,10 +304,10 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
                 <span className="text-muted">·</span>
                 <span className="num text-text">{tf}</span>
                 <span className="text-muted">·</span>
-                <span className="text-text">{source === "reference" ? "Uniswap v4 · GeckoTerminal" : "Meridian"}</span>
+                <span className="text-text">{VENUE[source]}</span>
                 <span className="rounded-[4px] bg-brand-tint px-1 text-[10px] font-semibold text-brand-soft">
                   {SOURCE_NAME[source]}
-                  {sessionMode && source !== "reference" ? " · session" : ""}
+                  {sessionMode && !isOutside(source) ? " · session" : ""}
                 </span>
                 {legendOpen && (
                   <span className="num flex flex-wrap items-center gap-x-1">

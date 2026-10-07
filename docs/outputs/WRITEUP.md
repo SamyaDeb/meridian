@@ -58,6 +58,14 @@ Tests: **499** Foundry tests (unit, fuzz, invariants I1–I11 at 256 × 128; all
 
 We don't report users, volume or fees: none are on mainnet yet, and testnet activity so far is our own bots and labelled test wallets. Testnet users, once there are any, are counted by `indexer/scripts/users-report.mjs` with our operators and test wallets excluded (`docs/outputs/USERS.md`); `/stats` shows the same numbers as of an indexer block.
 
+### What is real, what is reference, what is mocked
+| | What | Where it shows |
+|---|---|---|
+| **Real (ours, onchain on Monad testnet 10143)** | Perp, order book, per-block funding, funding-rate oracle, liquidations, funding swaps, vault v2: every trade, fill, liquidation and funding update in the demo is a transaction on 10143 (addresses in `deployments/10143.json`) | Chart sources Last / Mark / Index, the Book / Trades / Depth / Funding tabs, Positions, Earn, Fix, Stats |
+| **Real price input** | The testnet oracle is keeper-fed with Pyth's MON/USD price (mainnet feed via Hermes), because testnet Pyth MON/USD is stale | Index line and the funding rate's index leg |
+| **Reference (another venue, read-only, labelled)** | Perpl's MON perp on Monad mainnet (candles + order book) and MON/USDC on Uniswap v4 (Monad mainnet) via GeckoTerminal. Shown for comparison only: never mixed into our data, never tradeable here | Chart sources "Perpl ref" and "DEX ref" (label "… reference, not Meridian trades"), the "Perpl" book tab ("… read-only, can't be traded here"), `/rates` (Meridian vs Perpl funding) |
+| **Mocked / house (labelled)** | tAUSD collateral (testnet token), the vault's spot hedger (Kuru has no testnet market), the crash-demo market, and our own market maker, flow and keeper bots (`mmAccounts` / `keeperAccounts`, excluded from user counts) | `deployments/10143.json` `mockContracts`, demo-market banner, Stats |
+
 ## Licence & prior work
 MIT ([LICENSE](../../LICENSE); third-party libraries in [THIRD_PARTY.md](../../THIRD_PARTY.md)). All code was written during the hackathon (29 Sep – 13 Oct 2026). This public repo is a curated history of our private development repo: each commit is a real state of the code, dated when the work was done. One frontend commit during development (5 Oct) ported a chart top bar from a founder's earlier project, against our own rule; it isn't part of this history, and the chart's top and bottom bars were replaced by a clean-room rewrite from a behavioural spec ([CHART_TOPBAR_SPEC.md](CHART_TOPBAR_SPEC.md)).
 

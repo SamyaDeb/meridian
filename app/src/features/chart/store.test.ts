@@ -22,6 +22,11 @@ describe("chart view store", () => {
     expect(parseView(saved, true).source).toBe("reference");
     expect(parseView(saved, false).source).toBe("last");
   });
+  it("a saved Perpl source survives only while its own flag is on", () => {
+    const saved = JSON.stringify({ ...DEFAULT_VIEW, source: "perpl" });
+    expect(parseView(saved, false, true).source).toBe("perpl");
+    expect(parseView(saved, true, false).source).toBe("last");
+  });
   it("setView survives a throwing localStorage (private mode)", () => {
     const g = globalThis as { localStorage?: unknown };
     const prev = g.localStorage;
