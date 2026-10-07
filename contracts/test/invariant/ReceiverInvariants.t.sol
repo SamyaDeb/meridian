@@ -13,7 +13,7 @@ import {RiskParams, FundingParams} from "../../src/interfaces/MeridianTypes.sol"
 import {ReceiverHandler} from "./handlers/ReceiverHandler.sol";
 
 /// @notice CRE backstop keeper on the REAL OrderBook + ClearingHouse: only the forwarder delivers, a well-formed report
-///         never reverts, liquidations conserve size and never leave the receiver below IM, OI stays balanced.
+///         never reverts, liquidations conserve size and never leave the receiver below IM, UNWIND only reduces, OI stays balanced.
 contract ReceiverInvariantsTest is StdInvariant, Test {
     ReceiverHandler handler;
     ClearingHouse ch;
@@ -59,6 +59,10 @@ contract ReceiverInvariantsTest is StdInvariant, Test {
 
     function invariant_receiverAboveIMAfterTakes() public view {
         assertFalse(handler.ghostBelowIM());
+    }
+
+    function invariant_unwindIsReduceOnly() public view {
+        assertFalse(handler.ghostUnwindGrew());
     }
 
     function invariant_oiBalanced() public view {

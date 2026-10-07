@@ -13,18 +13,21 @@ import {IClearingHouse} from "../interfaces/IClearingHouse.sol";
 import {IMeridianVault} from "../interfaces/IMeridianVault.sol";
 import {IOracleAdapter} from "../interfaces/IOracleAdapter.sol";
 import {IOrderBook} from "../interfaces/IOrderBook.sol";
+import {IMeridianMfiFeed} from "../interfaces/IMeridianMfiFeed.sol";
 import {MeridianConstants, RiskParams, Position, AccountView} from "../interfaces/MeridianTypes.sol";
 
 /// @title MeridianKeeperReceiver — Chainlink CRE backstop keeper for Meridian
 /// @notice A CRE workflow's DON-signed report reaches `onReport` through the Chainlink KeystoneForwarder. The report
 ///         is `abi.encode(uint8 action, bytes payload)` (IMeridianKeeperReceiver): 1 VAULT_REBALANCE, 2 LIQUIDATE,
-///         3 FUNDING_POKE, 4 ORACLE_UPDATE (mainnet / Pyth only). Every external call is isolated: one failing account
-///         or market never reverts the report, `ReportExecuted.success` is true only if every item succeeded.
+///         3 FUNDING_POKE, 4 ORACLE_UPDATE (mainnet / Pyth only), 5 UNWIND, 6 MFI_PUBLISH (CR-016). Every external call
+///         is isolated: one failing account or market never reverts the report, `ReportExecuted.success` is true only if
+///         every item succeeded.
 /// @dev LIQUIDATE makes this contract the liquidator: it must hold margin in that ClearingHouse (`depositFor`) and it
 ///      inherits the positions it takes. Each take is sized to the receiver's own cap and IM headroom (same rule as
 ///      keepers/ts-fallback/src/unwind.ts `liquidationHeadroom`), so a take never reverts on the receiver's limits.
-///      Only `forwarder` may call `onReport`: with the simulation MockKeystoneForwarder that is the whole gate (the mock
-///      carries no workflow owner / name); workflow identity checks come with CR-016.
+///      UNWIND then closes what it inherited with a reduce-only IOC at index ± 1% (unwind.ts `unwindPlan`).
+///      Only `forwarder` may call `onReport`. With the simulation MockKeystoneForwarder that is the whole gate (the mock
+///      carries no workflow owner / name); production delivery also sets `setExpectedWorkflow` (CR-016).
 contract MeridianKeeperReceiver is IMeridianKeeperReceiver, Ownable, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
@@ -32,11 +35,19 @@ contract MeridianKeeperReceiver is IMeridianKeeperReceiver, Ownable, ReentrancyG
     uint8 public constant LIQUIDATE = 2;
     uint8 public constant FUNDING_POKE = 3;
     uint8 public constant ORACLE_UPDATE = 4;
+    uint8 public constant UNWIND = 5;
+    uint8 public constant MFI_PUBLISH = 6;
+    /// @notice UNWIND's worst price vs the index: 1%, as the TS keeper (`MAX_SLIPPAGE_BPS`).
+    uint256 public constant UNWIND_SLIPPAGE_BPS = 100;
     /// @notice Safety margin on the receiver's IM capacity (mark drift, IM rounding): 2%, as the TS keeper.
     uint256 public constant HEADROOM_BUFFER_BPS = 200;
 
     /// @inheritdoc IMeridianKeeperReceiver
     address public forwarder;
+    /// @inheritdoc IMeridianKeeperReceiver
+    address public expectedWorkflowOwner;
+    /// @inheritdoc IMeridianKeeperReceiver
+    bytes32 public expectedWorkflowId;
 
     constructor(address forwarder_, address owner_) Ownable(owner_) {
         forwarder = forwarder_;
@@ -50,14 +61,18 @@ contract MeridianKeeperReceiver is IMeridianKeeperReceiver, Ownable, ReentrancyG
 
     /// @inheritdoc IMeridianKeeperReceiver
     /// @dev `metadata` is 64 bytes from the production forwarder (workflowId ‖ name ‖ owner ‖ reportId) and may be
-    ///      shorter from the simulation forwarder: the workflowId is its first 32 bytes, else 0. No length check.
+    ///      shorter from the simulation forwarder: the workflowId is its first 32 bytes, else 0. Its length matters only
+    ///      while an identity check is on (≥ 62 bytes: 62 and 64 both accepted).
     function onReport(bytes calldata metadata, bytes calldata report) external nonReentrant {
         if (msg.sender != forwarder) revert OnlyForwarder();
+        _checkIdentity(metadata);
         (uint8 action, bytes memory payload) = abi.decode(report, (uint8, bytes));
         bool success;
         if (action == LIQUIDATE) success = _liquidate(payload);
         else if (action == FUNDING_POKE) success = _fundingPoke(payload);
         else if (action == VAULT_REBALANCE) success = _vaultRebalance(payload);
+        else if (action == UNWIND) success = _unwind(payload);
+        else if (action == MFI_PUBLISH) success = _mfiPublish(payload);
         else if (action == ORACLE_UPDATE) success = _oracleUpdate(payload);
         else revert UnknownAction(action);
         emit ReportExecuted(action, success, metadata.length >= 32 ? bytes32(metadata[:32]) : bytes32(0));
@@ -68,6 +83,20 @@ contract MeridianKeeperReceiver is IMeridianKeeperReceiver, Ownable, ReentrancyG
         // type(IReceiver).interfaceId = onReport.selector (IReceiver declares only onReport)
         return interfaceId == IMeridianKeeperReceiver.onReport.selector
             || interfaceId == type(IMeridianKeeperReceiver).interfaceId || interfaceId == type(IERC165).interfaceId;
+    }
+
+    function _checkIdentity(bytes calldata metadata) internal view {
+        address wantOwner = expectedWorkflowOwner;
+        bytes32 wantId = expectedWorkflowId;
+        if (wantOwner == address(0) && wantId == bytes32(0)) return;
+        if (metadata.length < 62) {
+            if (wantId != bytes32(0)) revert InvalidWorkflowId(bytes32(0));
+            revert InvalidWorkflowOwner(address(0));
+        }
+        bytes32 id = bytes32(metadata[:32]);
+        if (wantId != bytes32(0) && id != wantId) revert InvalidWorkflowId(id);
+        address wfOwner = address(bytes20(metadata[42:62]));
+        if (wantOwner != address(0) && wfOwner != wantOwner) revert InvalidWorkflowOwner(wfOwner);
     }
 
     // ─── Actions ───────────────────────────────────────────────────────────────
@@ -223,7 +252,101 @@ contract MeridianKeeperReceiver is IMeridianKeeperReceiver, Ownable, ReentrancyG
         if (x < lo) x = 0;
     }
 
+    /// @dev payload = abi.encode(address clearingHouse, uint256 maxSizeWad). Closes up to maxSizeWad of the receiver's
+    ///      own position with a reduce-only IOC on clearingHouse.orderBook(): whole lots, worst price index ± 1%.
+    ///      Flat or < 1 lot: nothing to do (success). Stale index: failure (pricing the bound off it would be wrong).
+    function _unwind(bytes memory payload) internal returns (bool) {
+        (address chAddr, uint256 maxSize) = abi.decode(payload, (address, uint256));
+        if (chAddr.code.length == 0) return false;
+        IClearingHouse ch = IClearingHouse(chAddr);
+        int256 size;
+        try ch.getPosition(address(this)) returns (Position memory p) {
+            size = p.size;
+        } catch {
+            return false;
+        }
+        if (size == 0) return true;
+        (bool ok, IOrderBook ob, uint256 lot, uint256 tick, uint256 index) = _book(ch);
+        if (!ok) return false;
+        uint256 lots = FPM.min(FPM.abs(size), maxSize) / lot;
+        if (lots == 0) return true;
+        if (lots > type(uint64).max) lots = type(uint64).max;
+        bool isBid = size < 0;
+        uint256 limitTick = unwindLimitTick(isBid, index, tick);
+        if (limitTick == 0 || limitTick > type(uint32).max) return false;
+        try ob.placeMarketOrder(isBid, uint64(lots), uint32(limitTick), 0, true) returns (uint64 filled, uint256) {
+            emit Unwound(chAddr, isBid, uint64(lots), filled);
+            return filled != 0;
+        } catch {
+            return false;
+        }
+    }
+
+    function _book(IClearingHouse ch)
+        internal
+        view
+        returns (bool ok, IOrderBook ob, uint256 lot, uint256 tick, uint256 index)
+    {
+        try ch.orderBook() returns (address a) {
+            ob = IOrderBook(a);
+        } catch {
+            return (false, ob, 0, 0, 0);
+        }
+        try ch.oracle() returns (address o) {
+            if (o.code.length == 0 || address(ob).code.length == 0) return (false, ob, 0, 0, 0);
+            try IOracleAdapter(o).tryGetIndexPrice() returns (bool fresh, uint256 p, uint256) {
+                if (!fresh || p == 0) return (false, ob, 0, 0, 0);
+                index = p;
+            } catch {
+                return (false, ob, 0, 0, 0);
+            }
+        } catch {
+            return (false, ob, 0, 0, 0);
+        }
+        try ob.lotSize() returns (uint256 l) {
+            lot = l;
+        } catch {
+            return (false, ob, 0, 0, 0);
+        }
+        try ob.tickSize() returns (uint256 t) {
+            tick = t;
+        } catch {
+            return (false, ob, 0, 0, 0);
+        }
+        ok = lot != 0 && tick != 0;
+    }
+
+    /// @notice UNWIND's IOC limit tick: a bid's worst price index·(1 + 1%) floored to a tick, an ask's index·(1 − 1%)
+    ///         ceiled to a tick, so the bound is never looser than 1% (unwind.ts `unwindPlan`). 0 = no valid tick.
+    function unwindLimitTick(bool isBid, uint256 indexWad, uint256 tickSize) public pure returns (uint256) {
+        if (tickSize == 0) return 0;
+        if (isBid) {
+            // MATH_SPEC §3.3 (keeper unwind bound), rounds down: tighter for a buy
+            return FPM.mulDiv(indexWad, MeridianConstants.BPS + UNWIND_SLIPPAGE_BPS, MeridianConstants.BPS) / tickSize;
+        }
+        // MATH_SPEC §3.3 (keeper unwind bound), rounds up: tighter for a sell
+        uint256 worst = FPM.mulDivUp(indexWad, MeridianConstants.BPS - UNWIND_SLIPPAGE_BPS, MeridianConstants.BPS);
+        return FPM.divUp(worst, tickSize);
+    }
+
+    /// @dev payload = abi.encode(address feed, int256 mfiAprWad, int256 meridianAprWad, int256 perplAprWad,
+    ///      uint64 blockNumber, uint64 perplFundingBlock). The feed rejects stale / replayed / out-of-bounds values;
+    ///      that is a failure, not a revert.
+    function _mfiPublish(bytes memory payload) internal returns (bool) {
+        (address feed, int256 mfi, int256 meridian, int256 perpl, uint64 blockNumber, uint64 perplBlock) =
+            abi.decode(payload, (address, int256, int256, int256, uint64, uint64));
+        return _call(feed, abi.encodeCall(IMeridianMfiFeed.publish, (mfi, meridian, perpl, blockNumber, perplBlock)));
+    }
+
     // ─── Admin ─────────────────────────────────────────────────────────────────
+
+    /// @inheritdoc IMeridianKeeperReceiver
+    /// @dev Production: the workflow owner address and/or the workflowId (`cre workflow hash`). Zero turns a check off.
+    function setExpectedWorkflow(address workflowOwner, bytes32 workflowId) external onlyOwner {
+        expectedWorkflowOwner = workflowOwner;
+        expectedWorkflowId = workflowId;
+        emit ExpectedWorkflowUpdated(workflowOwner, workflowId);
+    }
 
     /// @inheritdoc IMeridianKeeperReceiver
     /// @dev Simulation: the network's MockKeystoneForwarder. Production: the KeystoneForwarder (Forwarder Directory).

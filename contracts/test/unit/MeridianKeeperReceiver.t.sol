@@ -105,8 +105,11 @@ contract MeridianKeeperReceiverTest is IntegrationBase, ReceiverHelpers {
         vm.expectRevert(abi.encodeWithSelector(IMeridianKeeperReceiver.UnknownAction.selector, uint8(0)));
         r.onReport(_meta64(), abi.encode(uint8(0), bytes("")));
         vm.prank(fwd);
-        vm.expectRevert(abi.encodeWithSelector(IMeridianKeeperReceiver.UnknownAction.selector, uint8(5)));
-        r.onReport(_meta64(), abi.encode(uint8(5), abi.encode(address(ch))));
+        vm.expectRevert(abi.encodeWithSelector(IMeridianKeeperReceiver.UnknownAction.selector, uint8(7)));
+        r.onReport(_meta64(), abi.encode(uint8(7), abi.encode(address(ch))));
+        vm.prank(fwd);
+        vm.expectRevert(abi.encodeWithSelector(IMeridianKeeperReceiver.UnknownAction.selector, uint8(255)));
+        r.onReport(_meta64(), abi.encode(uint8(255), bytes("")));
     }
 
     function test_onReport_malformedReportReverts() public {
@@ -310,6 +313,156 @@ contract MeridianKeeperReceiverTest is IntegrationBase, ReceiverHelpers {
         _send(2, abi.encode(dave, new address[](0))); // nothing to do
     }
 
+    // ═══ CR-016 identity checks ═══════════════════════════════════════════════
+
+    function test_setExpectedWorkflow_onlyOwnerAndEvent() public {
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        r.setExpectedWorkflow(address(0xA11CE), WF_ID);
+        vm.expectEmit(address(r));
+        emit IMeridianKeeperReceiver.ExpectedWorkflowUpdated(address(0xA11CE), WF_ID);
+        vm.prank(owner);
+        r.setExpectedWorkflow(address(0xA11CE), WF_ID);
+        assertEq(r.expectedWorkflowOwner(), address(0xA11CE));
+        assertEq(r.expectedWorkflowId(), WF_ID);
+    }
+
+    function test_identity_acceptsMatchingMetadata62and64() public {
+        vm.prank(owner);
+        r.setExpectedWorkflow(address(0xA11CE), WF_ID);
+        bytes memory report = abi.encode(uint8(3), abi.encode(new address[](0)));
+        vm.prank(fwd);
+        r.onReport(_meta64(), report);
+        vm.prank(fwd);
+        r.onReport(abi.encodePacked(WF_ID, bytes10("other-name"), address(0xA11CE)), report);
+    }
+
+    function test_identity_rejectsWrongOwnerIdOrShortMetadata() public {
+        bytes memory report = abi.encode(uint8(3), abi.encode(new address[](0)));
+        vm.prank(owner);
+        r.setExpectedWorkflow(address(0xA11CE), WF_ID);
+        vm.prank(fwd);
+        vm.expectRevert(abi.encodeWithSelector(IMeridianKeeperReceiver.InvalidWorkflowId.selector, bytes32(uint256(1))));
+        r.onReport(abi.encodePacked(bytes32(uint256(1)), bytes10("guardian01"), address(0xA11CE), bytes2(0)), report);
+        vm.prank(fwd);
+        vm.expectRevert(abi.encodeWithSelector(IMeridianKeeperReceiver.InvalidWorkflowOwner.selector, address(0xB0B)));
+        r.onReport(abi.encodePacked(WF_ID, bytes10("guardian01"), address(0xB0B), bytes2(0)), report);
+        vm.prank(fwd);
+        vm.expectRevert(abi.encodeWithSelector(IMeridianKeeperReceiver.InvalidWorkflowId.selector, bytes32(0)));
+        r.onReport("", report); // the simulation forwarder's metadata can't pass a production check
+        // owner-only check: a short metadata reports the owner error
+        vm.prank(owner);
+        r.setExpectedWorkflow(address(0xA11CE), bytes32(0));
+        vm.prank(fwd);
+        vm.expectRevert(abi.encodeWithSelector(IMeridianKeeperReceiver.InvalidWorkflowOwner.selector, address(0)));
+        r.onReport(hex"00", report);
+        // any id passes when only the owner is checked
+        vm.prank(fwd);
+        r.onReport(abi.encodePacked(bytes32(uint256(9)), bytes10("x"), address(0xA11CE), bytes2(0)), report);
+        // both off again: anything from the forwarder goes
+        vm.prank(owner);
+        r.setExpectedWorkflow(address(0), bytes32(0));
+        vm.prank(fwd);
+        r.onReport("", report);
+    }
+
+    // ═══ 5 UNWIND (CR-016) ═════════════════════════════════════════════════════
+
+    function _unwind(uint256 maxSize) internal {
+        _send(5, abi.encode(address(ch), maxSize));
+    }
+
+    function test_unwind_closesTheInheritedLongReduceOnly() public {
+        _crash();
+        _liq(_accounts1(bob));
+        assertEq(ch.getPosition(address(r)).size, 10_000e18);
+        uint32 bid = ob.bestBid();
+        assertGt(bid, 0);
+        vm.expectEmit(true, false, false, true, address(r));
+        emit IMeridianKeeperReceiver.Unwound(address(ch), false, 100, 100);
+        vm.expectEmit(address(r));
+        emit IMeridianKeeperReceiver.ReportExecuted(5, true, WF_ID);
+        _unwind(type(uint256).max);
+        assertEq(ch.getPosition(address(r)).size, 0, "flat after the IOC");
+        assertFalse(ch.isLiquidatable(address(r)));
+        _assertI2();
+    }
+
+    function test_unwind_partialMaxSizeThenRest() public {
+        _crash();
+        _liq(_accounts1(bob));
+        _unwind(30 * LOT + 1); // whole lots only: 30
+        assertEq(ch.getPosition(address(r)).size, 70 * int256(LOT));
+        _unwind(type(uint256).max); // reduce-only: the rest, never past flat
+
+        assertEq(ch.getPosition(address(r)).size, 0);
+    }
+
+    function test_unwind_buysBackAShort() public {
+        // the receiver ends up short: it liquidates a short that a +25% move broke
+        _fund(alice, 60e6);
+        vm.prank(alice);
+        ob.placeMarketOrder(false, 100, MID0 - 10, 100, false); // ~4.85x short
+        _roll(1);
+        uint256 p = I0 * 125 / 100;
+        oracle.setPrice(p);
+        _quote(uint32(p / TICK));
+        _roll(1);
+        assertTrue(ch.isLiquidatable(alice));
+        _liq(_accounts1(alice));
+        assertEq(ch.getPosition(address(r)).size, -10_000e18);
+        vm.expectEmit(true, false, false, true, address(r));
+        emit IMeridianKeeperReceiver.Unwound(address(ch), true, 100, 100);
+        _unwind(type(uint256).max);
+        assertEq(ch.getPosition(address(r)).size, 0);
+    }
+
+    function test_unwind_flatIsNothingToDo() public {
+        vm.expectEmit(address(r));
+        emit IMeridianKeeperReceiver.ReportExecuted(5, true, WF_ID);
+        _unwind(type(uint256).max);
+    }
+
+    function test_unwind_staleIndexWaits() public {
+        _crash();
+        _liq(_accounts1(bob));
+        oracle.setStale(true);
+        vm.expectEmit(address(r));
+        emit IMeridianKeeperReceiver.ReportExecuted(5, false, WF_ID);
+        _unwind(type(uint256).max);
+        assertEq(ch.getPosition(address(r)).size, 10_000e18);
+    }
+
+    function test_unwind_noLiquidityWithinOnePercentIsAFailure() public {
+        _crash();
+        _liq(_accounts1(bob));
+        // the MM pulls its quotes: no bid within 1% of the index
+        vm.startPrank(mm);
+        for (uint256 i; i < mmIds.length; ++i) {
+            if (ob.getOrder(mmIds[i]).remainingLots != 0) ob.cancelOrder(mmIds[i]);
+        }
+        vm.stopPrank();
+        vm.expectEmit(address(r));
+        emit IMeridianKeeperReceiver.ReportExecuted(5, false, WF_ID);
+        _unwind(type(uint256).max);
+        assertEq(ch.getPosition(address(r)).size, 10_000e18);
+    }
+
+    function test_unwind_badClearingHouseIsAFailure() public {
+        vm.expectEmit(address(r));
+        emit IMeridianKeeperReceiver.ReportExecuted(5, false, WF_ID);
+        _send(5, abi.encode(dave, type(uint256).max));
+        vm.expectEmit(address(r));
+        emit IMeridianKeeperReceiver.ReportExecuted(5, false, WF_ID);
+        _send(5, abi.encode(address(oracle), type(uint256).max));
+    }
+
+    function test_unwindLimitTick_matchesTheTsRule() public view {
+        // index 0.02465, tick 1e-6: bid worst 0.0248965 → 24896; ask worst 0.0244035 → 24404 (ceil)
+        assertEq(r.unwindLimitTick(true, 0.02465e18, TICK), 24_896);
+        assertEq(r.unwindLimitTick(false, 0.02465e18, TICK), 24_404);
+        assertEq(r.unwindLimitTick(true, 1e18, 0), 0);
+    }
+
     /// Gas: a full 32-account liquidation report (32 × ~4.85x longs of 300 MON after a −15% move).
     function test_gas_liquidate32() public {
         address[] memory xs = new address[](32);
@@ -339,7 +492,7 @@ contract MeridianKeeperReceiverTest is IntegrationBase, ReceiverHelpers {
         assertLt(used, 3_000_000, "a 32-account report fits 3M gas (keeper gas limit = estimate x 1.2)");
     }
 
-    function test_gas_liquidate1_fundingPoke1() public {
+    function test_gas_liquidate1_fundingPoke1_unwind() public {
         _crash();
         bytes memory meta = _meta64();
         bytes memory liq = abi.encode(uint8(2), abi.encode(address(ch), _accounts1(bob)));
@@ -353,6 +506,12 @@ contract MeridianKeeperReceiverTest is IntegrationBase, ReceiverHelpers {
         vm.startSnapshotGas("receiver", "fundingPoke1");
         r.onReport(meta, poke);
         vm.stopSnapshotGas();
+        bytes memory unwind = abi.encode(uint8(5), abi.encode(address(ch), type(uint256).max));
+        vm.prank(fwd);
+        vm.startSnapshotGas("receiver", "unwind100lots");
+        r.onReport(meta, unwind);
+        vm.stopSnapshotGas();
+        assertEq(ch.getPosition(address(r)).size, 0);
     }
 }
 

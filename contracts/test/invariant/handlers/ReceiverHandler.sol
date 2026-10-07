@@ -16,7 +16,8 @@ import {AccountView} from "../../../src/interfaces/MeridianTypes.sol";
 ///         - ghostStrangerAccepted: a report from a non-forwarder did not revert (must stay false);
 ///         - ghostWellFormedReverted: a well-formed report from the forwarder reverted (must stay false);
 ///         - ghostBelowIM: after a report that moved size to the receiver, its equity < IM (must stay false);
-///         - ghostConservation: Σ size moved out of the targets ≠ size moved into the receiver (must stay false).
+///         - ghostConservation: Σ size moved out of the targets ≠ size moved into the receiver (must stay false);
+///         - ghostUnwindGrew: an UNWIND report grew or flipped the receiver's position (reduce-only, must stay false).
 contract ReceiverHandler is Test {
     uint256 internal constant N = 6;
     uint256 internal constant TICK = 1e12;
@@ -34,6 +35,8 @@ contract ReceiverHandler is Test {
     bool public ghostWellFormedReverted;
     bool public ghostBelowIM;
     bool public ghostConservation;
+    bool public ghostUnwindGrew; // UNWIND increased |size| or flipped the receiver's side (must stay false)
+    uint256 public unwindsThatFilled;
     uint256 public liquidationReports;
     uint256 public reportsThatMovedSize;
 
@@ -131,6 +134,20 @@ contract ReceiverHandler is Test {
             AccountView memory v = ch.getAccount(address(receiver));
             if (v.equity < int256(v.initialMargin)) ghostBelowIM = true;
         }
+    }
+
+    function reportUnwind(uint256 maxLots) external {
+        maxLots = bound(maxLots, 0, 200);
+        int256 before = ch.getPosition(address(receiver)).size;
+        vm.prank(forwarder);
+        try receiver.onReport("", abi.encode(uint8(5), abi.encode(address(ch), maxLots * 100e18))) {}
+        catch {
+            ghostWellFormedReverted = true;
+        }
+        int256 afterSize = ch.getPosition(address(receiver)).size;
+        if (afterSize != before) ++unwindsThatFilled;
+        bool grew = before >= 0 ? (afterSize > before || afterSize < 0) : (afterSize < before || afterSize > 0);
+        if (grew) ghostUnwindGrew = true;
     }
 
     function reportFundingPoke() external {
