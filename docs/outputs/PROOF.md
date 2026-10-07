@@ -93,6 +93,19 @@ All suites also run at 256 × 128 inside the 499-test default run. Coverage CSVs
 
 Tests: `pnpm -C indexer test` 119 passed, `pnpm -C app test` 440 passed (7 Oct, branch `envio-perpl`).
 
+## 12. Perpl hedge: the MM offloads inventory to Perpl through its trading API (K3)
+| Claim | Evidence |
+|---|---|
+| Perpl API-key signing matches the documented algorithm | `mm-bot/test/perpl-auth.test.ts`: RFC 8032 vector, fixed vectors (key, timestamp, nonce → signature) for REST GET/POST and the WS sign-in, cross-checked against `node:crypto` Ed25519 |
+| Trading client: sign-in first, snapshots before ready, `rq` from `lfr`, `lb` from head + ttl, outcome only from `mt: 24`, gateway rejections, reconnect + fresh sign-in on 3401, gap ⇒ reconnect, ≤ 50 req/min, REST fallback with order-history confirmation | `mm-bot/test/perpl-trading.test.ts` (fake socket + clock) |
+| Hedge policy never over-hedges, never crosses the target, respects caps, prices IOC within slippage on the right side; halts on stale data, `fw` off, low collateral, rejections | `mm-bot/test/hedge.test.ts` (unit + 20,000-state seeded fuzz) |
+| Behaviour unchanged with the hedge off | `perplHedgeFromEnv` returns `undefined` without `PERPL_HEDGE=1` (`test/perpl-config.test.ts`); the existing MM tests are unchanged and green |
+| Perpl trading WS behaviour as documented (testnet, 7 Oct) | no sign-in ⇒ close `1008 "idle timeout"` after 10.9 s; unknown key ⇒ `3401 "unauthorized"` after 1.5 s |
+| MFI on Perpl's live market-data WS, spread route | `mfi/test/ws.test.ts` replays recorded frames (`mfi/fixtures/recorded/testnet/ws*/`); live 7 Oct: `perpl:ok/ws`, `/v1/mfi/spread` = +229.7% APR (Meridian 266.4%, Perpl 36.7%) at block 69,007,268 |
+| **Testnet run ≥ 1 h with real Perpl fills; before/after** | **TBD (owner setup pending):** table from `bench/perpl_hedge.ts report`, Perpl order ids / fill ids from `GET /v1/trading/fills`, matching Meridian tx hashes |
+
+Reproduce: RUNBOOK §4d (start/stop, env), `docs/PERPL_HEDGE.md` §6.
+
 ## 13. Chainlink CRE backstop keeper (K4)
 *8 Oct 2026, branch `cre-receiver`. **How these ran:** every tx below was sent by `cre workflow simulate --broadcast` (CRE CLI v1.37.0, SDK 1.23.0). That is the real workflow WASM in the CRE runtime, run by **one machine**, delivered through Chainlink's simulation forwarder `MockKeystoneForwarder` `0xB9F79d863261869B234c481D1f9A7af84AeAd192` from the CRE wallet `0xb624c6144aA825f22452B3cEFC3728F38b0c088c`. It was **not** executed by a DON: deployment access was "not yet enabled" (`cre account access`, 8 Oct) and not granted at submission. Explorer: `https://testnet.monadscan.com/tx/<hash>`. Logs: `keepers/cre/evidence/`.*
 
