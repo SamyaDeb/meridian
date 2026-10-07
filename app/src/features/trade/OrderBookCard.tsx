@@ -161,7 +161,7 @@ export const bookTabs = (perplEnabled = PERPL_ENABLED): { id: Tab; label: string
 export function OrderBookCard() {
   const [tab, setTab] = useState<Tab>("book");
   return (
-    <Card className="h-full" scroll bodyClassName="flex flex-col" header={<PillTabs size="sm" ariaLabel="Book view" value={tab} onChange={setTab} tabs={bookTabs()} />}>
+    <Card className="h-full" scroll bodyClassName="flex flex-col" header={<PillTabs size="sm" ariaLabel="Book view" value={tab} onChange={setTab} tabs={bookTabs()} className={PERPL_ENABLED ? "flex-wrap gap-0.5 rounded-[14px] [&>button]:px-2" : ""} />}>
       {tab === "book" ? <Book /> : tab === "trades" ? <Trades /> : tab === "depth" ? <Depth /> : tab === "perpl" ? <PerplBook /> : <FundingCardBody />}
     </Card>
   );
