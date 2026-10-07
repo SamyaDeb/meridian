@@ -105,6 +105,26 @@ describe("recorded market-data frames (testnet, market 64)", () => {
   });
 });
 
+describe("recorded funding interval (testnet, 7 Oct 2026 16:18–16:51 UTC, market 64)", () => {
+  // funding@10143 frames reduced to market 64 (the probe logged d["64"] only): the snapshot on subscribe, then ONE
+  // interval as types.md describes it: the rate with an estimated at.t 23 s before the block, then the same feb again
+  // with the final at.t (1791391848400 → 1791391848000) once the block arrived.
+  const frames = readFileSync(new URL("../fixtures/recorded/testnet/ws/funding-interval-64.jsonl", import.meta.url), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { recvMs: number; frame: unknown });
+  it("snapshot ⇒ new; next interval ⇒ new then final (same feb), so the MFI cycles twice and dedups by feb", () => {
+    const feed = new MarketDataFeed(64);
+    const kinds = frames.map((f) => feed.apply(parseMarketDataFrame(JSON.stringify(f.frame)), f.recvMs)).map((u) => (u && u !== "gap" ? u.kind : u));
+    expect(kinds).toEqual(["new", "new", "final"]);
+    expect(feed.fundingEvents().map((e) => [e.feb, e.rate])).toEqual([
+      [69_013_692, 0],
+      [69_022_263, -10],
+    ]);
+    // the newest rate applied ahead of the head when first published: until its at.t, the previous one is in force
+    expect(feed.fundingInForce(1_791_391_830_000)?.rate).toBe(0);
+    expect(feed.fundingInForce(1_791_391_849_165)?.rate).toBe(-10);
+    expect(perplRateToAprWad(-10, 2580)).toBe(-122_232_558_139_534_883n); // −12.2% APR, rounds toward zero
+  });
+});
+
 const ev = (feb: number, t: number, rate = 30): FundingEvent => ({ at: { b: feb, t }, feb, rate, idx: 2573, ppl: 77, sum: 0, div: 1000 });
 const fundingFrame = (e: FundingEvent, market = 64): MarketDataFrame => ({ mt: 10, markets: { [market]: e } });
 

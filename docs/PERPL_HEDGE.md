@@ -101,6 +101,8 @@ Verified on testnet, 7 Oct 2026:
 - Market-data WS: the `mt: 6` reply listed `funding@10143` under **sid 3000** (market-state's), while funding frames (`mt: 10`) arrive on **sid 4000**: routing is by `mt` (fixture `mfi/fixtures/recorded/testnet/ws/control.jsonl`, test `ws.test.ts`). `mt: 8/9/10` carry `d: { [marketId]: … }` maps (not documented per type).
 - Trading WS without sign-in closes **1008 "idle timeout" after 10.9 s**; a sign-in with an unknown key closes **3401 "unauthorized"** (1.5 s) — so our frame parses (a malformed one would be 1011).
 - MFI served from the WS (`perpl:ok/ws`) with REST only for the first cycle; `/v1/mfi/spread` live: Meridian 266.4% APR, Perpl 36.7% APR, spread +229.7% APR (block 69,007,268).
+- **One funding interval = two `mt: 10` frames** (16:50:25 and 16:50:49 UTC, feb 69,022,263, rate −10 micros ≈ −12.2% APR): the first with an estimated `at.t` ahead of the head, the second with the final `at.t`, exactly as types.md says. The feed classes them `new` then `final` (fixture `funding-interval-64.jsonl`).
+- **Market-data sockets do drop:** one capture was closed by the server with `1008 "ping timeout"` within 50 min; a probe socket went **silent for 70 s** and then died `1006` after 37 min. Both are why the MFI socket has a 15 s silence watchdog and reconnects (and why REST stays as the fallback).
 - **Collateral:** README lists testnet collateral `0xdf5b718d…c027` ("USD"), but `/v1/pub/context` on testnet returns token id 1 = **AUSD `0xa9012a055bd4e0edff8ce09f960291c09d5322dc`, 6 decimals**, `min_account_open_amount` 100 AUSD. The context endpoint is what the docs say to read at runtime; we follow it.
 
 Open:
