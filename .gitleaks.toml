@@ -1,11 +1,13 @@
-# gitleaks: default rules, plus one reviewed false positive (7 Oct 2026).
+# gitleaks: default rules, plus reviewed false positives (7 Oct 2026).
 # "vaultMockSpotToken" in deployments/*.json is a 20-byte contract address; generic-api-key matches it only
 # because the key name contains "Token". Same for "collateralToken" in deployments/perpl.json (Perpl's AUSD address,
 # copied from its public context endpoint).
+# The Ed25519 private key of RFC 8032 §7.1 TEST 1 (a published test vector, 7 Oct 2026) signs the Perpl auth test
+# vectors in mm-bot/test; it is not a Perpl key and holds nothing.
 [extend]
 useDefault = true
 
 [allowlist]
-description = "public contract addresses under token-named JSON keys"
+description = "public contract addresses under token-named JSON keys; the RFC 8032 Ed25519 test-vector key"
 regexTarget = "line"
-regexes = ['''"vaultMockSpotToken": "0x[0-9a-fA-F]{40}"''', '''"collateralToken": "0x[0-9a-fA-F]{40}"''']
+regexes = ['''"vaultMockSpotToken": "0x[0-9a-fA-F]{40}"''', '''"collateralToken": "0x[0-9a-fA-F]{40}"''', '''9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60''']
