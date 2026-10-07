@@ -249,7 +249,7 @@ export function vaultAction(reason: number): { act: boolean; name: string; urgen
 
 // ───────────────────────────── gas ─────────────────────────────
 
-/** Monad bills the gas limit (ARCHITECTURE R6): limit = ceil(estimate × 1.2) (CLAUDE.md §7). */
+/** Monad bills the gas limit (ARCHITECTURE R6): limit = ceil(estimate × 1.2) (CONTRIBUTING.md §7). */
 export function gasLimitFor(estimate: bigint): bigint {
   return (estimate * 12n + 9n) / 10n;
 }

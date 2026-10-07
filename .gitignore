@@ -19,7 +19,7 @@ mm-bot/KILL
 app/test-results/
 app/playwright-report/
 contracts/broadcast/*/*/dry-run/
-# local bot run logs (evidence summarised in docs/standup)
+# local bot run logs
 runs/
 contracts/broadcast/*/*/run-[0-9]*.json
 # local rehearsal deployments (DeployMeridian DEPLOYMENTS_OUT=anvil-<chain>.json)
@@ -29,12 +29,6 @@ contracts/broadcast/SmokeFull.s.sol/
 contracts/script/config/tmp/
 deployments/fork-test-*.json
 
-# teaser video sources/renders
-teaser/assets/raw/
-teaser/renders/
-# third-party movie clips and music (not ours to license; kept local only, K0 7 Oct; history: git checkout 4f74a3e -- teaser/assets)
-teaser/assets/clips/
-teaser/assets/bgm*
 
 # MFI service history (decision D7), runtime data
 mfi/data/

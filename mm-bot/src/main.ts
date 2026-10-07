@@ -144,7 +144,7 @@ let logsTo = -1n; // our Trade/OrderEvicted logs are read up to here
 const touched = new Set<bigint>(); // resting ids a fill/eviction log mentioned since the last refresh
 const stats = { requotes: 0, txs: 0, errors: 0, skips: 0, gasLimitSum: 0n, gasUsedSum: 0n };
 
-/** Monad bills the gas limit (ARCHITECTURE R6): limit = ceil(estimate × 1.2) (CLAUDE.md §7). */
+/** Monad bills the gas limit (ARCHITECTURE R6): limit = ceil(estimate × 1.2) (CONTRIBUTING.md §7). */
 
 /** One re-quote as a pipelined batch (send.ts): cancels, then replaces, then new placements, in planner order. */
 async function estimate(data: Hex): Promise<bigint> {

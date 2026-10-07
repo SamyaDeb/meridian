@@ -171,7 +171,7 @@ contract MeridianVaultQueueTest is MeridianVaultBase {
         vm.stopPrank();
     }
 
-    /// previewFulfill is O(n²) in the ids: bounded by MAX_BATCH like fulfillRedeems (CLAUDE.md rule 5).
+    /// previewFulfill is O(n²) in the ids: bounded by MAX_BATCH like fulfillRedeems (CONTRIBUTING.md rule 5).
     function test_previewFulfill_boundedByMaxBatch() public {
         _deposit(alice, 1000e6);
         vault.previewFulfill(new uint256[](32));

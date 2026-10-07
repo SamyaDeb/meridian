@@ -14,7 +14,7 @@ dirs = ["interfaces", "interfaces/external", "mocks", "orderbook", "clearing", "
 wanted = {}
 for d in dirs:
     for f in sorted((src / d).glob("*.sol")) if (src / d).is_dir() else []:
-        wanted[f.name] = f.stem  # one contract per file; file name = contract name (CLAUDE.md §3)
+        wanted[f.name] = f.stem  # one contract per file; file name = contract name (CONTRIBUTING.md §3)
 for old in dst.glob("*.json"):
     if old.name != "package.json":
         old.unlink()

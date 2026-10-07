@@ -23,7 +23,7 @@ Status: ✅ sourced and matching · ⚠ VERIFY or a stale note · ❌ missing (l
 | Field | Value | Source | Status | Action |
 |---|---|---|---|---|
 | `tokens.AUSD` | `0x00000000eFE3…9012a` | R9 (onchain + fork permit test) | ✅ | — |
-| `tokens.AUSD_decimals` | 6 | R9; CLAUDE.md §2 "6 dp (verified onchain)" | ✅ | — |
+| `tokens.AUSD_decimals` | 6 | R9; CONTRIBUTING.md §2 "6 dp (verified onchain)" | ✅ | — |
 | `tokens.WMON` | `0x3bd359C1…5433A` | R10 | ✅ | — |
 | `tokens.USDC` / `USDC_decimals` | `0x754704Bc…fb603` / 6 | R10b | ✅ | informational (Kuru quote token); the deploy doesn't read it |
 

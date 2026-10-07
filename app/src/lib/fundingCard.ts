@@ -5,7 +5,7 @@ import { WAD } from "./units";
 /**
  * Funding over `seconds` for a position of size q at the current per-second rate r and index I:
  * ΔF = r·I·dt (per base unit), owed = q·ΔF. + = the account pays, − = earns. Pays round up, earnings round down in
- * magnitude (CLAUDE.md §2: never overstate what the user receives).
+ * magnitude (CONTRIBUTING.md §2: never overstate what the user receives).
  */
 export function fundingOverWad(sizeWad: bigint, ratePerSecondWad: bigint, indexWad: bigint, seconds: bigint): bigint {
   const num = sizeWad * ratePerSecondWad * indexWad * seconds; // WAD³

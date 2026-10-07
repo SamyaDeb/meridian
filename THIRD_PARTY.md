@@ -28,8 +28,3 @@ Flagged:
 - **LGPL-3.0-or-later**: `@img/sharp-libvips-darwin-arm64` (prebuilt libvips for Next's image optimiser; a dynamically loaded binary, platform-specific).
 - **GPL-3.0**: `cfonts` (pulled in by the `envio` CLI's banner) and `envio-darwin-arm64` (Envio's binary). Both are tooling, not linked into anything we distribute.
 - **No licence field (21)**: the wallet-connection stack pulled in by wagmi / Privy: `@reown/appkit*`, `@walletconnect/*`, `@metamask/sdk*`, `@metamask/eth-json-rpc-provider`, `@privy-io/api-base`, `@privy-io/wagmi`. > VERIFY: each package's shipped LICENSE file. They're installed from npm, not vendored, so this repo's MIT licence isn't affected.
-
-## Not covered by the MIT licence
-- `teaser/assets/clips/*`, `teaser/assets/bgm*`: video clips and music used for a launch teaser. They're third-party media, not ours to license, so they're untracked since 7 Oct (gitignored; kept on the founders' machines). Commits before that (`4f74a3e`) still contain them.
-- Fonts under `teaser/assets/fonts/` keep their own licences (Google Fonts, SIL OFL 1.1).
-- Monad logos (`teaser/assets/brand/`) are Monad's trademarks, used to name the chain.

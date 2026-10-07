@@ -1,5 +1,7 @@
 # PHASES: the build, phase by phase (supersedes the day grid in TEAM_PLAN §4)
 
+> Paths under `docs/standup/` and `docs/prompts/` cited below are the team's working logs, kept in the private development repository.
+
 The team finished Phase 1 in one day, so the plan now runs on **phases with exit gates** instead of fixed days. A phase ends when its gate passes, not when the calendar says so. The dates are **latest** dates; finishing early pulls everything forward. The checkpoint dates stay as hard backstops: CP1 Sat 3 Oct, CP2 Wed 7 Oct, CP3 Sat 10 Oct, submit Tue 13 Oct 18:00.
 
 Rules for every phase:

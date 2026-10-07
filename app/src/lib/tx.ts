@@ -1,4 +1,4 @@
-// Write path. Monad bills the gas LIMIT (CLAUDE.md §7): every tx is estimated first and sent with estimate × 1.2.
+// Write path. Monad bills the gas LIMIT (CONTRIBUTING.md §7): every tx is estimated first and sent with estimate × 1.2.
 import type { Abi, Address, ContractFunctionArgs, ContractFunctionName, PublicClient, WalletClient } from "viem";
 import { clearingHouseAbi, erc20Abi, swapAbi, vaultAbi } from "./abi";
 import { gasLimitFromEstimate } from "./gas";

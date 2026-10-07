@@ -41,7 +41,7 @@ contract OracleAdapterForkTest is Test {
         }
     }
 
-    // ─── Phase 5 B3: the chosen mainnet parameters (docs/standup/B.md, keepers/ts-fallback/evidence/) ────────────
+    // ─── Phase 5 B3: the chosen mainnet parameters (keepers/ts-fallback/evidence/) ────────────
     /// maxStalenessSec = 60 (no Pyth API key ⇒ sponsored pushes, R24; 72 h sample: sponsored age p99 50 s, max 66 s)
     uint256 constant STALENESS_143 = 60;
     /// maxDeviationWad = 3% (72 h sample of 8,581 blocks: p99 0.50%, p99.9 1.02%, max 1.42% with BOTH feeds fresh)

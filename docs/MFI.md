@@ -1,6 +1,6 @@
 # MFI: Meridian Funding Index (design note, v0)
 
-Owner: lane D (WS-09). Status: design for the offchain v0 (`mfi/` service, WIN_PLAN §4 Phase 2). A second engineer should be able to build the service from this note alone; the numbers in §8 are checked by `node docs/mfi/worked-examples.mjs`.
+Owner: lane D (WS-09). Status: design for the offchain v0 (`mfi/` service). A second engineer should be able to build the service from this note alone; the numbers in §8 are checked by `node docs/mfi/worked-examples.mjs`.
 
 ## 1. Definition
 
@@ -76,7 +76,7 @@ weightBps_v = OI_v · 10_000 / Σ OI_v                       // floor; display o
 `OI_v` ≤ ~1e33 (1e15 AUSD), `|APR_v|` ≤ ~1e20 (100× APR): products stay < 2^255. JS `bigint` has no overflow; the onchain publisher (roadmap) uses `fullMulDiv`.
 
 ### 4.4 Rounding direction
-The MFI is a reference rate, not a payment: no user is credited or debited from it, so every division **rounds neutral = truncates toward zero** (bigint `/`), which makes a negative and a positive rate of equal size round symmetrically. Weights floor. Tests assert the direction (T6). If MFI is later used to settle (roadmap), the settling contract chooses its own direction per CLAUDE.md §2.
+The MFI is a reference rate, not a payment: no user is credited or debited from it, so every division **rounds neutral = truncates toward zero** (bigint `/`), which makes a negative and a positive rate of equal size round symmetrically. Weights floor. Tests assert the direction (T6). If MFI is later used to settle (roadmap), the settling contract chooses its own direction per CONTRIBUTING.md §2.
 
 ## 5. Staleness and outages
 
@@ -188,6 +188,6 @@ type MfiSnapshot @index(fields: [["blockNumber", "DESC"]]) {
 ## 10. Claim limits for the write-up
 
 - "MFI v0 is computed offchain by an open-source service from Meridian's onchain oracle and Perpl's public API." Not: "an onchain index", "a decentralized oracle", "the Monad benchmark rate".
-- The onchain publisher, more venues and settlement on MFI are **roadmap** (WIN_PLAN §2 "Integrate", Q1 2027).
+- The onchain publisher, more venues and settlement on MFI are **roadmap**.
 - Perpl numbers shown are read from Perpl's API at the time shown; we don't claim partnership or endorsement.
 - Until a real Perpl response is recorded, any Perpl figure in tests or screenshots is labelled `synthetic`.

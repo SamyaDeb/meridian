@@ -98,7 +98,7 @@
     "oracle": {
       "_kind": "PythChainlinkOracleAdapter (ARCHITECTURE R11/R12); structural, added by A (DeployMeridian reads it). Values below: B",
       "kind": "pyth",
-      "_maxStalenessSec": "60 s: no Pyth API key, sponsored pushes (R24); 72 h sample: sponsored age p99 50 s, max 66 s (ws-03j-oracle-params, docs/standup/B.md, keepers/ts-fallback/evidence/)",
+      "_maxStalenessSec": "60 s: no Pyth API key, sponsored pushes (R24); 72 h sample: sponsored age p99 50 s, max 66 s (ws-03j-oracle-params, keepers/ts-fallback/evidence/)",
       "maxStalenessSec": 60,
       "chainlinkGuardStalenessSec": 3600,
       "_maxDeviationWad": "3% (B, 72 h sample of 8,581 blocks: p99 0.50%, p99.9 1.02%, max 1.42% with both feeds fresh); constructor bound (0, 10%]",

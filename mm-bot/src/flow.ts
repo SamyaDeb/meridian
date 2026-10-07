@@ -109,7 +109,7 @@ const io: FlowIo = {
   take: async (t) => {
     // minFilledLots = 1: a partial fill is fine; nothing fills ⇒ SlippageExceeded at estimate time, so no tx is sent.
     const data = encodeFunctionData({ abi: orderBookAbi, functionName: "placeMarketOrder", args: [t.isBid, t.lots, t.limitTick, 1n, t.reduceOnly] });
-    const gas = gasLimitFor((await estimate(data)) + TOUCH_ALLOWANCE_GAS); // Monad bills the limit: estimate × 1.2 (CLAUDE.md §7)
+    const gas = gasLimitFor((await estimate(data)) + TOUCH_ALLOWANCE_GAS); // Monad bills the limit: estimate × 1.2 (CONTRIBUTING.md §7)
     const hash = await wallet.sendTransaction({ to: OB, data, gas });
     const rcpt = await pub.waitForTransactionReceipt({ hash, timeout: 10_000 });
     log("take", { block: rcpt.blockNumber, status: rcpt.status, side: t.isBid ? "buy" : "sell", lots: t.lots, limitTick: t.limitTick, reduceOnly: t.reduceOnly, gasLimit: gas, tx: hash });

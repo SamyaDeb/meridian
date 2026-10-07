@@ -19,7 +19,7 @@ function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub
 }
 
 /**
- * Rates & Risk (WIN_PLAN T8, FRONTEND_TRADE_PLAN §7, decision D3). Real sources only: the funding-rate oracle (chain)
+ * Rates & Risk (decision D3). Real sources only: the funding-rate oracle (chain)
  * for the APR table, the MFI service for the Meridian Funding Index (MfiCard), the indexer for liquidation distance and
  * the insurance fund. A missing source is an empty state, never simulated.
  */

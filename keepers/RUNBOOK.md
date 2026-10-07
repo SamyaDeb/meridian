@@ -1,5 +1,7 @@
 # RUNBOOK — Meridian keeper + market maker (testnet 10143 / mainnet 143)
 
+> Paths under `docs/standup/` and `docs/prompts/` cited below are the team's working logs, kept in the private development repository.
+
 Two processes per market: the **keeper** (`keepers/ts-fallback`: oracle pushes, funding pokes, liquidations, `/health`) and the **MM** (`mm-bot`: Avellaneda–Stoikov, 3 levels per side, kill switch). Testnet also has the labelled **MON-PERP-DEMO** test market (`MARKET=demo`), used only for the crash/liquidation demo.
 
 ## 1. Environment (`.env`, never committed)
@@ -281,7 +283,7 @@ One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`,
 ## 10. Incident flow
 1. **Contain:** `touch $KILL_FILE` on every MM (quotes pulled). If the market itself is unsafe (oracle wrong, exploit suspected), the owner calls `ClearingHouse.setPaused(true)` / `FundingSwapMarket.setPaused(true)`: increases are blocked, reduce-only, cancels, deposits and liquidations keep working (MATH_SPEC §1.6).
 2. **Reduce-only period:** keep the keeper running (liquidations must continue while paused). Lower `maxOpenInterest` / `maxPositionSize` with `setRiskParams` if exposure must shrink. Never change `maxStaleness` to hide an oracle problem.
-3. **Communicate:** status line in the app + the team channel: what is paused, what still works (withdrawals, closing), next update time. Write the timeline into `docs/standup/<you>.md`.
+3. **Communicate:** status line in the app + the team channel: what is paused, what still works (withdrawals, closing), next update time. Write the timeline into the incident log.
 4. **Resume:** `setPaused(false)` after the cause is fixed and the oracle is fresh; `rm $KILL_FILE`; watch `pnpm watch` for 30 min.
 
 ## 10b. Seeding on 143 (rehearsed on the mainnet fork, 5 Oct)

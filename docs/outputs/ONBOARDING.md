@@ -9,7 +9,7 @@ Meridian runs on **Monad mainnet (chain id 143)**. Everything is settled in **AU
 ## 1. Get MON and AUSD on Monad
 | Need | Where | Status |
 |---|---|---|
-| A wallet on Monad | The app's login (provider per the Privy-vs-Mera decision) or any EVM wallet with Monad (chain id 143) added | Login provider: > VERIFY after the decision (BOUNTY_MAP) |
+| A wallet on Monad | The app's login (provider per the Privy-vs-Mera decision) or any EVM wallet with Monad (chain id 143) added | Login provider: > VERIFY after the decision |
 | MON | An exchange that supports MON withdrawals on the Monad network, or a bridge to Monad | > VERIFY: list only exchanges/bridges whose own docs confirm Monad mainnet MON withdrawals/deposits |
 | AUSD | Agora (issuer), or swap USDC → AUSD on Kuru (AUSD/USDC market, ARCHITECTURE R19b) or via Kuru Flow | > VERIFY: Agora's official mint/redeem access for retail; Kuru app URL and current AUSD/USDC depth before recommending sizes |
 | Explorer (to check your txs) | Monad mainnet explorer | > VERIFY: official mainnet explorer URL (docs.monad.xyz) |

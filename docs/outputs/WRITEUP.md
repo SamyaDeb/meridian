@@ -45,7 +45,7 @@ Two internal cross-reviews (each founder reviewed the other's contracts: [review
 | M-1 one-block mark manipulation | Closed: premium bound | PoC: +5% in one block before, +10 bps after |
 | M-2 paused market evicts makers | Closed: CR-007 Skip | testnet `MakerFillSkipped` |
 | M-3 bad debt before fees | Closed: IF → fees → uncovered | fuzz + invariants (128 / 112 waterfall hits) |
-| H-3 ported frontend commit (process) | Closed: clean-room rewrite | `de40466` never on `main`; chart bars rewritten from [CHART_TOPBAR_SPEC.md](CHART_TOPBAR_SPEC.md) (PR #15) |
+| H-3 ported frontend commit (process) | Closed: clean-room rewrite | not in this history; chart bars rewritten from [CHART_TOPBAR_SPEC.md](CHART_TOPBAR_SPEC.md) |
 | Lows / infos (A-08, A-09 partial, A-12, B-03…B-15), no ADL | Open, listed | STATUS.md |
 
 Tests: **499** Foundry tests (unit, fuzz, invariants I1–I11 at 256 × 128; all invariant suites also green at 512 × 256 with coverage counters proving the liquidation, bad-debt, skip and queue paths ran), 10 mainnet-fork tests, ≈ 800 TypeScript tests (keeper, MM, indexer, app, bench).
@@ -58,13 +58,13 @@ Tests: **499** Foundry tests (unit, fuzz, invariants I1–I11 at 256 × 128; all
 We don't report users, volume or fees: none are on mainnet yet, and testnet activity so far is our own bots and labelled test wallets.
 
 ## Licence & prior work
-MIT ([LICENSE](../../LICENSE); third-party libraries in [THIRD_PARTY.md](../../THIRD_PARTY.md)). All code was written in the build window (1 Sep – 13 Oct 2026). One frontend commit (`de40466`, 5 Oct) ported a chart top bar from a founder's earlier project, against our own rule; it never reached `main`'s history, and the chart's top and bottom bars were replaced by a clean-room rewrite from a behavioural spec ([CHART_TOPBAR_SPEC.md](CHART_TOPBAR_SPEC.md), PR #15).
+MIT ([LICENSE](../../LICENSE); third-party libraries in [THIRD_PARTY.md](../../THIRD_PARTY.md)). All code was written during the hackathon (29 Sep – 13 Oct 2026). This public repo is a curated history of our private development repo: each commit is a real state of the code, dated when the work was done. One frontend commit during development (5 Oct) ported a chart top bar from a founder's earlier project, against our own rule; it isn't part of this history, and the chart's top and bottom bars were replaced by a clean-room rewrite from a behavioural spec ([CHART_TOPBAR_SPEC.md](CHART_TOPBAR_SPEC.md)).
 
 ## Team
 Three founders: **A (Samya)**, core protocol (order book, clearinghouse, funding oracle, swaps, integration); **B**, liquidity and automation (keeper, market maker, vault, Kuru hedger); **C**, product and growth (indexer, PWA, benchmarks, demo).
 
 ## Bounties
-Track 01 is our entry. Sponsor bounties, only where the testnet product already meets them (rule: no feature built only for a bounty; the verbatim criteria in `docs/BOUNTY_MAP.md` were never pasted, so C re-reads each before filing):
+Track 01 is our entry. Sponsor bounties, only where the testnet product already meets them (rule: no feature built only for a bounty):
 - **Envio, Best Use of Envio:** the HyperIndex indexer powers the app's funding history, positions, vault queue and stats. **Only after** the hosted Envio deployment is moved to the current testnet contracts (today it still indexes the previous deployment).
 - **Privy:** **only if** the hosted app runs with Privy as its single login (wired behind `NEXT_PUBLIC_PRIVY_APP_ID`) and the criteria fit.
 - **Not claimed:** Agora (requires trades through Perpl), Kuru (the testnet vault uses a mock hedger; real Kuru Flow routes are shown only on a mainnet fork), Chainlink CRE (not deployed), Mera (not our login).

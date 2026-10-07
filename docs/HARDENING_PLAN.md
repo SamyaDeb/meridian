@@ -1,5 +1,7 @@
 # HARDENING_PLAN: protocol hardening + vault v2 before submission (6 → 13 Oct 2026)
 
+> Paths under `docs/standup/` and `docs/prompts/` cited below are the team's working logs, kept in the private development repository.
+
 Owner: A (lead, WS-00). Written Tue 6 Oct 2026 from the 6 Oct audit. Scope = audit Step 1–3 and Step 5:
 
 | Phase | Item | Audit ref | Contracts touched | Interface change? |
@@ -23,7 +25,7 @@ Parallel lanes (not in this plan, but P4 depends on them): **B** keeper unwind a
 
 1. **Non-upgradeable contracts set the order.** CH / OrderBook / swap market changes (P1–P3) go into the **testnet relaunch (P4)**; changing them later means another redeploy, new indexer config and new app addresses. The vault only *consumes* the CH, so vault v2 (P5) joins the same testnet deployment afterwards (P6) without touching the perp.
 2. **One phase = one branch = one PR**, stacked: `ws-00p-hardening` (P0) → `ws-02c-bad-debt-waterfall` (P1) → `ws-02d-mark-bound` (P2) → `ws-01c-cr007-skip` (P3) → `ws-00q-launch` (P4) → `ws-04c-vault-v2` (P5). Rebase each on `origin/main` after the previous one merges. Work in a worktree `../pulse-hard`, never in `../Meridian` (owner tree, frontend work in progress).
-3. **Tests first** (CLAUDE.md §1.7): write the failing test / PoC, then the fix. Every phase ends green on: `forge build`, `forge test` (non-fork), `forge fmt --check`, the invariant suites at CI depth, the gas ceilings (`test/unit/ClearingHouseGas.t.sol`, `test/bench/RealEngineGas.t.sol`), and TS suites touched by an ABI change.
+3. **Tests first** (CONTRIBUTING.md §1.7): write the failing test / PoC, then the fix. Every phase ends green on: `forge build`, `forge test` (non-fork), `forge fmt --check`, the invariant suites at CI depth, the gas ceilings (`test/unit/ClearingHouseGas.t.sol`, `test/bench/RealEngineGas.t.sol`), and TS suites touched by an ABI change.
 4. **Interfaces:** P3 and P5 change frozen files. Apply the CR in a **separate WS-00 commit first** (`chore(ws-00): apply CR-0xx, interfaces-v1.x`), regenerate `abis/` and `docs/INTERFACES.md`, then implement. P1/P2 change no interface.
 5. **Every formula** gets `// MATH_SPEC §x.y, rounds <up|down|neutral>`; every behaviour change gets a MATH_SPEC amendment line and a PHASES decision (next free number: **35**). Next free CR: **CR-014** (CR-007 is reopened, not renumbered).
 6. **Gas budget is tight:** CH-own funding first touch is **29,368 / 30,000**. P2 adds code to that path. Measure before and after; if it busts the ceiling, use the fallback in P2.4 rather than raising the ceiling.
@@ -249,7 +251,7 @@ CR-010 items (1) `exitHedgeWithRoute` and (2) `emergencyUnwind` are kept; (3) `r
 ## Security self-review checklist (every phase, written into HARDENING_LOOP.md)
 - CEI; `nonReentrant` on every function that moves tokens or calls out; `SafeERC20`; no `tx.origin`; no new `delegatecall`.
 - Every loop bounded by a `MeridianConstants` constant; no iteration over users/orders/requests.
-- Rounding direction per CLAUDE.md §2, with a `// MATH_SPEC` comment on every formula.
+- Rounding direction per CONTRIBUTING.md §2, with a `// MATH_SPEC` comment on every formula.
 - Custom errors and events only from the interfaces; no revert strings.
 - Storage layout: `ClearingHouseLayout.t.sol` green; packed slots unchanged unless the phase says so.
 - Conservation: I1 (perp), I9 (swap), I8/I10 (vault) at 256×128 before merge.

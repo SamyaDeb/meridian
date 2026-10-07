@@ -75,7 +75,7 @@ const need = (k: string): string => {
 };
 
 const CHAIN_ID = Number(env("CHAIN_ID") ?? "31337");
-// Local anvil is the only default; real networks must come from .env (CLAUDE.md §7).
+// Local anvil is the only default; real networks must come from .env (CONTRIBUTING.md §7).
 const RPC_URL = CHAIN_ID === 31337 ? (env("RPC_URL") ?? "http://127.0.0.1:8545") : need("RPC_URL");
 const KEEPER_PK = need("KEEPER_PK") as Hex;
 const DEPLOYMENTS = env("DEPLOYMENTS") ?? fileURLToPath(new URL(`../../../deployments/${CHAIN_ID}.json`, import.meta.url));

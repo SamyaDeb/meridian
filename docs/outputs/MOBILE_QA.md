@@ -1,5 +1,7 @@
 # Mobile QA checklist (C4): run by a founder on real phones
 
+> Paths under `docs/standup/` and `docs/prompts/` cited below are the team's working logs, kept in the private development repository.
+
 Build: production (`pnpm --filter @meridian/app build && start`, or the deployed URL), on the network under test. Fill in one column per device with ✅ / ❌ + a note. A ❌ is a bug on `ws-07*` before Wed 7 Oct.
 
 | # | Check | iOS Safari (model, iOS ver) | Android Chrome (model, ver) |

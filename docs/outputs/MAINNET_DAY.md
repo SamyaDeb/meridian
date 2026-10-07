@@ -1,5 +1,7 @@
 # MAINNET DAY: Thu 8 Oct 2026 (Meridian on Monad 143)
 
+> Paths under `docs/standup/` and `docs/prompts/` cited below are the team's working logs, kept in the private development repository.
+
 The run sheet a second engineer can follow alone. Every command was rehearsed on a **mainnet fork @ block 110,560,579** (anvil, chain id 143, 5 Oct; `docs/standup/PHASE3_LOOP.md` P2–P5). The "expected" outputs come from that fork, and **fork addresses will differ on 143**. Gas and MON numbers are **anvil-fork estimates, not Monad-metered**. Nothing here was broadcast to 143 or 10143.
 
 Roles: **A** = deployer (runs the broadcast) · **B** = ops (keeper, MMs, watcher, seeding) · **C** = app + indexer (Phase 2 lane) · **Safe** = any 2 of the 3 founders.
@@ -7,7 +9,7 @@ All times are local, Thu 8 Oct. Contract code freeze: **18:00**.
 
 ---
 
-## 0. Go / no-go (A reads it out at 09:30; every line must be ✅ or the launch moves to Sat 10 Oct, WIN_PLAN §3)
+## 0. Go / no-go (A reads it out at 09:30; every line must be ✅ or the launch moves to Sat 10 Oct)
 
 | # | Gate | Check (command or evidence) | Owner |
 |---|---|---|---|

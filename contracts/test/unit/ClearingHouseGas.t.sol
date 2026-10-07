@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import {console2} from "forge-std/console2.sol";
 import {ClearingHouseBase} from "./ClearingHouseBase.t.sol";
 
-/// Gas of the funding touch (Foundry prices with the Ethereum/Cancun schedule, NOT Monad MIP-8; see docs/standup/A.md).
+/// Gas of the funding touch (Foundry prices with the Ethereum/Cancun schedule, NOT Monad MIP-8; see docs/outputs/BENCHMARKS.md).
 ///  - "cold": new tx, first touch of CH, oracle and book (every slot and account cold).
 ///  - "incremental": first touch minus a no-op touch under the same warmth ⇒ what the first tx in a block pays
 ///    on top of a later tx (the acceptance-criteria number).

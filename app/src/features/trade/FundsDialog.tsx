@@ -12,7 +12,7 @@ import { wadToToken } from "@/lib/math";
 import { AUSD_DECIMALS } from "@/lib/units";
 
 /**
- * Deposit / withdraw AUSD (6 dp at the boundary, CLAUDE.md §2). Withdraw max = free collateral converted WAD → token
+ * Deposit / withdraw AUSD (6 dp at the boundary, CONTRIBUTING.md §2). Withdraw max = free collateral converted WAD → token
  * rounding down (the user receives less, never more than the contract allows).
  */
 export function FundsDialog({ mode, open, onClose, freeCollateralWad }: { mode: "deposit" | "withdraw"; open: boolean; onClose: () => void; freeCollateralWad: bigint | undefined }) {

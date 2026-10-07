@@ -1,8 +1,8 @@
 # Chart top bar and bottom bar: behavioural spec
 
-Written 7 Oct 2026 (K0.2) as the input for a clean-room rewrite of Meridian's chart chrome. It describes **behaviour only**: what a trader sees and can do, the accessible names the e2e suite relies on, and the design tokens. It was written from the `ChartCard` call site, the e2e specs (`app/e2e/chart.spec.ts`, `drawings.spec.ts`), the chart view store (`store.ts`) and the rendered app (accessibility tree + screenshots at 390 and 1440 px), not from any previous implementation of the bars.
+Written 7 Oct 2026 as the input for a clean-room rewrite of Meridian's chart chrome. It describes **behaviour only**: what a trader sees and can do, the accessible names the e2e suite relies on, and the design tokens. It was written from the `ChartCard` call site, the e2e specs (`app/e2e/chart.spec.ts`, `drawings.spec.ts`), the chart view store (`store.ts`) and the rendered app (accessibility tree + screenshots at 390 and 1440 px), not from any previous implementation of the bars.
 
-Why: commit `de40466` (5 Oct) ported a chart top bar from a prior project, which CLAUDE.md rule 2 forbids. The bars are rewritten from this document so that no line of that port, or of files derived from it, remains.
+Why: a development commit (5 Oct) ported a chart top bar from a prior project, which CONTRIBUTING.md rule 2 forbids. The bars are rewritten from this document so that no line of that port, or of files derived from it, remains.
 
 ## 1. Where the bars sit
 

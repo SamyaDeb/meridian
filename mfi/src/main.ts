@@ -1,4 +1,4 @@
-// MFI v0 service: `pnpm --filter @meridian/mfi start`. Env (never hard-coded, CLAUDE.md §7):
+// MFI v0 service: `pnpm --filter @meridian/mfi start`. Env (never hard-coded, CONTRIBUTING.md §7):
 //   MFI_CHAIN_ID           10143 (default) | 143; picks deployments/<id>.json and the RPC env below
 //   MONAD_TESTNET_RPC_URL  / MONAD_RPC_URL  RPC for 10143 / 143 (required)
 //   PERPL_API_URL          default: Perpl's documented URL for the matching network (transport.ts)

@@ -1,5 +1,5 @@
 // Terms of use + risk disclosure: DRAFT written by the Phase 5 C session. NOT legal advice and NOT in force until
-// all three founders sign off (docs/standup/C.md records the sign-off). Placeholders in [brackets] are for the founders.
+// all three founders sign off. Placeholders in [brackets] are for the founders.
 // Bump TERMS_VERSION in src/lib/terms.ts on any material change so every viewer accepts again.
 
 export const TERMS_STATUS: "draft" | "signed-off" = "draft";

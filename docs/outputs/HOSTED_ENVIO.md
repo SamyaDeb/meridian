@@ -1,5 +1,7 @@
 # Hosted Envio (Envio Cloud) on Monad testnet 10143: runbook
 
+> Paths under `docs/standup/` and `docs/prompts/` cited below are the team's working logs, kept in the private development repository.
+
 > **6 Oct relaunch (HARDENING P4.6):** `deployments/10143.json` now points at the hardened deployment, start block **68,739,694** (the 66,875,788 below is v1). `config.hosted.testnet.yaml` + `indexer/abis/` are regenerated (`064f327`); the project name is now `meridian-indexer`. Redeploy from a branch containing that commit, then update `NEXT_PUBLIC_INDEXER_URL`.
 
 Owner: C (WS-06). Prepared by the Phase 2 loop (T9, branch `ws-06g-hosted-envio`). Human items: **HUMAN_CHECKLIST #13 (Docker, local check only) and #14 (Envio account/token)**. Follow it top to bottom in one pass.

@@ -219,7 +219,7 @@ contract ClearingHouse is IClearingHouse, Ownable, ReentrancyGuardTransient {
     function _deposit(address account, uint256 amountToken) internal {
         if (amountToken == 0) revert ZeroAmount();
         _touchFunding();
-        // AUSD→WAD is exact (CLAUDE.md §2)
+        // AUSD→WAD is exact (CONTRIBUTING.md §2)
         uint256 wad = amountToken * TO_WAD;
         _accounts[account].collateral += int256(wad);
         emit Deposited(account, amountToken, wad);

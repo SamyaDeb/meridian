@@ -1,4 +1,4 @@
-# gitleaks: default rules, plus one reviewed false positive (K0.3, 7 Oct 2026).
+# gitleaks: default rules, plus one reviewed false positive (7 Oct 2026).
 # "vaultMockSpotToken" in deployments/*.json is a 20-byte contract address; generic-api-key matches it only
 # because the key name contains "Token".
 [extend]

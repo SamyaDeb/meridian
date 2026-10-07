@@ -1,4 +1,4 @@
-// Order-ticket math (FRONTEND_TRADE_PLAN §6.3). bigint only. Rounding follows CLAUDE.md §2: amounts the user owes
+// Order-ticket math (FRONTEND_TRADE_PLAN §6.3). bigint only. Rounding follows CONTRIBUTING.md §2: amounts the user owes
 // (margin, fees, funding they pay) round up; amounts they receive round down; protective bounds round in the user's
 // favour. Each formula names its MATH_SPEC section.
 import type { AccountSummary, DepthLevel } from "@/data/types";

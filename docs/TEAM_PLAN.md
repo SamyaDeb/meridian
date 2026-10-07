@@ -1,5 +1,7 @@
 # TEAM_PLAN: 3 founders, 15 days, one product
 
+> Paths under `docs/standup/` and `docs/prompts/` cited below are the team's working logs, kept in the private development repository.
+
 **Meridian = Monad's funding-rate layer.** Per-block funding perp → public funding-rate oracle → floating yield (basis vault) → fixed yield (funding swaps).
 **Track:** 01 Onchain Finance & Trading (+ Grand Champion, automatic). **Deadline:** Tue 13 Oct, submit by 18:00.
 Specs: PRD · ARCHITECTURE · MATH_SPEC · INTERFACES · MILESTONES. This file covers who does what, when, and how you work together.

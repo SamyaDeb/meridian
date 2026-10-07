@@ -1,4 +1,4 @@
-// Liquidation-distance view (Rates & Risk, WIN_PLAN T8): how far the mark must move before each open position hits
+// Liquidation-distance view (Rates & Risk): how far the mark must move before each open position hits
 // its (isolated, funding-free) liquidation price, bucketed. bigint until the bucket index.
 import { liquidationPriceWad } from "./math";
 
