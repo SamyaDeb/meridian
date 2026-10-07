@@ -2,10 +2,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useFundingTicks, useIndexerCandles, useMarket, useTrades, INDEXER_URL } from "@/data/hooks";
-import { Chip, Notice, Popover } from "@/components/ds";
+import { Chip, Notice } from "@/components/ds";
 import { useNow } from "@/lib/useNow";
 import { BLOCK_TIME_MS } from "@/lib/units";
-import { formatFixed } from "@/lib/format";
 import Image from "next/image";
 import { aggregate, applyTrade, pointsToBars, toBar } from "./datafeed/candles";
 import { recordSample, sessionSamples } from "./datafeed/session";
@@ -17,12 +16,11 @@ import type { ChartCoords, LineOverlay, PaneSpec, PriceLineSpec } from "./engine
 import { estimateBlockTimeSec, wadToNum } from "./series";
 import { DEFAULT_VIEW, setView, useChartView } from "./store";
 import { DrawingLayer } from "./drawings/DrawingLayer";
-import { TopBar } from "./chrome/TopBar";
+import { ChartToolbar } from "./chrome/ChartToolbar";
+import { ChartFooter, historyNote } from "./chrome/ChartFooter";
 import { ToolRail } from "./chrome/ToolRail";
-import { I } from "./chrome/icons";
-import { RANGES, rangeWindow, type RangeId } from "./chrome/ranges";
+import { rangeWindow, type RangeId } from "./chrome/ranges";
 import { useFullscreen } from "./chrome/useFullscreen";
-import type { ChartType } from "./engine/types";
 import { useDrawings } from "./drawings/useDrawings";
 import { buildIndicators } from "./indicators/build";
 
@@ -51,7 +49,7 @@ export type ChartCardProps = {
 type Hover = { time: number; open: number; high: number; low: number; close: number } | null;
 
 /**
- * Meridian's price chart (top bar · tool rail · chart · bottom bar, Monad theme) with Meridian's data and features:
+ * Meridian's price chart (top bar · tool rail · chart · bottom bar, Monad theme; bars per CHART_TOPBAR_SPEC.md) with Meridian's data and features:
  * candles of the MON-PERP book from the indexer (or the mark / oracle index series), live last-trade overlay, mark /
  * index / position / order / trigger lines, per-block funding and premium panes, indicators, drawings, click-to-limit.
  * Never backfilled: "history starts at …".
@@ -218,7 +216,6 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
       /* canvas export blocked: nothing to save */
     }
   };
-  const typeIcon: Record<ChartType, ReactNode> = { candles: I.candles, hollow: I.candles, bars: I.candles, line: I.indicators, area: I.indicators, heikin: I.candles };
 
   const notice = (() => {
     if (bars.length > 0) return undefined;
@@ -232,7 +229,6 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
     if (q.isPending) return { title: "Loading", body: "" };
     return { title: view.source === "last" ? "No trades yet" : "No history yet", body: view.source === "last" ? "Candles appear with the first trade." : "Points appear as the indexer records them." };
   })();
-  const utc = now > 0 ? `${new Date(now).toISOString().slice(11, 19)} UTC` : "";
 
   return (
     <section
@@ -240,7 +236,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
       aria-label="Price chart"
       className={`flex h-full min-h-[360px] flex-col overflow-hidden rounded-card border border-border bg-card card-elev ${fs ? "fixed inset-2 z-40 !h-auto" : ""}`}
     >
-      <TopBar
+      <ChartToolbar
         view={view}
         fullscreen={fs}
         onChange={(patch) => {
@@ -252,7 +248,6 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
         onScreenshot={saveImage}
         undo={{ can: draw.canUndo, run: draw.undo }}
         redo={{ can: draw.canRedo, run: draw.redo }}
-        typeIcon={typeIcon}
       />
       <div className="flex min-h-0 flex-1">
         <ToolRail api={draw} onZoomIn={() => coords?.zoom(0.6)} />
@@ -325,62 +320,25 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
           )}
         </div>
       </div>
-      {/* bottom bar: ranges · history / source notes · UTC clock · settings */}
-      <div className="flex min-h-10 shrink-0 items-center justify-between gap-2 border-t border-border px-2 text-[12.5px]">
-        <div className="flex min-w-0 shrink items-center gap-0.5 overflow-x-auto" role="group" aria-label="Range">
-          {RANGES.map((r) => (
-            <button key={r} type="button" aria-pressed={range === r} onClick={() => pickRange(r)} className={`h-7 rounded-[6px] px-2 font-medium pointer-coarse:min-h-11 pointer-coarse:min-w-11 ${range === r ? "bg-card-2 text-text" : "text-muted hover:bg-card-2 hover:text-text"}`}>
-              {r}
-            </button>
-          ))}
-        </div>
-        <span data-testid="history-start" className="min-w-0 flex-1 truncate text-[10.5px] text-muted max-sm:hidden">
-          {view.source === "reference" && firstReal
-            ? `MON/USDC on Uniswap v4 (Monad) from ${new Date(firstReal.time * 1_000).toISOString().slice(0, 16).replace("T", " ")} UTC, via GeckoTerminal`
-            : sessionMode && firstReal
-            ? `Session data since ${new Date(firstReal.time * 1_000).toISOString().slice(11, 16)} UTC (indexer not connected: full history appears once it is)`
-            : firstReal
-              ? `History starts at ${new Date(firstReal.time * 1_000).toISOString().slice(0, 16).replace("T", " ")} UTC`
-              : "No candle history"}
-          {view.source === "mark" && marks.data ? ` · mark: last ${formatFixed(BigInt(marks.data.length), 0, 0)} funding blocks` : ""}
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
-          {view.fundingPane && ticks && ticks.length === 0 && <Chip>funding: no update in the log window</Chip>}
-          {ticks && ticks.some((t) => t.timestamp === 0n) && <Chip>times ≈ from block height</Chip>}
-          <span className="num text-text max-sm:hidden" aria-label="UTC time">
-            {utc}
-          </span>
-          <Popover label="Chart settings" triggerClassName="grid h-8 w-8 place-items-center rounded-[6px] text-muted hover:bg-card-2 hover:text-text pointer-coarse:h-11 pointer-coarse:w-11" trigger={I.gear}>
-            <div className="w-56 space-y-0.5 p-1">
-              {(
-                [
-                  ["volume", "Volume"],
-                  ["markLine", "Mark price line"],
-                  ["indexLine", "Index price line"],
-                  ["fundingPane", "Funding rate pane"],
-                ] as const
-              ).map(([k, label]) => (
-                <label key={k} className="flex min-h-8 cursor-pointer items-center gap-2 rounded-[6px] px-2 text-[13px] hover:bg-card-2 pointer-coarse:min-h-11">
-                  <input type="checkbox" className="h-4 w-4 accent-[var(--brand)]" checked={view[k]} onChange={() => setView(market, { [k]: !view[k] })} />
-                  {label}
-                </label>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setView(market, { ...DEFAULT_VIEW, indicators: view.indicators });
-                  setRange(null);
-                  setResetKey((k) => k + 1);
-                }}
-                className="flex min-h-8 w-full items-center rounded-[6px] px-2 text-left text-[13px] hover:bg-card-2 pointer-coarse:min-h-11"
-              >
-                Reset chart view
-              </button>
-              <p className="px-2 pt-1 text-[10px] text-muted">Lightweight Charts by TradingView</p>
-            </div>
-          </Popover>
-        </span>
-      </div>
+      <ChartFooter
+        range={range}
+        onRange={pickRange}
+        note={historyNote({ source: view.source, session: sessionMode, firstSec: firstReal?.time, markRows: view.source === "mark" ? marks.data?.length : undefined })}
+        chips={
+          <>
+            {view.fundingPane && ticks && ticks.length === 0 && <Chip>funding: no update in the log window</Chip>}
+            {ticks && ticks.some((t) => t.timestamp === 0n) && <Chip>times ≈ from block height</Chip>}
+          </>
+        }
+        nowMs={now}
+        view={view}
+        onToggle={(k) => setView(market, { [k]: !view[k] })}
+        onReset={() => {
+          setView(market, { ...DEFAULT_VIEW, indicators: view.indicators });
+          setRange(null);
+          setResetKey((k) => k + 1);
+        }}
+      />
     </section>
   );
 }

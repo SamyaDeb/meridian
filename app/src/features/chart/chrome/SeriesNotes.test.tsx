@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { FALLBACK_LABEL, REFERENCE_LABEL, SeriesNotes } from "./SeriesNotes";
-import { SOURCE_LABEL, sourceOptions } from "./TopBar";
+import { SOURCE_LABEL, sourceOptions } from "./sources";
 
 describe("SeriesNotes: every substituted series is labelled", () => {
   it("the reference view carries its label for as long as it is shown", () => {
