@@ -69,6 +69,7 @@ type Market {
   realizedApr8hWad: BigInt
   realizedApr24hWad: BigInt
   realizedApr7dWad: BigInt
+  checkpointSlot: Int # newest IFundingRateOracle ring slot (FundingRingSlot), undefined before the first checkpoint
   # trading
   lastTradePrice: BigInt!
   volumeBaseWad: BigInt!
@@ -116,6 +117,18 @@ type FundingCheckpoint @index(fields: ["market", ["blockNumber", "DESC"]]) {
   realizedApr1hWad: BigInt
   realizedApr8hWad: BigInt
   realizedApr24hWad: BigInt
+}
+
+# Mirror of the ClearingHouse's checkpoint ring (CHECKPOINT_SLOTS = 1440 slots, id = "<market>-<slot>"): bounded, and
+# searched exactly like IFundingRateOracle.observe (newest, bucket shortcut, then binary search), so the realized
+# windows equal averageFundingApr even when checkpoints are sparse (quiet market: one per touched 200-block bucket).
+type FundingRingSlot {
+  id: ID!
+  market: String!
+  slot: Int!
+  blockNumber: BigInt!
+  cumFunding: BigInt!
+  cumIndexTime: BigInt!
 }
 
 # Realized funding APR per market over fixed windows (K2.1), updated on every FundingUpdated (id = market address).

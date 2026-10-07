@@ -5,6 +5,8 @@ import {
   ABI_FILES,
   CONTRACTS,
   PERPL_CONTRACT,
+  PERPL_PROFILES,
+  HOSTED_EXTRA_CHAINS,
   readPerpl,
   renderConfig,
   renderDeploymentsTs,
@@ -147,7 +149,7 @@ describe("renderConfig", () => {
 
 describe("renderHostedConfig (Envio Cloud, docs/outputs/HOSTED_ENVIO.md)", () => {
   it("references ABIs only inside the indexer dir and otherwise equals the plain config", () => {
-    const plain = renderConfig(10143, fake(10143));
+    const plain = renderConfig(10143, fake(10143), undefined, [], "lean");
     const hosted = renderHostedConfig(10143, fake(10143));
     expect(hosted).not.toContain("../");
     expect(hosted).toContain("abi_file_path: ./abis/IClearingHouse.json");
@@ -163,9 +165,14 @@ describe("renderHostedConfig (Envio Cloud, docs/outputs/HOSTED_ENVIO.md)", () =>
       expect(readFileSync(resolve(import.meta.dirname, `../abis/${c.abi}.json`), "utf8").length).toBeGreaterThan(0);
     }
   });
-  it("committed hosted config is up to date (Perpl included, multichain list as configured)", () => {
+  it("committed hosted config is up to date (Perpl lean profile, mainnet Perpl as a second chain)", () => {
     const dep = JSON.parse(readFileSync(resolve(ROOT, "deployments/10143.json"), "utf8"));
     const y = readFileSync(resolve(import.meta.dirname, "../config.hosted.testnet.yaml"), "utf8");
+    expect(y).toBe(renderHostedConfig(10143, dep, readPerpl(), HOSTED_EXTRA_CHAINS[10143]));
+    const perplEvents = y.split("name: PerplExchange")[1]!.split("chains:")[0]!;
+    expect(perplEvents.match(/- event: (\w+)/g)!.map((l) => l.split(": ")[1])).toEqual(PERPL_PROFILES.lean);
+    expect(y).toContain("  - id: 143");
+    expect(y).toContain(`address: "${readPerpl().chains["143"].exchange}"`);
     expect(y).toContain("abi_file_path: ./abis/PerplExchange.json");
     expect(y).toContain(`address: "${readPerpl().chains["10143"].exchange}"`);
     expect(y).not.toContain("../");
@@ -197,6 +204,16 @@ describe("Perpl (K2.2): address from deployments/perpl.json, verified events onl
     expect(chain).toContain("start_block: 1234");
     expect(renderConfig(31337, fake(31337), perpl).split("chains:")[1]).not.toContain(PERPL_CONTRACT);
     expect(renderConfig(10143, fake(10143)).split("chains:")[1]).not.toContain(PERPL_CONTRACT);
+  });
+
+  it("profiles: lean keeps funding / liquidations / account ids only; full (tests) keeps every verified event", () => {
+    const lean = renderConfig(10143, fake(10143), perpl, [], "lean").split("name: PerplExchange")[1]!.split("  - name:")[0]!;
+    const full = renderConfig(10143, fake(10143), perpl).split("name: PerplExchange")[1]!.split("chains:")[0]!;
+    for (const e of c.events) expect(full, e).toContain(`- event: ${e}`);
+    expect(lean).not.toContain("MarkUpdated");
+    expect(lean).not.toContain("PositionIncreasedV2");
+    for (const e of PERPL_PROFILES.lean!) expect(c.events).toContain(e);
+    expect(() => renderConfig(10143, fake(10143), perpl, [], "everything")).toThrow(/profile/);
   });
 
   it("multichain: an extra chain indexes only Perpl, with its own start block and HyperSync", () => {

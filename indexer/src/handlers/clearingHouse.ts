@@ -1,5 +1,5 @@
 // IClearingHouse + IFundingRateOracle events (perp market; one ClearingHouse per market).
-import { indexer, type FundingCheckpoint, type Market } from "envio";
+import { indexer, type Market } from "envio";
 import { recordMeridianHour } from "../lib/crossVenue.js";
 import { recordPenaltyIn } from "../lib/insurance.js";
 import {
@@ -21,6 +21,7 @@ import {
 import {
   applyPerpFill,
   checkpointBucket,
+  CHECKPOINT_SLOTS,
   entryPriceWad,
   oiDelta,
   rateToAprWad,
@@ -31,18 +32,44 @@ import {
 
 /** Realized-APR windows in seconds (blocks = seconds·1000/blockTimeMs: 12,000 / 96,000 / 288,000 / 2,016,000 at 300 ms). */
 export const WINDOWS = { h1: 3_600n, h8: 28_800n, h24: 86_400n, d7: 604_800n } as const;
-/** Buckets to walk back when the target bucket has no checkpoint (bounded; the keeper pokes every ≤ 20 blocks). */
-const MAX_BUCKET_WALK = 3n;
+type Obs = { readonly blockNumber: bigint; readonly cumFunding: bigint; readonly cumIndexTime: bigint };
 
-/** Checkpoint at or before `target` (IFundingRateOracle.observe semantics), bounded lookup. */
-async function checkpointAtOrBefore(context: Ctx, market: string, target: bigint): Promise<FundingCheckpoint | undefined> {
-  if (target < 0n) return undefined;
-  const bucket = checkpointBucket(target);
-  for (let k = 0n; k <= MAX_BUCKET_WALK && bucket - k >= 0n; k++) {
-    const cp = await context.FundingCheckpoint.get(`${market}-${bucket - k}`);
-    if (cp && cp.blockNumber <= target) return cp;
+/**
+ * Checkpoint at or before `target`, exactly IFundingRateOracle.observe over the mirrored ring (FundingRingSlot):
+ * the newest slot if it is old enough, else the bucket-arithmetic shortcut, else a binary search between the oldest
+ * and the newest slot (≤ 11 reads for 1440 slots). Undefined where the contract reverts ObservationTooOld.
+ */
+async function checkpointAtOrBefore(context: Ctx, market: Market, target: bigint): Promise<Obs | undefined> {
+  if (target < 0n || market.checkpointSlot === undefined) return undefined;
+  const N = CHECKPOINT_SLOTS;
+  const at = (slot: number) => context.FundingRingSlot.get(`${market.id}-${((slot % N) + N) % N}`);
+  const idx = market.checkpointSlot;
+  const newest = await at(idx);
+  if (!newest) return undefined;
+  if (newest.blockNumber <= target) return newest;
+  const back = Number(checkpointBucket(newest.blockNumber) - checkpointBucket(target));
+  if (back !== 0 && back < N) {
+    const g = await at(idx - back);
+    if (g && g.blockNumber !== 0n && g.blockNumber <= target) {
+      const next = await at(idx - back + 1);
+      if ((next?.blockNumber ?? 0n) > target) return g;
+    }
   }
-  return undefined;
+  const wrapped = Boolean(await at(idx + 1));
+  const oldest = wrapped ? (idx + 1) % N : 0;
+  const count = wrapped ? N : idx + 1;
+  const first = await at(oldest);
+  if (!first || first.blockNumber > target) return undefined;
+  // invariant: ring[lo].block ≤ target < ring[hi].block (hi = newest, checked above)
+  let lo = 0;
+  let hi = count - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    const m = await at(oldest + mid);
+    if (m && m.blockNumber <= target) lo = mid;
+    else hi = mid;
+  }
+  return at(oldest + lo);
 }
 
 type Window = { apr: bigint | undefined; from: bigint | undefined };
@@ -50,7 +77,7 @@ type Window = { apr: bigint | undefined; from: bigint | undefined };
 /** Realized APR over each window ending at (block, F, G), MATH_SPEC §1.8, plus the checkpoint block it starts from. */
 async function realizedWindows(context: Ctx, market: Market, block: bigint, f: bigint, g: bigint) {
   const at = async (seconds: bigint): Promise<Window> => {
-    const cp = await checkpointAtOrBefore(context, market.id, block - windowBlocks(seconds, market.blockTimeMs));
+    const cp = await checkpointAtOrBefore(context, market, block - windowBlocks(seconds, market.blockTimeMs));
     return cp ? { apr: realizedAprWad(cp.cumFunding, cp.cumIndexTime, f, g), from: cp.blockNumber } : { apr: undefined, from: undefined };
   };
   return { h1: await at(WINDOWS.h1), h8: await at(WINDOWS.h8), h24: await at(WINDOWS.h24), d7: await at(WINDOWS.d7) };
@@ -123,6 +150,9 @@ indexer.onEvent({ contract: "ClearingHouse", event: "FundingCheckpoint", fields:
   const market = await getMarket(context, event.srcAddress);
   const blockNumber = p.blockNumber;
   const windows = windowAprs(await realizedWindows(context, market, blockNumber, p.cumFunding, p.cumIndexTime));
+  const slot = Number(p.slot);
+  context.FundingRingSlot.set({ id: `${market.id}-${slot}`, market: market.id, slot, blockNumber, cumFunding: p.cumFunding, cumIndexTime: p.cumIndexTime });
+  context.Market.set({ ...market, checkpointSlot: slot });
   context.FundingCheckpoint.set({
     id: `${market.id}-${checkpointBucket(blockNumber)}`,
     market_id: market.id,

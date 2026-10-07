@@ -129,6 +129,26 @@ describe("Perpl positions: open → increase → decrease → invert → liquida
   });
 });
 
+describe("lean profile (hosted): a liquidation of an untracked position writes no position row", () => {
+  it("records the liquidation (address from AccountCreated) and counts it on the market only", async () => {
+    const indexer = createTestIndexer();
+    await indexer.process({
+      chains: {
+        [CHAIN]: {
+          simulate: [
+            ev("AccountCreated", 1, { account: "0xDf426Efb674dA640d455D7Bc0879F2a48F98452E", id: 913n }),
+            ev("PositionLiquidated", 2, { perpId: BTC, posAccountId: 913n, positionType: 0n, markPricePNS: 838_918n, liqPricePNS: 839_779n, liqLotLNS: 1_741n, posLotLNS: 0n, deltaPnlCNS: -37_450_651n, fundingCNS: -2_066_567n, posAmountCNS: -100_358_785n, posDepositCNS: 0n, accAmountCNS: 48_673_253n, accBalanceCNS: 347_797_138n, onOrderBook: true }),
+          ],
+        },
+      },
+    });
+    expect(await indexer.PerplPosition.getAll()).toEqual([]);
+    const [l] = await indexer.PerplLiquidation.getAll();
+    expect(l).toMatchObject({ accountId: 913n, address: "0xDf426Efb674dA640d455D7Bc0879F2a48F98452E", liqLots: 1_741n, liqPriceWad: 839_779n * 10n ** 17n });
+    expect(await indexer.PerplMarket.getOrThrow(String(BTC))).toMatchObject({ liquidations: 1, openPositions: 0, openInterestLongLots: 0n });
+  });
+});
+
 describe("CrossVenueFunding: Meridian realized 1 h vs Perpl MON per UTC hour", () => {
   it("each venue fills its side of the hour; the other side carries over; spread = meridian − perpl", async () => {
     const indexer = createTestIndexer();

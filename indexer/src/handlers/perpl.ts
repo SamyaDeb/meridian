@@ -290,22 +290,30 @@ indexer.onEvent({ contract: "PerplExchange", event: "IncreasePositionCollateral"
   context.PerplAccount.set({ ...a, balanceCNS: p.balanceCNS, updatedBlock: blockOf(event) });
 });
 
+// Always a PerplLiquidation row. The position row is updated only if the indexer already tracks it: with the hosted
+// "lean" profile (no position events, gen-config PERPL_PROFILES) no half-known position is ever written.
 indexer.onEvent({ contract: "PerplExchange", event: "PositionLiquidated", fields: FIELDS }, async ({ event, context }) => {
   const p = event.params;
-  const pos = await onPosition(context, event, p.perpId, p.posAccountId, {
-    side: perplSide(p.positionType),
-    lots: p.posLotLNS,
-    depositCNS: p.posDepositCNS,
-    deltaPnlCNS: p.deltaPnlCNS,
-    fundingCNS: p.fundingCNS,
-    liquidated: true,
-  });
-  const m = await getPerplMarket(context, p.perpId, blockOf(event));
+  const block = blockOf(event);
+  const tracked = await context.PerplPosition.get(`${p.perpId}-${p.posAccountId}`);
+  const pos = tracked
+    ? await onPosition(context, event, p.perpId, p.posAccountId, {
+        side: perplSide(p.positionType),
+        lots: p.posLotLNS,
+        depositCNS: p.posDepositCNS,
+        deltaPnlCNS: p.deltaPnlCNS,
+        fundingCNS: p.fundingCNS,
+        liquidated: true,
+      })
+    : undefined;
+  const m = await getPerplMarket(context, p.perpId, block);
+  if (!tracked) context.PerplMarket.set({ ...m, liquidations: m.liquidations + 1, updatedBlock: block });
+  const address = pos?.address ?? (await context.PerplAccount.get(String(p.posAccountId)))?.address;
   context.PerplLiquidation.set({
     id: evId(event),
     perpId: p.perpId,
     accountId: p.posAccountId,
-    address: pos.address,
+    address,
     side: perplSide(p.positionType),
     markPricePNS: p.markPricePNS,
     markPriceWad: scaledToWad(p.markPricePNS, m.priceDecimals),

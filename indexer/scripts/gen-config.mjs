@@ -70,6 +70,21 @@ export const CONTRACTS = [
 /** Contracts whose address comes from deployments/perpl.json instead of deployments/<chainId>.json. */
 export const PERPL_CONTRACT = "PerplExchange";
 
+/**
+ * Perpl event profiles. Envio Cloud's free Development plan has a soft limit of 100,000 processed events
+ * (docs.envio.dev hosted-service-deployment, 7 Oct 2026), and Perpl's position + mark traffic alone is ~215k events
+ * over Meridian's testnet window (~250k/day): "lean" keeps funding, liquidations and account ids (a few hundred events
+ * a day per chain), which is all CrossVenueFunding needs. "full" adds positions, mark and collateral (tests, local, or
+ * a paid plan). Positions for a single trader are exact and live from the exchange's views (getAccountByAddr,
+ * getPosition), so the app reads those directly.
+ */
+export const PERPL_PROFILES = {
+  full: null, // every event in CONTRACTS
+  lean: ["FundingEventCompleted", "PositionLiquidated", "AccountCreated"],
+};
+/** Profile of the hosted (Envio Cloud) config. */
+export const HOSTED_PERPL_PROFILE = "lean";
+
 export const CHAINS = {
   31337: { file: "config.yaml", label: "local anvil (DeployLocal)" },
   10143: { file: "config.testnet.yaml", label: "Monad testnet", hypersync: "https://10143.hypersync.xyz" },
@@ -80,8 +95,8 @@ const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
 /** Pure: hosted variant of renderConfig: ABIs resolved inside the indexer dir (./abis), so Envio Cloud's Root Directory
  *  can be `indexer/` (its docs: keep every import inside the indexer directory). */
-export function renderHostedConfig(chainId, deployment, perpl, extraChains = []) {
-  return renderConfig(chainId, deployment, perpl, extraChains)
+export function renderHostedConfig(chainId, deployment, perpl, extraChains = [], perplProfile = HOSTED_PERPL_PROFILE) {
+  return renderConfig(chainId, deployment, perpl, extraChains, perplProfile)
     .replaceAll("abi_file_path: ../abis/", "abi_file_path: ./abis/")
     .replace("). Do not edit.", ", Envio Cloud: ABIs vendored in indexer/abis). Do not edit.");
 }
@@ -100,7 +115,9 @@ export function readPerpl() {
  * same start block, so both venues cover the same window). `extraChains` = more chains that index only Perpl
  * (K2.3 multichain: [{ id, startBlock }]).
  */
-export function renderConfig(chainId, deployment, perpl, extraChains = []) {
+export function renderConfig(chainId, deployment, perpl, extraChains = [], perplProfile = "full") {
+  if (!(perplProfile in PERPL_PROFILES)) throw new Error(`unknown Perpl profile ${perplProfile}`);
+  const only = PERPL_PROFILES[perplProfile];
   const chain = CHAINS[chainId];
   if (!chain) throw new Error(`unsupported chainId ${chainId}`);
   if (Number(deployment.chainId) !== Number(chainId)) {
@@ -124,7 +141,8 @@ export function renderConfig(chainId, deployment, perpl, extraChains = []) {
     L.push(`  - name: ${c.name}`);
     L.push(`    abi_file_path: ${c.vendored ? "./abis/" : "../abis/"}${c.abi}.json`);
     L.push("    events:");
-    for (const e of c.events) L.push(`      - event: ${e}`);
+    const events = c.name === PERPL_CONTRACT && only ? c.events.filter((e) => only.includes(e)) : c.events;
+    for (const e of events) L.push(`      - event: ${e}`);
   }
   L.push("chains:");
   L.push(`  - id: ${chainId}`);
@@ -298,10 +316,12 @@ export const TEST_FILL = {
 export const TEST_PERPL_EXCHANGE = "0x00000000000000000000000000000000000000f5";
 
 /**
- * K2.3: Perpl on Monad mainnet in the same (hosted) indexer. Start ≈ 7 days of mainnet blocks before the block the
- * owner deploys at, recorded here so the config is reproducible (indexer/PERPL_EVENTS.md). Empty = testnet only.
+ * K2.3: Perpl on Monad mainnet in the same hosted indexer (Envio multichain; the Development plan includes it).
+ * Start = mainnet head 111,352,347 (7 Oct 2026 ~14:40 UTC) − 2,016,000 blocks ≈ 7 days at Perpl's 8,571 blocks per
+ * 2,580 s, rounded down. Lean profile on mainnet ≈ 4k events for those 7 days (464 funding + 42 liquidations per
+ * 250k blocks recorded, PERPL_EVENTS.md), so the whole indexer stays far below the plan's 100k soft limit.
  */
-export const HOSTED_EXTRA_CHAINS = { 10143: [] };
+export const HOSTED_EXTRA_CHAINS = { 10143: [{ id: 143, startBlock: 109_336_000 }] };
 
 function main() {
   if (process.argv[2] === "test") {

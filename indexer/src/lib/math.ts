@@ -4,6 +4,7 @@
 export const WAD = 10n ** 18n;
 export const SECONDS_PER_YEAR = 31_536_000n; // MeridianConstants.SECONDS_PER_YEAR = 365 days
 export const CHECKPOINT_BLOCKS = 200n; // MeridianConstants.CHECKPOINT_BLOCKS
+export const CHECKPOINT_SLOTS = 1440; // MeridianConstants.CHECKPOINT_SLOTS (ClearingHouse ring length)
 export const AUSD_TO_WAD = 10n ** 12n; // MeridianConstants.AUSD_TO_WAD
 export const DEFAULT_BLOCK_TIME_MS = 300n; // MATH_SPEC §1.3 / FundingParams.blockTimeMs (Monad mainnet)
 

@@ -13,12 +13,13 @@ const funding = (block: number, f: bigint, g: bigint, rate = 3_472_222_222n) => 
   block: blk(block),
   params: { blockNumber: BigInt(block), premium: 0n, emaPremium: 0n, rate, cumFunding: f, cumIndexTime: g, indexPriceWad: WAD, markPriceWad: WAD },
 });
-const checkpoint = (block: number, f: bigint, g: bigint) => ({
+// ring slots are written in order (the constructor writes slot 0)
+const checkpoint = (block: number, f: bigint, g: bigint, slot = 0n) => ({
   contract: "ClearingHouse" as const,
   event: "FundingCheckpoint" as const,
   srcAddress: A.CH,
   block: blk(block),
-  params: { slot: 0n, blockNumber: BigInt(block), cumFunding: f, cumIndexTime: g },
+  params: { slot, blockNumber: BigInt(block), cumFunding: f, cumIndexTime: g },
 });
 const pos = (block: number, account: `0x${string}`, sizeDelta: bigint, newSize: bigint, fee = 0n) => ({
   contract: "ClearingHouse" as const,
@@ -39,7 +40,7 @@ describe("FundingWindow: realized APR over 1 h / 8 h / 24 h / 7 d (MATH_SPEC §1
       [2_088_000, 7n * 10n ** 13n, 7n * 10n ** 21n], // ≤ head − 12,000 → 1 h
     ];
     const [F, G] = [8n * 10n ** 13n, 8n * 10n ** 21n];
-    await indexer.process({ chains: { [CHAIN]: { simulate: [...cps.map(([b, f, g]) => checkpoint(b, f, g)), funding(head, F, G)] } } });
+    await indexer.process({ chains: { [CHAIN]: { simulate: [...cps.map(([b, f, g], i) => checkpoint(b, f, g, BigInt(i))), funding(head, F, G)] } } });
     const w = await indexer.FundingWindow.getOrThrow(A.CH);
     expect(w).toMatchObject({
       market: A.CH,
@@ -56,6 +57,20 @@ describe("FundingWindow: realized APR over 1 h / 8 h / 24 h / 7 d (MATH_SPEC §1
       fromBlock1h: 2_088_000n,
     });
     expect((await indexer.Market.getOrThrow(A.CH)).realizedApr7dWad).toBe(w.apr7dWad);
+  });
+
+  it("sparse checkpoints (quiet market): binary search finds the newest at or before the target, like observe()", async () => {
+    const indexer = createTestIndexer();
+    // 40 checkpoints, one every 7 buckets (1,400 blocks): the target bucket is usually empty
+    const cps = Array.from({ length: 40 }, (_, i) => [1_000 + i * 1_400, BigInt(i) * 10n ** 12n, BigInt(i + 1) * 10n ** 20n] as const);
+    const head = 1_000 + 39 * 1_400 + 50;
+    await indexer.process({ chains: { [CHAIN]: { simulate: [...cps.map(([b, f, g], i) => checkpoint(b, f, g, BigInt(i))), funding(head, 10n ** 14n, 10n ** 23n)] } } });
+    const target = head - 12_000;
+    const want = [...cps].reverse().find(([b]) => b <= target)!;
+    const w = await indexer.FundingWindow.getOrThrow(A.CH);
+    expect(w.fromBlock1h).toBe(BigInt(want[0]));
+    expect(w.apr1hWad).toBe(realizedAprWad(want[1], want[2], 10n ** 14n, 10n ** 23n));
+    expect(w.apr8hWad).toBeUndefined(); // older than the oldest slot → ObservationTooOld on the contract
   });
 
   it("a window without history is null (never a made-up rate)", async () => {

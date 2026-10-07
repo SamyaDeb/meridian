@@ -45,7 +45,14 @@ describe.each(FIXTURES)("%s", (path) => {
   it("PerplPosition = the exchange's getPosition at the recording block (lots, side, collateral, entry)", async () => {
     const indexer = await run();
     for (const [acc, want] of Object.entries(fx.answers)) {
-      const p = await indexer.PerplPosition.getOrThrow(`${fx.perpId}-${acc}`);
+      const p = await indexer.PerplPosition.get(`${fx.perpId}-${acc}`);
+      if (!p) {
+        // opened before the window and only liquidated inside it: no half-known row; the exchange agrees it is flat
+        const liqs = (await indexer.PerplLiquidation.getAll()).filter((l) => String(l.accountId) === acc);
+        expect(liqs.length, `${acc} liquidated`).toBeGreaterThan(0);
+        expect(want.lotLNS, `${acc} flat`).toBe(0n);
+        continue;
+      }
       expect(p.lots, `${acc} lots`).toBe(want.lotLNS);
       expect(p.open, `${acc} open`).toBe(want.lotLNS > 0n);
       if (want.lotLNS > 0n) {

@@ -219,6 +219,7 @@ export async function getMarket(context: Ctx, clearingHouse: string): Promise<Ma
     realizedApr8hWad: undefined,
     realizedApr24hWad: undefined,
     realizedApr7dWad: undefined,
+    checkpointSlot: undefined,
     lastTradePrice: 0n,
     volumeBaseWad: 0n,
     volumeQuoteWad: 0n,
