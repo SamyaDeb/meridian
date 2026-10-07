@@ -20,6 +20,7 @@ import {ClearingHouse} from "../src/clearing/ClearingHouse.sol";
 import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
 import {PythChainlinkOracleAdapter} from "../src/oracle/PythChainlinkOracleAdapter.sol";
 import {TestnetKeeperOracle} from "../src/oracle/TestnetKeeperOracle.sol";
+import {MeridianKeeperReceiver} from "../src/automation/MeridianKeeperReceiver.sol";
 import {RiskParams, VaultParams, SwapParams} from "../src/interfaces/MeridianTypes.sol";
 
 /// @notice READ-ONLY post-deploy check of a DeployMeridian record against `script/config/<chainid>.json` (Phase 3 P2;
@@ -128,10 +129,34 @@ contract VerifyDeployment is DeployBase {
         _params();
         _oracle();
         _demo();
+        _receiver();
         _hardening(); // last; every simulated change is reverted to a state snapshot
 
         console2.log("checks passed / failed", passes, failures);
         require(failures == 0, "VerifyDeployment: FAILED");
+    }
+
+    /// @dev K4 (PHASES 43): the CRE backstop keeper, when the record lists one. Its forwarder must be the config's
+    ///      `cre.keystoneForwarderSim` or `cre.keystoneForwarder` as `creForwarderMode` says; ERC-165 IReceiver (the
+    ///      forwarder checks it before delivering); liquidation margin in each market it may liquidate; vault keeper.
+    function _receiver() internal {
+        address r = _optDep(".contracts.MeridianKeeperReceiver");
+        if (r == address(0)) {
+            console2.log("SKIP receiver checks: no MeridianKeeperReceiver in the record");
+            return;
+        }
+        _owned(r, "MeridianKeeperReceiver");
+        MeridianKeeperReceiver k = MeridianKeeperReceiver(payable(r));
+        bool prod = keccak256(bytes(dep.readStringOr(".creForwarderMode", "sim"))) == keccak256("prod");
+        address fwd = _optAddress(prod ? ".cre.keystoneForwarder" : ".cre.keystoneForwarderSim");
+        _check(fwd != address(0) && k.forwarder() == fwd, "receiver.forwarder() == config CRE forwarder (mode)");
+        _check(fwd.code.length > 0, "CRE forwarder has code");
+        _check(k.supportsInterface(bytes4(keccak256("onReport(bytes,bytes)"))), "receiver supports IReceiver (ERC-165)");
+        _check(IClearingHouse(x.ch).getAccount(r).collateral > 0, "receiver has margin in the perp CH");
+        if (x.demoCh != address(0)) {
+            _check(IClearingHouse(x.demoCh).getAccount(r).collateral > 0, "receiver has margin in the demo CH");
+        }
+        if (x.vault != address(0)) _check(MeridianVault(x.vault).isKeeper(r), "receiver is a vault keeper");
     }
 
     function _optDep(string memory key) internal view returns (address) {
