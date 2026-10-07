@@ -21,6 +21,7 @@ import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
 import {PythChainlinkOracleAdapter} from "../src/oracle/PythChainlinkOracleAdapter.sol";
 import {TestnetKeeperOracle} from "../src/oracle/TestnetKeeperOracle.sol";
 import {MeridianKeeperReceiver} from "../src/automation/MeridianKeeperReceiver.sol";
+import {MeridianMfiFeed} from "../src/oracle/MeridianMfiFeed.sol";
 import {RiskParams, VaultParams, SwapParams} from "../src/interfaces/MeridianTypes.sol";
 
 /// @notice READ-ONLY post-deploy check of a DeployMeridian record against `script/config/<chainid>.json` (Phase 3 P2;
@@ -157,6 +158,10 @@ contract VerifyDeployment is DeployBase {
             _check(IClearingHouse(x.demoCh).getAccount(r).collateral > 0, "receiver has margin in the demo CH");
         }
         if (x.vault != address(0)) _check(MeridianVault(x.vault).isKeeper(r), "receiver is a vault keeper");
+        address feed = _optDep(".contracts.MeridianMfiFeed");
+        if (feed != address(0)) {
+            _check(feed.code.length > 0 && MeridianMfiFeed(feed).receiver() == r, "MfiFeed.receiver() == receiver");
+        }
     }
 
     function _optDep(string memory key) internal view returns (address) {
