@@ -4,6 +4,8 @@
 // book has no clickable level, and shoots both views at desktop and phone widths.
 import { expect, test } from "@playwright/test";
 
+// BROWSER=webkit runs it in Safari's engine (npx playwright install webkit once).
+test.use({ browserName: process.env.BROWSER === "webkit" ? "webkit" : "chromium" });
 const SHOTS = process.env.SHOTS_DIR ?? "e2e/screenshots/widths/perpl-ref";
 const WIDTHS = [
   { w: 1440, h: 900 },
