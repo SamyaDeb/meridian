@@ -1,0 +1,17 @@
+{
+  "chainSelectorName": "monad-testnet",
+  "receiver": "0x7c44C263225706fE28809BaE9fCC13460A908932",
+  "forwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192",
+  "markets": [
+    { "name": "MON-PERP-DEMO", "clearingHouse": "0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01", "oracle": "0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826", "lotSize": "100000000000000000000" },
+    { "name": "MON-PERP", "clearingHouse": "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA", "oracle": "0xC77882E7024D8B71F414eDc1a8708b939920A9E2", "lotSize": "100000000000000000000" }
+  ],
+  "schedule": "*/30 * * * * *",
+  "lookbackBlocks": 100,
+  "indexerUrl": "",
+  "watchAccounts": [],
+  "forwarderOverheadGas": "150000",
+  "fallbackGas": "3000000",
+  "maxGas": "5000000",
+  "unwind": true
+}

@@ -1,0 +1,7 @@
+# CRE project settings (docs.chain.link/cre/reference/project-configuration-ts).
+# RPC URLs come from the environment (.env next to this file, never committed): MONAD_TESTNET_RPC_URL.
+# Chain name: CRE Supported Networks, "monad-testnet" (CLI >= 1.30.0, TS SDK >= 1.19.0).
+staging-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: ${MONAD_TESTNET_RPC_URL}

@@ -1,0 +1,23 @@
+{
+  "name": "@meridian/cre",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Chainlink CRE workflows for Meridian: liquidation guardian (W1), upkeep (W2), MFI publisher (W3) -> MeridianKeeperReceiver",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@chainlink/cre-sdk": "1.23.0",
+    "viem": "^2.57.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@meridian/abis": "workspace:*",
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}
