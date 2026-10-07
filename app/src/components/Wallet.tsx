@@ -8,15 +8,18 @@ import { pushNotification } from "@/lib/notify";
 import dynamic from "next/dynamic";
 import { describeSignError } from "@/lib/login";
 import { privyEnabled } from "@/lib/privy";
+import { isSponsored } from "@/lib/sponsor";
+import { withSponsoredSend } from "@/lib/tx";
 import { READ_CHAIN_ID } from "@/lib/wagmi";
+import { useSession } from "./Session";
 
 export const cta = "inline-flex h-9 items-center whitespace-nowrap rounded-full px-4 text-xs font-semibold pointer-coarse:h-11";
 
 // Privy SDK only in builds with NEXT_PUBLIC_PRIVY_APP_ID (decision D6): a separate chunk, never fetched otherwise.
 const PrivyConnect = privyEnabled ? dynamic(() => import("./PrivyControls").then((m) => m.PrivyConnect)) : null;
 
-/** Connect: Privy email login when NEXT_PUBLIC_PRIVY_APP_ID is set (injected wallet kept as a secondary option, decision
- *  D6), else the injected wallet or, on anvil, the dev account connector. */
+/** Connect: Privy's login modal (email, passkey, Google, external wallet) when NEXT_PUBLIC_PRIVY_APP_ID is set (K1.1),
+ *  else the injected wallet or, on anvil, the dev account connector (decision D6). */
 export function ConnectButton() {
   return PrivyConnect ? <PrivyConnect /> : <InjectedConnect />;
 }
@@ -36,8 +39,14 @@ function InjectedConnect() {
   );
 }
 
+/** Is the next write gas-sponsored? Privy on, embedded wallet, testnet, kill switch not thrown (lib/sponsor.ts). */
+export function useSponsored(): boolean {
+  const { privy, walletKind, sponsoredSend } = useSession();
+  return Boolean(sponsoredSend) && isSponsored({ privyEnabled: privy, walletKind, chainId: READ_CHAIN_ID, killSwitch: process.env.NEXT_PUBLIC_SPONSOR_GAS });
+}
+
 /** Runs one write at a time with a status line; refreshes every query after success. Every write passes the gate first
- *  (terms accepted for this version, viewer not geo-restricted: C3). */
+ *  (terms accepted for this version, viewer not geo-restricted: C3). Sponsored wallets send through Privy (K1.2). */
 export function useTx() {
   const pub = usePublicClient();
   const { data: wallet } = useWalletClient();
@@ -45,6 +54,8 @@ export function useTx() {
   const gate = useWriteGate();
   const { chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
+  const { sponsoredSend } = useSession();
+  const sponsored = useSponsored();
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
   async function run(label: string, fn: (p: PublicClient, w: WalletClient) => Promise<{ block: bigint; gasUsed: bigint; gasLimit: bigint }>) {
@@ -60,7 +71,8 @@ export function useTx() {
     setBusy(true);
     setStatus(`${label}…`);
     try {
-      const r = await fn(pub as PublicClient, wallet as WalletClient);
+      const w = sponsored && sponsoredSend ? withSponsoredSend(wallet as WalletClient, sponsoredSend) : (wallet as WalletClient);
+      const r = await fn(pub as PublicClient, w);
       // block 0 = nothing was sent (a mocked client); never word it like an onchain confirmation
       if (r.block === 0n) {
         setStatus(`${label} ✓ (no transaction sent)`);
@@ -78,5 +90,5 @@ export function useTx() {
       setBusy(false);
     }
   }
-  return { run, status, busy, ready: Boolean(pub && wallet) };
+  return { run, status, busy, ready: Boolean(pub && wallet), sponsored };
 }

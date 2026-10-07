@@ -24,9 +24,17 @@ const LOCAL_SHADOWS_TESTNET = LOCAL_CHAIN_ID === monadTestnet.id;
 // Local dev only: NEXT_PUBLIC_DEV_ACCOUNT adds a connector for an unlocked anvil account (anvil signs
 // eth_sendTransaction itself), so the app can trade on 31337 without a browser wallet.
 const DEV_ACCOUNT = process.env.NEXT_PUBLIC_DEV_ACCOUNT as `0x${string}` | undefined;
+
+/** With Privy (K1.1) external wallets connect through Privy's modal, which supplies its own connectors: the bare
+ *  injected() is dropped. The anvil dev connector stays in both cases. Pure on its inputs. */
+export function connectorsFor(privy: boolean, devAccount: `0x${string}` | undefined = DEV_ACCOUNT) {
+  const dev = devAccount ? [mock({ accounts: [devAccount], features: { reconnect: true } })] : [];
+  return privy ? dev : [injected(), ...dev];
+}
+
 export const wagmiParameters = {
   chains: LOCAL_SHADOWS_TESTNET ? [localChain, monad] : [localChain, monadTestnet, monad],
-  connectors: DEV_ACCOUNT ? [injected(), mock({ accounts: [DEV_ACCOUNT], features: { reconnect: true } })] : [injected()],
+  connectors: connectorsFor(false),
   // With LOCAL_SHADOWS_TESTNET the local entry (same id 10143) is written last, so it wins.
   transports: {
     [monadTestnet.id]: http(process.env.NEXT_PUBLIC_MONAD_TESTNET_RPC_URL),

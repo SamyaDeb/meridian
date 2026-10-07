@@ -1,4 +1,6 @@
 // Login state machine (pure). Privy gives us ready/authenticated/wallet; the UI needs one label per situation.
+import type { WalletKind } from "./sponsor";
+
 export type LoginInput = {
   /** NEXT_PUBLIC_PRIVY_APP_ID present */
   privyEnabled: boolean;
@@ -7,6 +9,9 @@ export type LoginInput = {
   authenticated: boolean;
   /** embedded (or linked) wallet address wagmi sees */
   walletAddress: string | undefined;
+  /** Privy's walletClientType for that address: "privy" ⇒ embedded (sponsorable), anything else ⇒ external. Unknown while
+   *  Privy's wallet list loads. */
+  walletKind?: WalletKind | undefined;
   /** last login/signature failure, if any */
   error: string | undefined;
 };
@@ -16,7 +21,7 @@ export type LoginState =
   | { kind: "loading" }
   | { kind: "logged-out" }
   | { kind: "creating-wallet" }
-  | { kind: "ready"; address: string }
+  | { kind: "ready"; address: string; wallet: WalletKind | "unknown" }
   | { kind: "error"; message: string };
 
 export function deriveLoginState(i: LoginInput): LoginState {
@@ -25,8 +30,12 @@ export function deriveLoginState(i: LoginInput): LoginState {
   if (i.error && !i.authenticated) return { kind: "error", message: i.error };
   if (!i.authenticated) return { kind: "logged-out" };
   if (!i.walletAddress) return { kind: "creating-wallet" };
-  return { kind: "ready", address: i.walletAddress };
+  return { kind: "ready", address: i.walletAddress, wallet: i.walletKind ?? "unknown" };
 }
+
+/** Privy's walletClientType → our wallet kind ("privy" is the only embedded type in @privy-io/react-auth 3.47.0). */
+export const walletKindOf = (walletClientType: string | undefined): WalletKind | undefined =>
+  walletClientType === undefined ? undefined : walletClientType === "privy" ? "embedded" : "external";
 
 /** User-visible message for a failed signature/login (rejection is normal, not an error to shout about). */
 export function describeSignError(e: unknown): string {
