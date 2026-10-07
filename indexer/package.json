@@ -2,6 +2,7 @@
   "name": "@meridian/indexer",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "WS-06: Envio HyperIndex indexer for Meridian (per-block funding, oracle APR, positions, vault, swaps).",
   "scripts": {

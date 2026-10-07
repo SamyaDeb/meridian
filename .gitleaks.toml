@@ -1,0 +1,10 @@
+# gitleaks: default rules, plus one reviewed false positive (K0.3, 7 Oct 2026).
+# "vaultMockSpotToken" in deployments/*.json is a 20-byte contract address; generic-api-key matches it only
+# because the key name contains "Token".
+[extend]
+useDefault = true
+
+[allowlist]
+description = "public contract addresses under token-named JSON keys"
+regexTarget = "line"
+regexes = ['''"vaultMockSpotToken": "0x[0-9a-fA-F]{40}"''']

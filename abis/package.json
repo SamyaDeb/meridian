@@ -2,6 +2,7 @@
   "name": "@meridian/abis",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Contract ABIs generated from contracts/out by tools/export_abis.sh. Do not edit by hand.",
   "type": "module",
   "exports": {

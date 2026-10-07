@@ -2,6 +2,7 @@
   "name": "@meridian/bot-rpc",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Shared RPC plumbing for the keeper and the MM: counting fetch with jittered back-off on 429, call-rate window, MON burn rate (WS-03)",
   "type": "module",
   "exports": {

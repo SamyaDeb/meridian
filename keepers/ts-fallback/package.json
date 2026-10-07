@@ -2,6 +2,7 @@
   "name": "@meridian/keeper-ts",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Meridian TS fallback keeper: funding pokes, perp liquidations, Pyth pushes (WS-03)",
   "type": "module",
   "scripts": {

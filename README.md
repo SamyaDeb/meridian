@@ -4,6 +4,8 @@
 
 **Status (7 Oct 2026):** live on **Monad testnet 10143** (addresses: [`deployments/10143.json`](deployments/10143.json); demo deployment frozen since 7 Oct, tag `demo-freeze-10143`). **Mainnet-ready by rehearsal, not deployed:** the same deploy scripts pass `VerifyDeployment` 52/52 and 56/56 on a Monad mainnet fork, and the vault's forced-exit path (audit A-01) is proven on a mainnet fork with live Kuru Flow routes. Mainnet comes after the hackathon (Safe owner, keys, paid RPC).
 
+**Try it:** https://meridian-testnet.vercel.app (Monad testnet; [guide](docs/outputs/TESTNET_GUIDE.md)).
+
 **Evidence:** [`docs/outputs/PROOF.md`](docs/outputs/PROOF.md) (every claim with its test or tx) · [`docs/outputs/BENCHMARKS.md`](docs/outputs/BENCHMARKS.md) · [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) · security status [`docs/outputs/security/STATUS.md`](docs/outputs/security/STATUS.md) · try it: [`docs/outputs/TESTNET_GUIDE.md`](docs/outputs/TESTNET_GUIDE.md).
 
 ### Run the tests
@@ -25,9 +27,16 @@ cd .. && pnpm install && pnpm -r test && pnpm -r typecheck   # keeper, MM, index
 | Earn it | "Skew absorber" basis vault (ERC-4626): spot MON + short perp, capped by net long skew | `contracts/src/vault` |
 | Fix it | 30-day fixed-for-floating funding swaps on Meridian's own order book | `contracts/src/swaps` |
 
-Offchain: Chainlink CRE + TS keepers (`keepers/`), Avellaneda–Stoikov MM bot (`mm-bot/`), Envio indexer (`indexer/`), Next.js mobile PWA with Privy (`app/`).
+Offchain: TS keeper (`keepers/ts-fallback`; Chainlink CRE workflows in progress in `keepers/cre`), Avellaneda–Stoikov MM bot (`mm-bot/`), Envio indexer (`indexer/`), Next.js mobile PWA with Privy (`app/`).
 
 Built for **Monad Metropolis** (Track 01 Onchain Finance & Trading), Sep–Oct 2026.
+
+## Team
+Three founders: **A (Samya)**, core protocol; **B**, liquidity and automation; **C**, product and growth ([`docs/TEAM_PLAN.md`](docs/TEAM_PLAN.md)).
+
+## Licence and prior work
+[MIT](LICENSE) (every Solidity file carries `SPDX-License-Identifier: MIT`). Third-party libraries and their licences: [`THIRD_PARTY.md`](THIRD_PARTY.md).
+All code in this repository was written during the hackathon build window (1 Sep – 13 Oct 2026). One frontend commit (`de40466`, 5 Oct) ported a chart top bar from a founder's earlier project; it never reached `main`'s history, and the chart bars were rewritten from a behavioural spec ([`docs/outputs/CHART_TOPBAR_SPEC.md`](docs/outputs/CHART_TOPBAR_SPEC.md), PR #15).
 
 ## Docs
 Start with [`CLAUDE.md`](CLAUDE.md) (conventions) and [`docs/TEAM_PLAN.md`](docs/TEAM_PLAN.md) (who does what), then [`docs/PRD.md`](docs/PRD.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/MATH_SPEC.md`](docs/MATH_SPEC.md), [`docs/INTERFACES.md`](docs/INTERFACES.md).

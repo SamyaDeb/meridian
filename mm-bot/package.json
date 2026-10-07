@@ -2,6 +2,7 @@
   "name": "@meridian/mm-bot",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Meridian market maker: Avellaneda–Stoikov in bps (MATH_SPEC §4), 3 levels per side via replaceOrder (WS-03)",
   "type": "module",
   "scripts": {

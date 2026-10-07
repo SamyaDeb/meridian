@@ -32,6 +32,9 @@ deployments/fork-test-*.json
 # teaser video sources/renders
 teaser/assets/raw/
 teaser/renders/
+# third-party movie clips and music (not ours to license; kept local only, K0 7 Oct; history: git checkout 4f74a3e -- teaser/assets)
+teaser/assets/clips/
+teaser/assets/bgm*
 
 # MFI service history (decision D7), runtime data
 mfi/data/

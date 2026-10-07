@@ -2,6 +2,7 @@
   "name": "@meridian/mfi",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Meridian Funding Index v0: Perpl API client + index service (lane D, docs/MFI.md)",
   "type": "module",
   "scripts": {

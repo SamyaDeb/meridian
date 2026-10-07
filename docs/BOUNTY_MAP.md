@@ -56,6 +56,18 @@ The same team's [curb#5](https://github.com/emmanuelist/curb/issues/5) says boun
 Expect several more per-block-funding perps: Track 01 lists the idea itself, so lead with 1–3, not with per-block funding alone.
 
 ## Verbatim criteria (HUMAN: log in at hackathon.monad.xyz and paste each block exactly, including the submission requirements)
+> **K0.7 (7 Oct): still empty.** Blocks for the packages we enter now (TRACKS_PLAN §0): general rules, Track 01, Perpl ×2, Privy, Envio, Chainlink CRE, Alchemy. After pasting, each package re-checks its "Done when" in `docs/prompts/tracks/README.md` against the text, and mismatches go in TRACKS_LOOP.md.
+
+### General rules (submission + judging)
+```
+<paste verbatim. Answer:
+ - open-source wording: OSI licence required? public GitHub required by when (submission time or judging)?
+ - prior-work rule: what counts as pre-existing code; is "code verification" a git-history check?
+ - one track per project? max sponsor bounties per project?
+ - demo video: max length, hosting (YouTube / Loom)?
+ - testnet allowed, or mainnet required for any track / bounty?
+ - team size, submission deadline + timezone>
+```
 > Owner: Founder C. Due: Wed 30 Sep 09:30 (the login decision depends on the Agora and Mera blocks).
 
 ### Track 01: Onchain Finance & Trading
@@ -85,6 +97,18 @@ Expect several more per-block-funding perps: Track 01 lists the idea itself, so 
 ### Chainlink: Best workflow with CRE
 ```
 <paste verbatim: deployed workflow required, or is simulation OK?>
+```
+### Perpl: Best API usage
+```
+<paste verbatim: REST only, or WebSocket / authenticated trading API expected? testnet OK? builder code?>
+```
+### Perpl: Best Analytics/Risk Tool
+```
+<paste verbatim: must it use Perpl data only, or may it compare venues? hosted tool required?>
+```
+### Alchemy
+```
+<paste verbatim: prize (credits?), which Alchemy products count (RPC, Account Kit, webhooks), Monad testnet supported?>
 ```
 ### Kuru: Build the Next Consumer Trading App
 ```
