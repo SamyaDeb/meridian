@@ -68,25 +68,27 @@ export function MeridianRiskCards() {
         {!m ? (
           <Skeleton className="h-24 w-full" />
         ) : (
-          <dl className="num grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <dt className="text-xs text-muted">Long OI</dt>
-              <dd>{formatBaseWad(m.openInterestLongWad, 0)} MON</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted">Short OI</dt>
-              <dd>{formatBaseWad(m.openInterestShortWad, 0)} MON</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted">Skew (long − short) / total</dt>
-              <dd>{sum ? bpsPct(sum.skewBps) : "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted">Our market maker&apos;s share of OI</dt>
-              <dd>{sum ? `${bpsPct(sum.mmShareBps)} (${formatBaseWad(sum.mmLongWad, 0)} long · ${formatBaseWad(sum.mmShortWad, 0)} short)` : INDEXER_URL ? "…" : "needs the indexer"}</dd>
-            </div>
-            <div className="col-span-2 text-[10px] text-muted">OI per side from the market at block {formatFixed(m.lastFundingBlock, 0, 0)}; MM accounts are listed in deployments/{INDEXER_CHAIN_ID}.json (mmAccounts) and disclosed, never counted as users.</div>
-          </dl>
+          <>
+            <dl className="num grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <dt className="text-xs text-muted">Long OI</dt>
+                <dd>{formatBaseWad(m.openInterestLongWad, 0)} MON</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Short OI</dt>
+                <dd>{formatBaseWad(m.openInterestShortWad, 0)} MON</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Skew (long − short) / total</dt>
+                <dd>{sum ? bpsPct(sum.skewBps) : "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Our market maker&apos;s share of OI</dt>
+                <dd>{sum ? `${bpsPct(sum.mmShareBps)} (${formatBaseWad(sum.mmLongWad, 0)} long · ${formatBaseWad(sum.mmShortWad, 0)} short)` : INDEXER_URL ? "…" : "needs the indexer"}</dd>
+              </div>
+            </dl>
+            <p className="mt-2 text-[10px] text-muted">OI per side from the market at block {formatFixed(m.lastFundingBlock, 0, 0)}; MM accounts are listed in deployments/{INDEXER_CHAIN_ID}.json (mmAccounts) and disclosed, never counted as users.</p>
+          </>
         )}
       </Card>
 

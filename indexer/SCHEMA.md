@@ -89,8 +89,11 @@ Every K2 query filters on `chainId` (the indexer also holds Perpl's mainnet rows
 | Trade / Positions: history tabs | `account.ts` → `ACCOUNT_HISTORY_QUERY`; Funding tab → `funding.ts` → `FUNDING_PAYMENTS_QUERY` |
 | Positions: all-time row | `portfolio.ts` → `PORTFOLIO_QUERY` |
 | Earn: share-price chart, deposits / users / APY | `vault.ts` → `VAULT_HISTORY_QUERY` |
-| Rates: Meridian vs Perpl funding | `funding.ts` → `CROSS_VENUE_QUERY`; Perpl detail → `perpl.ts` → `perplQuery(monPerpId)` |
-| Rates: liquidation distance, insurance fund | `risk.ts` → `RISK_QUERY` |
+| Rates & Risk: Meridian vs Perpl funding (hourly APR, spread history) | `funding.ts` → `CROSS_VENUE_QUERY` (testnet rows as indexed; for Perpl mainnet the Perpl rate in force at each hour's end from `perplQuery`'s `PerplFunding`, `features/rates/crossVenue.ts spreadHistory`) |
+| Rates & Risk: realized 1 h / 8 h / 24 h / 7 d per venue | Meridian: `FUNDING_WINDOW_QUERY`; Perpl: `perpl.ts` → `perplQuery(monPerpId)` → `PerplFunding` (300 newest events), each rate weighted by the blocks it was in force (`@meridian/risk perplRealizedApr`) |
+| Rates & Risk: Perpl rate now, countdown, fees, the position monitor | not the indexer: the exchange's views read onchain by `/api/perpl/market` and `/api/perpl/positions` (`features/rates/perplChain.ts`), because the hosted lean profile carries no positions |
+| Rates & Risk: users' liquidation distance, MM share of OI | `risk.ts` → `RISK_QUERY` (`account_id` lets the app drop operator accounts from deployments `mmAccounts` / `keeperAccounts`) |
+| Rates & Risk: insurance fund balance and waterfall | `protocol.ts` → `INSURANCE_QUERY` (`balanceAfterToken` of the newest step), totals from `RISK_QUERY`'s `InsuranceFund` |
 | Stats | `stats.ts` → `STATS_QUERY` |
 | K6 metrics / K5 waterfall (data layer) | `protocol.ts` → `PROTOCOL_DAILY_QUERY`, `INSURANCE_QUERY` |
 
@@ -109,7 +112,7 @@ query MeridianStats {
 ### `RISK_QUERY` (data/indexer/risk.ts)
 ```graphql
 query MeridianRisk($market: String!) {
-  AccountMarket(where: { market_id: { _ilike: $market }, size: { _neq: "0" } }, limit: 1000) { size entryPrice collateralWad }
+  AccountMarket(where: { market_id: { _ilike: $market }, size: { _neq: "0" } }, limit: 1000) { account_id size entryPrice collateralWad }
   InsuranceFund { fundedToken coveredToken }
 }
 ```

@@ -20,12 +20,14 @@ The market needs our keeper and market maker running (otherwise the oracle is st
 |---|---|---|
 | `/trade` | Deposit tAUSD, open a small MON-PERP long or short (≤ 5x), close it | The funding rate and your pending funding move as blocks pass, not once an hour |
 | `/positions` | Your position, entry, liquidation price, pending funding | Numbers match the trade |
-| `/rates` | The Meridian Funding Index: realized funding APR; Meridian vs Perpl funding; Risk: the liquidation price and distance of a Meridian or Perpl position | 1 h works; 8 h / 24 h stay "—" until the market has 8 h of continuous history |
+| `/rates` | Rates & Risk: Meridian vs Perpl funding, then paste any Perpl wallet into the position monitor | Both venues' rates and the spread, the countdown to Perpl's next funding, and for the wallet: size, entry, margin, liquidation price (Perpl's own rule), shocks and funding per day; "Offset on Meridian" prefills the ticket |
 | `/earn` | Deposit into the basis vault (total cap 1,200 tAUSD), withdraw a little, then try a withdrawal larger than the vault's idle AUSD | Withdrawals up to idle are instant. A bigger one is a **request**: "Your withdrawal requests" shows it as Requested with its place in the queue and an estimate at today's share price. The keeper fulfils it (priced then, minus the 5 bps fee and its share of the unwind cost), it turns **Fulfilled · claim**, and **Claim** pays you. **Cancel** works while it waits. Requests are fulfilled only while our keeper runs (test hours) |
 | `/fix` | The 30-day funding swap: lock a fixed funding rate | The book is live only while our swap market maker runs (announced hours); otherwise it is empty |
 | `/stats` | Users, trades, volume (our market maker's share shown), swaps, vault, withdrawal queue, liquidations | Each number is from our indexer, "as of block N"; our own accounts are excluded |
 
 **ETH-PERP** (switcher at the top of `/trade`) is a second testnet market with its own book and funding. Its price comes from Pyth ETH/USD, pushed onchain by our keeper (labelled "testnet"); it only moves while that keeper runs. Your margin is per market: deposit into ETH-PERP separately. Minimum size 0.001 ETH.
+
+**Rates & Risk in one paragraph.** `/rates` puts Monad's two perp venues side by side: Meridian (funding every block) and Perpl (funding every 8,571 blocks), on Perpl testnet or mainnet, with realized 1 h / 8 h / 24 h / 7 d, the spread and what a delta-neutral pair would net after both venues' taker fees. Paste a Perpl wallet and the monitor reads its positions straight from Perpl's exchange and shows how far each is from liquidation, computed with Perpl's own formula, what ±5 / 10 / 15 % would do, and what funding costs per day; share the link with `?perpl=<wallet>&chain=10143` or `143`. Nothing on the page signs anything.
 
 MON-PERP-DEMO is a separate, labelled **test market** we use to show a crash and a liquidation; don't trade it, its price is moved on purpose.
 
