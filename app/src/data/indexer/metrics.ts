@@ -22,13 +22,15 @@ export const HEAD_QUERY = `query MeridianHead { chain_metadata { chain_id latest
 
 /**
  * Our own wallets that deployments' operator lists don't name (docs/outputs/test-wallets.json): the Privy test
- * account, the labelled demo victim, the CRE wallet and receiver. Never users.
+ * account, the labelled demo victim, the CRE wallet and receiver, test wallets A and B. Never users.
  */
 export const TEST_WALLETS: readonly string[] = [
   "0x5c2dBeB734bEe60c2Db8aaFA249AA6614506Cc5B",
   "0x80e511c00Ff854c1D91de1481D264F309520aE7E",
   "0xb624c6144aA825f22452B3cEFC3728F38b0c088c",
   "0x7c44C263225706fE28809BaE9fCC13460A908932",
+  "0x6d2d29981f9682894a10DCbA4604107449c658b7",
+  "0x6058311F2418e5ed98547DaA442A52cf971735f4",
 ];
 
 export interface Metrics {
