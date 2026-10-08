@@ -5,13 +5,14 @@
 //     → appends rows to bench/out/perpl_hedge_<phase>_<chain>_<date>.csv: Meridian best bid/ask, inner spread, depth
 //       within ±1% of the index per side, one-sided flag, MM Meridian position, MM Perpl position (signed REST
 //       GET /v1/trading/positions when the key is set). Reads only; never sends a transaction or an order.
-//   report: OFF_CSV=… ON_CSV=… [EVIDENCE_OFF=…] EVIDENCE_ON=… pnpm perpl-hedge report
-//     → markdown before/after table (stdout + bench/out/perpl_hedge_report_<date>.md).
+//   report: OFF_CSV=… ON_CSV=… [EVIDENCE_OFF=…] EVIDENCE_ON=… [PERPL_FILLS=…json] [PERPL_MARKET_ID=64] [OFF_FROM=iso ON_FROM=iso] pnpm perpl-hedge report
+//     → markdown before/after table (stdout + bench/out/perpl_hedge_report_<date>.md). Evidence is counted inside each
+//       phase's sample window; PERPL_FILLS (mm-bot scripts/perpl-history.ts output) gives the Perpl fill count.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { createPublicClient, http, parseAbi, type Address } from "viem";
 import { monadTestnet } from "viem/chains";
-import { CSV_HEADER, bookMetrics, countEvidence, fromCsv, markdownTable, summarize, toCsv, type Row } from "./src/hedgeMetrics";
+import { CSV_HEADER, bookMetrics, countEvidence, countPerplFills, fromCsv, markdownTable, summarize, toCsv, type Row } from "./src/hedgeMetrics";
 import { newNonce, parseSecret, restHeaders } from "../mm-bot/src/perpl/auth";
 import { PerplState } from "../mm-bot/src/perpl/state";
 
@@ -103,14 +104,27 @@ function report(): void {
       return "?";
     }
   })();
-  const span = (r: Row[]) => `${new Date(r[0]!.t).toISOString()} → ${new Date(r.at(-1)!.t).toISOString()}, blocks ${r[0]!.block}–${r.at(-1)!.block}`;
+  // a phase starts when its MM starts (OFF_FROM / ON_FROM, ISO), which can be a little before the sampler's first row
+  const from = (iso: string | undefined, r: Row[]) => (iso ? Date.parse(iso) : r[0]!.t);
+  const win = (r: Row[], iso?: string) => ({ fromMs: from(iso, r), toMs: r.at(-1)!.t });
+  const wOff = win(off, process.env.OFF_FROM);
+  const wOn = win(on, process.env.ON_FROM);
+  const counts = { off: countEvidence(ev(process.env.EVIDENCE_OFF), wOff), on: countEvidence(ev(process.env.EVIDENCE_ON), wOn) };
+  if (process.env.PERPL_FILLS) {
+    const pages = (JSON.parse(readFileSync(process.env.PERPL_FILLS, "utf8")) as { pages: Parameters<typeof countPerplFills>[0] }).pages;
+    const mkt = Number(process.env.PERPL_MARKET_ID ?? "64");
+    counts.off.perplFills = countPerplFills(pages, mkt, wOff.fromMs, wOff.toMs);
+    counts.on.perplFills = countPerplFills(pages, mkt, wOn.fromMs, wOn.toMs);
+  }
+  const span = (r: Row[]) => `samples ${new Date(r[0]!.t).toISOString()} → ${new Date(r.at(-1)!.t).toISOString()}, blocks ${r[0]!.block}–${r.at(-1)!.block}`;
   const md = [
     `### Perpl hedge: before / after (10143, ${date}, commit ${commit})`,
     "",
     `- off: ${span(off)}`,
     `- on: ${span(on)}`,
+    `- evidence and Perpl fills counted from the phase start: off ${new Date(wOff.fromMs).toISOString()}, on ${new Date(wOn.fromMs).toISOString()}`,
     "",
-    markdownTable(summarize(off), summarize(on), { off: countEvidence(ev(process.env.EVIDENCE_OFF)), on: countEvidence(ev(process.env.EVIDENCE_ON)) }),
+    markdownTable(summarize(off), summarize(on), counts),
     "",
   ].join("\n");
   writeFileSync(`${out}perpl_hedge_report_${date}.md`, md);

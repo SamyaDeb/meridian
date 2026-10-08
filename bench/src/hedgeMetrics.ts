@@ -103,12 +103,16 @@ export function fromCsv(line: string): Row {
 
 export type HedgeCounts = { hedges: number; filled: number; partial: number; noFill: number; rejected: number; unknown: number; perplFills: number };
 
-/** Evidence JSONL (mm-bot HEDGE_EVIDENCE) → counts. */
-export function countEvidence(lines: readonly string[]): HedgeCounts {
+/** Evidence JSONL (mm-bot HEDGE_EVIDENCE) → counts; with a window, only records whose `t` falls inside it (inclusive). */
+export function countEvidence(lines: readonly string[], window?: { fromMs: number; toMs: number }): HedgeCounts {
   const c: HedgeCounts = { hedges: 0, filled: 0, partial: 0, noFill: 0, rejected: 0, unknown: 0, perplFills: 0 };
   for (const l of lines) {
     if (!l.trim()) continue;
-    const r = JSON.parse(l) as { kind: string; outcome?: { os: number; fs: number }; fills?: unknown[]; result?: { kind: string } };
+    const r = JSON.parse(l) as { t?: string; kind: string; outcome?: { os: number; fs: number }; fills?: unknown[]; result?: { kind: string } };
+    if (window && r.t !== undefined) {
+      const t = Date.parse(r.t);
+      if (t < window.fromMs || t > window.toMs) continue;
+    }
     if (r.kind === "hedge-sent") c.hedges++;
     else if (r.kind === "hedge-outcome" && r.outcome) {
       c.perplFills += r.fills?.length ?? 0;
@@ -119,6 +123,17 @@ export function countEvidence(lines: readonly string[]): HedgeCounts {
     else if (r.kind === "hedge-unknown") c.unknown++;
   }
   return c;
+}
+
+/**
+ * Fills of one Perpl market inside a window, from `GET /v1/trading/fills` pages (rest-endpoints.md: `{ d: Fill[], np }`,
+ * `at.t` in ms). The evidence's per-outcome `fills` can miss `mt: 25` frames that arrive after the outcome; Perpl's
+ * own fill history is the authoritative count.
+ */
+export function countPerplFills(pages: readonly { d: readonly { at?: { t?: number }; mkt: number }[] }[], market: number, fromMs: number, toMs: number): number {
+  let n = 0;
+  for (const p of pages) for (const x of p.d) if (x.mkt === market && x.at?.t !== undefined && x.at.t >= fromMs && x.at.t <= toMs) n++;
+  return n;
 }
 
 const f = (x: number | null, d = 1) => (x === null ? "–" : x.toFixed(d));

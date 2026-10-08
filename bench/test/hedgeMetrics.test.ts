@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookMetrics, countEvidence, fromCsv, markdownTable, percentile, summarize, toCsv, type Row } from "../src/hedgeMetrics";
+import { bookMetrics, countEvidence, countPerplFills, fromCsv, markdownTable, percentile, summarize, toCsv, type Row } from "../src/hedgeMetrics";
 
 const T = 10n ** 13n; // tick 0.00001 (WAD)
 const idx = 2_578n * T; // 0.02578
@@ -57,6 +57,18 @@ describe("summarize / csv / evidence", () => {
       { kind: "halt" },
     ].map((x) => JSON.stringify(x));
     expect(countEvidence([...lines, ""])).toEqual({ hedges: 3, filled: 1, partial: 1, noFill: 1, rejected: 1, unknown: 1, perplFills: 3 });
+  });
+  it("counts evidence only inside the window", () => {
+    const at = (t: string, kind: string) => JSON.stringify({ t, kind, ...(kind === "hedge-outcome" ? { outcome: { os: 1, fs: 1 } } : {}) });
+    const lines = [at("2026-10-07T19:00:00Z", "hedge-sent"), at("2026-10-07T19:42:35Z", "hedge-sent"), at("2026-10-07T19:42:36Z", "hedge-outcome"), at("2026-10-07T21:00:00Z", "hedge-sent")];
+    const c = countEvidence(lines, { fromMs: Date.parse("2026-10-07T19:40:00Z"), toMs: Date.parse("2026-10-07T20:12:00Z") });
+    expect(c).toMatchObject({ hedges: 1, filled: 1 });
+  });
+  it("counts Perpl fills of one market inside the window from fill-history pages", () => {
+    const pages = [{ d: [{ at: { t: 200 }, mkt: 64 }, { at: { t: 150 }, mkt: 10 }, { at: { t: 100 }, mkt: 64 }] }, { d: [{ at: { t: 50 }, mkt: 64 }, { at: {}, mkt: 64 }] }];
+    expect(countPerplFills(pages, 64, 100, 200)).toBe(2);
+    expect(countPerplFills(pages, 64, 0, 99)).toBe(1);
+    expect(countPerplFills([], 64, 0, 1e15)).toBe(0);
   });
   it("markdown table has both columns", () => {
     const s = summarize([row({})]);
