@@ -11,9 +11,9 @@ export const TEST_MARKETS: Readonly<Record<number, readonly string[]>> = {
 };
 /** Our market-maker accounts (deployments `mmAccounts`): their volume is disclosed separately (RISKS E9). */
 export const MM_ACCOUNTS: Readonly<Record<number, readonly string[]>> = {
-  10143: ["0x814db3f310ccb192acaab4a6908a0cf33323b981", "0xb1a78a9cb3fe3ab4f0c49ad0dbc080ef18305bd1", "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a"],
+  10143: ["0x814db3f310ccb192acaab4a6908a0cf33323b981", "0xb1a78a9cb3fe3ab4f0c49ad0dbc080ef18305bd1", "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a", "0xc474e242787ab52aadaca669ed67589ebea04766"],
 };
-/** Accounts that are ours (MM, keeper, owner): excluded from ProtocolStats.externalUsers. */
+/** Accounts that are ours (MM, keeper, scripted test traders, owner): excluded from ProtocolStats.externalUsers. */
 export const OPERATOR_ACCOUNTS: Readonly<Record<number, readonly string[]>> = {
-  10143: ["0x814db3f310ccb192acaab4a6908a0cf33323b981", "0xb1a78a9cb3fe3ab4f0c49ad0dbc080ef18305bd1", "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a", "0x0d3b07775a452155d8f1b243154b38f12fdd0fa9", "0x8520ffb82e2c46eb1c7fa4e257a78d09f3708552", "0xef4e34a3754c878be0191b103691fd088e3f3b91"],
+  10143: ["0x814db3f310ccb192acaab4a6908a0cf33323b981", "0xb1a78a9cb3fe3ab4f0c49ad0dbc080ef18305bd1", "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a", "0xc474e242787ab52aadaca669ed67589ebea04766", "0x0d3b07775a452155d8f1b243154b38f12fdd0fa9", "0x8520ffb82e2c46eb1c7fa4e257a78d09f3708552", "0x5d4fb8b84839e0e8445154c8c6a5ec3b285146e2", "0xe7d75c6751e3da7323fa7702da273408ba7cdb08", "0xef4e34a3754c878be0191b103691fd088e3f3b91"],
 };

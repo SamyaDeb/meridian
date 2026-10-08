@@ -34,15 +34,17 @@
   "owner": "0xEF4E34a3754c878BE0191B103691FD088e3F3b91",
   "startBlock": 68739694,
   "symbol": "MON-PERP",
-  "_operators": "mmAccounts = perp MM, demo MM, house taker flow (mm-bot pnpm flow); keeperAccounts = main + demo keeper. Excluded from ProtocolStats.externalUsers (indexer gen-config).",
+  "_operators": "mmAccounts = perp MM, demo MM, house taker flow (mm-bot pnpm flow); keeperAccounts = main + demo keeper. Excluded from ProtocolStats.externalUsers (indexer gen-config); K7: ETH-PERP keeper (also the oracle feeder) and MM. testAccounts = scripted test traders (ETH-PERP evidence victim), also excluded from externalUsers.",
   "keeperAccounts": [
     "0x0D3B07775a452155D8F1B243154b38f12FDD0fA9",
-    "0x8520FfB82e2c46EB1c7fA4e257A78d09f3708552"
+    "0x8520FfB82e2c46EB1c7fA4e257A78d09f3708552",
+    "0x5D4FB8B84839e0e8445154c8C6a5ec3B285146E2"
   ],
   "mmAccounts": [
     "0x814DB3f310CCB192acaab4a6908A0Cf33323b981",
     "0xB1a78a9cB3FE3aB4f0c49ad0dBC080EF18305bd1",
-    "0x6E02939822507a5f3e0Ad90CE7cd68dC5d49303A"
+    "0x6E02939822507a5f3e0Ad90CE7cd68dC5d49303A",
+    "0xC474e242787Ab52AadacA669eD67589ebeA04766"
   ],
   "vaultStartBlock": 68775102,
   "vaultVersion": "2 (CR-014: async withdrawals, interfaces-v1.7)",
@@ -67,5 +69,8 @@
       "symbol": "ETH-PERP",
       "tickSizeWad": "100000000000000000"
     }
+  ],
+  "testAccounts": [
+    "0xe7D75c6751e3Da7323fa7702DA273408ba7cdB08"
   ]
 }
