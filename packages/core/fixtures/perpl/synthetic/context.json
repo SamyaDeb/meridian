@@ -1,0 +1,10 @@
+{
+  "_synthetic": true,
+  "chain": { "ver": 1, "chain_id": 143, "name": "Monad" },
+  "instances": [],
+  "tokens": [],
+  "markets": [
+    { "ver": 1, "id": 1, "instance_id": 1, "perpetual_id": 1, "symbol": "BTC", "name": "Bitcoin", "size_units": "BTC", "icon": "", "funding_interval_sec": 3600, "funding_interval_blocks": 9000, "order_ttl_blocks": 100, "order_retry_blocks": 10, "order_max_market_slippage_bps": 500, "order_max_neg_pnl_collat_bps": 0, "config": { "at": { "b": 100, "t": 1791230000000 }, "is_open": true, "price_decimals": 1, "size_decimals": 5, "min_posting_amount": "10", "min_settle_amount": "1", "initial_margin": 1000, "maintenance_margin": 500, "maker_fee": 50, "taker_fee": 88, "recycle_fee": "0", "funding_sum_scaling_exp": 6 }, "points_boost_bps": 10000 },
+    { "ver": 1, "id": 9, "instance_id": 1, "perpetual_id": 9, "symbol": "MON", "name": "Monad", "size_units": "MON", "icon": "", "funding_interval_sec": 3600, "funding_interval_blocks": 9000, "order_ttl_blocks": 100, "order_retry_blocks": 10, "order_max_market_slippage_bps": 500, "order_max_neg_pnl_collat_bps": 0, "config": { "at": { "b": 100, "t": 1791230000000 }, "is_open": true, "price_decimals": 7, "size_decimals": 2, "min_posting_amount": "10", "min_settle_amount": "1", "initial_margin": 2000, "maintenance_margin": 1000, "maker_fee": 50, "taker_fee": 88, "recycle_fee": "0", "funding_sum_scaling_exp": 6 }, "points_boost_bps": 10000 }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "url": "wss://testnet.perpl.xyz/ws/v1/market-data",
+  "streams": [
+    "heartbeat@10143",
+    "market-config@10143",
+    "market-state@10143",
+    "funding@10143",
+    "order-book@64",
+    "trades@64"
+  ],
+  "seconds": 60,
+  "at": "2026-10-07T15:27:41.606Z"
+}
