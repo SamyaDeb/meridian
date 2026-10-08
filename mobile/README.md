@@ -13,9 +13,24 @@ Env (never committed): `mobile/.env.local` or EAS environment variables
 - `EXPO_PUBLIC_MONAD_RPC_URL` — the app-tier RPC key (it ships inside the APK: never the bots' key)
 - `EXPO_PUBLIC_MONAD_WS_URL` — optional; heads over WebSocket, else a 400 ms poll
 - `APP_ENV` — `development` (default; testnet, may fall back to viem's public RPC with a badge) · `staging` · `production`
+- `EXPO_PUBLIC_SHORT_LOCK=1` — dev builds only: idle lock after 60 s, background lock after 30 s (device QA)
+- `EXPO_PUBLIC_FAKE_PASSKEY=1` — dev builds with `APP_ENV=development` only: a fake WebAuthn client for emulators without
+  a passkey provider. Compiled out of release bundles; `pnpm --filter @meridian/mobile check:release` exports a
+  production bundle with the flag on and fails if the fake is in it.
 
 Builds: `eas.json` profiles `development` (dev client APK) · `preview` (staging APK) · `production` (mainnet APK).
 Dev-only screens (`/dev/smoke`, the hold-to-confirm test in the Trade sheet) are compiled out of release bundles.
 
 Layout: `src/app` routes (expo-router) · `src/ui` design system · `src/live` block / Meridian / Perpl / network stores ·
-`src/features` screen pieces · `src/config` environment.
+`src/features` screen pieces · `src/config` environment · `src/auth` Mera passkey wallet (N3) · `src/wallet` send + balances.
+
+## Wallet (N3)
+Mera 0.2.0 + react-native-passkey 3.6.1 (Mera's exact peer). A passkey on the rpId (`meridian-testnet.vercel.app` in
+development/staging, `meridianfi.vercel.app` in production; anything else is refused) gives a 32-byte PRF output →
+core `deriveEvmKey(prf, 0)` (Mera's BIP-39/44 path) → `createSecp256k1SigningSession` → `toViemAccount`. The PRF and the
+key copy are zeroed right after; the session (in memory only) signs until it locks: 10 min without a touch, > 5 min in
+the background, "Lock now", or sign-out. SecureStore holds only `{ credentialId, transports?, createdAt, addressHint }`.
+Recovery export and value-moving actions use a fresh passkey prompt and a per-action session (`withFreshPrf` /
+`withFreshSession`). Writes go through `src/wallet/sendTx.ts`: gas = estimate × 1.2 rounded up, pending nonce, EIP-1559
+fees, explicit chain id, receipt, reverts decoded to plain English. Android needs
+`https://<rpId>/.well-known/assetlinks.json` listing the package and the signing SHA-256 (served by `app/public`).
