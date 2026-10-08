@@ -140,7 +140,7 @@ Tests: `pnpm -C indexer test` 119 passed, `pnpm -C app test` 440 passed (7 Oct, 
 | Side · size | Long · 2,600 MON | Long · 19,823 MON |
 | Entry | 0.02586 (0.025865384…, residue included) | 0.025051 |
 | Margin (position deposit) | 22.50 AUSD (22.508666) | 166.75 AUSD (166.757684) |
-| Liquidation price | **0.02239** (0.0223853…, rounded up) | **0.018085** (rounded up) |
+| Liquidation price | **0.02239** (0.0223853…, rounded up) | **0.018084** (0.0180839…, rounded up) |
 | Maintenance | 13.44 AUSD (20 %) | 24.82 AUSD (5 %) |
 | Perpl's UI / perpl-cli, same account, same time | > VERIFY (owner): connect the hedge wallet on testnet.perpl.xyz and screenshot the position row; for account 1076, Perpl's UI shows only the connected wallet, so compare with Perpl's own read-only CLI: `perpl-cli show account --account 1076` (mainnet) and `perpl-cli --testnet show account --account 969`, which prints Perpl SDK's "Liq Price" with 6 decimals | |
 
