@@ -17,7 +17,7 @@ Perp funding is usually paid every 1–8 hours because the venues that set the c
 | Earn it | Basis vault (ERC-4626 + async withdrawal queue): spot MON plus a short perp, sized by the net long skew | `contracts/src/vault` |
 | Fix it | 30-day fixed-for-floating funding swaps on Meridian's own order book | `contracts/src/swaps` |
 
-Offchain: TypeScript keeper (`keepers/ts-fallback`), Avellaneda–Stoikov market maker (`mm-bot/`), Meridian Funding Index service comparing venues incl. Perpl (`mfi/`), Envio HyperIndex indexer (`indexer/`), Next.js mobile-first app with Privy login (`app/`), benchmarks (`bench/`). Chainlink CRE workflows are in progress.
+Offchain: TypeScript keeper (`keepers/ts-fallback`), Avellaneda–Stoikov market maker (`mm-bot/`), Meridian Funding Index service comparing venues incl. Perpl (`mfi/`), Envio HyperIndex indexer (`indexer/`), Next.js mobile-first app with Privy login (`app/`), benchmarks (`bench/`). Chainlink CRE backstop keeper (`keepers/cre/`): liquidation guardian, funding/vault upkeep and an onchain Meridian Funding Index, broadcast on testnet via CRE simulation ([README](keepers/cre/README.md), [PROOF §13](docs/outputs/PROOF.md#13-chainlink-cre-backstop-keeper-k4)).
 
 ## Run it
 
