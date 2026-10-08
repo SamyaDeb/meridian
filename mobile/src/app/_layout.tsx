@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuthStatus } from "../auth/AuthProvider";
 import { LiveProvider } from "../live/LiveProvider";
+import { PerplProvider } from "../venues/perpl/PerplProvider";
 import { colors, OfflineBanner, ToastProvider } from "../ui";
 
 void SplashScreen.preventAutoHideAsync();
@@ -29,6 +30,7 @@ function RootStack() {
         ))}
       </Stack.Protected>
       <Stack.Screen name="dev/smoke" options={{ headerShown: true, title: "Hermes smoke", headerStyle: { backgroundColor: colors.card }, headerTintColor: colors.text }} />
+      <Stack.Screen name="dev/perpl" options={{ headerShown: true, title: "Perpl trade smoke", headerStyle: { backgroundColor: colors.card }, headerTintColor: colors.text }} />
     </Stack>
   );
 }
@@ -43,6 +45,7 @@ export default function RootLayout() {
         <ThemeProvider value={theme}>
           <LiveProvider>
             <AuthProvider>
+            <PerplProvider>
             <BottomSheetModalProvider>
               <ToastProvider>
                 <StatusBar style="light" />
@@ -50,6 +53,7 @@ export default function RootLayout() {
                 <OfflineBanner />
               </ToastProvider>
             </BottomSheetModalProvider>
+            </PerplProvider>
             </AuthProvider>
           </LiveProvider>
         </ThemeProvider>
