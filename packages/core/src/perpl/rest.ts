@@ -2,7 +2,7 @@
 // Extracted from PerplTrading.rest (meridian-k3/mm-bot/src/perpl/trading.ts, perpl-hedge @ fe873b0). Back-off on 429/503
 // per README "Rate Limits" → REST ("exponential backoff", limits unpublished), with jitter and Retry-After honoured.
 import { realClock, type Clock, type FetchLike, type RandomBytes } from "../util/runtime";
-import { newNonce, restHeaders } from "./auth";
+import { newNonce, restHeaders, type PerplKeyRef } from "./auth";
 import { retryAfterMs } from "./client";
 import { PerplHttpError } from "./errors";
 import type { Account, BatchStatus, OrderSpec } from "./types";
@@ -12,7 +12,8 @@ export type SignedRestConfig = {
   apiUrl: string;
   chainId: number;
   apiKey: string;
-  secret: Uint8Array;
+  /** the Ed25519 key: raw secret or an in-memory signer (auth.ts PerplSigner) */
+  secret: PerplKeyRef;
   fetchFn: FetchLike;
   random: RandomBytes;
   clock?: Clock;

@@ -10,7 +10,7 @@
 import { hashTypedData, type Address, type Hex, type TypedDataDefinition } from "viem";
 import { bytesToHex, hexToBytes } from "../util/bytes";
 import type { FetchLike } from "../util/runtime";
-import { edPublicKey, edSign } from "./ed";
+import { toSigner, type PerplKeyRef } from "./auth";
 import { PerplHttpError } from "./errors";
 import { ScopeMask } from "./types";
 
@@ -23,8 +23,8 @@ export type PerplTypedData = {
 
 export type ApiKeyInfo = { api_key: string; address: string; scope_mask: number; label: string; origin: string; created_at: number; expires_at?: number };
 
-export function payloadRequest(o: { chainId: number; address: Address; secret: Uint8Array; label: string; scopeMask?: number }) {
-  return { chain_id: o.chainId, address: o.address, public_key: `0x${bytesToHex(edPublicKey(o.secret))}`, scope_mask: o.scopeMask ?? ScopeMask.All, label: o.label };
+export function payloadRequest(o: { chainId: number; address: Address; secret: PerplKeyRef; label: string; scopeMask?: number }) {
+  return { chain_id: o.chainId, address: o.address, public_key: `0x${bytesToHex(toSigner(o.secret).publicKey)}`, scope_mask: o.scopeMask ?? ScopeMask.All, label: o.label };
 }
 
 /**
@@ -40,15 +40,16 @@ export function toTypedDataDefinition(td: PerplTypedData): TypedDataDefinition {
 }
 
 /** Ed25519 proof-of-possession over keccak256(0x1901 ‖ domainSeparator ‖ hashStruct(message)), 0x-hex. */
-export function popSignature(def: TypedDataDefinition, secret: Uint8Array): Hex {
-  return `0x${bytesToHex(edSign(hexToBytes(hashTypedData(def)), secret))}`;
+export function popSignature(def: TypedDataDefinition, secret: PerplKeyRef): Hex {
+  return `0x${bytesToHex(toSigner(secret).sign(hexToBytes(hashTypedData(def))))}`;
 }
 
 export type EnrollDeps = {
   apiUrl: string;
   chainId: number;
   address: Address;
-  secret: Uint8Array;
+  /** the Ed25519 key: raw secret or an in-memory signer (auth.ts PerplSigner) */
+  secret: PerplKeyRef;
   label: string;
   /** the wallet's EIP-712 signer (Mera viem account `signTypedData`) */
   signTypedData: (def: TypedDataDefinition) => Promise<Hex>;
