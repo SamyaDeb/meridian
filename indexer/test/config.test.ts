@@ -45,6 +45,7 @@ describe("every interface event is indexed (SCHEMA.md checklist)", () => {
     ["IMarketFactory", "MarketFactory", []],
     ["IKuruHedger", "KuruHedger", []],
     ["IMeridianKeeperReceiver", "MeridianKeeperReceiver", []],
+    ["IMeridianMfiFeed", "MeridianMfiFeed", []],
   ];
   it.each(cases)("%s → %s", (abi, name, excluded) => {
     const c = CONTRACTS.find((x: { name: string }) => x.name === name)!;

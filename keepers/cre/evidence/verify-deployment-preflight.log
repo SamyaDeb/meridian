@@ -1,0 +1,933 @@
+No files changed, compilation skipped
+Traces:
+  [7609615] → new VerifyDeployment@0x9f7cF1d1F558E57ef88a59ac3D47214eF25B6A06
+    └─ ← [Return] 37888 bytes of code
+
+  [19048847] VerifyDeployment::run()
+    ├─ [0] VM::isContext(6) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] VM::envOr("DEPLOY_CONFIG", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::toString(10143 [1.014e4]) [staticcall]
+    │   └─ ← [Return] "10143"
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/samya/Downloads/meridian-k4/contracts"
+    ├─ [0] VM::readFile("/Users/samya/Downloads/meridian-k4/contracts/script/config/10143.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".chainId") [staticcall]
+    │   └─ ← [Return] 10143 [1.014e4]
+    ├─ [0] VM::projectRoot() [staticcall]
+    │   └─ ← [Return] "/Users/samya/Downloads/meridian-k4/contracts"
+    ├─ [0] VM::envOr("DEPLOYMENTS_FILE", "143.json") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::readFile("/Users/samya/Downloads/meridian-k4/contracts/../deployments/10143.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".chainId") [staticcall]
+    │   └─ ← [Return] 10143 [1.014e4]
+    ├─ [0] VM::envAddress("EXPECTED_OWNER") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envAddress("DEPLOYER_ADDRESS") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envAddress("KEEPER_ADDRESS") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envAddress("MM_ADDRESS") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".ownerIsDeployer") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonBool("<stringified JSON>", ".ownerIsDeployer") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.ClearingHouse") [staticcall]
+    │   └─ ← [Return] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.OrderBook") [staticcall]
+    │   └─ ← [Return] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.OracleAdapter") [staticcall]
+    │   └─ ← [Return] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.InsuranceFund") [staticcall]
+    │   └─ ← [Return] 0xCcd97285dD2fca8D028D880Ed754039118437b48
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.MarketFactory") [staticcall]
+    │   └─ ← [Return] 0xEB3f3956AC3c13BC9b61a383590F5eEb4Ff6e541
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".contracts.MeridianVault") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.MeridianVault") [staticcall]
+    │   └─ ← [Return] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".contracts.KuruHedger") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.KuruHedger") [staticcall]
+    │   └─ ← [Return] 0xdB9Bc1996dE5A338c7F2B7b7f5f56B9047567191
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".contracts.FundingSwapMarket") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.FundingSwapMarket") [staticcall]
+    │   └─ ← [Return] 0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".contracts.SwapOrderBook") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.SwapOrderBook") [staticcall]
+    │   └─ ← [Return] 0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".symbol") [staticcall]
+    │   └─ ← [Return] "MON-PERP"
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".oracleKind") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".oracleKind") [staticcall]
+    │   └─ ← [Return] "keeper-fed"
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".demoMarket") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".demoMarket.ClearingHouse") [staticcall]
+    │   └─ ← [Return] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".demoMarket.OrderBook") [staticcall]
+    │   └─ ← [Return] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".demoMarket.OracleAdapter") [staticcall]
+    │   └─ ← [Return] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".demoMarket.symbol") [staticcall]
+    │   └─ ← [Return] "MON-PERP-DEMO"
+    ├─ [0] console::log("chain / block", 10143 [1.014e4], 69155373 [6.915e7]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("expected owner", 0xEF4E34a3754c878BE0191B103691FD088e3F3b91) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "InsuranceFund has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2361] 0xCcd97285dD2fca8D028D880Ed754039118437b48::owner() [staticcall]
+    │   └─ ← [Return] 0xEF4E34a3754c878BE0191B103691FD088e3F3b91
+    ├─ [0] console::log("PASS", "InsuranceFund.owner() == expected owner") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "MarketFactory has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2287] 0xEB3f3956AC3c13BC9b61a383590F5eEb4Ff6e541::owner() [staticcall]
+    │   └─ ← [Return] 0xEF4E34a3754c878BE0191B103691FD088e3F3b91
+    ├─ [0] console::log("PASS", "MarketFactory.owner() == expected owner") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "OracleAdapter has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2332] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::owner() [staticcall]
+    │   └─ ← [Return] 0xEF4E34a3754c878BE0191B103691FD088e3F3b91
+    ├─ [0] console::log("PASS", "OracleAdapter.owner() == expected owner") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "ClearingHouse has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2397] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::owner() [staticcall]
+    │   └─ ← [Return] 0xEF4E34a3754c878BE0191B103691FD088e3F3b91
+    ├─ [0] console::log("PASS", "ClearingHouse.owner() == expected owner") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "OrderBook has code (no owner by design)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "FundingSwapMarket has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2419] 0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33::owner() [staticcall]
+    │   └─ ← [Return] 0xEF4E34a3754c878BE0191B103691FD088e3F3b91
+    ├─ [0] console::log("PASS", "FundingSwapMarket.owner() == expected owner") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "SwapOrderBook has code (no owner by design)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "MeridianVault has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2399] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::owner() [staticcall]
+    │   └─ ← [Return] 0xEF4E34a3754c878BE0191B103691FD088e3F3b91
+    ├─ [0] console::log("PASS", "MeridianVault.owner() == expected owner") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::parseJsonStringArray("<stringified JSON>", ".mockContracts") [staticcall]
+    │   └─ ← [Return] ["AUSD", "KuruHedger"]
+    ├─ [0] console::log("PASS", "KuruHedger (labelled mock) has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "demo OracleAdapter has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2332] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826::owner() [staticcall]
+    │   └─ ← [Return] 0xEF4E34a3754c878BE0191B103691FD088e3F3b91
+    ├─ [0] console::log("PASS", "demo OracleAdapter.owner() == expected owner") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "demo ClearingHouse has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2397] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::owner() [staticcall]
+    │   └─ ← [Return] 0xEF4E34a3754c878BE0191B103691FD088e3F3b91
+    ├─ [0] console::log("PASS", "demo ClearingHouse.owner() == expected owner") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "demo OrderBook has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2640] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::isKeeper(0xEF4E34a3754c878BE0191B103691FD088e3F3b91) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] console::log("PASS", "deployer is not a vault keeper") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2640] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::isKeeper(0x0D3B07775a452155D8F1B243154b38f12FDD0fA9) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "KEEPER_ADDRESS is a vault keeper") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [4701] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::skewProviders(0) [staticcall]
+    │   └─ ← [Return] 0x814DB3f310CCB192acaab4a6908A0Cf33323b981
+    ├─ [0] console::log("PASS", "MM_ADDRESS is skew provider #0 (decision 11)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [433] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::skewProviders(1) [staticcall]
+    │   └─ ← [Revert] EvmError: Revert
+    ├─ [0] console::log("PASS", "exactly one skew provider") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::parseJsonStringArray("<stringified JSON>", ".mockContracts") [staticcall]
+    │   └─ ← [Return] ["AUSD", "KuruHedger"]
+    ├─ [2403] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::orderBook() [staticcall]
+    │   └─ ← [Return] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207
+    ├─ [0] console::log("PASS", "CH.orderBook() == OB") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2582] 0xCcd97285dD2fca8D028D880Ed754039118437b48::isAuthorized(0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "IF authorises the perp CH") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [14501] 0xEB3f3956AC3c13BC9b61a383590F5eEb4Ff6e541::getMarket(0x5c2ec3a1d69171e66d559e5a169130a04d19795944aab12735a1f8b1097a9abb) [staticcall]
+    │   └─ ← [Return] Market({ marketId: 0x5c2ec3a1d69171e66d559e5a169130a04d19795944aab12735a1f8b1097a9abb, symbol: "MON-PERP", orderBook: 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, clearingHouse: 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA, oracle: 0xC77882E7024D8B71F414eDc1a8708b939920A9E2, baseAsset: 0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541, active: true })
+    ├─ [0] console::log("PASS", "factory registry: MON-PERP") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [377] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::paused() [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] console::log("PASS", "CH not paused") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2405] 0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33::orderBook() [staticcall]
+    │   └─ ← [Return] 0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db
+    ├─ [0] console::log("PASS", "swap.orderBook() == swap OB") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2582] 0xCcd97285dD2fca8D028D880Ed754039118437b48::isAuthorized(0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "IF authorises the swap market") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [399] 0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33::paused() [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] console::log("PASS", "swap market not paused") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [8730] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::riskParams() [staticcall]
+    │   └─ ← [Return] RiskParams({ imr: 200000000000000000 [2e17], mmr: 100000000000000000 [1e17], takerFee: 500000000000000 [5e14], makerFee: -100000000000000 [-1e14], liqPenalty: 10000000000000000 [1e16], keeperShare: 500000000000000000 [5e17], maxOpenInterest: 250000000000000000000000 [2.5e23], maxPositionSize: 25000000000000000000000 [2.5e22] })
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.imr") [staticcall]
+    │   └─ ← [Return] "200000000000000000"
+    ├─ [0] VM::parseUint("200000000000000000") [staticcall]
+    │   └─ ← [Return] 200000000000000000 [2e17]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.mmr") [staticcall]
+    │   └─ ← [Return] "100000000000000000"
+    ├─ [0] VM::parseUint("100000000000000000") [staticcall]
+    │   └─ ← [Return] 100000000000000000 [1e17]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.takerFee") [staticcall]
+    │   └─ ← [Return] "500000000000000"
+    ├─ [0] VM::parseUint("500000000000000") [staticcall]
+    │   └─ ← [Return] 500000000000000 [5e14]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.makerFee") [staticcall]
+    │   └─ ← [Return] "-100000000000000"
+    ├─ [0] VM::parseInt("-100000000000000") [staticcall]
+    │   └─ ← [Return] -100000000000000 [-1e14]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.liqPenalty") [staticcall]
+    │   └─ ← [Return] "10000000000000000"
+    ├─ [0] VM::parseUint("10000000000000000") [staticcall]
+    │   └─ ← [Return] 10000000000000000 [1e16]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.keeperShare") [staticcall]
+    │   └─ ← [Return] "500000000000000000"
+    ├─ [0] VM::parseUint("500000000000000000") [staticcall]
+    │   └─ ← [Return] 500000000000000000 [5e17]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.maxOpenInterest") [staticcall]
+    │   └─ ← [Return] "250000000000000000000000"
+    ├─ [0] VM::parseUint("250000000000000000000000") [staticcall]
+    │   └─ ← [Return] 250000000000000000000000 [2.5e23]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.maxPositionSize") [staticcall]
+    │   └─ ← [Return] "25000000000000000000000"
+    ├─ [0] VM::parseUint("25000000000000000000000") [staticcall]
+    │   └─ ← [Return] 25000000000000000000000 [2.5e22]
+    ├─ [0] console::log("PASS", "perp maxPositionSize == config") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "perp maxOpenInterest == config") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "perp RiskParams == config (all)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.funding.alpha") [staticcall]
+    │   └─ ← [Return] "2000000000000000"
+    ├─ [0] VM::parseUint("2000000000000000") [staticcall]
+    │   └─ ← [Return] 2000000000000000 [2e15]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.funding.interestRate") [staticcall]
+    │   └─ ← [Return] "3472222222"
+    ├─ [0] VM::parseInt("3472222222") [staticcall]
+    │   └─ ← [Return] 3472222222 [3.472e9]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.funding.rateCap") [staticcall]
+    │   └─ ← [Return] "555555555556"
+    ├─ [0] VM::parseUint("555555555556") [staticcall]
+    │   └─ ← [Return] 555555555556 [5.555e11]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.funding.maxRateChangePerBlock") [staticcall]
+    │   └─ ← [Return] "555555556"
+    ├─ [0] VM::parseUint("555555556") [staticcall]
+    │   └─ ← [Return] 555555556 [5.555e8]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".params.perp.funding.blockTimeMs") [staticcall]
+    │   └─ ← [Return] 300
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.funding.premiumBandWad") [staticcall]
+    │   └─ ← [Return] "50000000000000000"
+    ├─ [0] VM::parseUint("50000000000000000") [staticcall]
+    │   └─ ← [Return] 50000000000000000 [5e16]
+    ├─ [3117] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::fundingParams() [staticcall]
+    │   └─ ← [Return] FundingParams({ alpha: 2000000000000000 [2e15], interestRate: 3472222222 [3.472e9], rateCap: 555555555556 [5.555e11], maxRateChangePerBlock: 555555556 [5.555e8], blockTimeMs: 300, premiumBandWad: 50000000000000000 [5e16] })
+    ├─ [0] console::log("PASS", "perp FundingParams == config (all)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [26284] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::vaultParams() [staticcall]
+    │   └─ ← [Return] VaultParams({ leverage: 1500000000000000000 [1.5e18], driftBand: 20000000000000000 [2e16], targetMarginRatio: 600000000000000000 [6e17], minMarginRatio: 250000000000000000 [2.5e17], exitHorizonSec: 259200 [2.592e5], roundTripFee: 1500000000000000 [1.5e15], maxSlippage: 5000000000000000 [5e15], idleBuffer: 50000000000000000 [5e16], depositCap: 1200000000 [1.2e9], skewCapacity: 800000000000000000 [8e17], entryHorizonSec: 604800 [6.048e5], maxSliceAssets: 2500000000 [2.5e9] })
+    ├─ [2351] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::claimableAssets() [staticcall]
+    │   └─ ← [Return] 0
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.vault.leverage") [staticcall]
+    │   └─ ← [Return] "1500000000000000000"
+    ├─ [0] VM::parseUint("1500000000000000000") [staticcall]
+    │   └─ ← [Return] 1500000000000000000 [1.5e18]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.vault.driftBand") [staticcall]
+    │   └─ ← [Return] "20000000000000000"
+    ├─ [0] VM::parseUint("20000000000000000") [staticcall]
+    │   └─ ← [Return] 20000000000000000 [2e16]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.vault.targetMarginRatio") [staticcall]
+    │   └─ ← [Return] "600000000000000000"
+    ├─ [0] VM::parseUint("600000000000000000") [staticcall]
+    │   └─ ← [Return] 600000000000000000 [6e17]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.vault.minMarginRatio") [staticcall]
+    │   └─ ← [Return] "250000000000000000"
+    ├─ [0] VM::parseUint("250000000000000000") [staticcall]
+    │   └─ ← [Return] 250000000000000000 [2.5e17]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".params.vault.exitHorizonSec") [staticcall]
+    │   └─ ← [Return] 259200 [2.592e5]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.vault.roundTripFee") [staticcall]
+    │   └─ ← [Return] "1500000000000000"
+    ├─ [0] VM::parseUint("1500000000000000") [staticcall]
+    │   └─ ← [Return] 1500000000000000 [1.5e15]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.vault.maxSlippage") [staticcall]
+    │   └─ ← [Return] "5000000000000000"
+    ├─ [0] VM::parseUint("5000000000000000") [staticcall]
+    │   └─ ← [Return] 5000000000000000 [5e15]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.vault.idleBuffer") [staticcall]
+    │   └─ ← [Return] "50000000000000000"
+    ├─ [0] VM::parseUint("50000000000000000") [staticcall]
+    │   └─ ← [Return] 50000000000000000 [5e16]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.vault.depositCap") [staticcall]
+    │   └─ ← [Return] "10000000000"
+    ├─ [0] VM::parseUint("10000000000") [staticcall]
+    │   └─ ← [Return] 10000000000 [1e10]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.vault.skewCapacity") [staticcall]
+    │   └─ ← [Return] "800000000000000000"
+    ├─ [0] VM::parseUint("800000000000000000") [staticcall]
+    │   └─ ← [Return] 800000000000000000 [8e17]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".params.vault.entryHorizonSec") [staticcall]
+    │   └─ ← [Return] 604800 [6.048e5]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.vault.maxSliceAssets") [staticcall]
+    │   └─ ← [Return] "2500000000"
+    ├─ [0] VM::parseUint("2500000000") [staticcall]
+    │   └─ ← [Return] 2500000000 [2.5e9]
+    ├─ [0] console::log("FAIL", "vault v2 skewCapacity == 0 at deploy (Found #17)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "vault v2 depositCap == 1,200 AUSD (decision 12)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("FAIL", "vault v2 params == config (hedge off, cap)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [17009] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::shortCapacity() [staticcall]
+    │   ├─ [7371] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::getPosition(0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6) [staticcall]
+    │   │   └─ ← [Return] Position({ size: 0, openNotional: 0, lastCumFunding: 171488116692 [1.714e11] })
+    │   ├─ [7371] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::getPosition(0x814DB3f310CCB192acaab4a6908A0Cf33323b981) [staticcall]
+    │   │   └─ ← [Return] Position({ size: -1100000000000000000000 [-1.1e21], openNotional: -28466985194612304299 [-2.846e19], lastCumFunding: 71737234085340 [7.173e13] })
+    │   └─ ← [Return] 880000000000000000000 [8.8e20]
+    ├─ [0] console::log("FAIL", "vault shortCapacity() == 0 (cannot hedge at deploy)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [351] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::claimableAssets() [staticcall]
+    │   └─ ← [Return] 0
+    ├─ [2395] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::pendingRedeemShares() [staticcall]
+    │   └─ ← [Return] 0
+    ├─ [0] console::log("PASS", "vault v2 queue empty at deploy") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [295] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::MIN_FORCED_INTERVAL_BLOCKS() [staticcall]
+    │   └─ ← [Return] 10
+    ├─ [0] console::log("PASS", "vault v2 forced-path cooldown 10 blocks (A-09)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [640] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::isKeeper(0x0D3B07775a452155D8F1B243154b38f12FDD0fA9) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "vault v2 keeper registered") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::parseJsonStringArray("<stringified JSON>", ".mockContracts") [staticcall]
+    │   └─ ← [Return] ["AUSD", "KuruHedger"]
+    ├─ [0] console::log("PASS", "mock hedger only off mainnet") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [19796] 0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33::swapParams() [staticcall]
+    │   └─ ← [Return] SwapParams({ aprMoveBuffer: 50000000000000000 [5e16], liqHorizonSec: 86400 [8.64e4], imMultiplier: 1500000000000000000 [1.5e18], takerFeeApr: 2000000000000000 [2e15], makerFeeApr: -500000000000000 [-5e14], liqPenalty: 200000000000000000 [2e17], keeperShare: 500000000000000000 [5e17], maxOpenInterest: 2000000000000000000000000 [2e24], maxPositionSize: 200000000000000000000000 [2e23] })
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.swap.params.aprMoveBuffer") [staticcall]
+    │   └─ ← [Return] "50000000000000000"
+    ├─ [0] VM::parseUint("50000000000000000") [staticcall]
+    │   └─ ← [Return] 50000000000000000 [5e16]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".params.swap.params.liqHorizonSec") [staticcall]
+    │   └─ ← [Return] 86400 [8.64e4]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.swap.params.imMultiplier") [staticcall]
+    │   └─ ← [Return] "1500000000000000000"
+    ├─ [0] VM::parseUint("1500000000000000000") [staticcall]
+    │   └─ ← [Return] 1500000000000000000 [1.5e18]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.swap.params.takerFeeApr") [staticcall]
+    │   └─ ← [Return] "2000000000000000"
+    ├─ [0] VM::parseUint("2000000000000000") [staticcall]
+    │   └─ ← [Return] 2000000000000000 [2e15]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.swap.params.makerFeeApr") [staticcall]
+    │   └─ ← [Return] "-500000000000000"
+    ├─ [0] VM::parseInt("-500000000000000") [staticcall]
+    │   └─ ← [Return] -500000000000000 [-5e14]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.swap.params.liqPenalty") [staticcall]
+    │   └─ ← [Return] "200000000000000000"
+    ├─ [0] VM::parseUint("200000000000000000") [staticcall]
+    │   └─ ← [Return] 200000000000000000 [2e17]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.swap.params.keeperShare") [staticcall]
+    │   └─ ← [Return] "500000000000000000"
+    ├─ [0] VM::parseUint("500000000000000000") [staticcall]
+    │   └─ ← [Return] 500000000000000000 [5e17]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.swap.params.maxOpenInterest") [staticcall]
+    │   └─ ← [Return] "2000000000000000000000000"
+    ├─ [0] VM::parseUint("2000000000000000000000000") [staticcall]
+    │   └─ ← [Return] 2000000000000000000000000 [2e24]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.swap.params.maxPositionSize") [staticcall]
+    │   └─ ← [Return] "200000000000000000000000"
+    ├─ [0] VM::parseUint("200000000000000000000000") [staticcall]
+    │   └─ ← [Return] 200000000000000000000000 [2e23]
+    ├─ [0] console::log("PASS", "SwapParams == config (all fields)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [285] 0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33::maturity() [staticcall]
+    │   └─ ← [Return] 1793898278 [1.793e9]
+    ├─ [0] console::log("PASS", "swap maturity within 30 d of now") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("swap maturity (unix s)", 1793898278 [1.793e9]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [306] 0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33::MARK_MAX_STEP_PER_BLOCK() [staticcall]
+    │   └─ ← [Return] 5000000000000000 [5e15]
+    ├─ [0] console::log("PASS", "swap mark bound 0.5 pt/block (decision 18)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".params.oracle.keeperFedMaxStalenessSec") [staticcall]
+    │   └─ ← [Return] 60
+    ├─ [2361] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::maxStaleness() [staticcall]
+    │   └─ ← [Return] 60
+    ├─ [0] console::log("PASS", "oracle (keeper-fed) maxStaleness == config") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.oracle.maxDeviationWad") [staticcall]
+    │   └─ ← [Return] "20000000000000000"
+    ├─ [0] VM::parseUint("20000000000000000") [staticcall]
+    │   └─ ← [Return] 20000000000000000 [2e16]
+    ├─ [2384] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::maxDeviation() [staticcall]
+    │   └─ ← [Return] 20000000000000000 [2e16]
+    ├─ [0] console::log("PASS", "oracle (keeper-fed) maxDeviation == config") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2605] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::isFeeder(0x0D3B07775a452155D8F1B243154b38f12FDD0fA9) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "oracle: KEEPER_ADDRESS is a feeder") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2767] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::tryGetIndexPrice() [staticcall]
+    │   └─ ← [Return] false, 25603070000000000 [2.56e16], 1791407496 [1.791e9]
+    ├─ [0] VM::envOr("FRESH_ORACLE_OPTIONAL", false) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] console::log("INFO (not counted): stale,", "oracle returns a fresh price (tryGetIndexPrice ok)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("index price (WAD) / publish time / age s", 25603070000000000 [2.56e16], 1791407496 [1.791e9], 24632 [2.463e4]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2403] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::orderBook() [staticcall]
+    │   └─ ← [Return] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d
+    ├─ [0] console::log("PASS", "demo CH.orderBook() == demo OB") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2582] 0xCcd97285dD2fca8D028D880Ed754039118437b48::isAuthorized(0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "IF authorises the demo CH") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [14501] 0xEB3f3956AC3c13BC9b61a383590F5eEb4Ff6e541::getMarket(0xbd11648a69bf0ec9b07e4ee98907240811455393684a6c0e1035b8d5243db3f3) [staticcall]
+    │   └─ ← [Return] Market({ marketId: 0xbd11648a69bf0ec9b07e4ee98907240811455393684a6c0e1035b8d5243db3f3, symbol: "MON-PERP-DEMO", orderBook: 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d, clearingHouse: 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01, oracle: 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826, baseAsset: 0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541, active: true })
+    ├─ [0] console::log("PASS", "factory registry: MON-PERP-DEMO") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [377] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::paused() [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] console::log("PASS", "demo CH not paused") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [8730] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::riskParams() [staticcall]
+    │   └─ ← [Return] RiskParams({ imr: 200000000000000000 [2e17], mmr: 100000000000000000 [1e17], takerFee: 500000000000000 [5e14], makerFee: -100000000000000 [-1e14], liqPenalty: 10000000000000000 [1e16], keeperShare: 500000000000000000 [5e17], maxOpenInterest: 250000000000000000000000 [2.5e23], maxPositionSize: 25000000000000000000000 [2.5e22] })
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.imr") [staticcall]
+    │   └─ ← [Return] "200000000000000000"
+    ├─ [0] VM::parseUint("200000000000000000") [staticcall]
+    │   └─ ← [Return] 200000000000000000 [2e17]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.mmr") [staticcall]
+    │   └─ ← [Return] "100000000000000000"
+    ├─ [0] VM::parseUint("100000000000000000") [staticcall]
+    │   └─ ← [Return] 100000000000000000 [1e17]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.takerFee") [staticcall]
+    │   └─ ← [Return] "500000000000000"
+    ├─ [0] VM::parseUint("500000000000000") [staticcall]
+    │   └─ ← [Return] 500000000000000 [5e14]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.makerFee") [staticcall]
+    │   └─ ← [Return] "-100000000000000"
+    ├─ [0] VM::parseInt("-100000000000000") [staticcall]
+    │   └─ ← [Return] -100000000000000 [-1e14]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.liqPenalty") [staticcall]
+    │   └─ ← [Return] "10000000000000000"
+    ├─ [0] VM::parseUint("10000000000000000") [staticcall]
+    │   └─ ← [Return] 10000000000000000 [1e16]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.keeperShare") [staticcall]
+    │   └─ ← [Return] "500000000000000000"
+    ├─ [0] VM::parseUint("500000000000000000") [staticcall]
+    │   └─ ← [Return] 500000000000000000 [5e17]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.maxOpenInterest") [staticcall]
+    │   └─ ← [Return] "250000000000000000000000"
+    ├─ [0] VM::parseUint("250000000000000000000000") [staticcall]
+    │   └─ ← [Return] 250000000000000000000000 [2.5e23]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.risk.maxPositionSize") [staticcall]
+    │   └─ ← [Return] "25000000000000000000000"
+    ├─ [0] VM::parseUint("25000000000000000000000") [staticcall]
+    │   └─ ← [Return] 25000000000000000000000 [2.5e22]
+    ├─ [0] console::log("PASS", "demo maxPositionSize == config") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "demo maxOpenInterest == config") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "demo RiskParams == config (all)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.funding.alpha") [staticcall]
+    │   └─ ← [Return] "2000000000000000"
+    ├─ [0] VM::parseUint("2000000000000000") [staticcall]
+    │   └─ ← [Return] 2000000000000000 [2e15]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.funding.interestRate") [staticcall]
+    │   └─ ← [Return] "3472222222"
+    ├─ [0] VM::parseInt("3472222222") [staticcall]
+    │   └─ ← [Return] 3472222222 [3.472e9]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.funding.rateCap") [staticcall]
+    │   └─ ← [Return] "555555555556"
+    ├─ [0] VM::parseUint("555555555556") [staticcall]
+    │   └─ ← [Return] 555555555556 [5.555e11]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.funding.maxRateChangePerBlock") [staticcall]
+    │   └─ ← [Return] "555555556"
+    ├─ [0] VM::parseUint("555555556") [staticcall]
+    │   └─ ← [Return] 555555556 [5.555e8]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".params.perp.funding.blockTimeMs") [staticcall]
+    │   └─ ← [Return] 300
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.perp.funding.premiumBandWad") [staticcall]
+    │   └─ ← [Return] "50000000000000000"
+    ├─ [0] VM::parseUint("50000000000000000") [staticcall]
+    │   └─ ← [Return] 50000000000000000 [5e16]
+    ├─ [3117] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::fundingParams() [staticcall]
+    │   └─ ← [Return] FundingParams({ alpha: 2000000000000000 [2e15], interestRate: 3472222222 [3.472e9], rateCap: 555555555556 [5.555e11], maxRateChangePerBlock: 555555556 [5.555e8], blockTimeMs: 300, premiumBandWad: 50000000000000000 [5e16] })
+    ├─ [0] console::log("PASS", "demo FundingParams == config (all)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::parseJsonUint("<stringified JSON>", ".params.oracle.keeperFedMaxStalenessSec") [staticcall]
+    │   └─ ← [Return] 60
+    ├─ [2361] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826::maxStaleness() [staticcall]
+    │   └─ ← [Return] 60
+    ├─ [0] console::log("PASS", "demo oracle (keeper-fed) maxStaleness == config") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".params.oracle.maxDeviationWad") [staticcall]
+    │   └─ ← [Return] "20000000000000000"
+    ├─ [0] VM::parseUint("20000000000000000") [staticcall]
+    │   └─ ← [Return] 20000000000000000 [2e16]
+    ├─ [2384] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826::maxDeviation() [staticcall]
+    │   └─ ← [Return] 20000000000000000 [2e16]
+    ├─ [0] console::log("PASS", "demo oracle (keeper-fed) maxDeviation == config") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2605] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826::isFeeder(0x0D3B07775a452155D8F1B243154b38f12FDD0fA9) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "demo oracle: KEEPER_ADDRESS is a feeder") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2767] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826::tryGetIndexPrice() [staticcall]
+    │   └─ ← [Return] false, 28645020000000000 [2.864e16], 1791319857 [1.791e9]
+    ├─ [0] VM::envOr("FRESH_ORACLE_OPTIONAL", false) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] console::log("INFO (not counted): stale,", "demo oracle returns a fresh price (tryGetIndexPrice ok)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("index price (WAD) / publish time / age s", 28645020000000000 [2.864e16], 1791319857 [1.791e9], 112271 [1.122e5]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".contracts.MeridianKeeperReceiver") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.MeridianKeeperReceiver") [staticcall]
+    │   └─ ← [Return] 0x7c44C263225706fE28809BaE9fCC13460A908932
+    ├─ [0] console::log("PASS", "MeridianKeeperReceiver has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2364] 0x7c44C263225706fE28809BaE9fCC13460A908932::owner() [staticcall]
+    │   └─ ← [Return] 0xEF4E34a3754c878BE0191B103691FD088e3F3b91
+    ├─ [0] console::log("PASS", "MeridianKeeperReceiver.owner() == expected owner") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".creForwarderMode") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonString("<stringified JSON>", ".creForwarderMode") [staticcall]
+    │   └─ ← [Return] "sim"
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".cre.keystoneForwarderSim") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJson("<JSON file>", ".cre.keystoneForwarderSim") [staticcall]
+    │   └─ ← [Return] <encoded JSON value>
+    ├─ [2424] 0x7c44C263225706fE28809BaE9fCC13460A908932::forwarder() [staticcall]
+    │   └─ ← [Return] 0xB9F79d863261869B234c481D1f9A7af84AeAd192
+    ├─ [0] console::log("PASS", "receiver.forwarder() == config CRE forwarder (mode)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "CRE forwarder has code") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [413] 0x7c44C263225706fE28809BaE9fCC13460A908932::supportsInterface(0x805f2132) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "receiver supports IReceiver (ERC-165)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [21307] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::getAccount(0x7c44C263225706fE28809BaE9fCC13460A908932) [staticcall]
+    │   ├─ [767] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::tryGetIndexPrice() [staticcall]
+    │   │   └─ ← [Return] false, 25603070000000000 [2.56e16], 1791407496 [1.791e9]
+    │   └─ ← [Return] AccountView({ collateral: 200000000000000000000 [2e20], size: 0, entryPrice: 0, unrealizedPnl: 0, pendingFunding: 0, equity: 200000000000000000000 [2e20], initialMargin: 0, maintenanceMargin: 0, reservedOrderMargin: 0, liquidationPrice: 0, liquidatable: false })
+    ├─ [0] console::log("PASS", "receiver has margin in the perp CH") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [21307] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::getAccount(0x7c44C263225706fE28809BaE9fCC13460A908932) [staticcall]
+    │   ├─ [767] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826::tryGetIndexPrice() [staticcall]
+    │   │   └─ ← [Return] false, 28645020000000000 [2.864e16], 1791319857 [1.791e9]
+    │   └─ ← [Return] AccountView({ collateral: 200000000000000000000 [2e20], size: 0, entryPrice: 0, unrealizedPnl: 0, pendingFunding: 0, equity: 200000000000000000000 [2e20], initialMargin: 0, maintenanceMargin: 0, reservedOrderMargin: 0, liquidationPrice: 0, liquidatable: false })
+    ├─ [0] console::log("PASS", "receiver has margin in the demo CH") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [2640] 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6::isKeeper(0x7c44C263225706fE28809BaE9fCC13460A908932) [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "receiver is a vault keeper") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::keyExistsJson("<JSON file>", ".contracts.MeridianMfiFeed") [staticcall]
+    │   └─ ← [Return] true
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".contracts.MeridianMfiFeed") [staticcall]
+    │   └─ ← [Return] 0x651Bd154810B6FE9b725F1a17cdA24C4E72550Fa
+    ├─ [247] 0x651Bd154810B6FE9b725F1a17cdA24C4E72550Fa::receiver() [staticcall]
+    │   └─ ← [Return] 0x7c44C263225706fE28809BaE9fCC13460A908932
+    ├─ [0] console::log("PASS", "MfiFeed.receiver() == receiver") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [282] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::tickSize() [staticcall]
+    │   └─ ← [Return] 1000000000000 [1e12]
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 0
+    ├─ [0] VM::mockCall(0xC77882E7024D8B71F414eDc1a8708b939920A9E2, 0x040ac4d5, 0x0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000006a94d74f430000000000000000000000000000000000000000000000000000000000006ac715c0)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, 0x20c1614b, 0x000000000000000000000000000000000000000000000000000000000000752f)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, 0xcffb7d15, 0x0000000000000000000000000000000000000000000000000000000000007531)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, 0x9b44cb3c, 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000)
+    │   └─ ← [Return]
+    ├─ [0] VM::roll(69155374 [6.915e7])
+    │   └─ ← [Return]
+    ├─ [78134] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::updateFunding()
+    │   ├─ [0] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::tryGetIndexPrice() [staticcall]
+    │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   ├─ [0] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestBid() [staticcall]
+    │   │   └─ ← [Return] 29999 [2.999e4]
+    │   ├─ [0] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestAsk() [staticcall]
+    │   │   └─ ← [Return] 30001 [3e4]
+    │   ├─ [0] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::lastTrade() [staticcall]
+    │   │   └─ ← [Return] 0, 0
+    │   ├─ emit FundingCheckpoint(slot: 172, blockNumber: 69155374 [6.915e7], cumFunding: 74375065814823 [7.437e13], cumIndexTime: 1514268890970000000000 [1.514e21])
+    │   ├─ emit FundingUpdated(blockNumber: 69155374 [6.915e7], premium: 0, emaPremium: 1, rate: 3472222222 [3.472e9], cumFunding: 74375065814823 [7.437e13], cumIndexTime: 1514268890970000000000 [1.514e21], indexPriceWad: 30000000000000000 [3e16], markPriceWad: 30000000000000000 [3e16])
+    │   └─ ← [Return] 74375065814823 [7.437e13]
+    ├─ [3345] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::markPrice() [staticcall]
+    │   └─ ← [Return] 30000000000000000 [3e16]
+    ├─ [0] VM::roll(69155375 [6.915e7])
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, 0x20c1614b, 0x00000000000000000000000000000000000000000000000000000000000080e8)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, 0xcffb7d15, 0x00000000000000000000000000000000000000000000000000000000000080e9)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, 0x9b44cb3c, 0x00000000000000000000000000000000000000000000000000753d533d96800000000000000000000000000000000000000000000000000000000000041f3a2e)
+    │   └─ ← [Return]
+    ├─ [12903] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::markPrice() [staticcall]
+    │   ├─ [0] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::tryGetIndexPrice() [staticcall]
+    │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   ├─ [0] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestBid() [staticcall]
+    │   │   └─ ← [Return] 33000 [3.3e4]
+    │   ├─ [0] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestAsk() [staticcall]
+    │   │   └─ ← [Return] 33001 [3.3e4]
+    │   ├─ [0] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::lastTrade() [staticcall]
+    │   │   └─ ← [Return] 33000000000000000 [3.3e16], 69155374 [6.915e7]
+    │   └─ ← [Return] 30030000000000000 [3.003e16]
+    ├─ [0] VM::roll(69156374 [6.915e7])
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, 0x20c1614b, 0x00000000000000000000000000000000000000000000000000000000000080e8)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, 0xcffb7d15, 0x00000000000000000000000000000000000000000000000000000000000080e9)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, 0x9b44cb3c, 0x00000000000000000000000000000000000000000000000000753d533d96800000000000000000000000000000000000000000000000000000000000041f3e15)
+    │   └─ ← [Return]
+    ├─ [15442] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::markPrice() [staticcall]
+    │   ├─ [0] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::tryGetIndexPrice() [staticcall]
+    │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   ├─ [0] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestBid() [staticcall]
+    │   │   └─ ← [Return] 33000 [3.3e4]
+    │   ├─ [0] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestAsk() [staticcall]
+    │   │   └─ ← [Return] 33001 [3.3e4]
+    │   ├─ [0] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::lastTrade() [staticcall]
+    │   │   └─ ← [Return] 33000000000000000 [3.3e16], 69156373 [6.915e7]
+    │   └─ ← [Return] 30600000000000000 [3.06e16]
+    ├─ [0] VM::clearMockedCalls()
+    │   └─ ← [Return]
+    ├─ [0] VM::revertToStateAndDelete(0)
+    │   └─ ← [Return] true
+    ├─ [0] console::log("perp mark (index 0.03e18): neutral / +1 block / +1,000 blocks", 30000000000000000 [3e16], 30030000000000000 [3.003e16], 30600000000000000 [3.06e16]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "P2: perp mark basis moves 10 bps in one block (pre-P2: to the +5% band edge)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "P2: perp mark basis credited for <= 20 blocks (2% after a 1,000-block gap)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "CR-007: OrderBook bytecode emits MakerFillSkipped") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 1
+    ├─ [0] VM::mockCall(0xC77882E7024D8B71F414eDc1a8708b939920A9E2, 0x040ac4d5, 0x0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000006a94d74f430000000000000000000000000000000000000000000000000000000000006ac715c0)
+    │   └─ ← [Return]
+    ├─ [282] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::tickSize() [staticcall]
+    │   └─ ← [Return] 1000000000000 [1e12]
+    ├─ [0] VM::prank(0xEF4E34a3754c878BE0191B103691FD088e3F3b91)
+    │   └─ ← [Return]
+    ├─ [4638] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::setPaused(true)
+    │   ├─ emit PausedSet(paused: true)
+    │   └─ ← [Stop]
+    ├─ [0] VM::prank(0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207)
+    │   └─ ← [Return]
+    ├─ [114551] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::settleMakerFill(0x0000000000000000000000000000000000C0FFEE, true, 1000000000000000000000 [1e21], 30000000000000000 [3e16])
+    │   ├─ [0] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::tryGetIndexPrice() [staticcall]
+    │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   ├─ [2384] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestBid() [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [338] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestAsk() [staticcall]
+    │   │   └─ ← [Return] 4294967295 [4.294e9]
+    │   ├─ [610] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::lastTrade() [staticcall]
+    │   │   └─ ← [Return] 25735000000000000 [2.573e16], 69070473 [6.907e7]
+    │   ├─ emit FundingCheckpoint(slot: 172, blockNumber: 69155373 [6.915e7], cumFunding: 74375034564823 [7.437e13], cumIndexTime: 1514259890970000000000 [1.514e21])
+    │   ├─ emit FundingUpdated(blockNumber: 69155373 [6.915e7], premium: 0, emaPremium: 1, rate: 3472222222 [3.472e9], cumFunding: 74375034564823 [7.437e13], cumIndexTime: 1514259890970000000000 [1.514e21], indexPriceWad: 30000000000000000 [3e16], markPriceWad: 30000000000000000 [3e16])
+    │   └─ ← [Return] 2
+    ├─ [0] VM::clearMockedCalls()
+    │   └─ ← [Return]
+    ├─ [0] VM::revertToStateAndDelete(1)
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "CR-007: paused perp CH answers Skip to an increasing maker fill") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [282] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::tickSize() [staticcall]
+    │   └─ ← [Return] 1000000000000 [1e12]
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 2
+    ├─ [0] VM::mockCall(0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826, 0x040ac4d5, 0x0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000006a94d74f430000000000000000000000000000000000000000000000000000000000006ac715c0)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d, 0x20c1614b, 0x000000000000000000000000000000000000000000000000000000000000752f)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d, 0xcffb7d15, 0x0000000000000000000000000000000000000000000000000000000000007531)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d, 0x9b44cb3c, 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000)
+    │   └─ ← [Return]
+    ├─ [0] VM::roll(69155374 [6.915e7])
+    │   └─ ← [Return]
+    ├─ [78134] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::updateFunding()
+    │   ├─ [0] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826::tryGetIndexPrice() [staticcall]
+    │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   ├─ [0] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::bestBid() [staticcall]
+    │   │   └─ ← [Return] 29999 [2.999e4]
+    │   ├─ [0] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::bestAsk() [staticcall]
+    │   │   └─ ← [Return] 30001 [3e4]
+    │   ├─ [0] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::lastTrade() [staticcall]
+    │   │   └─ ← [Return] 0, 0
+    │   ├─ emit FundingCheckpoint(slot: 17, blockNumber: 69155374 [6.915e7], cumFunding: 4346909282641 [4.346e12], cumIndexTime: 949834346986950000000 [9.498e20])
+    │   ├─ emit FundingUpdated(blockNumber: 69155374 [6.915e7], premium: 0, emaPremium: 1, rate: 3472222222 [3.472e9], cumFunding: 4346909282641 [4.346e12], cumIndexTime: 949834346986950000000 [9.498e20], indexPriceWad: 30000000000000000 [3e16], markPriceWad: 30000000000000000 [3e16])
+    │   └─ ← [Return] 4346909282641 [4.346e12]
+    ├─ [3345] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::markPrice() [staticcall]
+    │   └─ ← [Return] 30000000000000000 [3e16]
+    ├─ [0] VM::roll(69155375 [6.915e7])
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d, 0x20c1614b, 0x00000000000000000000000000000000000000000000000000000000000080e8)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d, 0xcffb7d15, 0x00000000000000000000000000000000000000000000000000000000000080e9)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d, 0x9b44cb3c, 0x00000000000000000000000000000000000000000000000000753d533d96800000000000000000000000000000000000000000000000000000000000041f3a2e)
+    │   └─ ← [Return]
+    ├─ [12903] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::markPrice() [staticcall]
+    │   ├─ [0] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826::tryGetIndexPrice() [staticcall]
+    │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   ├─ [0] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::bestBid() [staticcall]
+    │   │   └─ ← [Return] 33000 [3.3e4]
+    │   ├─ [0] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::bestAsk() [staticcall]
+    │   │   └─ ← [Return] 33001 [3.3e4]
+    │   ├─ [0] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::lastTrade() [staticcall]
+    │   │   └─ ← [Return] 33000000000000000 [3.3e16], 69155374 [6.915e7]
+    │   └─ ← [Return] 30030000000000000 [3.003e16]
+    ├─ [0] VM::roll(69156374 [6.915e7])
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d, 0x20c1614b, 0x00000000000000000000000000000000000000000000000000000000000080e8)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d, 0xcffb7d15, 0x00000000000000000000000000000000000000000000000000000000000080e9)
+    │   └─ ← [Return]
+    ├─ [0] VM::mockCall(0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d, 0x9b44cb3c, 0x00000000000000000000000000000000000000000000000000753d533d96800000000000000000000000000000000000000000000000000000000000041f3e15)
+    │   └─ ← [Return]
+    ├─ [15442] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::markPrice() [staticcall]
+    │   ├─ [0] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826::tryGetIndexPrice() [staticcall]
+    │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   ├─ [0] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::bestBid() [staticcall]
+    │   │   └─ ← [Return] 33000 [3.3e4]
+    │   ├─ [0] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::bestAsk() [staticcall]
+    │   │   └─ ← [Return] 33001 [3.3e4]
+    │   ├─ [0] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::lastTrade() [staticcall]
+    │   │   └─ ← [Return] 33000000000000000 [3.3e16], 69156373 [6.915e7]
+    │   └─ ← [Return] 30600000000000000 [3.06e16]
+    ├─ [0] VM::clearMockedCalls()
+    │   └─ ← [Return]
+    ├─ [0] VM::revertToStateAndDelete(2)
+    │   └─ ← [Return] true
+    ├─ [0] console::log("demo mark (index 0.03e18): neutral / +1 block / +1,000 blocks", 30000000000000000 [3e16], 30030000000000000 [3.003e16], 30600000000000000 [3.06e16]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "P2: demo mark basis moves 10 bps in one block (pre-P2: to the +5% band edge)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "P2: demo mark basis credited for <= 20 blocks (2% after a 1,000-block gap)") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "CR-007: demo OrderBook bytecode emits MakerFillSkipped") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 3
+    ├─ [0] VM::mockCall(0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826, 0x040ac4d5, 0x0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000006a94d74f430000000000000000000000000000000000000000000000000000000000006ac715c0)
+    │   └─ ← [Return]
+    ├─ [282] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::tickSize() [staticcall]
+    │   └─ ← [Return] 1000000000000 [1e12]
+    ├─ [0] VM::prank(0xEF4E34a3754c878BE0191B103691FD088e3F3b91)
+    │   └─ ← [Return]
+    ├─ [4638] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::setPaused(true)
+    │   ├─ emit PausedSet(paused: true)
+    │   └─ ← [Stop]
+    ├─ [0] VM::prank(0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d)
+    │   └─ ← [Return]
+    ├─ [114315] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01::settleMakerFill(0x0000000000000000000000000000000000C0FFEE, true, 1000000000000000000000 [1e21], 30000000000000000 [3e16])
+    │   ├─ [0] 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826::tryGetIndexPrice() [staticcall]
+    │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   ├─ [2384] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::bestBid() [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [338] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::bestAsk() [staticcall]
+    │   │   └─ ← [Return] 4294967295 [4.294e9]
+    │   ├─ [610] 0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d::lastTrade() [staticcall]
+    │   │   └─ ← [Return] 24346000000000000 [2.434e16], 68784442 [6.878e7]
+    │   ├─ emit FundingCheckpoint(slot: 17, blockNumber: 69155373 [6.915e7], cumFunding: 4346878032641 [4.346e12], cumIndexTime: 949825346986950000000 [9.498e20])
+    │   ├─ emit FundingUpdated(blockNumber: 69155373 [6.915e7], premium: 0, emaPremium: 1, rate: 3472222222 [3.472e9], cumFunding: 4346878032641 [4.346e12], cumIndexTime: 949825346986950000000 [9.498e20], indexPriceWad: 30000000000000000 [3e16], markPriceWad: 30000000000000000 [3e16])
+    │   └─ ← [Return] 2
+    ├─ [0] VM::clearMockedCalls()
+    │   └─ ← [Return]
+    ├─ [0] VM::revertToStateAndDelete(3)
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "CR-007: paused demo CH answers Skip to an increasing maker fill") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("PASS", "CR-007: SwapOrderBook bytecode emits MakerFillSkipped") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 4
+    ├─ [0] VM::mockCall(0xC77882E7024D8B71F414eDc1a8708b939920A9E2, 0x040ac4d5, 0x0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000006a94d74f430000000000000000000000000000000000000000000000000000000000006ac715c0)
+    │   └─ ← [Return]
+    ├─ [282] 0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db::tickSize() [staticcall]
+    │   └─ ← [Return] 100000000000000 [1e14]
+    ├─ [0] VM::prank(0xEF4E34a3754c878BE0191B103691FD088e3F3b91)
+    │   └─ ← [Return]
+    ├─ [3614] 0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33::setPaused(true)
+    │   └─ ← [Stop]
+    ├─ [0] VM::prank(0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db)
+    │   └─ ← [Return]
+    ├─ [144945] 0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33::settleMakerFill(0x0000000000000000000000000000000000C0FFEE, true, 1000000000000000000000 [1e21], 1120000000000000000 [1.12e18])
+    │   ├─ [56444] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::averageFundingApr(96000 [9.6e4]) [staticcall]
+    │   │   ├─ [0] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::tryGetIndexPrice() [staticcall]
+    │   │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   │   ├─ [2384] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestBid() [staticcall]
+    │   │   │   └─ ← [Return] 0
+    │   │   ├─ [338] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestAsk() [staticcall]
+    │   │   │   └─ ← [Return] 4294967295 [4.294e9]
+    │   │   ├─ [610] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::lastTrade() [staticcall]
+    │   │   │   └─ ← [Return] 25735000000000000 [2.573e16], 69070473 [6.907e7]
+    │   │   └─ ← [Return] 101302885040832000 [1.013e17]
+    │   ├─ [2384] 0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db::bestBid() [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [338] 0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db::bestAsk() [staticcall]
+    │   │   └─ ← [Return] 4294967295 [4.294e9]
+    │   ├─ [610] 0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db::lastTrade() [staticcall]
+    │   │   └─ ← [Return] 0, 0
+    │   ├─ [18184] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::latestObservation() [staticcall]
+    │   │   ├─ [0] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::tryGetIndexPrice() [staticcall]
+    │   │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   │   ├─ [384] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestBid() [staticcall]
+    │   │   │   └─ ← [Return] 0
+    │   │   ├─ [338] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::bestAsk() [staticcall]
+    │   │   │   └─ ← [Return] 4294967295 [4.294e9]
+    │   │   ├─ [610] 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207::lastTrade() [staticcall]
+    │   │   │   └─ ← [Return] 25735000000000000 [2.573e16], 69070473 [6.907e7]
+    │   │   └─ ← [Return] 74375034564823 [7.437e13], 1514259890970000000000 [1.514e21], 69155373 [6.915e7]
+    │   ├─ [1048] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::indexPrice() [staticcall]
+    │   │   ├─ [0] 0xC77882E7024D8B71F414eDc1a8708b939920A9E2::tryGetIndexPrice() [staticcall]
+    │   │   │   └─ ← [Return] true, 30000000000000000 [3e16], 1791432128 [1.791e9]
+    │   │   └─ ← [Return] 30000000000000000 [3e16]
+    │   ├─ [1117] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA::fundingParams() [staticcall]
+    │   │   └─ ← [Return] FundingParams({ alpha: 2000000000000000 [2e15], interestRate: 3472222222 [3.472e9], rateCap: 555555555556 [5.555e11], maxRateChangePerBlock: 555555556 [5.555e8], blockTimeMs: 300, premiumBandWad: 50000000000000000 [5e16] })
+    │   └─ ← [Return] 2
+    ├─ [0] VM::clearMockedCalls()
+    │   └─ ← [Return]
+    ├─ [0] VM::revertToStateAndDelete(4)
+    │   └─ ← [Return] true
+    ├─ [0] console::log("PASS", "CR-007: paused swap market answers Skip to an increasing maker fill") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("checks passed / failed", 76, 3) [staticcall]
+    │   └─ ← [Stop]
+    └─ ← [Revert] VerifyDeployment: FAILED
+
+
+
+== Logs ==
+  chain / block 10143 69155373
+  expected owner 0xEF4E34a3754c878BE0191B103691FD088e3F3b91
+  PASS InsuranceFund has code
+  PASS InsuranceFund.owner() == expected owner
+  PASS MarketFactory has code
+  PASS MarketFactory.owner() == expected owner
+  PASS OracleAdapter has code
+  PASS OracleAdapter.owner() == expected owner
+  PASS ClearingHouse has code
+  PASS ClearingHouse.owner() == expected owner
+  PASS OrderBook has code (no owner by design)
+  PASS FundingSwapMarket has code
+  PASS FundingSwapMarket.owner() == expected owner
+  PASS SwapOrderBook has code (no owner by design)
+  PASS MeridianVault has code
+  PASS MeridianVault.owner() == expected owner
+  PASS KuruHedger (labelled mock) has code
+  PASS demo OracleAdapter has code
+  PASS demo OracleAdapter.owner() == expected owner
+  PASS demo ClearingHouse has code
+  PASS demo ClearingHouse.owner() == expected owner
+  PASS demo OrderBook has code
+  PASS deployer is not a vault keeper
+  PASS KEEPER_ADDRESS is a vault keeper
+  PASS MM_ADDRESS is skew provider #0 (decision 11)
+  PASS exactly one skew provider
+  PASS CH.orderBook() == OB
+  PASS IF authorises the perp CH
+  PASS factory registry: MON-PERP
+  PASS CH not paused
+  PASS swap.orderBook() == swap OB
+  PASS IF authorises the swap market
+  PASS swap market not paused
+  PASS perp maxPositionSize == config
+  PASS perp maxOpenInterest == config
+  PASS perp RiskParams == config (all)
+  PASS perp FundingParams == config (all)
+  FAIL vault v2 skewCapacity == 0 at deploy (Found #17)
+  PASS vault v2 depositCap == 1,200 AUSD (decision 12)
+  FAIL vault v2 params == config (hedge off, cap)
+  FAIL vault shortCapacity() == 0 (cannot hedge at deploy)
+  PASS vault v2 queue empty at deploy
+  PASS vault v2 forced-path cooldown 10 blocks (A-09)
+  PASS vault v2 keeper registered
+  PASS mock hedger only off mainnet
+  PASS SwapParams == config (all fields)
+  PASS swap maturity within 30 d of now
+  swap maturity (unix s) 1793898278
+  PASS swap mark bound 0.5 pt/block (decision 18)
+  PASS oracle (keeper-fed) maxStaleness == config
+  PASS oracle (keeper-fed) maxDeviation == config
+  PASS oracle: KEEPER_ADDRESS is a feeder
+  INFO (not counted): stale, oracle returns a fresh price (tryGetIndexPrice ok)
+  index price (WAD) / publish time / age s 25603070000000000 1791407496 24632
+  PASS demo CH.orderBook() == demo OB
+  PASS IF authorises the demo CH
+  PASS factory registry: MON-PERP-DEMO
+  PASS demo CH not paused
+  PASS demo maxPositionSize == config
+  PASS demo maxOpenInterest == config
+  PASS demo RiskParams == config (all)
+  PASS demo FundingParams == config (all)
+  PASS demo oracle (keeper-fed) maxStaleness == config
+  PASS demo oracle (keeper-fed) maxDeviation == config
+  PASS demo oracle: KEEPER_ADDRESS is a feeder
+  INFO (not counted): stale, demo oracle returns a fresh price (tryGetIndexPrice ok)
+  index price (WAD) / publish time / age s 28645020000000000 1791319857 112271
+  PASS MeridianKeeperReceiver has code
+  PASS MeridianKeeperReceiver.owner() == expected owner
+  PASS receiver.forwarder() == config CRE forwarder (mode)
+  PASS CRE forwarder has code
+  PASS receiver supports IReceiver (ERC-165)
+  PASS receiver has margin in the perp CH
+  PASS receiver has margin in the demo CH
+  PASS receiver is a vault keeper
+  PASS MfiFeed.receiver() == receiver
+  perp mark (index 0.03e18): neutral / +1 block / +1,000 blocks 30000000000000000 30030000000000000 30600000000000000
+  PASS P2: perp mark basis moves 10 bps in one block (pre-P2: to the +5% band edge)
+  PASS P2: perp mark basis credited for <= 20 blocks (2% after a 1,000-block gap)
+  PASS CR-007: OrderBook bytecode emits MakerFillSkipped
+  PASS CR-007: paused perp CH answers Skip to an increasing maker fill
+  demo mark (index 0.03e18): neutral / +1 block / +1,000 blocks 30000000000000000 30030000000000000 30600000000000000
+  PASS P2: demo mark basis moves 10 bps in one block (pre-P2: to the +5% band edge)
+  PASS P2: demo mark basis credited for <= 20 blocks (2% after a 1,000-block gap)
+  PASS CR-007: demo OrderBook bytecode emits MakerFillSkipped
+  PASS CR-007: paused demo CH answers Skip to an increasing maker fill
+  PASS CR-007: SwapOrderBook bytecode emits MakerFillSkipped
+  PASS CR-007: paused swap market answers Skip to an increasing maker fill
+  checks passed / failed 76 3
+Error: script failed: VerifyDeployment: FAILED

@@ -1,0 +1,8 @@
+# CRE workflow settings. Target staging-settings = Monad Testnet (10143), simulation forwarder.
+staging-settings:
+  user-workflow:
+    workflow-name: "meridian-mfi-publisher"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: ""

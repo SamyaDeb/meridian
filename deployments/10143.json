@@ -11,7 +11,9 @@
     "SwapOrderBook": "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db",
     "WMON": "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541",
     "MeridianVault": "0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6",
-    "KuruHedger": "0xdB9Bc1996dE5A338c7F2B7b7f5f56B9047567191"
+    "KuruHedger": "0xdB9Bc1996dE5A338c7F2B7b7f5f56B9047567191",
+    "MeridianKeeperReceiver": "0x7c44C263225706fE28809BaE9fCC13460A908932",
+    "MeridianMfiFeed": "0x651Bd154810B6FE9b725F1a17cdA24C4E72550Fa"
   },
   "demoMarket": {
     "ClearingHouse": "0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01",
@@ -45,5 +47,8 @@
   "vaultStartBlock": 68775102,
   "vaultVersion": "2 (CR-014: async withdrawals, interfaces-v1.7)",
   "vaultMockSpotToken": "0xeCaEAE023ddFC44Fa2c77B8Fd290907a76689fa0",
-  "vaultSourceCommit": "b38c6ba (ws-00r-testnet-vault, stacked on ws-04c-vault-v2 4ecf7c7; not on main yet: rebase --onto origin/main ws-04c-vault-v2 ws-00r-testnet-vault after P3-P5 merge)"
+  "vaultSourceCommit": "b38c6ba (ws-00r-testnet-vault, stacked on ws-04c-vault-v2 4ecf7c7; not on main yet: rebase --onto origin/main ws-04c-vault-v2 ws-00r-testnet-vault after P3-P5 merge)",
+  "creForwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192",
+  "creForwarderMode": "sim",
+  "receiverStartBlock": 69056122
 }

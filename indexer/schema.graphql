@@ -615,6 +615,31 @@ type KeeperReport {
   txHash: String!
 }
 
+# IMeridianKeeperReceiver.Unwound (CR-016): the receiver's reduce-only IOC on a position it inherited from LIQUIDATE.
+type KeeperUnwind {
+  id: ID!
+  clearingHouse: String!
+  isBid: Boolean!
+  lotsRequested: BigInt!
+  lotsFilled: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+# IMeridianMfiFeed.MfiPublished (CR-016): the Meridian Funding Index as published onchain by CRE W3. APRs WAD.
+type MfiObservation {
+  id: ID!
+  mfiAprWad: BigInt!
+  meridianAprWad: BigInt!
+  perplAprWad: BigInt!
+  observedBlock: BigInt!
+  perplFundingBlock: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
 # MarketFactory registration; lets an OrderBook resolve its market (id = book address).
 type BookRef {
   id: ID!
