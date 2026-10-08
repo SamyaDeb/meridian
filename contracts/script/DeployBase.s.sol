@@ -60,8 +60,12 @@ abstract contract DeployBase is Script {
         return vm.parseInt(cfg.readString(key));
     }
 
-    function _riskParams() internal view returns (RiskParams memory p) {
-        string memory k = ".params.perp.risk.";
+    function _riskParams() internal view returns (RiskParams memory) {
+        return _riskParamsAt(".params.perp.risk.");
+    }
+
+    /// @dev Risk params under config prefix `k` (e.g. ".markets.eth.risk."), MATH_SPEC §3.3.
+    function _riskParamsAt(string memory k) internal view returns (RiskParams memory p) {
         p.imr = _u(string.concat(k, "imr"));
         p.mmr = _u(string.concat(k, "mmr"));
         p.takerFee = _u(string.concat(k, "takerFee"));
@@ -72,8 +76,12 @@ abstract contract DeployBase is Script {
         p.maxPositionSize = _u(string.concat(k, "maxPositionSize"));
     }
 
-    function _fundingParams() internal view returns (FundingParams memory p) {
-        string memory k = ".params.perp.funding.";
+    function _fundingParams() internal view returns (FundingParams memory) {
+        return _fundingParamsAt(".params.perp.funding.");
+    }
+
+    /// @dev Funding params under config prefix `k` (e.g. ".markets.eth.funding."), MATH_SPEC §1.3.
+    function _fundingParamsAt(string memory k) internal view returns (FundingParams memory p) {
         p.alpha = _u(string.concat(k, "alpha"));
         p.interestRate = _i(string.concat(k, "interestRate"));
         p.rateCap = _u(string.concat(k, "rateCap"));

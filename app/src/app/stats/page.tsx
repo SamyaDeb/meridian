@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Card, Notice, Skeleton } from "@/components/ds";
 import { formatAprWad, formatAusdToken, formatAusdWad, formatBaseWad } from "@/lib/format";
 import { mmShareBps } from "@/data/indexer/stats";
+import { MarketsTable } from "@/features/market/MarketsTable";
 
 const pct = (bps: number) => `${(bps / 100).toFixed(1)}%`;
 const apr = (v: bigint | undefined) => (v === undefined ? "—" : formatAprWad(v));
@@ -92,6 +93,7 @@ export default function StatsPage() {
           Protocol metrics come from the indexer, which isn&apos;t connected to this build. No numbers are shown rather than made-up ones.
         </Notice>
       )}
+      <MarketsTable title="Markets (live, per block)" />
       <Card title="Why Monad">
         <p className="text-sm text-muted">
           Funding settles every block (~300 ms) instead of every 8 hours. Benchmarks and the √τ margin chart are linked from the write-up.

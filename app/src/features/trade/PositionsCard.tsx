@@ -18,7 +18,14 @@ import { abs } from "@/lib/math";
 import { FLAG_REDUCE_ONLY, chunk, closeLots, decodeFlags, referencePrice, slippageLimitTick } from "@/lib/ticket";
 import { TriggersTable } from "@/features/triggers/TriggersTable";
 import { useTriggers } from "@/features/triggers/useTriggers";
-import { MAX_BATCH, PERP_LOT_SIZE_WAD as LOT, PERP_TICK_SIZE_WAD as TICK } from "@/lib/units";
+import { MAX_BATCH } from "@/lib/units";
+import { usePerpMarket } from "@/data/market";
+
+/** K7: the selected market's lot / tick and formatters (ETH-PERP: lot 0.001 ETH, tick 0.10). */
+function useUnits() {
+  const pm = usePerpMarket();
+  return { pm, LOT: pm.lotSizeWad, TICK: pm.tickSizeWad, fp: (v: bigint) => formatPriceWad(v, pm.tickSizeWad), fb: (v: bigint) => formatBaseWad(v, pm.sizeDp) };
+}
 
 type Tab = "positions" | "orders" | "triggers" | "trades" | "history" | "funding" | "liquidations";
 const CLOSE_SLIPPAGE_BPS = 100n; // 1 % bound on market closes
@@ -36,10 +43,11 @@ function NeedsIndexer() {
 
 /** Bottom card of the terminal (FRONTEND_TRADE_PLAN §6.5): positions, open orders and history, each action a real call. */
 export function PositionsCard() {
+  const { pm, LOT, TICK, fp, fb } = useUnits();
   const ds = useDataSource();
   const me = useAccountAddress();
   const chainId = useChainId();
-  const ob = contractAddress(chainId, "OrderBook");
+  const ob = contractAddress(chainId, "OrderBook") ? pm.orderBook : undefined;
   const tx = useTx();
   const { data: m } = useMarket();
   const { data: book } = useDepth(32);
@@ -88,11 +96,11 @@ export function PositionsCard() {
     });
 
   const posCols: Column<AccountSummary>[] = [
-    { key: "mkt", header: "Market", width: "minmax(120px,1.2fr)", cell: (p) => <span className={p.size > 0n ? "text-long" : "text-short"}>{`${m?.symbol ?? "MON-PERP"} ${p.size > 0n ? "▲ Long" : "▼ Short"}`}</span> },
-    { key: "size", header: "Size (MON)", align: "right", cell: (p) => <span className="num">{formatBaseWad(abs(p.size), 0)}</span> },
-    { key: "entry", header: "Entry", align: "right", cell: (p) => <span className="num">{formatPriceWad(p.entryPrice)}</span> },
-    { key: "mark", header: "Mark", align: "right", cell: () => <span className="num">{m ? formatPriceWad(m.lastMarkPrice) : "—"}</span> },
-    { key: "liq", header: "Liq.", align: "right", cell: (p) => <Private kind="liq"><span className="num text-warn">{p.liquidationPrice ? formatPriceWad(p.liquidationPrice) : "—"}</span></Private> },
+    { key: "mkt", header: "Market", width: "minmax(120px,1.2fr)", cell: (p) => <span className={p.size > 0n ? "text-long" : "text-short"}>{`${m?.symbol ?? pm.symbol} ${p.size > 0n ? "▲ Long" : "▼ Short"}`}</span> },
+    { key: "size", header: `Size (${pm.base})`, align: "right", cell: (p) => <span className="num">{fb(abs(p.size))}</span> },
+    { key: "entry", header: "Entry", align: "right", cell: (p) => <span className="num">{fp(p.entryPrice)}</span> },
+    { key: "mark", header: "Mark", align: "right", cell: () => <span className="num">{m ? fp(m.lastMarkPrice) : "—"}</span> },
+    { key: "liq", header: "Liq.", align: "right", cell: (p) => <Private kind="liq"><span className="num text-warn">{p.liquidationPrice ? fp(p.liquidationPrice) : "—"}</span></Private> },
     { key: "margin", header: "Margin", align: "right", cell: (p) => <Private kind="balance"><span className="num">{formatAusdWad(p.maintenanceMargin)}</span></Private> },
     { key: "pnl", header: "uPnL", align: "right", cell: (p) => <Private kind="pnl"><NumberCell value={p.unrealizedPnl} format={formatAusdWad} signed flash={false} /></Private> },
     { key: "fund", header: "Funding", align: "right", cell: (p) => <Private kind="pnl"><NumberCell value={-p.pendingFunding} format={formatAusdWad} signed flash={false} /></Private> },
@@ -110,8 +118,8 @@ export function PositionsCard() {
   ];
   const orderCols: Column<OpenOrder>[] = [
     { key: "side", header: "Side", cell: (o) => <span className={o.isBid ? "text-long" : "text-short"}>{o.isBid ? "▲ Bid" : "▼ Ask"}</span> },
-    { key: "px", header: "Price", align: "right", cell: (o) => <span className="num">{formatPriceWad(o.priceWad)}</span> },
-    { key: "lots", header: "Remaining", align: "right", cell: (o) => <span className="num">{formatBaseWad(o.lots * LOT, 0)} MON</span> },
+    { key: "px", header: "Price", align: "right", cell: (o) => <span className="num">{fp(o.priceWad)}</span> },
+    { key: "lots", header: "Remaining", align: "right", cell: (o) => <span className="num">{fb(o.lots * LOT)} {pm.base}</span> },
     { key: "flags", header: "Flags", cell: (o) => <span className="text-muted">{flagText(o.flags)}</span> },
     { key: "blk", header: "Placed", align: "right", cell: (o) => <span className="num text-muted">#{o.placedBlock.toString()}</span> },
     {
@@ -135,15 +143,15 @@ export function PositionsCard() {
     { key: "t", header: "Time (UTC)", cell: (t) => <span className="num text-muted">{time(t.timestamp)}</span> },
     { key: "side", header: "Side", cell: (t) => <span className={t.isBuy ? "text-long" : "text-short"}>{t.isBuy ? "▲ Buy" : "▼ Sell"}</span> },
     { key: "role", header: "Role", cell: (t) => <span className="text-muted">{t.isMaker ? "maker" : "taker"}</span> },
-    { key: "px", header: "Price", align: "right", cell: (t) => <span className="num">{formatPriceWad(t.priceWad)}</span> },
-    { key: "sz", header: "Size (MON)", align: "right", cell: (t) => <span className="num">{formatBaseWad(t.sizeWad, 0)}</span> },
+    { key: "px", header: "Price", align: "right", cell: (t) => <span className="num">{fp(t.priceWad)}</span> },
+    { key: "sz", header: `Size (${pm.base})`, align: "right", cell: (t) => <span className="num">{fb(t.sizeWad)}</span> },
     { key: "n", header: "Notional", align: "right", cell: (t) => <span className="num">{formatAusdWad(t.notionalWad)}</span> },
     { key: "tx", header: "Tx", align: "right", cell: (t) => <span className="num text-muted">{shortAddress(t.txHash)}</span> },
   ];
   const histCols: Column<HistOrder>[] = [
     { key: "b", header: "Block", cell: (o) => <span className="num text-muted">#{o.updatedBlock.toString()}</span> },
     { key: "side", header: "Side", cell: (o) => <span className={o.isBid ? "text-long" : "text-short"}>{o.isBid ? "▲ Bid" : "▼ Ask"}</span> },
-    { key: "px", header: "Price", align: "right", cell: (o) => <span className="num">{formatPriceWad(o.tick * TICK)}</span> },
+    { key: "px", header: "Price", align: "right", cell: (o) => <span className="num">{fp(o.tick * TICK)}</span> },
     { key: "f", header: "Filled / lots", align: "right", cell: (o) => <span className="num">{`${o.filledLots} / ${o.lots}`}</span> },
     { key: "fl", header: "Flags", cell: (o) => <span className="text-muted">{flagText(o.flags)}</span> },
     { key: "s", header: "Status", align: "right", cell: (o) => <span className={o.status === "Evicted" ? "text-warn" : "text-muted"}>{o.status}</span> },
@@ -154,8 +162,8 @@ export function PositionsCard() {
   ];
   const liqCols: Column<HistLiquidation>[] = [
     { key: "t", header: "Time (UTC)", cell: (l) => <span className="num text-muted">{time(l.timestamp)}</span> },
-    { key: "sz", header: "Size moved", align: "right", cell: (l) => <span className="num">{formatBaseWad(abs(l.sizeTransferred), 0)} MON</span> },
-    { key: "mk", header: "Mark", align: "right", cell: (l) => <span className="num">{l.markPriceWad ? formatPriceWad(l.markPriceWad) : "—"}</span> },
+    { key: "sz", header: "Size moved", align: "right", cell: (l) => <span className="num">{fb(abs(l.sizeTransferred))} {pm.base}</span> },
+    { key: "mk", header: "Mark", align: "right", cell: (l) => <span className="num">{l.markPriceWad ? fp(l.markPriceWad) : "—"}</span> },
     { key: "pen", header: "Penalty", align: "right", cell: (l) => <span className="num text-short">{formatAusdWad(l.penalty)}</span> },
     { key: "bd", header: "Bad debt", align: "right", cell: (l) => <span className="num">{formatAusdWad(l.badDebt)}</span> },
   ];
@@ -180,7 +188,7 @@ export function PositionsCard() {
           tabs={[
             { id: "positions", label: "Positions", count: positions?.length },
             { id: "orders", label: "Open orders", count: orders?.length },
-            ...(trig.client ? [{ id: "triggers" as const, label: "Triggers", count: trig.triggers?.length }] : []),
+            ...(trig.client && pm.primary ? [{ id: "triggers" as const, label: "Triggers", count: trig.triggers?.length }] : []),
             { id: "trades", label: "Trade history" },
             { id: "history", label: "Order history" },
             { id: "funding", label: "Funding" },
@@ -234,6 +242,7 @@ export function PositionsCard() {
 }
 
 function ClosePanel({ p, ready, onMarket, onLimit }: { p: AccountSummary; ready: boolean; onMarket: (pct: bigint) => void; onLimit: (px: string) => void }) {
+  const { LOT } = useUnits();
   const [px, setPx] = useState("");
   return (
     <div className="space-y-2 p-1">
@@ -259,7 +268,8 @@ function ClosePanel({ p, ready, onMarket, onLimit }: { p: AccountSummary; ready:
 }
 
 function EditPanel({ o, ready, onSave }: { o: OpenOrder; ready: boolean; onSave: (px: string, lots: string) => void }) {
-  const [px, setPx] = useState(formatPriceWad(o.priceWad).replace(/,/g, ""));
+  const { pm, LOT, fp, fb } = useUnits();
+  const [px, setPx] = useState(fp(o.priceWad).replace(/,/g, ""));
   const [lots, setLots] = useState(o.lots.toString());
   return (
     <div className="space-y-2 p-1">
@@ -269,7 +279,7 @@ function EditPanel({ o, ready, onSave }: { o: OpenOrder; ready: boolean; onSave:
         <input aria-label="New price" inputMode="decimal" value={px} onChange={(e) => setPx(e.target.value)} className={`${inputCls} mt-1`} />
       </label>
       <label className="block text-[11px] text-muted">
-        Lots ({formatBaseWad(LOT, 0)} MON each)
+        Lots ({fb(LOT)} {pm.base} each)
         <input aria-label="New lots" inputMode="numeric" value={lots} onChange={(e) => setLots(e.target.value)} className={`${inputCls} mt-1`} />
       </label>
       <Button size="sm" variant="brand" block disabled={!ready || !parseFixed(px, 18) || !/^\d+$/.test(lots) || lots === "0"} onClick={() => onSave(px, lots)}>

@@ -138,7 +138,11 @@ describe("renderConfig", () => {
     // The MM, demo MM and the house taker flow are operators: never external users (chart-liquidity prompt, task 2).
     const gen = readFileSync(resolve(import.meta.dirname, "../src/deployments.gen.ts"), "utf8");
     const ops = gen.split("OPERATOR_ACCOUNTS")[1]!.split("10143:")[1]!.split("\n")[0]!;
-    for (const a of [...dep.mmAccounts, ...dep.keeperAccounts, dep.owner]) expect(ops, a).toContain(a.toLowerCase());
+    for (const a of [...dep.mmAccounts, ...dep.keeperAccounts, ...(dep.testAccounts ?? []), dep.owner]) expect(ops, a).toContain(a.toLowerCase());
+    // K7: the ETH-PERP keeper, MM and the scripted test trader are operators too
+    for (const a of ["0x5D4FB8B84839e0e8445154c8C6a5ec3B285146E2", "0xC474e242787Ab52AadacA669eD67589ebeA04766", "0xe7D75c6751e3Da7323fa7702DA273408ba7cdB08"]) {
+      expect(ops, a).toContain(a.toLowerCase());
+    }
   });
 
   it("deployments.gen.ts wiring", () => {

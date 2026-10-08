@@ -8,6 +8,7 @@ import { BLOCK_TIME_MS } from "@/lib/units";
 import Image from "next/image";
 import { aggregate, applyTrade, pointsToBars, toBar } from "./datafeed/candles";
 import { recordSample, sessionSamples } from "./datafeed/session";
+import { usePerpMarket } from "@/data/market";
 import { REFERENCE_ENABLED, UPSTREAM_OF, geckoToBars } from "./datafeed/reference";
 import { SeriesNotes } from "./chrome/SeriesNotes";
 import { ALIGN_OFFSET_SEC, SOURCE_OF, TIMEFRAME_SEC, type Bar, type PriceSource, type Timeframe } from "./datafeed/types";
@@ -56,8 +57,12 @@ type Hover = { time: number; open: number; high: number; low: number; close: num
  */
 export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceClick }: ChartCardProps) {
   const { data: m } = useMarket();
-  const market = m?.clearingHouse ?? "MON-PERP";
-  const view = useChartView(market);
+  const pm = usePerpMarket();
+  const market = m?.clearingHouse ?? pm.clearingHouse;
+  // the DEX reference is MON/USD: offered on MON-PERP only (K7)
+  const refOk = REFERENCE_ENABLED && pm.primary;
+  const storedView = useChartView(market);
+  const view = !refOk && storedView.source === "reference" ? { ...storedView, source: "last" as const } : storedView;
   const tf = view.timeframe;
   const sec = TIMEFRAME_SEC[tf];
   const offset = ALIGN_OFFSET_SEC[tf] ?? 0;
@@ -88,7 +93,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
       if (!r.ok) throw new Error((body as { error?: string } | null)?.error ?? `HTTP ${r.status}`);
       return geckoToBars(body, tf);
     },
-    enabled: view.source === "reference" && REFERENCE_ENABLED,
+    enabled: view.source === "reference" && refOk,
     refetchInterval: 60_000,
     retry: 1,
   });
@@ -183,7 +188,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
   // OHLC legend: the hovered bar, else the newest one
   const lastBar = bars[bars.length - 1];
   const legend = hover ?? (lastBar ? { time: lastBar.time, open: wadToNum(lastBar.open), high: wadToNum(lastBar.high), low: wadToNum(lastBar.low), close: wadToNum(lastBar.close) } : null);
-  const f6 = (n: number) => n.toFixed(6);
+  const f6 = (n: number) => n.toFixed(pm.priceDp);
   const chg = legend && legend.open ? ((legend.close - legend.open) / legend.open) * 100 : 0;
   const volBar = legend ? bars.find((b) => b.time === legend.time) : undefined;
   const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(2)}K` : n.toFixed(0));
@@ -210,7 +215,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
       const url = coords.screenshot().toDataURL("image/png");
       const a = document.createElement("a");
       a.href = url;
-      a.download = `meridian-${(m?.symbol ?? "MON-PERP").toLowerCase()}-${tf}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
+      a.download = `meridian-${(m?.symbol ?? pm.symbol).toLowerCase()}-${tf}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
       a.click();
     } catch {
       /* canvas export blocked: nothing to save */
@@ -248,6 +253,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
         onScreenshot={saveImage}
         undo={{ can: draw.canUndo, run: draw.undo }}
         redo={{ can: draw.canRedo, run: draw.redo }}
+        referenceEnabled={refOk}
       />
       <div className="flex min-h-0 flex-1">
         <ToolRail api={draw} onZoomIn={() => coords?.zoom(0.6)} />
@@ -260,6 +266,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
             overlays={[...ind.overlays, ...overlays]}
             panes={[...fundingPanes, ...ind.panes, ...panes]}
             resetKey={resetKey}
+            pricePrecision={pm.priceDp}
             onPriceClick={draw.tool || draw.erase ? undefined : onPriceClick}
             onCoords={setCoords}
             onCrosshair={setHover}
@@ -271,7 +278,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
             <div className="pointer-events-none absolute left-2 top-1.5 z-10 space-y-0.5 text-[12.5px]" data-testid="ohlc-legend">
               <div className="flex flex-wrap items-center gap-x-1.5">
                 <Image src="/meridian-logo.png" alt="" width={16} height={16} className="rounded-full bg-brand p-[2px]" />
-                <span className="text-text">{m?.symbol ?? "MON-PERP"}</span>
+                <span className="text-text">{m?.symbol ?? pm.symbol}</span>
                 <span className="text-muted">·</span>
                 <span className="num text-text">{tf}</span>
                 <span className="text-muted">·</span>

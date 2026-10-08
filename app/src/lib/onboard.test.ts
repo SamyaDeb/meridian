@@ -89,6 +89,9 @@ describe("firstTradeSizeMon", () => {
   it("capped at what the book can fill (testnet MM quotes 5 lots a side); no depth ⇒ no prefill", () => {
     expect(firstTradeSizeMon(29n * 10n ** 15n, LOT, 50n, 5n)).toBe("500");
     expect(firstTradeSizeMon(29n * 10n ** 15n, LOT, 50n, 100n)).toBe("1700");
+    // K7: ETH-PERP lot 0.001 ETH at 2,554.40 ⇒ 50 AUSD ≈ 20 lots = 0.02 ETH (never rounded to "0")
+    expect(firstTradeSizeMon(2_554_400n * 10n ** 15n, 10n ** 15n)).toBe("0.020");
+    expect(firstTradeSizeMon(2_554_400n * 10n ** 15n, 10n ** 15n, 50n, 4n)).toBe("0.004");
     expect(firstTradeSizeMon(29n * 10n ** 15n, LOT, 50n, 0n)).toBeUndefined();
   });
   it("at least one lot; no price ⇒ no prefill", () => {

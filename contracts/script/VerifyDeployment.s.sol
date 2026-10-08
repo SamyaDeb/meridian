@@ -131,6 +131,7 @@ contract VerifyDeployment is DeployBase {
         _oracle();
         _demo();
         _receiver();
+        _markets();
         _hardening(); // last; every simulated change is reverted to a state snapshot
 
         console2.log("checks passed / failed", passes, failures);
@@ -382,21 +383,98 @@ contract VerifyDeployment is DeployBase {
         _fresh(x.demoOracle, "demo oracle");
     }
 
+    // ═══ Added markets (K7, AddMarket.s.sol, PHASES 44) ═══════════════════════════════════════════════════════
+
+    /// @dev Each `markets[i]` of the record (bounded by AddMarket.MAX_MARKETS = 8) against the config entry with the
+    ///      same symbol under `markets`: code, owner, CH↔OB, IF authorisation, factory registry, not paused, tick/lot,
+    ///      RiskParams/FundingParams, keeper-fed oracle params + the recorded keeper as feeder, fresh price, P2 + CR-007.
+    function _markets() internal {
+        for (uint256 i; i < 8; ++i) {
+            string memory p = string.concat(".markets[", vm.toString(i), "].");
+            if (!vm.keyExistsJson(dep, string.concat(p, "symbol"))) {
+                if (i == 0) console2.log("SKIP added-market checks: no markets in the record");
+                return;
+            }
+            string memory symbol = dep.readString(string.concat(p, "symbol"));
+            address ch = dep.readAddress(string.concat(p, "ClearingHouse"));
+            address ob = dep.readAddress(string.concat(p, "OrderBook"));
+            address oracle = dep.readAddress(string.concat(p, "OracleAdapter"));
+            string memory k = _marketKey(symbol);
+            require(bytes(k).length != 0, string.concat("no config entry under markets for ", symbol));
+            _owned(oracle, string.concat(symbol, " OracleAdapter"));
+            _owned(ch, string.concat(symbol, " ClearingHouse"));
+            _check(ob.code.length > 0, string.concat(symbol, " OrderBook has code"));
+            _check(IClearingHouse(ch).orderBook() == ob, string.concat(symbol, " CH.orderBook() == OB"));
+            _check(IClearingHouse(ch).insuranceFund() == x.fund, string.concat(symbol, " CH uses the shared IF"));
+            _check(IInsuranceFund(x.fund).isAuthorized(ch), string.concat("IF authorises the ", symbol, " CH"));
+            _registry(symbol, ch, ob, oracle);
+            _check(!ClearingHouse(ch).paused(), string.concat(symbol, " CH not paused"));
+            _check(
+                IOrderBook(ob).tickSize() == _u(string.concat(k, ".tickSizeWad")),
+                string.concat(symbol, " tick == config")
+            );
+            _check(
+                IOrderBook(ob).lotSize() == _u(string.concat(k, ".lotSizeWad")), string.concat(symbol, " lot == config")
+            );
+            _check(
+                keccak256(abi.encode(IClearingHouse(ch).riskParams()))
+                    == keccak256(abi.encode(_riskParamsAt(string.concat(k, ".risk.")))),
+                string.concat(symbol, " RiskParams == config (all)")
+            );
+            _check(
+                keccak256(abi.encode(IClearingHouse(ch).fundingParams()))
+                    == keccak256(abi.encode(_fundingParamsAt(string.concat(k, ".funding.")))),
+                string.concat(symbol, " FundingParams == config (all)")
+            );
+            require(block.chainid != MAINNET, "keeper-fed oracle on mainnet");
+            TestnetKeeperOracle o = TestnetKeeperOracle(oracle);
+            _check(
+                o.maxStaleness() == cfg.readUint(string.concat(k, ".oracle.maxStalenessSec"))
+                    && o.maxDeviation() == _u(string.concat(k, ".oracle.maxDeviationWad")),
+                string.concat(symbol, " oracle (keeper-fed) staleness / deviation == config")
+            );
+            // the market's own keeper (AddMarket KEEPER_ADDRESS, recorded as `keeper`), else KEEPER_ADDRESS
+            address feeder = dep.readAddressOr(string.concat(p, "keeper"), x.keeper);
+            if (feeder == address(0)) feeder = x.keeper;
+            _check(o.isFeeder(feeder), string.concat(symbol, " oracle: the market keeper is a feeder"));
+            _fresh(oracle, string.concat(symbol, " oracle"));
+            (, uint256 px,) = IOracleAdapter(oracle).tryGetIndexPrice();
+            uint256 ref = px != 0 ? px : 1000 * IOrderBook(ob).tickSize();
+            _markBound(ch, ob, oracle, ref, symbol);
+            _check(
+                _hasWord(ob.code, IOrderBook.MakerFillSkipped.selector),
+                string.concat("CR-007: ", symbol, " OrderBook bytecode emits MakerFillSkipped")
+            );
+            _skipWhenPaused(ch, ob, oracle, ref, ref / IOrderBook(ob).tickSize(), string.concat(symbol, " CH"));
+        }
+    }
+
+    /// @dev The config key under `markets` whose `symbol` matches, or "" (keys are few; read once per market).
+    function _marketKey(string memory symbol) internal view returns (string memory) {
+        string[] memory keys = vm.parseJsonKeys(cfg, ".markets");
+        for (uint256 i; i < keys.length; ++i) {
+            string memory k = string.concat(".markets.", keys[i]);
+            if (!vm.keyExistsJson(cfg, string.concat(k, ".symbol"))) continue;
+            if (keccak256(bytes(cfg.readString(string.concat(k, ".symbol")))) == keccak256(bytes(symbol))) return k;
+        }
+        return "";
+    }
+
     // ═══ Hardening (P2 + CR-007) by behaviour, local simulation only ════════════════════════════════════════
 
     function _hardening() internal {
         bytes32 topic = IOrderBook.MakerFillSkipped.selector;
-        _markBound(x.ch, x.ob, x.oracle, "perp");
+        _markBound(x.ch, x.ob, x.oracle, 0.03e18, "perp");
         _check(_hasWord(x.ob.code, topic), "CR-007: OrderBook bytecode emits MakerFillSkipped");
-        _skipWhenPaused(x.ch, x.ob, x.oracle, 30_000, "perp CH");
+        _skipWhenPaused(x.ch, x.ob, x.oracle, 0.03e18, 30_000, "perp CH");
         if (x.demoCh != address(0)) {
-            _markBound(x.demoCh, x.demoOb, x.demoOracle, "demo");
+            _markBound(x.demoCh, x.demoOb, x.demoOracle, 0.03e18, "demo");
             _check(_hasWord(x.demoOb.code, topic), "CR-007: demo OrderBook bytecode emits MakerFillSkipped");
-            _skipWhenPaused(x.demoCh, x.demoOb, x.demoOracle, 30_000, "demo CH");
+            _skipWhenPaused(x.demoCh, x.demoOb, x.demoOracle, 0.03e18, 30_000, "demo CH");
         }
         if (x.swap != address(0)) {
             _check(_hasWord(x.sob.code, topic), "CR-007: SwapOrderBook bytecode emits MakerFillSkipped");
-            _skipWhenPaused(x.swap, x.sob, x.oracle, 11_200, "swap market"); // tick 11,200 = 12% APR
+            _skipWhenPaused(x.swap, x.sob, x.oracle, 0.03e18, 11_200, "swap market"); // tick 11,200 = 12% APR
         }
     }
 
@@ -405,9 +483,9 @@ contract VerifyDeployment is DeployBase {
     ///      jumped to the band edge I·1.05 in one block) must move the next block's mark by exactly one step (10 bps),
     ///      and after a 1,000-block gap by exactly MARK_MAX_ELAPSED steps (2%). vm.mockCall / vm.roll / the touch run
     ///      in the local simulation and are reverted; nothing reaches the chain.
-    function _markBound(address ch, address ob, address oracle, string memory label) internal {
+    function _markBound(address ch, address ob, address oracle, uint256 refPrice, string memory label) internal {
         uint256 ts = IOrderBook(ob).tickSize();
-        uint256 index = (0.03e18 / ts) * ts; // tick-aligned; any value works, the bound is relative to the index
+        uint256 index = (refPrice / ts) * ts; // tick-aligned; any value works, the bound is relative to the index
         uint256 hi = index * 110 / 100;
         uint256 snap = vm.snapshotState();
         vm.mockCall(
@@ -427,7 +505,7 @@ contract VerifyDeployment is DeployBase {
         uint256 m20 = IClearingHouse(ch).markPrice();
         vm.clearMockedCalls();
         vm.revertToStateAndDelete(snap);
-        console2.log(string.concat(label, " mark (index 0.03e18): neutral / +1 block / +1,000 blocks"), m0, m1, m20);
+        console2.log(string.concat(label, " mark (index = ref price): neutral / +1 block / +1,000 blocks"), m0, m1, m20);
         _check(
             _near(m1, m0 + index * MARK_STEP / 1e18),
             string.concat("P2: ", label, " mark basis moves 10 bps in one block (pre-P2: to the +5% band edge)")
@@ -453,12 +531,19 @@ contract VerifyDeployment is DeployBase {
     /// @dev CR-007 on the DEPLOYED engine: the owner pauses it (simulation, oracle mocked fresh so only the pause
     ///      applies) and the book (pranked) settles an increasing maker fill for a fresh account. The answer must be
     ///      Skip (2); a pre-CR-007 engine returns `false`, which decodes as 0. Reverted to a snapshot afterwards.
-    function _skipWhenPaused(address engine, address book, address oracle, uint256 tick, string memory label) internal {
+    function _skipWhenPaused(
+        address engine,
+        address book,
+        address oracle,
+        uint256 refPrice,
+        uint256 tick,
+        string memory label
+    ) internal {
         uint256 snap = vm.snapshotState();
         vm.mockCall(
             oracle,
             abi.encodeWithSelector(IOracleAdapter.tryGetIndexPrice.selector),
-            abi.encode(true, uint256(0.03e18), block.timestamp)
+            abi.encode(true, refPrice, block.timestamp)
         );
         uint256 price = IOrderBook(book).tickSize() * tick; // before the prank (a call here would consume it)
         vm.prank(x.owner);

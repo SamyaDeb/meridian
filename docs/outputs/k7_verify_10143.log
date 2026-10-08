@@ -1,0 +1,108 @@
+  chain / block 10143 69227267
+  PASS InsuranceFund has code
+  PASS InsuranceFund.owner() == expected owner
+  PASS MarketFactory has code
+  PASS MarketFactory.owner() == expected owner
+  PASS OracleAdapter has code
+  PASS OracleAdapter.owner() == expected owner
+  PASS ClearingHouse has code
+  PASS ClearingHouse.owner() == expected owner
+  PASS OrderBook has code (no owner by design)
+  PASS FundingSwapMarket has code
+  PASS FundingSwapMarket.owner() == expected owner
+  PASS SwapOrderBook has code (no owner by design)
+  PASS MeridianVault has code
+  PASS MeridianVault.owner() == expected owner
+  PASS KuruHedger (labelled mock) has code
+  PASS demo OracleAdapter has code
+  PASS demo OracleAdapter.owner() == expected owner
+  PASS demo ClearingHouse has code
+  PASS demo ClearingHouse.owner() == expected owner
+  PASS demo OrderBook has code
+  PASS deployer is not a vault keeper
+  PASS KEEPER_ADDRESS is a vault keeper
+  PASS MM_ADDRESS is skew provider #0 (decision 11)
+  PASS exactly one skew provider
+  PASS CH.orderBook() == OB
+  PASS IF authorises the perp CH
+  PASS factory registry: MON-PERP
+  PASS CH not paused
+  PASS swap.orderBook() == swap OB
+  PASS IF authorises the swap market
+  PASS swap market not paused
+  PASS perp maxPositionSize == config
+  PASS perp maxOpenInterest == config
+  PASS perp RiskParams == config (all)
+  PASS perp FundingParams == config (all)
+  FAIL vault v2 skewCapacity == 0 at deploy (Found #17)
+  PASS vault v2 depositCap == 1,200 AUSD (decision 12)
+  FAIL vault v2 params == config (hedge off, cap)
+  FAIL vault shortCapacity() == 0 (cannot hedge at deploy)
+  PASS vault v2 queue empty at deploy
+  PASS vault v2 forced-path cooldown 10 blocks (A-09)
+  PASS vault v2 keeper registered
+  PASS mock hedger only off mainnet
+  PASS SwapParams == config (all fields)
+  PASS swap maturity within 30 d of now
+  PASS swap mark bound 0.5 pt/block (decision 18)
+  PASS oracle (keeper-fed) maxStaleness == config
+  PASS oracle (keeper-fed) maxDeviation == config
+  PASS oracle: KEEPER_ADDRESS is a feeder
+  INFO (not counted): stale, oracle returns a fresh price (tryGetIndexPrice ok)
+  index price (WAD) / publish time / age s 25603070000000000 1791407496 46590
+  PASS demo CH.orderBook() == demo OB
+  PASS IF authorises the demo CH
+  PASS factory registry: MON-PERP-DEMO
+  PASS demo CH not paused
+  PASS demo maxPositionSize == config
+  PASS demo maxOpenInterest == config
+  PASS demo RiskParams == config (all)
+  PASS demo FundingParams == config (all)
+  PASS demo oracle (keeper-fed) maxStaleness == config
+  PASS demo oracle (keeper-fed) maxDeviation == config
+  PASS demo oracle: KEEPER_ADDRESS is a feeder
+  INFO (not counted): stale, demo oracle returns a fresh price (tryGetIndexPrice ok)
+  index price (WAD) / publish time / age s 25477000000000000 1791435821 18265
+  PASS MeridianKeeperReceiver has code
+  PASS MeridianKeeperReceiver.owner() == expected owner
+  PASS receiver.forwarder() == config CRE forwarder (mode)
+  PASS CRE forwarder has code
+  PASS receiver supports IReceiver (ERC-165)
+  PASS receiver has margin in the perp CH
+  PASS receiver has margin in the demo CH
+  PASS receiver is a vault keeper
+  PASS MfiFeed.receiver() == receiver
+  PASS ETH-PERP OracleAdapter has code
+  PASS ETH-PERP OracleAdapter.owner() == expected owner
+  PASS ETH-PERP ClearingHouse has code
+  PASS ETH-PERP ClearingHouse.owner() == expected owner
+  PASS ETH-PERP OrderBook has code
+  PASS ETH-PERP CH.orderBook() == OB
+  PASS ETH-PERP CH uses the shared IF
+  PASS IF authorises the ETH-PERP CH
+  PASS factory registry: ETH-PERP
+  PASS ETH-PERP CH not paused
+  PASS ETH-PERP tick == config
+  PASS ETH-PERP lot == config
+  PASS ETH-PERP RiskParams == config (all)
+  PASS ETH-PERP FundingParams == config (all)
+  PASS ETH-PERP oracle (keeper-fed) staleness / deviation == config
+  PASS ETH-PERP oracle: the market keeper is a feeder
+  INFO (not counted): stale, ETH-PERP oracle returns a fresh price (tryGetIndexPrice ok)
+  index price (WAD) / publish time / age s 2564816382800000000000 1791454016 70
+  ETH-PERP mark (index = ref price): neutral / +1 block / +1,000 blocks 2564800000000000000000 2567364800000000000000 2616096000000000000000
+  PASS P2: ETH-PERP mark basis moves 10 bps in one block (pre-P2: to the +5% band edge)
+  PASS P2: ETH-PERP mark basis credited for <= 20 blocks (2% after a 1,000-block gap)
+  PASS CR-007: ETH-PERP OrderBook bytecode emits MakerFillSkipped
+  PASS CR-007: paused ETH-PERP CH answers Skip to an increasing maker fill
+  PASS P2: perp mark basis moves 10 bps in one block (pre-P2: to the +5% band edge)
+  PASS P2: perp mark basis credited for <= 20 blocks (2% after a 1,000-block gap)
+  PASS CR-007: OrderBook bytecode emits MakerFillSkipped
+  PASS CR-007: paused perp CH answers Skip to an increasing maker fill
+  PASS P2: demo mark basis moves 10 bps in one block (pre-P2: to the +5% band edge)
+  PASS P2: demo mark basis credited for <= 20 blocks (2% after a 1,000-block gap)
+  PASS CR-007: demo OrderBook bytecode emits MakerFillSkipped
+  PASS CR-007: paused demo CH answers Skip to an increasing maker fill
+  PASS CR-007: SwapOrderBook bytecode emits MakerFillSkipped
+  PASS CR-007: paused swap market answers Skip to an increasing maker fill
+  checks passed / failed 96 3

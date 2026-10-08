@@ -74,6 +74,7 @@ type State = {
   chart: IChartApi;
   main?: ISeriesApi<SeriesType>;
   mainType?: EngineProps["chartType"];
+  mainPrecision?: number;
   volume?: ISeriesApi<"Histogram">;
   lines: IPriceLine[];
   linesSig: string;
@@ -87,10 +88,11 @@ type State = {
 
 function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
   const { chart, t } = s;
-  const priceFormat = { type: "price" as const, precision: 6, minMove: 0.000001 };
+  const precision = p.pricePrecision ?? 6;
+  const priceFormat = { type: "price" as const, precision, minMove: 10 ** -precision };
 
   // main series (recreated only when the type changes)
-  if (!s.main || s.mainType !== p.chartType) {
+  if (!s.main || s.mainType !== p.chartType || s.mainPrecision !== precision) {
     if (s.main) chart.removeSeries(s.main);
     s.lines = [];
     s.linesSig = "";
@@ -112,6 +114,7 @@ function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
                 wickDownColor: t.short,
               });
     s.mainType = p.chartType;
+    s.mainPrecision = precision;
   }
   const src = p.chartType === "heikin" ? heikinAshi(p.bars) : p.bars;
   if (p.chartType === "line" || p.chartType === "area") applyData(s.main, src.map((b) => ({ time: ts(b.time), value: wadToNum(b.close) })), s.seen);

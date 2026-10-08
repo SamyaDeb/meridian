@@ -7,12 +7,14 @@ import { getPrefs, setPrefs } from "@/lib/prefs";
 import { setDraft } from "@/features/trade/draft";
 import { resetLayout } from "@/lib/layout";
 import { NAV_ITEMS } from "./nav/items";
+import { usePerpMarkets } from "@/data/market";
 
 type Cmd = Command & { run: () => void };
 
 /** ⌘K / Ctrl+K palette: pages, ticket shortcuts, deposit / withdraw, privacy and sound. Every entry does a real thing. */
 export function CommandPalette() {
   const router = useRouter();
+  const { market: pm, markets, setMarket } = usePerpMarkets();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -40,9 +42,10 @@ export function CommandPalette() {
     run: () => setPrefs({ [k]: !getPrefs()[k] }),
   });
   const all: Cmd[] = [
+    ...markets.filter((x) => x.key !== pm.key).map((x) => ({ id: `market-${x.key}`, title: `Switch market: ${x.symbol}`, group: "Trade", keywords: `market ${x.base.toLowerCase()}`, run: () => setMarket(x.key) })),
     ...NAV_ITEMS.map((n) => ({ id: `go${n.href}`, title: `Go to ${n.label}`, group: "Pages", run: () => router.push(n.href) })),
-    { id: "long", title: "Long MON-PERP", group: "Trade", keywords: "buy b", run: toTrade({ side: "long" }, true) },
-    { id: "short", title: "Short MON-PERP", group: "Trade", keywords: "sell s", run: toTrade({ side: "short" }, true) },
+    { id: "long", title: `Long ${pm.symbol}`, group: "Trade", keywords: "buy b", run: toTrade({ side: "long" }, true) },
+    { id: "short", title: `Short ${pm.symbol}`, group: "Trade", keywords: "sell s", run: toTrade({ side: "short" }, true) },
     { id: "limit", title: "Limit order", group: "Trade", run: toTrade({ kind: "limit" }) },
     { id: "deposit", title: "Deposit AUSD", group: "Account", keywords: "fund add collateral", run: toTrade({ funds: "deposit" }) },
     { id: "withdraw", title: "Withdraw AUSD", group: "Account", keywords: "remove collateral", run: toTrade({ funds: "withdraw" }) },

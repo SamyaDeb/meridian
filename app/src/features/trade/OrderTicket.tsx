@@ -29,7 +29,8 @@ import {
   referencePrice,
   slippageLimitTick,
 } from "@/lib/ticket";
-import { BLOCK_TIME_MS, DEFAULT_IMR_WAD, DEFAULT_MMR_WAD, PERP_LOT_SIZE_WAD as LOT, PERP_TICK_SIZE_WAD as TICK, WAD } from "@/lib/units";
+import { BLOCK_TIME_MS, DEFAULT_IMR_WAD, DEFAULT_MMR_WAD, WAD } from "@/lib/units";
+import { usePerpMarket } from "@/data/market";
 import { setDraft, useDraft } from "./draft";
 import { FundsDialog } from "./FundsDialog";
 import { TriggerSection } from "@/features/triggers/TriggerSection";
@@ -71,7 +72,12 @@ export function OrderTicket() {
   const { isConnected } = useAccount();
   const chainId = useChainId();
   const tx = useTx();
-  const ob = contractAddress(chainId, "OrderBook");
+  // K7: the selected market's book, tick and lot (ETH-PERP: 0.10 / 0.001 ETH); "MON" below = the base-unit input mode
+  const pm = usePerpMarket();
+  const LOT = pm.lotSizeWad;
+  const TICK = pm.tickSizeWad;
+  const fp = (v: bigint) => formatPriceWad(v, TICK);
+  const ob = contractAddress(chainId, "OrderBook") ? pm.orderBook : undefined;
   const { side, kind, limitPx, sizeIn, funds } = useDraft();
   const setSizeIn = (v: string) => setDraft({ sizeIn: v });
   const setFunds = (v: "deposit" | "withdraw" | null) => setDraft({ funds: v });
@@ -151,7 +157,7 @@ export function OrderTicket() {
         : reduceOnly && lots === 0n
           ? "Reduce-only: no position to reduce on this side"
           : lots === 0n
-            ? `Minimum size is ${formatBaseWad(LOT, 0)} MON`
+            ? `Minimum size is ${formatBaseWad(LOT, pm.sizeDp)} ${pm.base}`
             : kind === "limit" && limitTick === undefined
               ? "Enter a limit price"
               : kind === "limit" && postOnly && postOnlyWouldCross(isBid, tickToPrice(limitTick!, TICK), bestBid, bestAsk)
@@ -214,7 +220,7 @@ export function OrderTicket() {
     if (pct === 0n || free === undefined || refPx === 0n) return setSizeIn("");
     const l = reduceOnly ? (((account?.size ?? 0n) < 0n ? -(account?.size ?? 0n) : (account?.size ?? 0n)) / LOT) * pct / 100n : lotsForPercent(free, BigInt(levUsed), imr, refPx, pct, LOT);
     const base = l * LOT;
-    setSizeIn(unit === "MON" ? formatFixed(base, 18, 0).replace(/,/g, "") : formatFixed((base * refPx) / WAD, 18, 2).replace(/,/g, ""));
+    setSizeIn(unit === "MON" ? formatFixed(base, 18, pm.sizeDp).replace(/,/g, "") : formatFixed((base * refPx) / WAD, 18, 2).replace(/,/g, ""));
   };
 
   return (
@@ -255,10 +261,10 @@ export function OrderTicket() {
               onChange={(e) => setDraft({ limitPx: e.target.value })}
               className="num h-10 min-w-0 flex-1 rounded-control bg-card-2 px-3 text-sm pointer-coarse:h-11"
             />
-            <Button size="sm" className="h-10" disabled={bestBid === undefined || bestAsk === undefined} onClick={() => bestBid !== undefined && bestAsk !== undefined && setDraft({ limitPx: formatPriceWad((bestBid + bestAsk) / 2n).replace(/,/g, "") })}>
+            <Button size="sm" className="h-10" disabled={bestBid === undefined || bestAsk === undefined} onClick={() => bestBid !== undefined && bestAsk !== undefined && setDraft({ limitPx: fp((bestBid + bestAsk) / 2n).replace(/,/g, "") })}>
               Mid
             </Button>
-            <Button size="sm" className="h-10" disabled={(isBid ? bestBid : bestAsk) === undefined} onClick={() => setDraft({ limitPx: formatPriceWad((isBid ? bestBid : bestAsk)!).replace(/,/g, "") })}>
+            <Button size="sm" className="h-10" disabled={(isBid ? bestBid : bestAsk) === undefined} onClick={() => setDraft({ limitPx: fp((isBid ? bestBid : bestAsk)!).replace(/,/g, "") })}>
               {isBid ? "Bid" : "Ask"}
             </Button>
           </div>
@@ -268,12 +274,12 @@ export function OrderTicket() {
       <div>
         <label htmlFor="size-in" className="text-xs text-muted">
           Size
-          <span className="num float-right">{lots > 0n ? `${formatBaseWad(lots * LOT, 0)} MON · ${lots} lots` : `lot ${formatBaseWad(LOT, 0)} MON`}</span>
+          <span className="num float-right">{lots > 0n ? `${formatBaseWad(lots * LOT, pm.sizeDp)} ${pm.base} · ${lots} lots` : `lot ${formatBaseWad(LOT, pm.sizeDp)} ${pm.base}`}</span>
         </label>
         <div className="mt-1 flex gap-1.5">
           <input id="size-in" aria-label="Size" inputMode="decimal" placeholder="0" value={sizeIn} onChange={(e) => setSizeIn(e.target.value)} className="num h-10 min-w-0 flex-1 rounded-control bg-card-2 px-3 text-sm pointer-coarse:h-11" />
           <select aria-label="Size unit" value={unit} onChange={(e) => (setUnit(e.target.value as "MON" | "AUSD"), setSizeIn(""))} className="h-10 rounded-control bg-card-2 px-2 text-xs pointer-coarse:h-11">
-            <option value="MON">MON</option>
+            <option value="MON">{pm.base}</option>
             <option value="AUSD">AUSD</option>
           </select>
         </div>
@@ -322,7 +328,7 @@ export function OrderTicket() {
         </div>
       )}
 
-        <TriggerSection account={account} market={m} />
+        {pm.primary && <TriggerSection account={account} market={m} />}
       </div>
       <div className="shrink-0 space-y-2">
       <div className="rounded-inner bg-card-2 px-3 py-2" data-testid="ticket-preview">
@@ -330,10 +336,10 @@ export function OrderTicket() {
         <Line label="Margin required">{preview ? `${formatAusdWad(preview.marginWad)} AUSD` : "—"}</Line>
         <Line label={kind === "limit" && postOnly ? "Maker fee" : "Taker fee"}>{preview ? `${formatAusdWad(preview.feeWad < 0n ? -preview.feeWad : preview.feeWad)} AUSD${preview.feeWad < 0n ? " rebate" : ""}` : "—"}</Line>
         {kind === "market" && (
-          <Line label="Est. price · impact">{fill && fill.filledLots > 0n ? `${formatPriceWad(fill.avgPriceWad)} · ${impactBps !== undefined ? formatFixed(impactBps * 10n ** 16n, 18, 2) : "—"}%` : "—"}</Line>
+          <Line label="Est. price · impact">{fill && fill.filledLots > 0n ? `${fp(fill.avgPriceWad)} · ${impactBps !== undefined ? formatFixed(impactBps * 10n ** 16n, 18, 2) : "—"}%` : "—"}</Line>
         )}
         <Line label="Est. liq. price" tone="text-warn">
-          <Private kind="liq">{preview?.liqPriceWad ? formatPriceWad(preview.liqPriceWad) : "—"}</Private>
+          <Private kind="liq">{preview?.liqPriceWad ? fp(preview.liqPriceWad) : "—"}</Private>
         </Line>
         <Line label="Funding per block" tone={preview ? (preview.fundingPerBlockWad > 0n ? "text-short" : preview.fundingPerBlockWad < 0n ? "text-long" : "") : ""}>
           {preview ? `${preview.fundingPerBlockWad > 0n ? "you pay " : preview.fundingPerBlockWad < 0n ? "you earn " : ""}${formatFixed(preview.fundingPerBlockWad < 0n ? -preview.fundingPerBlockWad : preview.fundingPerBlockWad, 18, 8)} AUSD` : "—"}
