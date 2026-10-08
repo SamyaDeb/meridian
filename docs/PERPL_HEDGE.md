@@ -1,8 +1,8 @@
 # Perpl hedge for the Meridian market maker (K3)
 
-Meridian's market maker (`mm-bot`, Avellaneda–Stoikov) quotes MON-PERP on Meridian's onchain book. Without a hedge it carries all of its inventory itself: as the position builds, `q = inventory / maxInventory → ±1`, the reservation price shifts away from the index and at `|q| = 1` it quotes **one side only**. K3 lets it offload that leftover inventory to **Perpl**, the other perp on Monad, through Perpl's authenticated trading API, so it can quote tighter and on both sides. It also moves the Meridian Funding Index (MFI) onto Perpl's live market-data WebSocket and publishes the **Meridian–Perpl funding spread** (`/v1/mfi/spread`).
+Meridian's market maker (`mm-bot`, Avellaneda–Stoikov) quotes MON-PERP on Meridian's onchain book. Without a hedge it carries all of its inventory itself: as the position builds, `q = inventory / maxInventory → ±1`, the reservation price shifts away from the index and at `|q| = 1` it quotes **one side only**. K3 lets it offload that leftover inventory to **Perpl**, the other perp on Monad, through Perpl's authenticated trading API, so it can keep quoting both sides. It also moves the Meridian Funding Index (MFI) onto Perpl's live market-data WebSocket and publishes the **Meridian–Perpl funding spread** (`/v1/mfi/spread`).
 
-Status (7 Oct 2026): code and tests done; testnet run and before/after numbers pending the owner setup in §9 (PROOF §12 holds the evidence once run).
+Status (8 Oct 2026): code, tests and a testnet run done: two 30-minute halves (hedge off, then on, same house flow) on 7 Oct, 2 Perpl hedges, both filled. Result (PROOF §12): one-sided 46.6% → 8.4% of the time, depth ±1% 5.3/2.7 → 6.9/4.8 lots (bid/ask), |net delta| p90 2,500 → 500 MON; the inner spread was wider (p50 5.41 → 6.96 bps) because realized σ was higher in the on half, not because of the hedge (§6).
 
 ## 1. Design
 
@@ -91,7 +91,9 @@ Status (7 Oct 2026): code and tests done; testnet run and before/after numbers p
 | SIGINT/SIGTERM | signal | MM cancels its Meridian quotes, hedger cancels resting Perpl orders, **leaves positions** (logged) |
 
 ## 6. Measurement (K3.4)
-`bench/perpl_hedge.ts` samples Meridian's book every 5 s (inner spread, depth within ±1% of the index per side, one-sided flag) and the MM's Meridian and Perpl positions; `report` turns a hedge-off CSV, a hedge-on CSV and the evidence JSONL into the before/after table (PROOF §12). Same house flow settings for both halves: `pnpm flow` from `mm-bot` with the RUNBOOK §2b settings.
+`bench/perpl_hedge.ts` samples Meridian's book every 5 s (inner spread, depth within ±1% of the index per side, one-sided flag) and the MM's Meridian and Perpl positions; `report` turns a hedge-off CSV, a hedge-on CSV and the evidence JSONL into the before/after table (PROOF §12). Same house flow settings for both halves: `pnpm flow` from `mm-bot` with the RUNBOOK §2b settings. Evidence and Perpl fills are counted from each half's MM start (`OFF_FROM`, `ON_FROM`) to its last sample; `PERPL_FILLS` takes Perpl's own fill history (`mm-bot/scripts/perpl-history.ts`, signed GETs only), because an outcome's `fills` can miss `mt: 25` frames that arrive after it (both 7 Oct outcomes had `fills: []`).
+
+What the hedge can and can't change: A–S width `δ = γσ²(T−t) + (2/γ)ln(1+γ/k)` has no inventory term; inventory moves only the reservation price `r = −qγσ²(T−t)`, and at `|q| = 1` the ladder drops a side. So the hedge's effect is two-sided quoting and depth, not a narrower model spread. Spread comparisons need equal realized σ (the 7 Oct halves had 1.41 vs 2.22 bps/√s).
 
 ## 7. Configuration
 Root `.env.example` lists every variable (empty or safe defaults). `PERPL_HEDGE=1` enables; `PERPL_API_KEY`, `PERPL_API_KEY_SECRET` (never logged; X-API-* headers and the sign-in signature are redacted in logs and evidence). Startup **hard-fails** unless `PERPL_CHAIN_ID=10143` and both URLs are on `testnet.perpl.xyz`.
@@ -110,7 +112,7 @@ Verified on testnet, 7 Oct 2026:
 
 Open:
 - > VERIFY (MFI.md §2 b): positive funding ⇒ longs pay. The optional funding bias stays off until a recorded settlement proves the sign.
-- > VERIFY: per-account fee tier `ft` on our hedge account (fees on `/v1/mfi/spread` are the base tier).
+- > VERIFY: per-account fee tier `ft` on our hedge account (fees on `/v1/mfi/spread` are the base tier). The 7 Oct fills paid 3.45 bps taker (17,851 / 51.74 AUSD notional), the base taker fee.
 
 ## 9. Owner setup (one time)
 1. New hedge wallet (not the MM key); ~1 testnet MON.
