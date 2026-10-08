@@ -32,6 +32,8 @@ export interface Market {
   realizedApr1hWad?: bigint;
   realizedApr8hWad?: bigint;
   realizedApr24hWad?: bigint;
+  /** indexer FundingWindow only (the chain source reads 1 h / 8 h / 24 h from the contract) */
+  realizedApr7dWad?: bigint;
   lastTradePrice: bigint;
   volumeBaseWad: bigint;
   volumeQuoteWad: bigint;

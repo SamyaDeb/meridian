@@ -93,6 +93,12 @@ contracts:
     events:
       - event: ReportExecuted
       - event: ForwarderUpdated
+  - name: PerplExchange
+    abi_file_path: ./abis/PerplExchange.json
+    events:
+      - event: FundingEventCompleted
+      - event: PositionLiquidated
+      - event: AccountCreated
 chains:
   - id: 10143
     start_block: 68739694
@@ -117,3 +123,12 @@ chains:
         address: "0xEB3f3956AC3c13BC9b61a383590F5eEb4Ff6e541"
       - name: KuruHedger
         address: "0xdB9Bc1996dE5A338c7F2B7b7f5f56B9047567191"
+      - name: PerplExchange
+        address: "0x1964c32f0be608e7d29302aff5e61268e72080cc"
+  - id: 143
+    start_block: 109336000
+    hypersync_config:
+      url: https://143.hypersync.xyz
+    contracts:
+      - name: PerplExchange
+        address: "0x34b6552d57a35a1d042ccae1951bd1c370112a6f"

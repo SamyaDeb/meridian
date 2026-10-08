@@ -6,7 +6,7 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 | Network | Config | Public GraphQL URL |
 |---|---|---|
 | 31337 local | `config.yaml` | `http://localhost:8080/v1/graphql` (`pnpm dev`) |
-| 10143 testnet | `config.testnet.yaml`; Envio Cloud uses `config.hosted.testnet.yaml` (branch `ws-06-envio-live`, Root Directory `indexer`) | `https://indexer.dev.hyperindex.xyz/9395e07/v1/graphql` (Envio Cloud, Development plan, deployment `af7e9cf`, read from the dashboard 6 Oct 2026). **On this plan every deployment gets a new URL** (`35ed19f` was `…/8ba06c6/…`); a stable one needs "Promote to production", which is a paid-plan feature. Every push to `ws-06-envio-live` is a new deployment (3 per indexer on the free plan, 2 used): after one, update `NEXT_PUBLIC_INDEXER_URL` wherever the app runs |
+| 10143 testnet (+ Perpl on 143) | `config.testnet.yaml` (local); Envio Cloud uses **`config.hosted.testnet.yaml`**: Meridian + Perpl on 10143 from block 68,739,694, and Perpl on mainnet 143 from block 109,336,000 (multichain, lean Perpl profile) | **K2 deployment: > VERIFY, filled in after the owner deploys** (new Envio Cloud indexer on `SamyaDeb/meridian`, Root Directory `indexer`). Previous: `https://indexer.dev.hyperindex.xyz/9395e07/v1/graphql` (private repo's `ws-06-envio-live`, older contracts). On the Development plan every deployment gets a new URL, 3 deployments per indexer, and soft limits of **100,000 processed events / 5 GB / 7 days without queries** (then 7 days' grace, 3 days read-only, deletion) plus a hard 30-day lifespan (docs.envio.dev "Deploying Your Indexer", read 7 Oct 2026). The lean Perpl profile keeps the whole indexer at a few thousand events |
 | 143 mainnet | `config.mainnet.yaml` (`pnpm gen-config 143`) | > VERIFY: hosted URL after CP3 |
 
 ## Conventions (read first)
@@ -41,6 +41,24 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 | `InsuranceFund`, `BadDebtEvent` | address / `<block>-<logIndex>` | `fundedToken`, `coveredToken` | Stats |
 | `ProtocolStats` | `"protocol"` | **product stats** (test markets excluded): `externalUsers`, `users`, `perpVolumeQuoteWad`, `perpVolumeMmQuoteWad`, `swapVolumeWad`, `feesWad`, `tvlToken`, `trades`, `liquidations`, `fundingTicks`, `updatedBlock` | Stats (metrics dashboard) |
 | `KeeperReport` | `<block>-<logIndex>` | CRE `action`, `success`, `workflowId` | ops |
+| **`FundingWindow`** (K2.1) | market address | `apr1hWad`, `apr8hWad`, `apr24hWad`, **`apr7dWad`**, `fromBlock1h/8h/24h/7d` (the checkpoint each window starts at), `rateAprWad`, `block` | Trade funding tooltip and ticker, Rates KPIs (`useMarket` overlays them on the contract values) |
+| `FundingRingSlot` | `<market>-<slot>` | mirror of the ClearingHouse's 1,440-slot checkpoint ring (`blockNumber`, `cumFunding`, `cumIndexTime`); bounded | internal (window lookups) |
+| **`FundingPayment`** | `<block>-<logIndex>` | `account`, `payment` (+ = paid), `cumFunding`, `timestamp`, `txHash` | Positions → Funding tab (whole history) |
+| `AccountMarket` (+K2.1) | `<market>-<account>` | as above, plus **`lastTradeBlock`**. Same totals as the brief's names: `fundingPaid` = fundingPaidWad, `realizedPnl` = realizedPnlWad, `feesPaid` = feesPaidWad, `liquidationCount` = liquidations | Positions → all-time row |
+| **`InsuranceFundEvent`** | `<block>-<logIndex>-<step>` | `flow` (Funded / PenaltyIn / CoveredByInsurance / CoveredByFees / Uncovered), `direction` (In / Out / None), `kind`, `market`, `account`, `amountWad`, `amountToken`, `requestedWad`, `balanceAfterToken`, `txHash` | K5 waterfall chart |
+| `InsuranceFund` (+K2.1) | fund address | plus `penaltyToken`, `balanceToken` (funded + penalties − covered) | Rates |
+| **`ProtocolDaily`** | `<dayStart unix s>` | the day's `perpVolumeQuoteWad`, `perpVolumeMmQuoteWad`, `swapVolumeWad`, `feesWad`, `trades`, `liquidations`, `fundingTicks`, `newUsers`, `newExternalUsers`, **`activeExternalUsers`**, and closes `tvlTokenClose`, `perpCollateralTokenClose`, `vaultNavTokenClose`, `perpOpenInterest{Long,Short}WadClose`, `swapOpenInterestWadClose` | K6 metrics page |
+| `ProtocolStats` (+K2.1) | `"protocol"` | plus `perpOpenInterestLongWad`, `perpOpenInterestShortWad`, `swapOpenInterestWad` | Stats |
+| `VaultRedeemRequest` (+K2.1) | `<vault>-<requestId>` | plus `fulfilledAt`, `fulfilTxHash`, `claimedAt`, `claimTxHash`, `cancelledBlock`, `cancelledAt` | Earn (reader `portfolio.ts`) |
+| **`PerplMarket`** (K2.2) | perpId | `name`, `known`, `isMon`, decimals, `lastAprWad`, `lastRatePct100k`, `lastFundingEventBlock`, `lastMarkWad`*, OI*, `liquidations` | Rates |
+| **`PerplFunding`** | `<perpId>-<fundingEventBlock>` | `ratePct100k`, `aprWad`, `fundingPriceWad`, `paymentPNS`, `sumPNS`, `overwrites` | Rates, K5 |
+| **`PerplLiquidation`** | `<block>-<logIndex>` | `accountId`, `address` (if created in the window), `side`, `liqLots`, `markPriceWad`, `liqPriceWad`, pnl, funding | K5 |
+| `PerplAccount` | accountId | `address`, `createdBlock`, collateral totals* | K5 |
+| `PerplPosition`* | `<perpId>-<accountId>` | `side`, `lots`, `sizeWad`, `entryPricePNS` (the exchange's own), `depositCNS`, pnl / funding / fees, `open` | K5 (full profile only) |
+| **`CrossVenueFunding`** | `<hourStart unix s>` | `meridianAprWad` (realized 1 h), `perplAprWad` (MON rate in force, annualized), `spreadAprWad`, blocks | Rates → "Meridian vs Perpl funding" |
+| `AccountDay` | `<dayStart>-<account>` | marker (one active-user count per day) | internal |
+
+\* Filled only by the **full** Perpl profile (positions, mark, collateral events: tests / local / a paid plan). The hosted config uses the **lean** profile (`FundingEventCompleted`, `PositionLiquidated`, `AccountCreated`) to stay under the free plan's 100,000-event soft limit; units and event checks are in [`PERPL_EVENTS.md`](PERPL_EVENTS.md).
 | `AdminEvent` | `<block>-<logIndex>` | `name`, `data` (JSON, bigints as strings) | ops |
 
 ## Derived values (bigint, unit-tested in `test/math.test.ts`)
@@ -54,7 +72,151 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 - **TVL** (`tvlToken`) = net AUSD deposited into the perp ClearingHouse + swap market + the vault's last NAV (event-derived).
 - **Product stats (C5, RISKS E9).** Events of a labelled test market never change `ProtocolStats` (they stay on that `Market`). `externalUsers` counts an account once, at its first product-market activity, unless it is the vault or an operator account. Operators come only from the deploy record: `deployments/<chain>.json` optional `mmAccounts` and `keeperAccounts` arrays, plus `owner` (`scripts/gen-config.mjs` → `OPERATOR_ACCOUNTS`). `perpVolumeMmQuoteWad` is the part of `perpVolumeQuoteWad` where an `mmAccounts` address was maker or taker (counted once), so the dashboard can show "MM share". `updatedBlock` = the last block that changed any of these numbers.
 
-## Example queries
+## K2 derived values
+- **Realized windows match `averageFundingApr` even on a quiet market.** The indexer mirrors the checkpoint ring (`FundingRingSlot`, ≤ 1,440 rows per market) and looks up "the checkpoint at or before block − window" exactly like `observe()`: newest, then the bucket shortcut, then a binary search (≤ 11 reads). A window is `null` where the contract would revert `ObservationTooOld`. Replay tests compare against the contract's answers at recorded blocks.
+- **Bad-debt waterfall:** step 1 is `InsuranceFund.BadDebtCovered` (IF pays what it can); steps 2 and 3 come from `BadDebtSocialized` (`CoveredByFees` = requested − covered − uncovered, then `Uncovered`), emitted only when the IF fell short. The liquidation penalty's IF share (`toInsurance / 1e12`, rounded down) reaches the fund by plain transfer and is recorded as `PenaltyIn`. Swaps have no `BadDebtSocialized`: only their IF part and penalties are evented.
+- **ProtocolDaily:** each change to `ProtocolStats` also lands in the event's UTC day (flows = the day's change of the counters, closes = values after the day's last change). `activeExternalUsers` counts a non-operator account once per day.
+- **Funding conservation (property, recorded perp stack):** Σ over accounts of (`fundingPaid` + q·(F − lastCumFunding)) = 0 within one wei per settlement.
+- **Perpl:** APR = `ratePct100k`·1e13·31,536,000 / interval (2,580 s), checked against Perpl's API on 28 + 35 funding events. Positions replay to the exchange's `getPosition` exactly (lots, side, collateral, entry). CrossVenueFunding is written by whichever venue updates first in an hour and carries the other venue's latest value.
+
+## Queries behind each screen (exact text, from `app/src/data/indexer/*`)
+Every K2 query filters on `chainId` (the indexer also holds Perpl's mainnet rows).
+
+| Screen | Reader → query |
+|---|---|
+| Trade: funding tooltip / ticker / Rates KPIs (realized 1 h · 8 h · 24 h · 7 d) | `funding.ts` → `FUNDING_WINDOW_QUERY` (merged over the contract values by `useMarket`) |
+| Trade: price chart | `candles.ts` → `candlesQuery("Candle1m" \| "Candle1h")`; mark / index source: `prices.ts` → `MARK_QUERY`, `INDEX_QUERY` |
+| Trade / Positions: history tabs | `account.ts` → `ACCOUNT_HISTORY_QUERY`; Funding tab → `funding.ts` → `FUNDING_PAYMENTS_QUERY` |
+| Positions: all-time row | `portfolio.ts` → `PORTFOLIO_QUERY` |
+| Earn: share-price chart, deposits / users / APY | `vault.ts` → `VAULT_HISTORY_QUERY` |
+| Rates: Meridian vs Perpl funding | `funding.ts` → `CROSS_VENUE_QUERY`; Perpl detail → `perpl.ts` → `perplQuery(monPerpId)` |
+| Rates: liquidation distance, insurance fund | `risk.ts` → `RISK_QUERY` |
+| Stats | `stats.ts` → `STATS_QUERY` |
+| K6 metrics / K5 waterfall (data layer) | `protocol.ts` → `PROTOCOL_DAILY_QUERY`, `INSURANCE_QUERY` |
+
+### `STATS_QUERY` (data/indexer/stats.ts)
+```graphql
+query MeridianStats {
+  ProtocolStats(where: { id: { _eq: "protocol" } }) {
+    externalUsers users perpVolumeQuoteWad perpVolumeMmQuoteWad swapVolumeWad feesWad tvlToken trades liquidations updatedBlock
+  }
+  Market(where: { testMarket: { _eq: false } }) {
+    id symbol lastFundingBlock realizedApr1hWad realizedApr8hWad realizedApr24hWad
+  }
+}
+```
+
+### `RISK_QUERY` (data/indexer/risk.ts)
+```graphql
+query MeridianRisk($market: String!) {
+  AccountMarket(where: { market_id: { _ilike: $market }, size: { _neq: "0" } }, limit: 1000) { size entryPrice collateralWad }
+  InsuranceFund { fundedToken coveredToken }
+}
+```
+
+### `INDEX_QUERY` (data/indexer/prices.ts)
+```graphql
+query MeridianIndex($oracle: String!, $limit: Int!) {
+  OraclePrice(where: { oracle: { _ilike: $oracle } }, order_by: { block: desc }, limit: $limit) { priceWad publishTime }
+}
+```
+
+### `MARK_QUERY` (data/indexer/prices.ts)
+```graphql
+query MeridianMark($market: String!, $limit: Int!) {
+  FundingTick(where: { market_id: { _ilike: $market } }, order_by: { block: desc }, limit: $limit) { mark timestamp }
+}
+```
+
+### `ACCOUNT_HISTORY_QUERY` (data/indexer/account.ts)
+```graphql
+query MeridianAccountHistory($a: String!, $limit: Int!) {
+  Trade(where: { kind: { _eq: "Perp" }, _or: [{ maker: { _ilike: $a } }, { taker: { _ilike: $a } }] }, order_by: { block: desc }, limit: $limit) {
+    id maker taker takerIsBid priceWad sizeWad notionalWad block timestamp txHash
+  }
+  Order(where: { kind: { _eq: "Perp" }, maker: { _ilike: $a } }, order_by: { updatedBlock: desc }, limit: $limit) {
+    id orderId isBid tick lots filledLots remainingLots flags status placedBlock updatedBlock
+  }
+  Liquidation(where: { kind: { _eq: "Perp" }, account: { _ilike: $a } }, order_by: { block: desc }, limit: $limit) {
+    id sizeTransferred markPriceWad penalty badDebt block timestamp txHash
+  }
+}
+```
+
+### `FUNDING_WINDOW_QUERY` (data/indexer/funding.ts)
+```graphql
+query MeridianFundingWindow($chainId: Int!, $market: String!) {
+  FundingWindow(where: { chainId: { _eq: $chainId }, market: { _ilike: $market } }, limit: 1) {
+    block apr1hWad apr8hWad apr24hWad apr7dWad rateAprWad
+  }
+}
+```
+
+### `CROSS_VENUE_QUERY` (data/indexer/funding.ts)
+```graphql
+query MeridianCrossVenue($chainId: Int!, $limit: Int!) {
+  CrossVenueFunding(where: { chainId: { _eq: $chainId } }, order_by: { hour: desc }, limit: $limit) {
+    hour meridianAprWad perplAprWad spreadAprWad
+  }
+}
+```
+
+### `FUNDING_PAYMENTS_QUERY` (data/indexer/funding.ts)
+```graphql
+query MeridianFundingPayments($chainId: Int!, $a: String!, $limit: Int!) {
+  FundingPayment(where: { chainId: { _eq: $chainId }, account: { _ilike: $a } }, order_by: { block: desc }, limit: $limit) {
+    block timestamp payment txHash
+  }
+}
+```
+
+### `PROTOCOL_DAILY_QUERY` (data/indexer/protocol.ts)
+```graphql
+query MeridianProtocolDaily($chainId: Int!, $limit: Int!) {
+  ProtocolDaily(where: { chainId: { _eq: $chainId } }, order_by: { day: desc }, limit: $limit) {
+    day perpVolumeQuoteWad perpVolumeMmQuoteWad swapVolumeWad feesWad trades liquidations newExternalUsers activeExternalUsers
+    tvlTokenClose vaultNavTokenClose perpOpenInterestLongWadClose perpOpenInterestShortWadClose swapOpenInterestWadClose
+  }
+}
+```
+
+### `INSURANCE_QUERY` (data/indexer/protocol.ts)
+```graphql
+query MeridianInsuranceFlows($chainId: Int!, $limit: Int!) {
+  InsuranceFundEvent(where: { chainId: { _eq: $chainId } }, order_by: [{ block: desc }, { id: desc }], limit: $limit) {
+    id flow direction kind market account amountWad requestedWad balanceAfterToken block timestamp txHash
+  }
+}
+```
+
+### `VAULT_HISTORY_QUERY` (data/indexer/vault.ts)
+```graphql
+query MeridianVaultHistory($chainId: Int!, $vault: String!, $limit: Int!) {
+  Vault(where: { chainId: { _eq: $chainId }, id: { _ilike: $vault } }, limit: 1) {
+    id depositedToken withdrawnToken userCount apy24hWad apy7dWad pendingRedeemShares claimableToken
+  }
+  VaultSnapshot(where: { chainId: { _eq: $chainId }, vault_id: { _ilike: $vault } }, order_by: { block: desc }, limit: $limit) {
+    id navToken totalShares sharePriceWad fundingAccruedWad block timestamp
+  }
+}
+```
+
+### `PORTFOLIO_QUERY` (data/indexer/portfolio.ts)
+```graphql
+query MeridianPortfolio($chainId: Int!, $a: String!) {
+  AccountMarket(where: { chainId: { _eq: $chainId }, account_id: { _ilike: $a } }) {
+    market_id fundingPaid realizedPnl feesPaid liquidationCount depositedToken withdrawnToken lastTradeBlock
+  }
+  VaultRedeemRequest(where: { chainId: { _eq: $chainId }, owner: { _ilike: $a } }, order_by: { requestId: desc }, limit: 50) {
+    requestId shares status assets unwindCost requestedAt fulfilledAt claimedAt cancelledAt txHash
+  }
+}
+```
+
+### `candlesQuery(table)` (data/indexer/candles.ts) and `perplQuery(monPerpId)` (data/indexer/perpl.ts)
+Built per table / per chain's MON id (from `deployments/perpl.json`); see those files for the exact text.
+
+## Example queries (hand-written)
 ```graphql
 # Trade header + funding ticker (poll or subscribe; the app also calls previewFundingState() per block)
 query Market($chainId: Int!, $ch: String!) {

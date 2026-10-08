@@ -9,6 +9,11 @@ Meridian's own code is [MIT](LICENSE). It depends on the libraries below, which 
 | Solady | `FixedPointMathLib`, `SafeTransferLib`, `LibBit` | MIT |
 | forge-std | tests and scripts only | MIT / Apache-2.0 (dual) |
 
+## Vendored files (copied into this repository)
+| File | From | Licence |
+|---|---|---|
+| `indexer/abis/PerplExchange.json` | Perpl's exchange ABI, [`PerplFoundation/dex-sdk`](https://github.com/PerplFoundation/dex-sdk) `crates/sdk/abi/dex/Exchange.json` @ `dbb37c5` (`abi` array only), to decode Perpl events in the indexer (`indexer/abis/README.md`) | MIT |
+
 ## TypeScript: direct dependencies
 | Package | Workspace | Licence |
 |---|---|---|

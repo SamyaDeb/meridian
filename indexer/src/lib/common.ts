@@ -4,6 +4,7 @@ import type {
   Market,
   ProtocolStats,
   AccountMarket,
+  ProtocolDaily,
   SwapStats,
   SwapPosition,
   Vault,
@@ -55,28 +56,94 @@ export async function getProtocol(context: Ctx): Promise<ProtocolStats> {
     fundingTicks: 0,
     keeperReports: 0,
     keeperReportFailures: 0,
+    perpOpenInterestLongWad: 0n,
+    perpOpenInterestShortWad: 0n,
+    swapOpenInterestWad: 0n,
     updatedBlock: 0n,
   });
 }
 
+export const DAY = 86_400n;
+export const dayStart = (ts: bigint): bigint => ts - (ts % DAY);
+
+async function getDaily(context: Ctx, day: bigint, p: ProtocolStats): Promise<ProtocolDaily> {
+  return context.ProtocolDaily.getOrCreate({
+    id: String(day),
+    day,
+    perpVolumeQuoteWad: 0n,
+    perpVolumeMmQuoteWad: 0n,
+    swapVolumeWad: 0n,
+    feesWad: 0n,
+    trades: 0,
+    liquidations: 0,
+    fundingTicks: 0,
+    newUsers: 0,
+    newExternalUsers: 0,
+    activeExternalUsers: 0,
+    tvlTokenClose: p.tvlToken,
+    perpCollateralTokenClose: p.perpCollateralToken,
+    vaultNavTokenClose: p.vaultNavToken,
+    perpOpenInterestLongWadClose: p.perpOpenInterestLongWad,
+    perpOpenInterestShortWadClose: p.perpOpenInterestShortWad,
+    swapOpenInterestWadClose: p.swapOpenInterestWad,
+    updatedBlock: 0n,
+  });
+}
+
+/** Pure: the day's row after the cumulative stats moved from `prev` to `next` (flows add the change, closes = next). */
+export function rollDaily(d: ProtocolDaily, prev: ProtocolStats, next: ProtocolStats, block: bigint): ProtocolDaily {
+  return {
+    ...d,
+    perpVolumeQuoteWad: d.perpVolumeQuoteWad + next.perpVolumeQuoteWad - prev.perpVolumeQuoteWad,
+    perpVolumeMmQuoteWad: d.perpVolumeMmQuoteWad + next.perpVolumeMmQuoteWad - prev.perpVolumeMmQuoteWad,
+    swapVolumeWad: d.swapVolumeWad + next.swapVolumeWad - prev.swapVolumeWad,
+    feesWad: d.feesWad + next.feesWad - prev.feesWad,
+    trades: d.trades + next.trades - prev.trades,
+    liquidations: d.liquidations + next.liquidations - prev.liquidations,
+    fundingTicks: d.fundingTicks + next.fundingTicks - prev.fundingTicks,
+    newUsers: d.newUsers + next.users - prev.users,
+    newExternalUsers: d.newExternalUsers + next.externalUsers - prev.externalUsers,
+    tvlTokenClose: next.tvlToken,
+    perpCollateralTokenClose: next.perpCollateralToken,
+    vaultNavTokenClose: next.vaultNavToken,
+    perpOpenInterestLongWadClose: next.perpOpenInterestLongWad,
+    perpOpenInterestShortWadClose: next.perpOpenInterestShortWad,
+    swapOpenInterestWadClose: next.swapOpenInterestWad,
+    updatedBlock: block > d.updatedBlock ? block : d.updatedBlock,
+  };
+}
+
 /** Where a stat change comes from: its block (shown next to the numbers) and whether it's a labelled test market. */
 export type StatOpts = { readonly block?: bigint; readonly testMarket?: boolean };
+/** A stat change also lands in that UTC day's ProtocolDaily row, so it needs the event's block and timestamp. */
+export type StatAt = StatOpts & { readonly block: bigint; readonly ts: bigint };
 
-/** Read-modify-write the per-chain ProtocolStats singleton (tvl recomputed from its parts). */
-/** Test-market events never reach the product stats (their numbers stay on their Market entity). */
-export async function updateProtocol(
-  context: Ctx,
-  patch: (p: ProtocolStats) => Partial<ProtocolStats>,
-  opts: StatOpts = {},
-): Promise<void> {
+/**
+ * Read-modify-write the per-chain ProtocolStats singleton (tvl recomputed from its parts) and roll the change into
+ * the day's ProtocolDaily row (K2.1). Test-market events never reach the product stats (they stay on their Market).
+ */
+export async function updateProtocol(context: Ctx, patch: (p: ProtocolStats) => Partial<ProtocolStats>, opts: StatAt): Promise<void> {
   if (opts.testMarket) return;
   const p = await getProtocol(context);
-  const next = { ...p, ...patch(p) };
-  context.ProtocolStats.set({
-    ...next,
-    tvlToken: next.perpCollateralToken + next.swapCollateralToken + next.vaultNavToken,
-    updatedBlock: opts.block !== undefined && opts.block > p.updatedBlock ? opts.block : p.updatedBlock,
-  });
+  const merged = { ...p, ...patch(p) };
+  const next: ProtocolStats = {
+    ...merged,
+    tvlToken: merged.perpCollateralToken + merged.swapCollateralToken + merged.vaultNavToken,
+    updatedBlock: opts.block > p.updatedBlock ? opts.block : p.updatedBlock,
+  };
+  context.ProtocolStats.set(next);
+  const d = await getDaily(context, dayStart(opts.ts), p);
+  context.ProtocolDaily.set(rollDaily(d, p, next, opts.block));
+}
+
+/** Count `address` once per UTC day in ProtocolDaily.activeExternalUsers (AccountDay marker, one row per day). */
+async function markActive(context: Ctx, address: string, block: bigint, ts: bigint): Promise<void> {
+  const day = dayStart(ts);
+  const id = `${day}-${address}`;
+  if (await context.AccountDay.get(id)) return;
+  context.AccountDay.set({ id });
+  const d = await getDaily(context, day, await getProtocol(context));
+  context.ProtocolDaily.set({ ...d, activeExternalUsers: d.activeExternalUsers + 1, updatedBlock: block > d.updatedBlock ? block : d.updatedBlock });
 }
 
 const lc = (a: string) => a.toLowerCase();
@@ -110,11 +177,13 @@ export async function touchAccount(context: Ctx, address: string, block: bigint,
   };
   // The vault trades as a normal account (INTERFACES §2.4) but is not a user.
   const isVault = Boolean(await context.Vault.get(address));
-  if (!existing && !isVault) await updateProtocol(context, (p) => ({ users: p.users + 1 }), { block });
-  if (!acc.countedExternal && !opts.testMarket && !isVault && !isOperator(context.chain.id, address)) {
+  if (!existing && !isVault) await updateProtocol(context, (p) => ({ users: p.users + 1 }), { block, ts });
+  const external = !opts.testMarket && !isVault && !isOperator(context.chain.id, address);
+  if (!acc.countedExternal && external) {
     acc = { ...acc, countedExternal: true };
-    await updateProtocol(context, (p) => ({ externalUsers: p.externalUsers + 1 }), { block });
+    await updateProtocol(context, (p) => ({ externalUsers: p.externalUsers + 1 }), { block, ts });
   }
+  if (external) await markActive(context, address, block, ts);
   if (!existing || acc !== existing) context.Account.set(acc);
   return acc;
 }
@@ -149,6 +218,8 @@ export async function getMarket(context: Ctx, clearingHouse: string): Promise<Ma
     realizedApr1hWad: undefined,
     realizedApr8hWad: undefined,
     realizedApr24hWad: undefined,
+    realizedApr7dWad: undefined,
+    checkpointSlot: undefined,
     lastTradePrice: 0n,
     volumeBaseWad: 0n,
     volumeQuoteWad: 0n,
@@ -180,6 +251,7 @@ export async function getAccountMarket(context: Ctx, market: string, account: st
     depositedToken: 0n,
     withdrawnToken: 0n,
     liquidationCount: 0,
+    lastTradeBlock: undefined,
     updatedBlock: block,
   });
 }
@@ -244,6 +316,13 @@ export async function getVault(context: Ctx, vault: string): Promise<Vault> {
     emergencyUnwinds: 0,
   });
 }
+
+/** InsuranceFund entity (id = fund address). */
+export const getInsuranceFund = (context: Ctx, id: string) =>
+  context.InsuranceFund.getOrCreate({ id, fundedToken: 0n, coveredToken: 0n, penaltyToken: 0n, balanceToken: 0n, authorizedMarkets: [] });
+
+/** The chain's InsuranceFund address (deployments), for flows emitted by the markets rather than the fund. */
+export const insuranceFundAddress = (context: Ctx): string | undefined => DEPLOYMENTS[context.chain.id]?.InsuranceFund;
 
 export async function getVaultUser(context: Ctx, vault: string, user: string, block: bigint): Promise<VaultUser> {
   const id = `${vault}-${user}`;

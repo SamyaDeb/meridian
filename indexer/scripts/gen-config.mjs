@@ -51,7 +51,39 @@ export const CONTRACTS = [
   { name: "MarketFactory", abi: "IMarketFactory", events: ["MarketRegistered", "MarketStatusChanged"] },
   { name: "KuruHedger", abi: "IKuruHedger", events: ["SpotBought", "SpotSold"] },
   { name: "MeridianKeeperReceiver", abi: "IMeridianKeeperReceiver", events: ["ReportExecuted", "ForwarderUpdated"] },
+  // Perpl's exchange (another Monad perp, K2.2): ABI vendored in indexer/abis (MIT, PerplFoundation/dex-sdk; see
+  // abis/README.md), address from deployments/perpl.json. Only the events seen AND decoded on the deployed contract
+  // (indexer/PERPL_EVENTS.md); PositionOpened/Increased v1, Deleveraged(V2), InsurancePaymentForSettlement and
+  // PositionCollateralDecreased never appeared in the recordings, so they are not indexed.
+  {
+    name: "PerplExchange",
+    abi: "PerplExchange",
+    vendored: true,
+    events: [
+      "FundingEventCompleted", "MarkUpdated", "PositionOpenedV2", "PositionIncreasedV2", "PositionDecreased",
+      "PositionClosed", "PositionInverted", "PositionLiquidated", "IncreasePositionCollateral", "CollateralDeposit",
+      "CollateralWithdrawal", "AccountCreated",
+    ],
+  },
 ];
+
+/** Contracts whose address comes from deployments/perpl.json instead of deployments/<chainId>.json. */
+export const PERPL_CONTRACT = "PerplExchange";
+
+/**
+ * Perpl event profiles. Envio Cloud's free Development plan has a soft limit of 100,000 processed events
+ * (docs.envio.dev hosted-service-deployment, 7 Oct 2026), and Perpl's position + mark traffic alone is ~215k events
+ * over Meridian's testnet window (~250k/day): "lean" keeps funding, liquidations and account ids (a few hundred events
+ * a day per chain), which is all CrossVenueFunding needs. "full" adds positions, mark and collateral (tests, local, or
+ * a paid plan). Positions for a single trader are exact and live from the exchange's views (getAccountByAddr,
+ * getPosition), so the app reads those directly.
+ */
+export const PERPL_PROFILES = {
+  full: null, // every event in CONTRACTS
+  lean: ["FundingEventCompleted", "PositionLiquidated", "AccountCreated"],
+};
+/** Profile of the hosted (Envio Cloud) config. */
+export const HOSTED_PERPL_PROFILE = "lean";
 
 export const CHAINS = {
   31337: { file: "config.yaml", label: "local anvil (DeployLocal)" },
@@ -63,17 +95,29 @@ const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
 /** Pure: hosted variant of renderConfig: ABIs resolved inside the indexer dir (./abis), so Envio Cloud's Root Directory
  *  can be `indexer/` (its docs: keep every import inside the indexer directory). */
-export function renderHostedConfig(chainId, deployment) {
-  return renderConfig(chainId, deployment)
+export function renderHostedConfig(chainId, deployment, perpl, extraChains = [], perplProfile = HOSTED_PERPL_PROFILE) {
+  return renderConfig(chainId, deployment, perpl, extraChains, perplProfile)
     .replaceAll("abi_file_path: ../abis/", "abi_file_path: ./abis/")
     .replace("). Do not edit.", ", Envio Cloud: ABIs vendored in indexer/abis). Do not edit.");
 }
 
-/** ABI files a config references (deduplicated). */
-export const ABI_FILES = [...new Set(CONTRACTS.map((c) => `${c.abi}.json`))];
+/** ABI files copied from the repo's abis/ into indexer/abis for the hosted config (vendored ones already live there). */
+export const ABI_FILES = [...new Set(CONTRACTS.filter((c) => !c.vendored).map((c) => `${c.abi}.json`))];
 
-/** Pure: deployment JSON -> config.yaml text. */
-export function renderConfig(chainId, deployment) {
+/** deployments/perpl.json (Perpl exchange per chain + seeded market metadata); undefined if absent. */
+export function readPerpl() {
+  const f = resolve(REPO_DIR, "deployments/perpl.json");
+  return existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : undefined;
+}
+
+/**
+ * Pure: deployment JSON -> config.yaml text. `perpl` = deployments/perpl.json (adds PerplExchange on that chain at the
+ * same start block, so both venues cover the same window). `extraChains` = more chains that index only Perpl
+ * (K2.3 multichain: [{ id, startBlock }]).
+ */
+export function renderConfig(chainId, deployment, perpl, extraChains = [], perplProfile = "full") {
+  if (!(perplProfile in PERPL_PROFILES)) throw new Error(`unknown Perpl profile ${perplProfile}`);
+  const only = PERPL_PROFILES[perplProfile];
   const chain = CHAINS[chainId];
   if (!chain) throw new Error(`unsupported chainId ${chainId}`);
   if (Number(deployment.chainId) !== Number(chainId)) {
@@ -95,9 +139,10 @@ export function renderConfig(chainId, deployment) {
   L.push("contracts:");
   for (const c of CONTRACTS) {
     L.push(`  - name: ${c.name}`);
-    L.push(`    abi_file_path: ../abis/${c.abi}.json`);
+    L.push(`    abi_file_path: ${c.vendored ? "./abis/" : "../abis/"}${c.abi}.json`);
     L.push("    events:");
-    for (const e of c.events) L.push(`      - event: ${e}`);
+    const events = c.name === PERPL_CONTRACT && only ? c.events.filter((e) => only.includes(e)) : c.events;
+    for (const e of events) L.push(`      - event: ${e}`);
   }
   L.push("chains:");
   L.push(`  - id: ${chainId}`);
@@ -121,12 +166,85 @@ export function renderConfig(chainId, deployment) {
     n++;
   }
   if (n === 0) throw new Error(`deployments/${chainId}.json has no indexable contracts`);
+  const px = perplAddress(perpl, chainId);
+  if (px) {
+    L.push(`      - name: ${PERPL_CONTRACT}`);
+    L.push(`        address: "${px}"`);
+  }
+  for (const x of extraChains) {
+    const a = perplAddress(perpl, x.id);
+    if (!a) throw new Error(`deployments/perpl.json has no exchange for extra chain ${x.id}`);
+    if (!CHAINS[x.id]?.hypersync) throw new Error(`extra chain ${x.id} needs HyperSync`);
+    if (!(Number.isSafeInteger(x.startBlock) && x.startBlock > 0)) throw new Error(`extra chain ${x.id}: bad startBlock`);
+    L.push(`  - id: ${x.id}`);
+    L.push(`    start_block: ${x.startBlock}`);
+    L.push("    hypersync_config:");
+    L.push(`      url: ${CHAINS[x.id].hypersync}`);
+    L.push("    contracts:");
+    L.push(`      - name: ${PERPL_CONTRACT}`);
+    L.push(`        address: "${a}"`);
+  }
+  return L.join("\n") + "\n";
+}
+
+function perplAddress(perpl, chainId) {
+  const a = perpl?.chains?.[String(chainId)]?.exchange;
+  if (a === undefined) return undefined;
+  if (!ADDRESS_RE.test(a)) throw new Error(`deployments/perpl.json: bad exchange address for ${chainId}: ${a}`);
+  return a;
+}
+
+/** Pure: deployments/perpl.json -> src/perpl.gen.ts (market metadata the handlers read; never fetched at runtime). */
+export function renderPerplTs(perpl) {
+  const L = [
+    "// GENERATED by scripts/gen-config.mjs from deployments/perpl.json (seeded by scripts/seed-perpl.mjs). Do not edit.",
+    "export type PerplMarketMeta = {",
+    "  readonly name: string;",
+    "  readonly symbol: string;",
+    "  readonly priceDecimals: number;",
+    "  readonly sizeDecimals: number;",
+    "  readonly fundingIntervalSec: number;",
+    "  readonly fundingIntervalBlocks: number;",
+    "};",
+    "export type PerplChain = {",
+    "  readonly exchange: string;",
+    "  readonly collateralDecimals: number;",
+    "  readonly monPerpId: number;",
+    "  readonly fetched: string;",
+    "  readonly markets: Readonly<Record<string, PerplMarketMeta>>;",
+    "};",
+    "export const PERPL: Readonly<Record<number, PerplChain>> = {",
+  ];
+  const chains = Object.entries(perpl?.chains ?? {}).sort((a, b) => Number(a[0]) - Number(b[0]));
+  for (const [id, c] of chains) {
+    if (!c.markets) throw new Error(`deployments/perpl.json chain ${id} has no markets: run scripts/seed-perpl.mjs`);
+    L.push(`  ${Number(id)}: {`);
+    L.push(`    exchange: "${c.exchange}",`);
+    L.push(`    collateralDecimals: ${Number(c.collateralDecimals)},`);
+    L.push(`    monPerpId: ${Number(c.monMarketId)},`);
+    L.push(`    fetched: "${c.fetched}",`);
+    L.push("    markets: {");
+    for (const [pid, m] of Object.entries(c.markets).sort((a, b) => Number(a[0]) - Number(b[0]))) {
+      L.push(
+        `      "${pid}": { name: ${JSON.stringify(m.name)}, symbol: ${JSON.stringify(m.symbol)}, priceDecimals: ${m.priceDecimals}, ` +
+          `sizeDecimals: ${m.sizeDecimals}, fundingIntervalSec: ${m.fundingIntervalSec}, fundingIntervalBlocks: ${m.fundingIntervalBlocks} },`,
+      );
+    }
+    L.push("    },");
+    L.push("  },");
+  }
+  L.push("};");
+  // vitest runs on 31337 (config.test.yaml): it reuses the testnet's market metadata with the test exchange address
+  if (perpl?.chains?.["10143"]) {
+    L.push("/** vitest only (config.test.yaml, chain 31337): the testnet metadata behind a test exchange address. */");
+    L.push(`export const PERPL_TEST: PerplChain = { ...PERPL[10143]!, exchange: "${TEST_PERPL_EXCHANGE}" };`);
+  }
   return L.join("\n") + "\n";
 }
 
 /** Pure: all deployments -> src/deployments.gen.ts (static book -> market wiring for handlers). */
 export function renderDeploymentsTs(deployments) {
-  const keys = ["ClearingHouse", "OrderBook", "FundingSwapMarket", "SwapOrderBook", "MeridianVault"];
+  const keys = ["ClearingHouse", "OrderBook", "FundingSwapMarket", "SwapOrderBook", "MeridianVault", "InsuranceFund"];
   const L = [
     "// GENERATED by scripts/gen-config.mjs from deployments/*.json. Do not edit.",
     "// Static wiring used when MarketFactory.MarketRegistered has not (yet) been indexed.",
@@ -184,6 +302,7 @@ function writeDeploymentsTs() {
     .filter((f) => /^\d+\.json$/.test(f))
     .map((f) => JSON.parse(readFileSync(resolve(dir, f), "utf8")));
   writeFileSync(resolve(INDEXER_DIR, "src/deployments.gen.ts"), renderDeploymentsTs(all));
+  writeFileSync(resolve(INDEXER_DIR, "src/perpl.gen.ts"), renderPerplTs(readPerpl()));
 }
 
 /** Test-only addresses (EIP-55 checksummed) for contracts the Day-1 mock deployment doesn't have yet (config.test.yaml only). */
@@ -193,6 +312,16 @@ export const TEST_FILL = {
   SwapOrderBook: "0x00000000000000000000000000000000000000f3",
   MeridianKeeperReceiver: "0x00000000000000000000000000000000000000F4",
 };
+/** Test-only Perpl exchange on 31337 (config.test.yaml); its market metadata is PERPL_TEST in src/perpl.gen.ts. */
+export const TEST_PERPL_EXCHANGE = "0x00000000000000000000000000000000000000f5";
+
+/**
+ * K2.3: Perpl on Monad mainnet in the same hosted indexer (Envio multichain; the Development plan includes it).
+ * Start = mainnet head 111,352,347 (7 Oct 2026 ~14:40 UTC) − 2,016,000 blocks ≈ 7 days at Perpl's 8,571 blocks per
+ * 2,580 s, rounded down. Lean profile on mainnet ≈ 4k events for those 7 days (464 funding + 42 liquidations per
+ * 250k blocks recorded, PERPL_EVENTS.md), so the whole indexer stays far below the plan's 100k soft limit.
+ */
+export const HOSTED_EXTRA_CHAINS = { 10143: [{ id: 143, startBlock: 109_336_000 }] };
 
 function main() {
   if (process.argv[2] === "test") {
@@ -200,7 +329,11 @@ function main() {
     const d = JSON.parse(readFileSync(resolve(REPO_DIR, "deployments/31337.json"), "utf8"));
     d.contracts = { ...TEST_FILL, ...d.contracts };
     d.startBlock = 0; // synthetic test blocks start low; the live deployment's startBlock must not filter them
-    writeFileSync(resolve(INDEXER_DIR, "config.test.yaml"), renderConfig(31337, d).replace("(local anvil (DeployLocal))", "(vitest: 31337 + TEST_FILL)"));
+    const perpl = { chains: { 31337: { exchange: TEST_PERPL_EXCHANGE } } };
+    writeFileSync(
+      resolve(INDEXER_DIR, "config.test.yaml"),
+      renderConfig(31337, d, perpl).replace("(local anvil (DeployLocal))", "(vitest: 31337 + TEST_FILL)"),
+    );
     console.log("wrote config.test.yaml");
     return;
   }
@@ -217,12 +350,12 @@ function main() {
     mkdirSync(resolve(INDEXER_DIR, "abis"), { recursive: true });
     for (const f of ABI_FILES) copyFileSync(resolve(REPO_DIR, "abis", f), resolve(INDEXER_DIR, "abis", f));
     const file = CHAINS[chainId].file.replace("config.", "config.hosted.");
-    writeFileSync(resolve(INDEXER_DIR, file), renderHostedConfig(chainId, dep));
+    writeFileSync(resolve(INDEXER_DIR, file), renderHostedConfig(chainId, dep, readPerpl(), HOSTED_EXTRA_CHAINS[chainId] ?? []));
     writeDeploymentsTs();
     console.log(`wrote ${file} + abis/ (${ABI_FILES.length} files)`);
     return;
   }
-  const out = renderConfig(chainId, dep);
+  const out = renderConfig(chainId, dep, readPerpl());
   writeFileSync(resolve(INDEXER_DIR, CHAINS[chainId].file), out);
   writeDeploymentsTs();
   console.log(`wrote ${CHAINS[chainId].file} and src/deployments.gen.ts`);

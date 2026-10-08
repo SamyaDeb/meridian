@@ -205,7 +205,7 @@ async function onTrade(event: TradeEv, context: Ctx, kind: BookKind) {
         perpVolumeMmQuoteWad: s.perpVolumeMmQuoteWad + mm,
         trades: s.trades + 1,
       }),
-      { block, testMarket },
+      { block, ts, testMarket },
     );
   } else {
     const st = await getSwapStats(context, market);
@@ -219,7 +219,7 @@ async function onTrade(event: TradeEv, context: Ctx, kind: BookKind) {
       volumeWad: st.volumeWad + p.sizeWad, // MON notional units (MATH_SPEC §6.1)
       tradeCount: st.tradeCount + 1,
     });
-    await updateProtocol(context, (s) => ({ swapVolumeWad: s.swapVolumeWad + p.sizeWad, trades: s.trades + 1 }), { block });
+    await updateProtocol(context, (s) => ({ swapVolumeWad: s.swapVolumeWad + p.sizeWad, trades: s.trades + 1 }), { block, ts });
   }
 }
 

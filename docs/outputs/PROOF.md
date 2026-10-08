@@ -81,3 +81,18 @@ All suites also run at 256 × 128 inside the 499-test default run. Coverage CSVs
 **Security reviews:** two internal cross-reviews (`docs/outputs/security/review-A.md`, `review-B.md`) plus the 6 Oct audit hardening; status per finding in `docs/outputs/security/STATUS.md`.
 
 **Not claimed (no evidence yet):** mainnet deployment, external users, fees, volume; B4 parallel-market load, B5 funding granularity from the indexer, B9 vault economics; the funding-swap demo on testnet (no swap market maker funded); liquidation ≤ 3 blocks on testnet.
+
+## 11. Envio HyperIndex: the data layer computes what traders read (K2)
+| Claim | Evidence |
+|---|---|
+| Realized funding APR over 1 h / 8 h / 24 h / 7 d is computed in the indexer and equals the contract's `averageFundingApr` at the same block, also on a quiet market (sparse checkpoints) | `indexer/src/handlers/clearingHouse.ts` (ring mirror + `observe()` search); `indexer/test/replay.test.ts` + `replay-fullstack.test.ts` (recorded chains vs the contract's answers), `test/derived.test.ts` (7 d, sparse ring) |
+| Funding paid per account is conserved: Σ(paid + pending) = 0 within one wei per settlement | `indexer/test/replay.test.ts` "funding is conserved" (recorded perp stack) |
+| Every bad-debt step is a row: IF → fees → uncovered, plus IF top-ups and penalty inflows, with the IF balance after each | `InsuranceFundEvent`; `indexer/test/derived.test.ts` (waterfall order and amounts) |
+| Daily protocol stats (volume, MM share, fees, active external users, TVL / OI closes) and vault-queue timestamps | `ProtocolDaily`, `VaultRedeemRequest`; `indexer/test/derived.test.ts` |
+| Perpl's exchange is indexed next to Meridian, with only events seen decoding on the deployed contract | `indexer/PERPL_EVENTS.md`; `scripts/record-perpl.mjs` (testnet 214,858 logs over Meridian's window, mainnet 280,518 over 250k blocks, 0 unknown topics) |
+| Perpl's funding unit is proven, not assumed: onchain `actualRatePct100k`·10 = Perpl API micros, payment and cumulative sum equal | `test/fixtures/perpl-10143/funding-check-64.json` (28/28), `perpl-143/funding-check-10.json` (35/35) |
+| Indexed Perpl positions equal the exchange's own `getPosition` (lots, side, collateral, entry), 0 continuity breaks over ~31.6k position events on three markets and two chains | `scripts/verify-perpl-positions.mjs`; `indexer/test/replay-perpl.test.ts` |
+| Hourly Meridian-vs-Perpl funding from one GraphQL endpoint, charted on `/rates` | `CrossVenueFunding`; `app/src/features/rates/CrossVenueCard.tsx`; readers `app/src/data/indexer/*` (tests `history.test.ts`, `merge.test.ts`) |
+| Hosted on Envio Cloud, synced on the current 10143 deployment (+ Perpl mainnet, multichain) | > VERIFY after the K2 deployment: GraphQL URL, sync time from block 68,739,694 to head, lag at head (blocks), p50 query latency (20 runs) for Trade / Rates / Stats queries |
+
+Tests: `pnpm -C indexer test` 119 passed, `pnpm -C app test` 440 passed (7 Oct, branch `envio-perpl`).

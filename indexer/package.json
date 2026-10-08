@@ -11,7 +11,8 @@
     "dev": "envio dev",
     "start": "envio start",
     "typecheck": "envio codegen && tsc --noEmit",
-    "test": "envio codegen && node scripts/gen-config.mjs test && ENVIO_CONFIG=config.test.yaml vitest run --test-timeout=20000"
+    "test": "envio codegen && node scripts/gen-config.mjs test && ENVIO_CONFIG=config.test.yaml vitest run --test-timeout=20000 --exclude 'test/hosted/**'",
+    "test:hosted": "envio codegen --config config.hosted.testnet.yaml && ENVIO_CONFIG=config.hosted.testnet.yaml vitest run test/hosted --test-timeout=60000; s=$?; envio codegen; exit $s"
   },
   "dependencies": {
     "envio": "3.12.1"

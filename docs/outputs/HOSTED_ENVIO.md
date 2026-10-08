@@ -4,6 +4,8 @@
 
 > **6 Oct relaunch (HARDENING P4.6):** `deployments/10143.json` now points at the hardened deployment, start block **68,739,694** (the 66,875,788 below is v1). `config.hosted.testnet.yaml` + `indexer/abis/` are regenerated (`064f327`); the project name is now `meridian-indexer`. Redeploy from a branch containing that commit, then update `NEXT_PUBLIC_INDEXER_URL`.
 
+> **7 Oct (K2):** `config.hosted.testnet.yaml` now also indexes Perpl's exchange on 10143 and, as a second chain, Perpl on mainnet 143 (start 109,336,000), lean Perpl profile. Deploy it as a **new indexer connected to the public `SamyaDeb/meridian`** (Root Directory `indexer`, config `config.hosted.testnet.yaml`). Free-plan limits (3 deployments per indexer, 100k-event soft limit, 30-day lifespan) and the event budget are in `indexer/SCHEMA.md`.
+
 Owner: C (WS-06). Prepared by the Phase 2 loop (T9, branch `ws-06g-hosted-envio`). Human items: **HUMAN_CHECKLIST #13 (Docker, local check only) and #14 (Envio account/token)**. Follow it top to bottom in one pass.
 
 ## What's ready in the repo

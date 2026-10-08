@@ -100,7 +100,7 @@ indexer.onEvent({ contract: "MeridianVault", event: "NavSnapshot", fields: FIELD
     apy24hWad: d1 ? annualizedChangeWad(d1.sharePriceWad, p.sharePriceWad, ts - d1.timestamp) : v.apy24hWad,
     apy7dWad: d7 ? annualizedChangeWad(d7.sharePriceWad, p.sharePriceWad, ts - d7.timestamp) : v.apy7dWad,
   });
-  await updateProtocol(context, () => ({ vaultNavToken: p.nav }), { block: blockOf(event) });
+  await updateProtocol(context, () => ({ vaultNavToken: p.nav }), { block, ts });
 });
 
 indexer.onEvent({ contract: "MeridianVault", event: "Rebalanced", fields: FIELDS }, async ({ event, context }) => {
@@ -169,7 +169,13 @@ indexer.onEvent({ contract: "MeridianVault", event: "RedeemRequested", fields: F
     requestedBlock: block,
     requestedAt: tsOf(event),
     fulfilledBlock: undefined,
+    fulfilledAt: undefined,
+    fulfilTxHash: undefined,
     claimedBlock: undefined,
+    claimedAt: undefined,
+    claimTxHash: undefined,
+    cancelledBlock: undefined,
+    cancelledAt: undefined,
     updatedBlock: block,
     txHash: event.transaction.hash,
   });
@@ -180,7 +186,8 @@ indexer.onEvent({ contract: "MeridianVault", event: "RedeemRequested", fields: F
 indexer.onEvent({ contract: "MeridianVault", event: "RedeemCancelled", fields: FIELDS }, async ({ event, context }) => {
   const r = await context.VaultRedeemRequest.get(reqId(event.srcAddress, event.params.id));
   if (!r || r.status !== "Pending") return;
-  context.VaultRedeemRequest.set({ ...r, status: "Cancelled", updatedBlock: blockOf(event) });
+  const block = blockOf(event);
+  context.VaultRedeemRequest.set({ ...r, status: "Cancelled", cancelledBlock: block, cancelledAt: tsOf(event), updatedBlock: block });
   const v = await getVault(context, event.srcAddress);
   context.Vault.set({ ...v, pendingRedeemShares: v.pendingRedeemShares - r.shares });
 });
@@ -190,7 +197,16 @@ indexer.onEvent({ contract: "MeridianVault", event: "RedeemFulfilled", fields: F
   const r = await context.VaultRedeemRequest.get(reqId(event.srcAddress, id));
   if (!r || r.status !== "Pending") return;
   const block = blockOf(event);
-  context.VaultRedeemRequest.set({ ...r, status: "Claimable", assets, unwindCost, fulfilledBlock: block, updatedBlock: block });
+  context.VaultRedeemRequest.set({
+    ...r,
+    status: "Claimable",
+    assets,
+    unwindCost,
+    fulfilledBlock: block,
+    fulfilledAt: tsOf(event),
+    fulfilTxHash: event.transaction.hash,
+    updatedBlock: block,
+  });
   const v = await getVault(context, event.srcAddress);
   context.Vault.set({ ...v, pendingRedeemShares: v.pendingRedeemShares - r.shares, claimableToken: v.claimableToken + assets });
 });
@@ -200,7 +216,14 @@ indexer.onEvent({ contract: "MeridianVault", event: "RedeemClaimed", fields: FIE
   const r = await context.VaultRedeemRequest.get(reqId(event.srcAddress, id));
   if (!r || r.status !== "Claimable") return;
   const block = blockOf(event);
-  context.VaultRedeemRequest.set({ ...r, status: "Claimed", claimedBlock: block, updatedBlock: block });
+  context.VaultRedeemRequest.set({
+    ...r,
+    status: "Claimed",
+    claimedBlock: block,
+    claimedAt: tsOf(event),
+    claimTxHash: event.transaction.hash,
+    updatedBlock: block,
+  });
   // the claim is the withdrawal of the owner's position (the sync path's Withdraw event is not emitted here)
   const u = await getVaultUser(context, event.srcAddress, r.owner, block);
   context.VaultUser.set({ ...u, withdrawnToken: u.withdrawnToken + assets, updatedBlock: block });

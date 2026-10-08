@@ -69,8 +69,8 @@ describe("realized APR windows = ΔF/ΔG·YEAR vs the checkpoint 1 h back (avera
       chains: {
         [CHAIN]: {
           simulate: [
-            checkpoint(800, 10n, 100n, 4n), // bucket 4
-            checkpoint(1_150, 20n, 200n, 5n), // bucket 5, after target 1,100
+            checkpoint(800, 10n, 100n, 0n), // bucket 4
+            checkpoint(1_150, 20n, 200n, 1n), // bucket 5, after target 1,100
             funding(13_100, 1_010n, 1_100n),
           ],
         },

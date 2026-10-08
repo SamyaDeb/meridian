@@ -13,6 +13,7 @@ import {
   toJson,
 } from "../lib/common.js";
 import { applySwapFill, avgFixedAprWad, max } from "../lib/math.js";
+import { recordPenaltyIn } from "../lib/insurance.js";
 
 indexer.onEvent({ contract: "FundingSwapMarket", event: "Deposited", fields: FIELDS }, async ({ event, context }) => {
   const { account, amountToken, amountWad } = event.params;
@@ -21,7 +22,7 @@ indexer.onEvent({ contract: "FundingSwapMarket", event: "Deposited", fields: FIE
   await getSwapStats(context, event.srcAddress).then((s) => context.SwapStats.set(s));
   const sp = await getSwapPosition(context, event.srcAddress, account, block);
   context.SwapPosition.set({ ...sp, collateralWad: sp.collateralWad + amountWad, updatedBlock: block });
-  await updateProtocol(context, (s) => ({ swapCollateralToken: s.swapCollateralToken + amountToken }), { block });
+  await updateProtocol(context, (s) => ({ swapCollateralToken: s.swapCollateralToken + amountToken }), { block, ts: tsOf(event) });
 });
 
 indexer.onEvent({ contract: "FundingSwapMarket", event: "Withdrawn", fields: FIELDS }, async ({ event, context }) => {
@@ -29,7 +30,7 @@ indexer.onEvent({ contract: "FundingSwapMarket", event: "Withdrawn", fields: FIE
   const block = blockOf(event);
   const sp = await getSwapPosition(context, event.srcAddress, account, block);
   context.SwapPosition.set({ ...sp, collateralWad: sp.collateralWad - amountWad, updatedBlock: block });
-  await updateProtocol(context, (s) => ({ swapCollateralToken: s.swapCollateralToken - amountToken }), { block });
+  await updateProtocol(context, (s) => ({ swapCollateralToken: s.swapCollateralToken - amountToken }), { block, ts: tsOf(event) });
 });
 
 indexer.onEvent({ contract: "FundingSwapMarket", event: "SwapPositionChanged", fields: FIELDS }, async ({ event, context }) => {
@@ -65,13 +66,12 @@ indexer.onEvent({ contract: "FundingSwapMarket", event: "SwapPositionChanged", f
     txHash: event.transaction.hash,
   });
   const st = await getSwapStats(context, event.srcAddress);
-  context.SwapStats.set({
-    ...st,
-    // Σq = 0, so long OI = Σ max(q, 0)
-    openInterestWad: st.openInterestWad + max(p.newSize, 0n) - max(oldSize, 0n),
-    feesWad: st.feesWad + p.fee,
+  const dOi = max(p.newSize, 0n) - max(oldSize, 0n); // Σq = 0, so long OI = Σ max(q, 0)
+  context.SwapStats.set({ ...st, openInterestWad: st.openInterestWad + dOi, feesWad: st.feesWad + p.fee });
+  await updateProtocol(context, (s) => ({ feesWad: s.feesWad + p.fee, swapOpenInterestWad: s.swapOpenInterestWad + dOi }), {
+    block,
+    ts: tsOf(event),
   });
-  await updateProtocol(context, (s) => ({ feesWad: s.feesWad + p.fee }), { block: blockOf(event) });
 });
 
 indexer.onEvent({ contract: "FundingSwapMarket", event: "SwapAccrualSettled", fields: FIELDS }, async ({ event, context }) => {
@@ -116,7 +116,9 @@ indexer.onEvent({ contract: "FundingSwapMarket", event: "SwapLiquidated", fields
     liquidationCount: sp.liquidationCount + 1,
     updatedBlock: block,
   });
-  await updateProtocol(context, (s) => ({ liquidations: s.liquidations + 1 }), { block: blockOf(event) });
+  // the IF share of the penalty (the swap market has no BadDebtSocialized: its fee / uncovered split isn't evented)
+  await recordPenaltyIn(context, event, "Swap", p.account, p.toInsurance);
+  await updateProtocol(context, (s) => ({ liquidations: s.liquidations + 1 }), { block, ts: tsOf(event) });
 });
 
 indexer.onEvent({ contract: "FundingSwapMarket", event: "MaturitySettled", fields: FIELDS }, async ({ event, context }) => {
