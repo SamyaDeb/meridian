@@ -93,6 +93,12 @@ contracts:
     events:
       - event: ReportExecuted
       - event: ForwarderUpdated
+      - event: Unwound
+      - event: ExpectedWorkflowUpdated
+  - name: MeridianMfiFeed
+    abi_file_path: ../abis/IMeridianMfiFeed.json
+    events:
+      - event: MfiPublished
   - name: PerplExchange
     abi_file_path: ./abis/PerplExchange.json
     events:

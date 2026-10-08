@@ -1,4 +1,4 @@
-// IOracleAdapter, IInsuranceFund, IMarketFactory, IMeridianKeeperReceiver events.
+// IOracleAdapter, IInsuranceFund, IMarketFactory, IMeridianKeeperReceiver, IMeridianMfiFeed events.
 import { indexer } from "envio";
 import { FIELDS, evId, blockOf, tsOf, getMarket, updateProtocol, logAdmin, isTestMarket, getInsuranceFund } from "../lib/common.js";
 import { DEPLOYMENTS } from "../deployments.gen.js";
@@ -157,4 +157,39 @@ indexer.onEvent({ contract: "MeridianKeeperReceiver", event: "ReportExecuted", f
 
 indexer.onEvent({ contract: "MeridianKeeperReceiver", event: "ForwarderUpdated", fields: FIELDS }, async ({ event, context }) => {
   await logAdmin(context, event, "ForwarderUpdated", event.params);
+});
+
+indexer.onEvent({ contract: "MeridianKeeperReceiver", event: "Unwound", fields: FIELDS }, async ({ event, context }) => {
+  const p = event.params;
+  context.KeeperUnwind.set({
+    id: evId(event),
+    clearingHouse: p.clearingHouse,
+    isBid: p.isBid,
+    lotsRequested: p.lotsRequested,
+    lotsFilled: p.lotsFilled,
+    block: blockOf(event),
+    timestamp: tsOf(event),
+    txHash: event.transaction.hash,
+  });
+});
+
+indexer.onEvent({ contract: "MeridianKeeperReceiver", event: "ExpectedWorkflowUpdated", fields: FIELDS }, async ({ event, context }) => {
+  await logAdmin(context, event, "ExpectedWorkflowUpdated", event.params);
+});
+
+// ─── Meridian Funding Index feed (CR-016) ─────────────────────────────────────
+
+indexer.onEvent({ contract: "MeridianMfiFeed", event: "MfiPublished", fields: FIELDS }, async ({ event, context }) => {
+  const p = event.params;
+  context.MfiObservation.set({
+    id: evId(event),
+    mfiAprWad: p.mfiAprWad,
+    meridianAprWad: p.meridianAprWad,
+    perplAprWad: p.perplAprWad,
+    observedBlock: p.blockNumber,
+    perplFundingBlock: p.perplFundingBlock,
+    block: blockOf(event),
+    timestamp: tsOf(event),
+    txHash: event.transaction.hash,
+  });
 });

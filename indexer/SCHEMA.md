@@ -267,7 +267,8 @@ Enforced by `test/config.test.ts`, which diffs `abis/*.json` and `contracts/src/
 | OracleAdapter | PriceUpdated, DeviationGuardTripped, OracleParamsUpdated | `src/handlers/periphery.ts` |
 | InsuranceFund | Funded, BadDebtCovered, MarketAuthorized | `src/handlers/periphery.ts` |
 | MarketFactory | MarketRegistered (also registers the new OB/CH/oracle), MarketStatusChanged | `src/handlers/periphery.ts` |
-| MeridianKeeperReceiver | ReportExecuted, ForwarderUpdated | `src/handlers/periphery.ts` |
+| MeridianKeeperReceiver | ReportExecuted, ForwarderUpdated, Unwound → `KeeperUnwind`, ExpectedWorkflowUpdated (CR-016) | `src/handlers/periphery.ts` |
+| MeridianMfiFeed (CR-016) | MfiPublished → `MfiObservation` | `src/handlers/periphery.ts` |
 
 **Replay evidence on real chain data** (handlers via `createTestIndexer` simulate): `test/replay.test.ts` = the Phase 2 perp stack (`fixtures/anvil-e2e.json`); `test/replay-fullstack.test.ts` = the Phase 4 full-stack rehearsal (`fixtures/anvil-fullstack-10143.json`: perp + vault + hedger + funding swaps, 97k blocks of funding history, keeper rebalances incl. SkewCap, a crash liquidation, swap maturity). It checks every vault/hedger/swap event type recorded, and entities against the contracts' own answers at the same block: `VaultSnapshot.sharePriceWad` = `sharePrice()`, `VaultUser.shares` = `balanceOf`, Σ shares = `totalSupply`, `SwapPosition` q/K = `getPosition`, Σq = ΣK = 0, OI, the maturity snapshot, and realized 8 h APR = `FundingSwapMarket.realizedApr(96,000)` = `averageFundingApr(96,000)`. `SwapLiquidated`, `Withdrawn` (swap), `Withdraw` / `HedgeExited` (vault) did not occur in the rehearsal; they are covered by the unit tests with synthetic events.
 

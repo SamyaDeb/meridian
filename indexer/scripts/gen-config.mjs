@@ -50,7 +50,14 @@ export const CONTRACTS = [
   { name: "InsuranceFund", abi: "IInsuranceFund", events: ["Funded", "BadDebtCovered", "MarketAuthorized"] },
   { name: "MarketFactory", abi: "IMarketFactory", events: ["MarketRegistered", "MarketStatusChanged"] },
   { name: "KuruHedger", abi: "IKuruHedger", events: ["SpotBought", "SpotSold"] },
-  { name: "MeridianKeeperReceiver", abi: "IMeridianKeeperReceiver", events: ["ReportExecuted", "ForwarderUpdated"] },
+  {
+    name: "MeridianKeeperReceiver",
+    abi: "IMeridianKeeperReceiver",
+    // CR-016 (interfaces-v1.8): Unwound, ExpectedWorkflowUpdated
+    events: ["ReportExecuted", "ForwarderUpdated", "Unwound", "ExpectedWorkflowUpdated"],
+  },
+  // CR-016: the Meridian Funding Index onchain, written by the receiver (CRE W3)
+  { name: "MeridianMfiFeed", abi: "IMeridianMfiFeed", events: ["MfiPublished"] },
   // Perpl's exchange (another Monad perp, K2.2): ABI vendored in indexer/abis (MIT, PerplFoundation/dex-sdk; see
   // abis/README.md), address from deployments/perpl.json. Only the events seen AND decoded on the deployed contract
   // (indexer/PERPL_EVENTS.md); PositionOpened/Increased v1, Deleveraged(V2), InsurancePaymentForSettlement and
@@ -311,6 +318,7 @@ export const TEST_FILL = {
   FundingSwapMarket: "0x00000000000000000000000000000000000000F2",
   SwapOrderBook: "0x00000000000000000000000000000000000000f3",
   MeridianKeeperReceiver: "0x00000000000000000000000000000000000000F4",
+  MeridianMfiFeed: "0x00000000000000000000000000000000000000F6",
 };
 /** Test-only Perpl exchange on 31337 (config.test.yaml); its market metadata is PERPL_TEST in src/perpl.gen.ts. */
 export const TEST_PERPL_EXCHANGE = "0x00000000000000000000000000000000000000f5";
