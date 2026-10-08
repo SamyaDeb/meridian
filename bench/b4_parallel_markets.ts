@@ -149,7 +149,18 @@ async function indexTick(m: Mkt): Promise<{ tick: number; ts: bigint }> {
   return { tick: Number(px / ts), ts };
 }
 
-// ─── setup: collateral + maker ladders ───
+const MARKET_LIMIT_TICKS = Number(env("MARKET_LIMIT_TICKS") ?? "30"); // IOC limit: index ± 30 ticks (MON: ±12 bp)
+
+/** Maker ladder: 3 levels a side around the CURRENT index (re-quoted every phase so market ops always find it). */
+async function ladder(m: Mkt, maker: PrivateKeyAccount): Promise<void> {
+  const { tick } = await indexTick(m);
+  for (const d of [1, 2, 3]) {
+    await sendWait(maker, m.OrderBook, encodeFunctionData({ abi: obAbi, functionName: "placeLimitOrder", args: [false, tick + d, LADDER_LOTS, 0] }));
+    await sendWait(maker, m.OrderBook, encodeFunctionData({ abi: obAbi, functionName: "placeLimitOrder", args: [true, tick - d, LADDER_LOTS, 0] }));
+  }
+}
+
+// ─── setup: collateral ───
 async function setup(m: Mkt, accs: PrivateKeyAccount[]): Promise<void> {
   for (const acc of accs) {
     if (env("ANVIL") === "1") await pub.request({ method: "anvil_setBalance" as never, params: [acc.address, "0x56BC75E2D63100000"] as never });
@@ -162,11 +173,6 @@ async function setup(m: Mkt, accs: PrivateKeyAccount[]): Promise<void> {
       }
     }
   }
-  const { tick } = await indexTick(m);
-  for (const d of [1, 2, 3]) {
-    await sendWait(accs[0]!, m.OrderBook, encodeFunctionData({ abi: obAbi, functionName: "placeLimitOrder", args: [false, tick + d, LADDER_LOTS, 0] }));
-    await sendWait(accs[0]!, m.OrderBook, encodeFunctionData({ abi: obAbi, functionName: "placeLimitOrder", args: [true, tick - d, LADDER_LOTS, 0] }));
-  }
 }
 
 // ─── load ───
@@ -177,6 +183,8 @@ async function phase(ph: B4Phase): Promise<void> {
   const active: Array<{ m: Mkt; accs: PrivateKeyAccount[] }> = [];
   if (ph !== "b") active.push({ m: A, accs: accA.slice(1) });
   if (ph !== "a") active.push({ m: B, accs: accB.slice(1) });
+  await feed(true);
+  for (const { m } of active) await ladder(m, m === A ? accA[0]! : accB[0]!);
   const sched = new Map<string, ReturnType<typeof b4Schedule>>();
   for (const { m, accs } of active) accs.forEach((_, w) => sched.set(`${m.symbol}:${w}`, b4Schedule(ROUNDS, 11 + w + (m === B ? 100 : 0) + ph.length)));
   for (let r = 0; r < ROUNDS; ++r) {
@@ -197,7 +205,7 @@ async function phase(ph: B4Phase): Promise<void> {
               ? encodeFunctionData({ abi: obAbi, functionName: "placeLimitOrder", args: [true, t - PLACE_OFFSET_TICKS, 1n, 0] })
               : op === "cancel"
                 ? encodeFunctionData({ abi: obAbi, functionName: "cancelOrder", args: [ids.shift()!] })
-                : encodeFunctionData({ abi: obAbi, functionName: "placeMarketOrder", args: [buy, 1n, buy ? t + 10 : t - 10, 0n, false] });
+                : encodeFunctionData({ abi: obAbi, functionName: "placeMarketOrder", args: [buy, 1n, buy ? t + MARKET_LIMIT_TICKS : t - MARKET_LIMIT_TICKS, 0n, false] });
           const sentMs = Date.now();
           const s = await send(acc, m.OrderBook, data, `${m.symbol}:${op}`);
           round.push({ phase: ph, market: m.symbol, op: op as B4Op, wallet: w, hash: s.hash, sentBlock, sentMs, gasLimit: s.gas, estimate: s.est });
@@ -289,11 +297,14 @@ const cmp = (m: Mkt, alone: B4Phase) => {
     txPerBlockMean: interference(a.txPerBlockMean, j.txPerBlockMean),
   };
 };
-// storage: one successful tx of each op per market in the joint phase
+// storage: per op, the heaviest successful tx of each market in the joint phase
 const overlap: Record<string, unknown> = {};
 for (const op of ["place", "market", "cancel"] as const) {
-  const ta = txs.find((t) => t.phase === "ab" && t.market === A.symbol && t.op === op && t.status === "success");
-  const tb = txs.find((t) => t.phase === "ab" && t.market === B.symbol && t.op === op && t.status === "success");
+  // the heaviest successful tx of the op per market: the most storage touched (a filled market order, not a miss)
+  const heaviest = (sym: string) =>
+    txs.filter((t) => t.phase === "ab" && t.market === sym && t.op === op && t.status === "success").sort((x, y) => Number((y.gasUsed ?? 0n) - (x.gasUsed ?? 0n)))[0];
+  const ta = heaviest(A.symbol);
+  const tb = heaviest(B.symbol);
   if (!ta || !tb) continue;
   const [pa, pb] = await Promise.all([prestate(ta.hash), prestate(tb.hash)]);
   overlap[op] = pa && pb ? { txA: ta.hash, txB: tb.hash, ...storageOverlap(pa, pb) } : "debug_traceTransaction prestateTracer unavailable on this RPC";

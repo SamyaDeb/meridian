@@ -1,7 +1,7 @@
 {
   "chainId": 10143,
   "rpcTier": "local",
-  "commit": "5a04f10",
+  "commit": "93d8d6f",
   "date": "2026-10-08",
   "markets": {
     "A": {
@@ -21,11 +21,11 @@
   },
   "rounds": 30,
   "blocks": {
-    "start": 69230306,
-    "end": 69230488
+    "start": 69238207,
+    "end": 69238449
   },
-  "gasPriceWei": "68049842509",
-  "billedLoadMon": 7.3987861558858965,
+  "gasPriceWei": "59618164063",
+  "billedLoadMon": 6.030840051161907,
   "monSpent": null,
   "summaries": [
     {
@@ -34,22 +34,22 @@
       "sent": 90,
       "included": 90,
       "reverted": 0,
-      "blocks": 32,
-      "txPerBlockMean": 2.8125,
+      "blocks": 31,
+      "txPerBlockMean": 2.903225806451613,
       "txPerBlockMax": 3,
       "inclusionBlocksP50": 1,
       "inclusionBlocksP95": 1,
-      "latencyMsP50": 461,
-      "latencyMsP95": 782,
+      "latencyMsP50": 468,
+      "latencyMsP95": 933,
       "gasUsedP50ByOp": {
-        "place": 123869,
+        "place": 128054,
         "cancel": 68126,
         "market": 156559
       },
       "estimateP50ByOp": {
-        "place": 210171,
-        "cancel": 72903,
-        "market": 223776
+        "place": 208948,
+        "cancel": 68015,
+        "market": 222553
       }
     },
     {
@@ -58,22 +58,22 @@
       "sent": 90,
       "included": 90,
       "reverted": 0,
-      "blocks": 31,
-      "txPerBlockMean": 2.903225806451613,
+      "blocks": 32,
+      "txPerBlockMean": 2.8125,
       "txPerBlockMax": 3,
       "inclusionBlocksP50": 1,
       "inclusionBlocksP95": 2,
-      "latencyMsP50": 466,
-      "latencyMsP95": 776,
+      "latencyMsP50": 467,
+      "latencyMsP95": 926,
       "gasUsedP50ByOp": {
         "place": 123869,
-        "cancel": 68114,
-        "market": 162065
+        "cancel": 73002,
+        "market": 156559
       },
       "estimateP50ByOp": {
-        "place": 279150,
+        "place": 231197,
         "cancel": 72891,
-        "market": 206024
+        "market": 171824
       }
     },
     {
@@ -87,17 +87,17 @@
       "txPerBlockMax": 3,
       "inclusionBlocksP50": 1,
       "inclusionBlocksP95": 1,
-      "latencyMsP50": 469,
-      "latencyMsP95": 1089,
+      "latencyMsP50": 620,
+      "latencyMsP95": 2470,
       "gasUsedP50ByOp": {
-        "place": 125317,
+        "place": 128270,
         "cancel": 73014,
-        "market": 25807
+        "market": 162475
       },
       "estimateP50ByOp": {
-        "place": 210171,
-        "cancel": 72903,
-        "market": 223776
+        "place": 208948,
+        "cancel": 68015,
+        "market": 222553
       }
     },
     {
@@ -111,17 +111,17 @@
       "txPerBlockMax": 3,
       "inclusionBlocksP50": 1,
       "inclusionBlocksP95": 1,
-      "latencyMsP50": 469,
-      "latencyMsP95": 1089,
+      "latencyMsP50": 620,
+      "latencyMsP95": 2470,
       "gasUsedP50ByOp": {
-        "place": 125276,
-        "cancel": 73002,
-        "market": 156559
+        "place": 125207,
+        "cancel": 68114,
+        "market": 156615
       },
       "estimateP50ByOp": {
-        "place": 279150,
+        "place": 231197,
         "cancel": 72891,
-        "market": 206024
+        "market": 171824
       }
     }
   ],
@@ -133,38 +133,38 @@
     "A": {
       "market": "MON-PERP",
       "inclusionBlocksP50": 1,
-      "latencyMsP50": 1.017353579175705,
-      "latencyMsP95": 1.3925831202046035,
-      "txPerBlockMean": 1.0666666666666667
+      "latencyMsP50": 1.3247863247863247,
+      "latencyMsP95": 2.647374062165059,
+      "txPerBlockMean": 1.0333333333333332
     },
     "B": {
       "market": "ETH-PERP",
       "inclusionBlocksP50": 1,
-      "latencyMsP50": 1.0064377682403434,
-      "latencyMsP95": 1.4033505154639174,
-      "txPerBlockMean": 1.0333333333333332
+      "latencyMsP50": 1.3276231263383298,
+      "latencyMsP95": 2.6673866090712743,
+      "txPerBlockMean": 1.0666666666666667
     }
   },
   "storageOverlap": {
     "place": {
-      "txA": "0x00fe6c52c465b0dfc779d6a0f31df48ee1a18f24a4cb74baba3aea293127976e",
-      "txB": "0x6b4f4b2a8500dac5730429e0a36cf9d2d67365db020b2f5367b63a8fbf99bc96",
-      "aSlots": 17,
-      "bSlots": 13,
+      "txA": "0x7acbee4795d850142fd28294329fb2544d35e6029cbfaaf76987d029c501a2bc",
+      "txB": "0x8776b400edd1365da495a356541668fecb2742da8f4b09dd64a81794fd6628d1",
+      "aSlots": 16,
+      "bSlots": 18,
       "shared": [],
       "sharedAddresses": []
     },
     "market": {
-      "txA": "0xf55b7e3977388bbc2a3579060bad31c1999746828e5493790bb91c6056325962",
-      "txB": "0x6e57509bd1bb87f5a2848620cfe4682dd7fa332cd5571aa9bded95509a115188",
-      "aSlots": 1,
+      "txA": "0xd6d48929026236f405bc828411d40c50db337e91a774b9eeddb26b44f91ea96d",
+      "txB": "0x4ae0fdd0966a32e71bc919dd2ffbeed91e8169d56d0e041a8b2754a507dd65ac",
+      "aSlots": 22,
       "bSlots": 22,
       "shared": [],
       "sharedAddresses": []
     },
     "cancel": {
-      "txA": "0x19ff75a7c92a68ea91f3933fe9b7ff57acd2b4e07a4698e383d2f734a7dbfa9e",
-      "txB": "0xea18d43236704a29ad6cd489beeeb054d59580dd648d6d069fd568b19d3fe86d",
+      "txA": "0xc44f3984233728a45f336dbe276d27fb11355b3d288d1144d1403dfe2cd860c6",
+      "txB": "0x67d1bae9eee6e06527b9044c292afaeb81021d5f204ab330e398d62a6ed97c38",
       "aSlots": 9,
       "bSlots": 9,
       "shared": [],
