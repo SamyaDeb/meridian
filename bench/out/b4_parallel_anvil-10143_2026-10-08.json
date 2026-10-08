@@ -1,0 +1,174 @@
+{
+  "chainId": 10143,
+  "rpcTier": "local",
+  "commit": "5a04f10",
+  "date": "2026-10-08",
+  "markets": {
+    "A": {
+      "symbol": "MON-PERP",
+      "ClearingHouse": "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA",
+      "OrderBook": "0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207"
+    },
+    "B": {
+      "symbol": "ETH-PERP",
+      "ClearingHouse": "0xaf250943E173454C2fCD22b4Ba0DF8A0b6E1ccb4",
+      "OrderBook": "0x77675B68d15A112c9CfC617bCf38aAFA8643BDDe"
+    }
+  },
+  "wallets": {
+    "A": 3,
+    "B": 3
+  },
+  "rounds": 30,
+  "blocks": {
+    "start": 69230306,
+    "end": 69230488
+  },
+  "gasPriceWei": "68049842509",
+  "billedLoadMon": 7.3987861558858965,
+  "monSpent": null,
+  "summaries": [
+    {
+      "phase": "a",
+      "market": "MON-PERP",
+      "sent": 90,
+      "included": 90,
+      "reverted": 0,
+      "blocks": 32,
+      "txPerBlockMean": 2.8125,
+      "txPerBlockMax": 3,
+      "inclusionBlocksP50": 1,
+      "inclusionBlocksP95": 1,
+      "latencyMsP50": 461,
+      "latencyMsP95": 782,
+      "gasUsedP50ByOp": {
+        "place": 123869,
+        "cancel": 68126,
+        "market": 156559
+      },
+      "estimateP50ByOp": {
+        "place": 210171,
+        "cancel": 72903,
+        "market": 223776
+      }
+    },
+    {
+      "phase": "b",
+      "market": "ETH-PERP",
+      "sent": 90,
+      "included": 90,
+      "reverted": 0,
+      "blocks": 31,
+      "txPerBlockMean": 2.903225806451613,
+      "txPerBlockMax": 3,
+      "inclusionBlocksP50": 1,
+      "inclusionBlocksP95": 2,
+      "latencyMsP50": 466,
+      "latencyMsP95": 776,
+      "gasUsedP50ByOp": {
+        "place": 123869,
+        "cancel": 68114,
+        "market": 162065
+      },
+      "estimateP50ByOp": {
+        "place": 279150,
+        "cancel": 72891,
+        "market": 206024
+      }
+    },
+    {
+      "phase": "ab",
+      "market": "MON-PERP",
+      "sent": 90,
+      "included": 90,
+      "reverted": 0,
+      "blocks": 30,
+      "txPerBlockMean": 3,
+      "txPerBlockMax": 3,
+      "inclusionBlocksP50": 1,
+      "inclusionBlocksP95": 1,
+      "latencyMsP50": 469,
+      "latencyMsP95": 1089,
+      "gasUsedP50ByOp": {
+        "place": 125317,
+        "cancel": 73014,
+        "market": 25807
+      },
+      "estimateP50ByOp": {
+        "place": 210171,
+        "cancel": 72903,
+        "market": 223776
+      }
+    },
+    {
+      "phase": "ab",
+      "market": "ETH-PERP",
+      "sent": 90,
+      "included": 90,
+      "reverted": 0,
+      "blocks": 30,
+      "txPerBlockMean": 3,
+      "txPerBlockMax": 3,
+      "inclusionBlocksP50": 1,
+      "inclusionBlocksP95": 1,
+      "latencyMsP50": 469,
+      "latencyMsP95": 1089,
+      "gasUsedP50ByOp": {
+        "place": 125276,
+        "cancel": 73002,
+        "market": 156559
+      },
+      "estimateP50ByOp": {
+        "place": 279150,
+        "cancel": 72891,
+        "market": 206024
+      }
+    }
+  ],
+  "sharedBlocks": {
+    "blocks": 30,
+    "shared": 30
+  },
+  "interference": {
+    "A": {
+      "market": "MON-PERP",
+      "inclusionBlocksP50": 1,
+      "latencyMsP50": 1.017353579175705,
+      "latencyMsP95": 1.3925831202046035,
+      "txPerBlockMean": 1.0666666666666667
+    },
+    "B": {
+      "market": "ETH-PERP",
+      "inclusionBlocksP50": 1,
+      "latencyMsP50": 1.0064377682403434,
+      "latencyMsP95": 1.4033505154639174,
+      "txPerBlockMean": 1.0333333333333332
+    }
+  },
+  "storageOverlap": {
+    "place": {
+      "txA": "0x00fe6c52c465b0dfc779d6a0f31df48ee1a18f24a4cb74baba3aea293127976e",
+      "txB": "0x6b4f4b2a8500dac5730429e0a36cf9d2d67365db020b2f5367b63a8fbf99bc96",
+      "aSlots": 17,
+      "bSlots": 13,
+      "shared": [],
+      "sharedAddresses": []
+    },
+    "market": {
+      "txA": "0xf55b7e3977388bbc2a3579060bad31c1999746828e5493790bb91c6056325962",
+      "txB": "0x6e57509bd1bb87f5a2848620cfe4682dd7fa332cd5571aa9bded95509a115188",
+      "aSlots": 1,
+      "bSlots": 22,
+      "shared": [],
+      "sharedAddresses": []
+    },
+    "cancel": {
+      "txA": "0x19ff75a7c92a68ea91f3933fe9b7ff57acd2b4e07a4698e383d2f734a7dbfa9e",
+      "txB": "0xea18d43236704a29ad6cd489beeeb054d59580dd648d6d069fd568b19d3fe86d",
+      "aSlots": 9,
+      "bSlots": 9,
+      "shared": [],
+      "sharedAddresses": []
+    }
+  }
+}
