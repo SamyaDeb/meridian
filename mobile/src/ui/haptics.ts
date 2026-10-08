@@ -1,10 +1,16 @@
-// The haptics map (DESIGN.md). Fire-and-forget: a device without a vibrator just resolves.
+// The haptics map (DESIGN.md). Fire-and-forget: a device without a vibrator (or a missing native module) never throws.
 import * as Haptics from "expo-haptics";
 
-const swallow = () => undefined;
+const fire = (f: () => Promise<void>) => {
+  try {
+    void f().catch(() => undefined);
+  } catch {
+    // no haptics on this device
+  }
+};
 export const haptic = {
-  selection: () => void Haptics.selectionAsync().catch(swallow),
-  holdStart: () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(swallow),
-  success: () => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(swallow),
-  error: () => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(swallow),
+  selection: () => fire(() => Haptics.selectionAsync()),
+  holdStart: () => fire(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)),
+  success: () => fire(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
+  error: () => fire(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)),
 };

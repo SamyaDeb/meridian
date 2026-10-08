@@ -3,6 +3,7 @@ import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 import { buildInfo, getAppConfig } from "../../config";
 import { Screen } from "../../features/shell/Screen";
+import { WalletSettings } from "../../features/wallet/WalletSettings";
 import { useBlockBackoff, useBlockSource, useCadence } from "../../live/hooks";
 import { BlockPulse, Button, Card, formatValue, NetworkBadge, space, Text } from "../../ui";
 
@@ -37,6 +38,7 @@ export default function Settings() {
       <Text variant="title" accessibilityRole="header">
         Settings
       </Text>
+      <WalletSettings />
       <Card>
         <Row label="Network">
           <NetworkBadge />
