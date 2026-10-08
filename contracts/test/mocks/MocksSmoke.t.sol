@@ -64,6 +64,32 @@ contract MocksSmokeTest is Test {
         uint256 base = h.buySpot(10e6, 0, "");
         assertEq(base, 5e18);
     }
+
+    /// @notice mockDeploy makes the sync paths idle-only (like CR-014), so a large exit goes through the queue.
+    function test_vaultMockDeployQueue() public {
+        MockMeridianVault v = new MockMeridianVault(address(ausd));
+        ausd.mint(alice, 100e6);
+        vm.startPrank(alice);
+        ausd.approve(address(v), type(uint256).max);
+        uint256 shares = v.deposit(100e6, alice);
+        vm.stopPrank();
+        assertEq(v.maxRedeem(alice), shares);
+        v.mockDeploy(90e6);
+        assertEq(v.maxRedeem(alice), 10e18);
+        assertEq(v.maxWithdraw(alice), 10e6);
+        assertEq(v.hedgeState().idleAssets, 10e6);
+        vm.prank(alice);
+        vm.expectRevert();
+        v.redeem(shares, alice, alice);
+        vm.prank(alice);
+        uint256 id = v.requestRedeem(shares, alice, alice);
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = id;
+        v.fulfillRedeems(ids, "");
+        vm.prank(alice);
+        assertEq(v.claimRedeem(id), 100e6);
+        assertEq(ausd.balanceOf(alice), 100e6);
+    }
 }
 
 /// @notice Pins the two-index semantics the funding-swap market relies on (MATH_SPEC §1.8, §6).
