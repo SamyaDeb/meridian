@@ -115,6 +115,28 @@ importers:
         specifier: 4.1.0
         version: 4.1.0(@types/node@24.12.2)(vite@8.3.1(@types/node@24.12.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
+  keepers/alerts:
+    dependencies:
+      '@meridian/keeper-ts':
+        specifier: workspace:*
+        version: link:../ts-fallback
+      '@meridian/risk':
+        specifier: workspace:*
+        version: link:../../risk
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.3
+        version: 26.6.3
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.2
+        version: 5.0.2(@types/node@26.6.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
   keepers/cre:
     dependencies:
       '@chainlink/cre-sdk':

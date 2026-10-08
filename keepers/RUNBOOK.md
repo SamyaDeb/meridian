@@ -283,6 +283,19 @@ One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`,
 **Paging (`src/paging.ts`, unit-tested):** a code pages when it starts firing, again every 15 min (critical) / 2 h (warn) while it keeps firing, and once as `✅ RESOLVED` when it clears. Everything due in one cycle goes out as **one** message; at most 6 messages per minute, and the overflow is folded into the next message, never dropped. Provider shapes: Discord "Execute Webhook" `POST /webhooks/{id}/{token}` `{"content"}` ≤ 2,000 chars; Telegram `https://api.telegram.org/bot<token>/sendMessage` `{"chat_id","text"}`. A delivery failure prints `PAGE_FAILED <detail>` (secret redacted) and the watcher keeps going. **The team picks ONE channel** (both set = startup error). The webhook URL / bot token is a secret: `.env` only.
 **Balance floors:** = MON/h of that bot (§4, scaled to the mainnet gas price) × 12 h of runway, so a page leaves half a day to refill.
 
+## 8b. Rates & Risk alerts (K5, `keepers/alerts`)
+Pages when a watched **Perpl** position comes within `liqDistancePct` of its liquidation price (Perpl's own rule, `@meridian/risk`, the same code as `/rates`), or when |Meridian − Perpl| funding passes `spread.aprPct` APR. Read-only, no key.
+```bash
+cp keepers/alerts/watchlist.example.json keepers/alerts/watchlist.json   # edit wallets / thresholds
+cd keepers/alerts && ALERTS_WATCHLIST=./watchlist.json ALERTS_APP_URL=https://<the app> ALERTS_MFI_URL=https://<mfi> \
+  PAGE_DISCORD_WEBHOOK_URL=<from .env>   # or PAGE_TELEGRAM_BOT_TOKEN + PAGE_TELEGRAM_CHAT_ID (ONE channel)
+  pnpm start          # ONCE=1 → one cycle and exit
+```
+- Positions come from the app's `/api/perpl/positions` (onchain, cached 5 s, 429 back-off); Perpl's rate from `/api/perpl/market`; Meridian's from the MFI service (no `ALERTS_MFI_URL` ⇒ spread alerts off).
+- A condition fires on crossing its threshold and clears only `hysteresisPct` points back on the safe side; it repeats at most every `cooldownMin` and sends one `✅ RESOLVED` when it clears (the §8 pager). Critical when the distance is under half the threshold.
+- Codes: `perpl_liq:<chain>:<address>:<perpId>`, `spread:<chain>`, `alerts_read:…` (a read failed: the message carries the route's own reason, e.g. which RPC is missing).
+- Tests: `pnpm -C keepers/alerts test` (fake clock, recorded payloads, no network).
+
 ## 9. Swap keeper duties, swap MM, vault rebalancing (Phase 4)
 - **Keeper:** swap liquidations + `settleMaturity` run inside the main keeper whenever the deployment has `FundingSwapMarket` (section 4b). Vault: `VAULT_REBALANCE=1` (needsRebalance every 20 blocks and after each oracle push). **Mainnet launch (PHASES 17): the vault is idle** (`skewCapacity = 0` ⇒ `needsRebalance()` is always `None`, so the keeper sends nothing; `enterHedge` reverts `NothingToDo`). Leave `VAULT_REBALANCE=1`: it starts working by itself when the owner raises `skewCapacity` (vault v2 / CR-014 is the route fix; §9b). The keeper key needs collateral in the CH **and** the swap market, and must be registered as the vault keeper (`DeployMeridian` does it via `KEEPER_ADDRESS`).
 - **Swap MM:** `MARKET=swap` with its own key and swap-market collateral (section 4c). Stop with SIGINT; it pulls its quotes at maturity by itself.

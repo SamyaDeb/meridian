@@ -1,0 +1,6 @@
+{
+  "wallets": [{ "address": "0xFC76FE796f22665f0A48863Ff5d7a03A4FcD7775", "chain": 10143, "label": "k3 hedge (testnet)", "liqDistancePct": 10 }],
+  "spread": { "chain": 10143, "aprPct": 20 },
+  "hysteresisPct": 1,
+  "cooldownMin": 30
+}
