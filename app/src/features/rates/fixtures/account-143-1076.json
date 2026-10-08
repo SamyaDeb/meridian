@@ -1,0 +1,215 @@
+{
+ "recordedAt": "2026-10-08T04:19:52.389Z",
+ "source": "Monad 143 via the server RPC, exchange views (deployments/perpl.json)",
+ "calls": [
+  {
+   "kind": "block",
+   "result": "111512980n"
+  },
+  {
+   "kind": "multicall",
+   "calls": [
+    {
+     "fn": "getAccountByAddr",
+     "args": [
+      "0xf27732351024f7D9a9da128311e13bFa183bde8e"
+     ]
+    },
+    {
+     "fn": "getFundingInterval",
+     "args": []
+    }
+   ],
+   "results": [
+    {
+     "result": {
+      "accountId": "1076n",
+      "balanceCNS": "34576n",
+      "lockedBalanceCNS": "0n",
+      "frozen": 0,
+      "accountAddr": "0xf27732351024f7D9a9da128311e13bFa183bde8e",
+      "positions": {
+       "bank1": "1024n",
+       "bank2": "0n",
+       "bank3": "0n",
+       "bank4": "0n"
+      }
+     },
+     "status": "success"
+    },
+    {
+     "result": "8571n",
+     "status": "success"
+    }
+   ]
+  },
+  {
+   "kind": "multicall",
+   "calls": [
+    {
+     "fn": "getPositionV2",
+     "args": [
+      "10n",
+      "1076n"
+     ]
+    },
+    {
+     "fn": "getMarginFractions",
+     "args": [
+      "10n",
+      "0n"
+     ]
+    },
+    {
+     "fn": "getPerpetualInfoV2",
+     "args": [
+      "10n"
+     ]
+    },
+    {
+     "fn": "getFundingSumAtBlock",
+     "args": [
+      "10n",
+      "111512980n"
+     ]
+    },
+    {
+     "fn": "getTakerFee",
+     "args": [
+      "10n"
+     ]
+    },
+    {
+     "fn": "getMakerFee",
+     "args": [
+      "10n"
+     ]
+    }
+   ],
+   "results": [
+    {
+     "result": [
+      {
+       "accountId": "1076n",
+       "nextNodeId": "4352n",
+       "prevNodeId": "5242n",
+       "positionType": 0,
+       "depositCNS": "166757684n",
+       "pricePNS": "25051n",
+       "lotLNS": "19823n",
+       "entryBlock": "103424842n",
+       "pnlCNS": "1075794n",
+       "deltaPnlCNS": "4896281n",
+       "premiumPnlCNS": "-3820487n",
+       "priceResiduePNSQ16": "0n"
+      },
+      "25298n",
+      true
+     ],
+     "status": "success"
+    },
+    {
+     "result": [
+      "1000n",
+      "2000n",
+      "1000n",
+      "1000000000n",
+      "90n",
+      "95n"
+     ],
+     "status": "success"
+    },
+    {
+     "result": {
+      "name": "MON Perp",
+      "symbol": "MON",
+      "priceDecimals": "6n",
+      "lotDecimals": "0n",
+      "linkFeedId": "0x000317771c39ba3313945902e3b482165f1d6c51d3d5edf9912f81d695d7f742",
+      "priceTolPer100K": "5000n",
+      "marginTol": "100n",
+      "marginTolDecimals": "9n",
+      "refPriceMaxAgeSec": "60n",
+      "positionBalanceCNS": "89407172258n",
+      "insuranceBalanceCNS": "21991554850n",
+      "markPNS": "25298n",
+      "markTimestamp": "1791433189n",
+      "lastPNS": "25312n",
+      "lastTimestamp": "1791433189n",
+      "oraclePNS": "25296n",
+      "oracleTimestampSec": "1791433181n",
+      "longOpenInterestLNS": "3351526n",
+      "shortOpenInterestLNS": "3351526n",
+      "fundingStartBlock": "55077246n",
+      "fundingRatePct100k": 3,
+      "absFundingClampPctPer100K": "10n",
+      "status": 4,
+      "basePricePNS": "0n",
+      "maxBidPriceONS": "25301n",
+      "minBidPriceONS": "19850n",
+      "maxAskPriceONS": "36980n",
+      "minAskPriceONS": "25361n",
+      "numOrders": "40n",
+      "ignOracle": false,
+      "fundingSumScalingExp": "2n"
+     },
+     "status": "success"
+    },
+    {
+     "result": [
+      78736,
+      "111508710n"
+     ],
+     "status": "success"
+    },
+    {
+     "result": "345n",
+     "status": "success"
+    },
+    {
+     "result": "45n",
+     "status": "success"
+    }
+   ]
+  }
+ ],
+ "expected": {
+  "chainId": 143,
+  "address": "0xf27732351024f7D9a9da128311e13bFa183bde8e",
+  "block": "111512980",
+  "account": {
+   "accountId": "1076",
+   "balanceCNS": "34576",
+   "lockedBalanceCNS": "0",
+   "frozen": 0
+  },
+  "positions": [
+   {
+    "perpId": 10,
+    "name": "MON",
+    "positionType": 0,
+    "depositCNS": "166757684",
+    "pricePNS": "25051",
+    "priceResiduePNSQ16": "0",
+    "lotLNS": "19823",
+    "entryBlock": "103424842",
+    "pnlCNS": "1075794",
+    "deltaPnlCNS": "4896281",
+    "premiumPnlCNS": "-3820487",
+    "markPNS": "25298",
+    "markValid": true,
+    "priceDecimals": 6,
+    "lotDecimals": 0,
+    "maintMarginHdths": "2000",
+    "initMarginHdths": "1000",
+    "fundingRatePct100k": "3",
+    "lastFundingEventBlock": "111508710",
+    "fundingIntervalSec": 2580,
+    "fundingIntervalBlocks": "8571",
+    "takerFeeMicros": "345",
+    "makerFeeMicros": "45"
+   }
+  ],
+  "unknownPerps": []
+ }
+}

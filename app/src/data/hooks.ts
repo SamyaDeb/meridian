@@ -75,6 +75,33 @@ export function usePerpl(chainId: number = INDEXER_CHAIN_ID, limit = 100) {
   });
 }
 
+/** Perpl's MON market now on `chainId`, read onchain by /api/perpl/market (cached 5 s there). */
+export function usePerplMarket(chainId: 10143 | 143) {
+  return useQuery({
+    queryKey: ["perplMarket", chainId],
+    queryFn: async ({ signal }) => {
+      const v = await import("@/features/rates/perplView");
+      return v.parseMarketWire(await v.getPerplRoute(`/api/perpl/market?chain=${chainId}`, signal));
+    },
+    refetchInterval: 5_000,
+    retry: 1,
+  });
+}
+
+/** A wallet's Perpl account and open positions (onchain via /api/perpl/positions); off until an address is given. */
+export function usePerplAccount(address: string | undefined, chainId: 10143 | 143) {
+  return useQuery({
+    queryKey: ["perplAccount", chainId, address?.toLowerCase()],
+    queryFn: async ({ signal }) => {
+      const v = await import("@/features/rates/perplView");
+      return v.parseAccountWire(await v.getPerplRoute(`/api/perpl/positions?chain=${chainId}&address=${address}`, signal));
+    },
+    enabled: address !== undefined,
+    refetchInterval: 5_000,
+    retry: 1,
+  });
+}
+
 /** One row per UTC day (ProtocolDaily), oldest first. */
 export function useProtocolDaily(days = 30) {
   return useQuery({
