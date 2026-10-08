@@ -7,6 +7,7 @@ import type { PublicClient } from "viem";
 import { Button, Dialog } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
 import { contractAddress, deploymentFor } from "@/config/deployments";
+import { usePerpMarket } from "@/data/market";
 import { erc20Abi } from "@/lib/abi";
 import { FAUCET_AMOUNT, faucetAvailable, msUntilNextClaim, readLastClaim, writeLastClaim } from "@/lib/faucet";
 import { describeSignError } from "@/lib/login";
@@ -29,7 +30,9 @@ export function useOnboarding({ onDone }: { onDone?: () => void } = {}) {
   const tx = useTx();
   const { address } = useAccount();
   const ausd = contractAddress(READ_CHAIN_ID, "AUSD");
-  const ch = contractAddress(READ_CHAIN_ID, "ClearingHouse");
+  // K7: the deposit step funds the selected market's ClearingHouse (isolated margin per market)
+  const pm = usePerpMarket();
+  const ch = contractAddress(READ_CHAIN_ID, "ClearingHouse") ? pm.clearingHouse : undefined;
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<OnboardState>(initialOnboardState);
   const [result, setResult] = useState<"ok" | "failed" | null>(null);

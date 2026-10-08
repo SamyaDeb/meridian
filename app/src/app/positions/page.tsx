@@ -9,6 +9,7 @@ import { PositionsCard } from "@/features/trade/PositionsCard";
 import { freeCollateralWad, marginRatioWad } from "@/lib/account";
 import { formatAprWad, formatAusdWad, formatBaseWad, formatFixed, formatSignedAusdWad } from "@/lib/format";
 import type { ReactNode } from "react";
+import { usePerpMarket } from "@/data/market";
 
 function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub?: ReactNode }) {
   return (
@@ -22,6 +23,7 @@ function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub
 
 /** Portfolio (FRONTEND_TRADE_PLAN §7): summary cards, the same positions / orders / history card as Trade, swaps. */
 export default function PositionsPage() {
+  const pm = usePerpMarket();
   const me = useAccountAddress();
   const { isConnected } = useAccount();
   const { data: a } = useAccountView(me);
@@ -63,7 +65,7 @@ export default function PositionsPage() {
           (swap?.positions ?? []).map((s) => (
             <div key={s.id} className="rounded-inner bg-card-2 p-3">
               <p className="mb-1 text-sm font-medium">{s.lockedSpread ? "Locked spread" : s.size > 0n ? "Receive floating, pay fixed" : "Pay floating, receive fixed"}</p>
-              <Row label="Notional" value={`${formatBaseWad(s.size < 0n ? -s.size : s.size, 0)} MON`} />
+              <Row label="Notional" value={`${formatBaseWad(s.size < 0n ? -s.size : s.size, pm.sizeDp)} ${pm.base}`} />
               <Row label="Fixed APR" value={s.avgFixedAprWad === undefined ? "—" : formatAprWad(s.avgFixedAprWad)} />
               <Row label="Net accrued" value={formatSignedAusdWad(s.netAccrued)} tone={toneOf(s.netAccrued)} />
             </div>
