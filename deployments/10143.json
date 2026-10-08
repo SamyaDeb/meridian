@@ -50,5 +50,22 @@
   "vaultSourceCommit": "b38c6ba (ws-00r-testnet-vault, stacked on ws-04c-vault-v2 4ecf7c7; not on main yet: rebase --onto origin/main ws-04c-vault-v2 ws-00r-testnet-vault after P3-P5 merge)",
   "creForwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192",
   "creForwarderMode": "sim",
-  "receiverStartBlock": 69056122
+  "receiverStartBlock": 69056122,
+  "markets": [
+    {
+      "ClearingHouse": "0xaf250943E173454C2fCD22b4Ba0DF8A0b6E1ccb4",
+      "OracleAdapter": "0x8DFE2185B14b648B4E5d940F025c47AEDEC170Db",
+      "OrderBook": "0x77675B68d15A112c9CfC617bCf38aAFA8643BDDe",
+      "_label": "TESTNET MARKET: keeper-fed oracle (Pyth via Hermes, pushed by the keeper)",
+      "baseAsset": "0x0000000000000000000000000000000000000000",
+      "feedSymbol": "ETH/USD",
+      "keeper": "0x5D4FB8B84839e0e8445154c8C6a5ec3B285146E2",
+      "lotSizeWad": "1000000000000000",
+      "oracleKind": "keeper-fed",
+      "pythFeedId": "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+      "startBlock": 69227046,
+      "symbol": "ETH-PERP",
+      "tickSizeWad": "100000000000000000"
+    }
+  ]
 }
