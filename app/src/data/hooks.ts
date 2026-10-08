@@ -252,6 +252,17 @@ export function useProtocolStats() {
 
 /** Metrics dashboard (C5): indexer only. Undefined URL ⇒ the query is off and the Stats page says so. */
 export const INDEXER_URL = process.env.NEXT_PUBLIC_INDEXER_URL || undefined;
+/** K6 B3: users and product metrics (external users, swaps, vault, queue, liquidations by market kind), indexer only. */
+export function useMetrics() {
+  return useQuery({
+    queryKey: ["metrics", INDEXER_URL, INDEXER_CHAIN_ID],
+    queryFn: async ({ signal }) => (await import("./indexer/metrics")).fetchMetrics(INDEXER_URL!, INDEXER_CHAIN_ID, signal),
+    enabled: INDEXER_URL !== undefined,
+    refetchInterval: 15_000,
+    retry: 1,
+  });
+}
+
 export function useIndexerStats() {
   return useQuery({
     queryKey: ["indexerStats", INDEXER_URL],

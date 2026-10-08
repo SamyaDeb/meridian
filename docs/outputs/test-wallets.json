@@ -1,0 +1,9 @@
+{
+  "_note": "Our own wallets that are not in deployments' operator lists, so the indexer counts them as external. users-report.mjs subtracts them. Never count these as users.",
+  "wallets": [
+    { "address": "0x5c2dBeB734bEe60c2Db8aaFA249AA6614506Cc5B", "what": "Privy Dashboard test account 3 (K1 testnet onboarding run, PROOF §10)" },
+    { "address": "0x80e511c00Ff854c1D91de1481D264F309520aE7E", "what": "labelled demo victim (K4 CRE liquidations, PROOF §13)" },
+    { "address": "0xb624c6144aA825f22452B3cEFC3728F38b0c088c", "what": "CRE simulation wallet (K4)" },
+    { "address": "0x7c44C263225706fE28809BaE9fCC13460A908932", "what": "MeridianKeeperReceiver (CRE liquidator, K4)" }
+  ]
+}

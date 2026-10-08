@@ -1,5 +1,5 @@
 "use client";
-import { INDEXER_URL, useIndexerStats, useMarket, useProtocolStats } from "@/data/hooks";
+import { INDEXER_URL, useIndexerStats, useMarket, useMetrics, useProtocolStats } from "@/data/hooks";
 import { useDataSource } from "@/data/context";
 import type { ReactNode } from "react";
 import { Card, Notice, Skeleton } from "@/components/ds";
@@ -57,6 +57,40 @@ function IndexerMetrics() {
   );
 }
 
+/**
+ * K6 B3 (DEMO_SCRIPT 2:50): who uses it and what they use. External = not ours: deployments' operators are excluded by
+ * the indexer, our labelled test wallets (Privy test account, demo victim, CRE) here. The demo market's liquidations
+ * are counted apart from the product market's.
+ */
+function UserMetrics() {
+  const { data: m, error, isLoading } = useMetrics();
+  if (isLoading) return <Skeleton className="h-32 w-full" label="Loading user metrics from the indexer" />;
+  if (error || !m)
+    return (
+      <Notice tone="warn" title="User metrics unavailable">
+        {error instanceof Error ? error.message : "no data"}.
+      </Notice>
+    );
+  const ge = (n: number, capped: boolean) => (capped ? `≥ ${n.toLocaleString()}` : n.toLocaleString());
+  const r = m.redeems;
+  return (
+    <section aria-label="Users and products">
+      <h2 className="px-1 pb-1 text-sm font-semibold">Users and products</h2>
+      <div className={GRID} data-testid="user-metrics">
+        <Kpi label="External users" value={ge(m.externalUsers, m.externalUsersCapped)} sub={`${m.externalTraders} traded the perp · ours excluded`} />
+        <Kpi label="Perp trades" value={m.trades.toLocaleString()} sub={`our MM in ${pct(m.mmShareBps)} of volume`} />
+        <Kpi label="Funding swaps opened" value={m.swapsOpenedExternal.toLocaleString()} sub={`by external users · ${m.swapsOpenedAll} incl. ours`} />
+        <Kpi label="Vault depositors" value={m.vaultDepositorsExternal.toLocaleString()} sub={`${formatAusdToken(m.vaultDepositedTokenExternal)} AUSD deposited`} />
+        <Kpi label="Withdrawal queue" value={`${r.requested} queued`} sub={`${r.claimable} to claim · ${r.claimed} claimed · ${r.cancelled} cancelled`} />
+        <Kpi label="Liquidations" value={ge(m.liquidationsProduct, m.liquidationsCapped)} sub={`product market · ${m.liquidationsTestMarket} on the labelled demo market`} />
+      </div>
+      <p className="num mt-2 px-1 text-[11px] text-muted" data-testid="metrics-block">
+        As of block #{m.asOfBlock.toString()} (indexer head) · {m.testWalletsExcluded} labelled test wallet(s) of ours excluded
+      </p>
+    </section>
+  );
+}
+
 /** Mock data layer only (local dev without an indexer); the top bar labels it "mock data". */
 function MockMetrics() {
   const { data: s } = useProtocolStats();
@@ -84,7 +118,10 @@ export default function StatsPage() {
         <p className="text-xs text-muted">Product markets only. Our market maker&apos;s share of volume is disclosed.</p>
       </header>
       {INDEXER_URL ? (
-        <IndexerMetrics />
+        <>
+          <IndexerMetrics />
+          <UserMetrics />
+        </>
       ) : ds.kind === "mock" ? (
         <MockMetrics />
       ) : (
