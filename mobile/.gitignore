@@ -1,0 +1,33 @@
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native (prebuild output, never committed: EAS builds from app.config.ts)
+/android
+/ios
+.kotlin/
+*.orig.*
+
+# Secrets / signing (never committed)
+.env*
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+credentials.json
+
+# Metro / TS / misc
+.metro-health-check*
+*.tsbuildinfo
+npm-debug.*
+.DS_Store
+coverage/
