@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.get_login_creds", "delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "xyz.meridianfi.app.staging",
+      "sha256_cert_fingerprints": ["23:2F:3C:C0:DA:54:87:A5:9B:18:1A:06:7B:77:B6:53:69:59:29:13:D2:03:DF:90:9F:36:9D:D7:DC:46:16:B2"]
+    }
+  }
+]
