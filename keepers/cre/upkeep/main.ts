@@ -1,8 +1,8 @@
 // W2 upkeep: a Chainlink CRE backstop for funding pokes and vault rebalances.
-// Cron (60 s) → EVM-read each ClearingHouse's fundingState().lastUpdateBlock and the vault's needsRebalance() →
-// report FUNDING_POKE(stale markets) and/or VAULT_REBALANCE(vault) → MeridianKeeperReceiver. The TS keeper keeps the
-// funding gap ≤ 20 blocks; this fires only when it has fallen behind (maxGapBlocks), so in normal operation W2 costs
-// reads only.
+// Cron (60 s) → EVM-read each ClearingHouse's fundingState().lastUpdateBlock and the vault's needsRebalance() (then a
+// rebalance() dry-run as the receiver) → report FUNDING_POKE(stale markets) and/or VAULT_REBALANCE(vault) →
+// MeridianKeeperReceiver. The TS keeper keeps the funding gap ≤ 20 blocks; this fires only when it has fallen behind
+// (maxGapBlocks), so in normal operation W2 costs reads only.
 import { CronCapability, Runner, handler, type Runtime } from "@chainlink/cre-sdk";
 import { getAddress, type Address } from "viem";
 import { z } from "zod";
@@ -55,7 +55,19 @@ const onCron = (runtime: Runtime<Config>): string => {
     const vault = getAddress(cfg.vault);
     const reason = read<number>(runtime, evm, budget, vault, vaultAbi, "needsRebalance", [], head);
     runtime.log(`vault ${vault}: needsRebalance = ${rebalanceReasonName(reason)}`);
+    // The receiver isolates a reverting rebalance (ReportExecuted success = false), so the onReport estimate never
+    // fails: dry-run rebalance() as the receiver first, or a vault that cannot rebalance (e.g. no hedge liquidity)
+    // costs a report every run (10143, 8 Oct: SlippageExceeded, ≈ 0.055 MON per run).
+    let wouldRevert = "";
     if (reason !== 0) {
+      try {
+        read<number>(runtime, evm, budget, vault, vaultAbi, "rebalance", [], head, getAddress(cfg.receiver));
+      } catch (e) {
+        wouldRevert = String(e).slice(0, 120);
+        runtime.log(`vault: rebalance() as the receiver reverts (${wouldRevert}), no report`);
+      }
+    }
+    if (reason !== 0 && wouldRevert === "") {
       const r = deliver(runtime, evm, budget, { ...gas, report: vaultRebalanceReport(vault) });
       runtime.log(`VAULT_REBALANCE (${rebalanceReasonName(reason)}) tx ${r.txHash} gasLimit ${r.gasLimit} ${r.status}`);
       out.push(`rebalance:${r.txHash}`);

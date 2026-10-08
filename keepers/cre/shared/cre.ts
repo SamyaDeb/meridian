@@ -53,7 +53,7 @@ export function headBlock(runtime: Runtime<unknown>, evm: EVMClient, budget: Rea
   return big(h.header?.blockNumber);
 }
 
-/** eth_call a view at `atBlock` and decode it with viem. */
+/** eth_call `functionName` at `atBlock` (as `from`, default the zero address) and decode it with viem. Throws on revert. */
 export function read<T>(
   runtime: Runtime<unknown>,
   evm: EVMClient,
@@ -63,11 +63,12 @@ export function read<T>(
   functionName: string,
   args: readonly unknown[],
   atBlock: bigint | "latest",
+  from: Address = zeroAddress,
 ): T {
   budget.take();
   const data = encodeFunctionData({ abi, functionName, args } as Parameters<typeof encodeFunctionData>[0]);
   const blockNumber = atBlock === "latest" ? LATEST_BLOCK_NUMBER : bn(atBlock);
-  const reply = evm.callContract(runtime, { call: encodeCallMsg({ from: zeroAddress, to, data }), blockNumber }).result();
+  const reply = evm.callContract(runtime, { call: encodeCallMsg({ from, to, data }), blockNumber }).result();
   return decodeFunctionResult({ abi, functionName, data: bytesToHex(reply.data) } as Parameters<typeof decodeFunctionResult>[0]) as T;
 }
 

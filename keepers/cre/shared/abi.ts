@@ -13,7 +13,11 @@ export const clearingHouseAbi = parseAbi([
   "event PositionChanged(address indexed account, int256 sizeDelta, int256 newSize, uint256 priceWad, int256 realizedPnl, int256 fee, bool isMaker)",
 ]);
 
-export const vaultAbi = parseAbi(["function needsRebalance() view returns (uint8)", "function isKeeper(address) view returns (bool)"]);
+export const vaultAbi = parseAbi([
+  "function needsRebalance() view returns (uint8)",
+  "function isKeeper(address) view returns (bool)",
+  "function rebalance() returns (uint8 reason)",
+]);
 
 export const oracleAbi = parseAbi([
   "function tryGetIndexPrice() view returns (bool ok, uint256 priceWad, uint256 updatedAt)",
