@@ -59,6 +59,9 @@ const SWAP_SIGMA_WINDOW_SEC = 8 * 3600; // σ from the 8 h realized APR series (
 const SIGMA_WINDOW_SEC = 600; // σ from the last 10 min of index
 const SIGMA_MIN_COVERAGE_SEC = Number(env("SIGMA_MIN_COVERAGE_SEC") ?? "120");
 const SIGMA_MAX = Number(env("SIGMA_MAX") ?? String(5 * DEFAULTS.sigma)); // ≈ 500% annual vol
+// σ before SIGMA_MIN_COVERAGE_SEC of index history (bps/√s). Default 1.78 = 100% annual (MATH_SPEC §4, MON). ETH-PERP:
+// 0.53 = realized Hermes ETH/USD over 10 min on 8 Oct 2026 (bench/out/eth_sigma_hermes_2026-10-08.csv, ≈ 30% annual).
+const SIGMA_FALLBACK = Number(env("SIGMA_FALLBACK") ?? String(DEFAULTS.sigma));
 const GAMMA = Number(env("GAMMA") ?? String(DEFAULTS.gamma));
 const K = Number(env("K") ?? String(DEFAULTS.k));
 const HORIZON_SEC = Number(env("HORIZON_SEC") ?? String(DEFAULTS.horizonSec));
@@ -282,7 +285,7 @@ async function readQuoteState(block: bigint): Promise<QuoteState> {
     samples.push({ t: nowSec, price: index });
     while (samples.length && samples[0]!.t < nowSec - SIGMA_WINDOW_SEC) samples.shift();
     const q = inventoryRatio(acct.size, MAX_INVENTORY_LOTS * lotSize);
-    const sigma = sigmaForQuoting(samples, { fallback: DEFAULTS.sigma, minCoverageSec: SIGMA_MIN_COVERAGE_SEC, max: SIGMA_MAX });
+    const sigma = sigmaForQuoting(samples, { fallback: SIGMA_FALLBACK, minCoverageSec: SIGMA_MIN_COVERAGE_SEC, max: SIGMA_MAX });
     const quote = quoteBps({ sigma, gamma: GAMMA, k: K, horizonSec: HORIZON_SEC, q });
     const ladder = buildLadder({ midWad: index, tickSize, bidBps: quote.bidBps, askBps: quote.askBps, levels: LEVELS, levelSpacingBps: LEVEL_SPACING_BPS, lotsPerLevel: LOTS_PER_LEVEL, q });
     const movedBps = lastQuotedIndex === 0n ? 10_000n : (abs(index - lastQuotedIndex) * 10_000n) / lastQuotedIndex;
