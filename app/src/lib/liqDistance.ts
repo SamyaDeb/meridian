@@ -2,7 +2,7 @@
 // its (isolated, funding-free) liquidation price, bucketed. bigint until the bucket index.
 import { liquidationPriceWad } from "./math";
 
-export type OpenPos = { size: bigint; entryPrice: bigint; collateralWad: bigint };
+export type OpenPos = { size: bigint; entryPrice: bigint; collateralWad: bigint; /** lower-cased, when the reader has it */ account?: string };
 
 /** Distance in bps of the mark to the liquidation price, in the adverse direction (≥ 0); undefined if never liquidatable. */
 export function liqDistanceBps(p: OpenPos, markWad: bigint, mmrWad: bigint): bigint | undefined {
