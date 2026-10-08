@@ -7,8 +7,10 @@ module.exports = {
   resolver: require.resolve("react-native-worklets/jest/resolver.js"),
   setupFiles: ["./jest.setup.js"],
   setupFilesAfterEnv: ["./jest.after-env.js"],
+  // a cold run transforms viem / Mera / RN for the first time; the 5 s default timed out suites on fresh CI caches
+  testTimeout: 30_000,
   testMatch: ["<rootDir>/src/**/__tests__/**/*.test.ts?(x)"],
   transformIgnorePatterns: [
-    "node_modules/(?!(.pnpm|(jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|react-native-svg|@gorhom/.*|viem|ox|abitype|@noble/.*|@scure/.*|@meridian/.*))",
+    "node_modules/(?!(.pnpm|(jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|react-native-svg|@gorhom/.*|viem|ox|abitype|@noble/.*|@scure/.*|@meridian/.*|@category-labs/.*|react-native-qrcode-svg))",
   ],
 };
