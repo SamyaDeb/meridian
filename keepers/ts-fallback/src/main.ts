@@ -59,6 +59,7 @@ import {
 import { DEFAULT_HERMES_URL, fetchHermesLatest } from "./hermes.js";
 import { type SourcedPrice, decimalToWad, encodeTestOracleUpdate, feedPoint, latestKeylessPrice } from "./pricesource.js";
 import { LiquidationLatency } from "./latency.js";
+import { type MarketDeployment, type MarketRecord, type OracleKind, resolveMarket } from "./market.js";
 import { UnwindTracker, bookHasCounterparty, capHeadroom, liquidationHeadroom, sizeAfterTake, unwindGasLimit, unwindPlan } from "./unwind.js";
 import { FulfilRetry, MAX_BATCH, RedeemQueue, classifyFulfilError, fulfilRoutePlan, nextLogRange } from "./redeem.js";
 
@@ -82,7 +83,7 @@ const DEPLOYMENTS = env("DEPLOYMENTS") ?? fileURLToPath(new URL(`../../../deploy
 const HEALTH_PORT = Number(env("HEALTH_PORT") ?? "8787");
 const PYTH_API_KEY = env("PYTH_API_KEY");
 const HERMES_URL = env("HERMES_URL") ?? DEFAULT_HERMES_URL;
-const PYTH_FEED_ID = env("PYTH_MON_USD_FEED_ID") as Hex | undefined;
+const PYTH_FEED_ID_ENV = env("PYTH_MON_USD_FEED_ID") as Hex | undefined; // MON markets; added markets: the record
 
 // Keeper-fed test oracle (Phase 3 step 2b): heartbeat 10 s against the oracle's maxStaleness 60 s (R24 fallback value).
 const MAINNET_RPC_URL = env("MONAD_RPC_URL"); // mainnet Pyth read-only; unset ⇒ Hyperliquid fallback only
@@ -130,41 +131,25 @@ const TOUCH_ALLOWANCE_GAS = BigInt(env("TOUCH_ALLOWANCE_GAS") ?? (CHAIN_ID === 3
 const MIN_KEEPER_BALANCE = 5n * 10n ** 18n; // alert < 5 MON (TEAM_PLAN §7)
 const HEALTH_MAX_SILENCE_MS = 30_000;
 
-type OracleKind = "pyth" | "keeper-fed" | "mock";
-interface MarketDeployment {
-  ClearingHouse?: Address;
-  OracleAdapter?: Address;
-  OrderBook?: Address;
-}
-interface Deployments {
-  chainId: number;
-  startBlock: number;
-  deployed?: boolean;
-  /** Oracle of the main market (DeployMeridian); absent on anvil (mock oracle). */
-  oracleKind?: OracleKind;
+interface Deployments extends MarketRecord {
   contracts: MarketDeployment & { MeridianVault?: Address; FundingSwapMarket?: Address; SwapOrderBook?: Address };
   /** Contracts that are labelled mocks on this chain (10143: AUSD, and the vault's KuruHedger after DeployVaultV2). */
   mockContracts?: string[];
   /** Block the vault was deployed at (DeployVaultV2); the queue log scan starts there. */
   vaultStartBlock?: number;
-  /** MON-PERP-DEMO: separate OB + CH with a keeper-fed test oracle, used only for the crash/liquidation demo. */
-  demoMarket?: MarketDeployment & { symbol: string; testMarket: true; oracleKind: OracleKind };
 }
 const dep = JSON.parse(readFileSync(DEPLOYMENTS, "utf8")) as Deployments;
 if (dep.chainId !== CHAIN_ID) throw new Error(`deployments chainId ${dep.chainId} != CHAIN_ID ${CHAIN_ID}`);
+// MARKET = main | demo | an added market (K7: "eth" ⇒ markets[] ETH-PERP), src/market.ts
 const MARKET = env("MARKET") ?? "main";
-const market = MARKET === "demo" ? dep.demoMarket : dep.contracts;
-if (market === undefined) throw new Error(`MARKET=${MARKET}: no demoMarket in ${DEPLOYMENTS}`);
-if (dep.deployed === false || market.ClearingHouse === undefined || market.OracleAdapter === undefined) {
-  throw new Error(`${DEPLOYMENTS}: market ${MARKET} is not deployed`);
-}
-const CH: Address = market.ClearingHouse;
-const ORACLE: Address = market.OracleAdapter;
-const OB: Address | undefined = market.OrderBook;
-const ORACLE_KIND: OracleKind =
-  (env("ORACLE_KIND") as OracleKind | undefined) ?? (MARKET === "demo" ? dep.demoMarket?.oracleKind : dep.oracleKind) ?? "pyth";
+const market = resolveMarket(dep, MARKET, DEPLOYMENTS);
+const CH: Address = market.clearingHouse;
+const ORACLE: Address = market.oracle;
+const OB: Address | undefined = market.orderBook;
+const ORACLE_KIND: OracleKind = (env("ORACLE_KIND") as OracleKind | undefined) ?? market.oracleKind;
+const PYTH_FEED_ID: Hex | undefined = market.pythFeedId ?? PYTH_FEED_ID_ENV;
 if (PRICE_FACTOR_FILE !== undefined && MARKET !== "demo") throw new Error("PRICE_FACTOR_FILE is only allowed with MARKET=demo");
-const SWAP: Address | undefined = MARKET === "main" && env("SWAP_DUTIES") !== "0" ? dep.contracts.FundingSwapMarket : undefined;
+const SWAP: Address | undefined = market.kind === "main" && env("SWAP_DUTIES") !== "0" ? dep.contracts.FundingSwapMarket : undefined;
 const SWAP_FULL_EVERY_BLOCKS = BigInt(env("SWAP_FULL_EVERY_BLOCKS") ?? "10");
 // Size-bounded swap liquidation (the keeper takes the position and must pass IM afterwards); default = whole position.
 // B-01 (PHASES 18): touch the swap market every N quiet blocks while an account is near MM, so the bounded mark keeps
@@ -332,13 +317,13 @@ const WAD_ONE = 10n ** 18n;
 
 /** Keeper-fed TestnetKeeperOracle: same push rule as Pyth (older than the heartbeat, or moved > 5 bps). */
 async function feedStep(): Promise<void> {
-  if (PYTH_FEED_ID === undefined) throw new Error("missing env PYTH_MON_USD_FEED_ID (mainnet Pyth source)");
+  if (PYTH_FEED_ID === undefined) throw new Error("missing env PYTH_MON_USD_FEED_ID (mainnet Pyth source) or the market's pythFeedId");
   const nowMs = Date.now();
   const nowSec = BigInt(Math.floor(nowMs / 1000));
   // The source publishes every 10–30 s: read it at most every SOURCE_POLL_MS, not every 0.3 s block.
   if (shouldReadSource(nowMs, sourceReadMs, SOURCE_POLL_MS)) {
     sourceReadMs = nowMs;
-    const src = await latestKeylessPrice(mainnet, PYTH_FEED_ID, nowSec, FEED_MAX_SOURCE_AGE_SEC);
+    const src = await latestKeylessPrice(mainnet, PYTH_FEED_ID, nowSec, FEED_MAX_SOURCE_AGE_SEC, market.hyperliquidCoin);
     if (src === null) alert("no usable price source: the test oracle will go stale");
     source = src;
   }
@@ -405,7 +390,7 @@ async function pythStep(): Promise<void> {
 async function scanStep(block: bigint): Promise<void> {
   if (scannedTo < 0n) {
     const floor = block > LOOKBACK_BLOCKS ? block - LOOKBACK_BLOCKS : 0n;
-    const start = BigInt(dep.startBlock);
+    const start = BigInt(market.startBlock);
     scannedTo = (start > floor ? start : floor) - 1n;
   }
   for (const [fromBlock, toBlock] of blockRanges(scannedTo + 1n, block, LOG_SPAN)) {
