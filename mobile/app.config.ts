@@ -49,10 +49,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ["expo-splash-screen", { backgroundColor: BG, image: "./assets/images/splash-icon.png", imageWidth: 96 }],
     ],
     experiments: { typedRoutes: true, reactCompiler: true },
+    // EAS project @samyadeb/meridian (eas init, 8 Oct 2026)
+    owner: "samyadeb",
     extra: {
-      appEnv,
-      // `eas init` writes the EAS project id here (> VERIFY after the owner-approved `eas init`).
       ...(config.extra ?? {}),
+      appEnv,
+      eas: { projectId: "802495fa-47fc-4211-95e7-6753d89074c2" },
     },
   };
 };
