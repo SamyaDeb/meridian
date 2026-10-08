@@ -6,6 +6,9 @@ import { getAppConfig } from "../config";
 import { Store, useStore } from "../live/store";
 import { AuthController } from "./controller";
 import { secureKv } from "./secureKv";
+import { PerplTokenStore } from "../venues/perpl/tokenStore";
+
+const perplKeys = new PerplTokenStore(secureKv);
 import { DEV_BACKGROUND_LOCK_MS, DEV_IDLE_LOCK_MS, type AuthState } from "./session";
 import { pickWebAuthnClient } from "./webauthn";
 
@@ -19,6 +22,10 @@ function createAppController(): AuthController {
     kv: secureKv,
     webAuthnClient: pickWebAuthnClient(cfg.env).client,
     ...(short ? { idleMs: DEV_IDLE_LOCK_MS, backgroundMs: DEV_BACKGROUND_LOCK_MS } : {}),
+    // Perpl key in the same PRF pass as the EVM key, at the rotation stored for the wallet (MOBILE_PLAN N4)
+    ...(cfg.perpl.status === "deployed"
+      ? { perpl: { chainId: cfg.chainId, rotationFor: async (address: `0x${string}`) => (await perplKeys.read(cfg.chainId, address))?.rotation ?? 0 } }
+      : {}),
   });
 }
 

@@ -2,13 +2,16 @@
 // record. React sees only `store` (status + public address) and `stats`; the signer never enters React state.
 import type { WebAuthnClient } from "@category-labs/mera";
 import { recoveryPhrase } from "@meridian/core/keys";
-import type { LocalAccount } from "viem";
+import type { PerplSigner } from "@meridian/core/perpl";
+import type { Address, LocalAccount } from "viem";
 import type { AppEnv } from "../config/appConfig";
 import { Store } from "../live/store";
 import { CredentialStore, type CredentialRecord, type KV } from "./credentialStore";
 import { defaultDeriveDeps, openSigner, type DeriveDeps, type Signer } from "./derive";
 import { describeAuthError, RpGuardError, WrongPasskeyError, type AuthError } from "./errors";
 import { createPasskey, getPrf, type PasskeyDeps } from "./passkey";
+import { createPerplKeyring, type PerplKeyring } from "../venues/perpl/keyring";
+import { MAX_ROTATION } from "../venues/perpl/tokenStore";
 import { rpIdProblem } from "./rpGuard";
 import { backgroundExpired, BACKGROUND_LOCK_MS, IDLE_LOCK_MS, idleExpired, INITIAL, reduce, type AuthEvent, type AuthState, type LockReason } from "./session";
 
@@ -35,7 +38,18 @@ export type AuthDeps = {
   derive?: DeriveDeps;
   idleMs?: number;
   backgroundMs?: number;
+  /**
+   * Perpl API key (MOBILE_PLAN N4): derived in the same PRF pass as the EVM key, at the rotation stored for the wallet
+   * (venues/perpl/tokenStore; 0 when none). Absent ⇒ no Perpl key this build (Perpl not configured on the chain).
+   */
+  perpl?: { chainId: number; rotationFor(address: Address): Promise<number> };
 };
+
+/** What the app sees of the Perpl key: a signing capability and public facts, never the bytes. */
+export type PerplKeyView = { signer: PerplSigner; rotation: number; publicKeyHex: string; chainId: number };
+const viewOf = (k: PerplKeyring): PerplKeyView => ({ signer: k.signer(), rotation: k.rotation, publicKeyHex: k.publicKeyHex, chainId: k.chainId });
+
+type Opened = Signer & { perpl?: PerplKeyring };
 
 export class LockedError extends Error {
   constructor() {
@@ -50,6 +64,7 @@ export class AuthController {
   readonly store = new Store<AuthState>(INITIAL);
   readonly stats = new Store<AuthStats>({ deriveMs: undefined });
   private signer: Signer | undefined;
+  private perplRing: PerplKeyring | undefined;
   private record: CredentialRecord | undefined;
   private creds: CredentialStore;
   private clock: AuthClock;
@@ -94,7 +109,7 @@ export class AuthController {
       try {
         await this.saveRecord({ credentialId: h.credential.credentialId, ...(h.credential.transports ? { transports: [...h.credential.transports] } : {}), createdAt: this.clock.now(), addressHint: signer.address });
       } catch (e) {
-        signer.session.end();
+        endOpened(signer);
         throw e;
       }
       return signer;
@@ -111,7 +126,7 @@ export class AuthController {
         try {
           await this.saveRecord({ credentialId: h.credential.credentialId, ...(h.credential.transports ? { transports: [...h.credential.transports] } : {}), createdAt: this.clock.now(), addressHint: signer.address });
         } catch (e) {
-          signer.session.end();
+          endOpened(signer);
           throw e;
         }
       }
@@ -119,7 +134,7 @@ export class AuthController {
     });
   }
 
-  private async ceremony(run: () => Promise<Signer>): Promise<void> {
+  private async ceremony(run: () => Promise<Opened>): Promise<void> {
     if (this.busy) return;
     const problem = this.rpProblem;
     if (problem) throw new RpGuardError(problem);
@@ -138,19 +153,38 @@ export class AuthController {
     }
   }
 
-  /** PRF → signer, after letting the UI paint "Unlocking…" (the derivation is synchronous). Wipes the PRF. */
-  private async open(prf: Uint8Array): Promise<Signer> {
+  /**
+   * PRF → EVM signer + Perpl key, after letting the UI paint "Unlocking…" (the derivation is synchronous). One PRF pass:
+   * the Perpl key needs the wallet address (its rotation is stored per wallet), so a copy of the PRF lives until the
+   * rotation is read, then every copy is zeroed, on success and on failure.
+   */
+  private async open(prf: Uint8Array): Promise<Opened> {
     this.firstPasskeyCall = false;
     this.dispatch({ type: "DERIVING" });
+    const copy = this.d.perpl ? Uint8Array.from(prf) : undefined;
     try {
-      await this.clock.nextFrame();
-    } catch (e) {
-      prf.fill(0);
-      throw e;
+      try {
+        await this.clock.nextFrame();
+      } catch (e) {
+        prf.fill(0);
+        throw e;
+      }
+      const s = openSigner(prf, this.derive);
+      this.stats.set({ deriveMs: s.deriveMs });
+      const opened: Opened = { session: s.session, account: s.account, address: s.address };
+      if (copy && this.d.perpl) {
+        try {
+          const rotation = await this.d.perpl.rotationFor(s.address).catch(() => 0);
+          opened.perpl = createPerplKeyring(copy, this.d.perpl.chainId, rotation);
+        } catch (e) {
+          s.session.end();
+          throw e;
+        }
+      }
+      return opened;
+    } finally {
+      copy?.fill(0);
     }
-    const s = openSigner(prf, this.derive);
-    this.stats.set({ deriveMs: s.deriveMs });
-    return { session: s.session, account: s.account, address: s.address };
   }
 
   private async saveRecord(r: CredentialRecord): Promise<void> {
@@ -158,8 +192,11 @@ export class AuthController {
     this.record = r;
   }
 
-  private begin(signer: Signer): void {
+  private begin(opened: Opened): void {
+    const { perpl, ...signer } = opened;
     this.signer = signer;
+    this.perplRing?.wipe();
+    this.perplRing = perpl;
     this.lastActivity = this.clock.now();
     this.backgroundedAt = undefined;
     this.dispatch({ type: "UNLOCK_OK", address: signer.address });
@@ -175,6 +212,8 @@ export class AuthController {
   private endSigner(): void {
     this.signer?.session.end();
     this.signer = undefined;
+    this.perplRing?.wipe();
+    this.perplRing = undefined;
     if (this.ticker !== undefined) this.clock.cancel(this.ticker);
     this.ticker = undefined;
   }
@@ -259,6 +298,46 @@ export class AuthController {
     return this.record !== undefined;
   }
 
+  /** The unlocked session's Perpl key as a signing capability (MOBILE_PLAN N4); undefined when Perpl isn't configured. */
+  perplKey(): PerplKeyView | undefined {
+    if (!this.signer) throw new LockedError();
+    return this.perplRing ? viewOf(this.perplRing) : undefined;
+  }
+
+  /**
+   * A new Perpl key under ONE fresh passkey prompt (token lost or revoked ⇒ Perpl answers 409 for the old public key):
+   * tries rotations from `fromRotation` up, `tryEnroll` answers true when Perpl accepted that key, false when that
+   * public key is already registered (try the next). The accepted key becomes the session's key. Bounded by MAX_ROTATION.
+   */
+  async rekeyPerpl(fromRotation: number, tryEnroll: (key: PerplKeyView) => Promise<boolean>): Promise<PerplKeyView> {
+    const p = this.d.perpl;
+    if (!p) throw new Error("Perpl isn't configured for this build");
+    if (!Number.isSafeInteger(fromRotation) || fromRotation < 0 || fromRotation > MAX_ROTATION) throw new RangeError("rotation out of range");
+    return this.withFreshPrf(async (prf) => {
+      for (let r = fromRotation; r <= MAX_ROTATION; r++) {
+        const k = createPerplKeyring(prf, p.chainId, r);
+        let accepted = false;
+        try {
+          accepted = await tryEnroll(viewOf(k));
+        } catch (e) {
+          k.wipe();
+          throw e;
+        }
+        if (accepted) {
+          if (!this.signer) {
+            k.wipe();
+            throw new LockedError();
+          }
+          this.perplRing?.wipe();
+          this.perplRing = k;
+          return viewOf(k);
+        }
+        k.wipe();
+      }
+      throw new Error(`No free Perpl key slot up to rotation ${MAX_ROTATION}. Revoke old keys at Perpl → API keys.`);
+    });
+  }
+
   /** test/dev introspection: is a signer alive? */
   get isUnlocked(): boolean {
     return this.signer !== undefined;
@@ -266,3 +345,8 @@ export class AuthController {
 }
 
 export type { LockReason };
+
+function endOpened(o: Opened): void {
+  o.session.end();
+  o.perpl?.wipe();
+}

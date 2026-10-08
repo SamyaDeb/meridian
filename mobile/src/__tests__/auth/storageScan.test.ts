@@ -1,7 +1,6 @@
 // MOBILE_PLAN N3 §3: no key material in device storage. (1) Run every auth flow against a recording SecureStore mock and
 // scan each written value for 32/64-byte hex and 12/24-word BIP-39 phrases. (2) Statically: only src/auth/secureKv.ts
 // touches SecureStore, and nothing in src imports AsyncStorage / MMKV / the file system.
-import { wordlist } from "@scure/bip39/wordlists/english";
 
 const mockWrites: { key: string; value: string }[] = [];
 const mockMem = new Map<string, string>();
@@ -19,19 +18,7 @@ import { createFakeWebAuthnClient } from "../../auth/fakeWebAuthn";
 import { secureKv } from "../../auth/secureKv";
 import { fs, path, sourceFiles } from "../node";
 import { DEV_CFG, manualClock } from "./authFixtures";
-
-const WORDS = new Set(wordlist);
-/** true if `s` contains a long hex run (≥ 32 bytes) or a run of ≥ 12 BIP-39 words */
-export function looksSecret(s: string): boolean {
-  if (/(0x)?[0-9a-fA-F]{64}/.test(s)) return true;
-  const tokens = s.toLowerCase().split(/[^a-z]+/).filter(Boolean);
-  let run = 0;
-  for (const t of tokens) {
-    run = WORDS.has(t) ? run + 1 : 0;
-    if (run >= 12) return true;
-  }
-  return false;
-}
+import { looksSecret } from "../secretScan";
 
 it("the scanner catches what it must", () => {
   expect(looksSecret("ab".repeat(32))).toBe(true);
