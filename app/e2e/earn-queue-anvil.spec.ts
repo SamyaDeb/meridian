@@ -83,7 +83,8 @@ test("deposit → withdraw beyond idle = request → keeper fulfils → claim; r
   await expect(page.getByTestId("tx-status")).toContainText("request withdrawal of 100% ✓", { timeout: 30_000 });
   const row = newestRow(page);
   await expect(row).toHaveAttribute("data-status", "requested", { timeout: 20_000 });
-  await expect(row.getByTestId("queue-position")).toContainText(/^1 of \d+/);
+  // the newest request is last in the vault's queue (earlier runs on the same anvil may have left requests pending)
+  await expect(row.getByTestId("queue-position")).toContainText(/^(\d+) of \1\b/);
   await expect(row.getByTestId("redeem-estimate")).toContainText(/≈ 99\.9\d AUSD/);
   const id = BigInt((await row.getAttribute("data-testid"))!.replace("redeem-", ""));
   await page.screenshot({ path: `${SHOTS}/earn-queue-requested-390.png`, fullPage: true });
