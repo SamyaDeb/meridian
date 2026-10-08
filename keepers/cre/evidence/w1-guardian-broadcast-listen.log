@@ -1,0 +1,729 @@
+Initializing...
+Loading settings...
+Checking RPC connectivity...
+Compiling workflow...
+✓ Workflow compiled
+✓ Simulation limits enabled
+  HTTP: req=120kb resp=250kb timeout=10s | ConfHTTP: req=125kb resp=500kb timeout=1m30s | Consensus obs=25kb | ChainWrite evm_report=50kb evm_gas=10000000 solana_report=265b solana_cu=300000 | WASM binary=100mb compressed=20mb
+  Binary hash: e76b17e7efb0efa88e66a2833de0a00f1b8cceb791721073d3e3b298375f502c
+  Config hash: cec78f9fb0cb0c2cfc3419954aca9149984b3c81a0276aa2cff167ebf4237c93
+
+EVM log trigger selected.
+
+Waiting for a matching EVM log event...
+Chain: monad-testnet
+Contract: 0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826, 0xC77882E7024D8B71F414eDc1a8708b939920A9E2
+Event: 0x5f4a9a1b73bee700ca1fb203bb004bcc0a7eca48af3f147b24dcf5bf4bf3c00b
+Press Ctrl+C to stop the simulation.
+
+If you already have a transaction hash, restart with:
+  cre workflow simulate liquidation-guardian --evm-tx-hash 0x... --evm-event-index 0
+
+  Listening for logs starting at block 69159245...
+2026-10-08T09:51:52Z [SIMULATION] Simulator Initialized
+
+2026-10-08T09:51:52Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69159260 (tx 0x7354af40d8a578ee89c8743ca8f4fc5174c9008a467fd50a728ac9414ca65548, index 5)
+2026-10-08T09:51:59Z [USER LOG] guardian: PriceUpdated 25230000000000000 at block 69159269
+2026-10-08T09:52:00Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:52:01Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:52:01Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:52:01Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #2)
+2026-10-08T09:52:01Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69159312 (tx 0xb51e5bc0022de27ee1fd9c0170d2283fa62cf8e02d0da698d13ac9336f004cc4, index 72)
+2026-10-08T09:52:14Z [USER LOG] guardian: PriceUpdated 25311000000000000 at block 69159316
+2026-10-08T09:52:14Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:52:15Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:52:15Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:52:15Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #3)
+2026-10-08T09:52:15Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69159352)...
+✓ Matching EVM log event found at block 69159364 (tx 0xa425dc0b864a79b7add4c7c85101916b8310b3eda5b6ee8ad3c17c8fcc2c2f20, index 3)
+2026-10-08T09:52:31Z [USER LOG] guardian: PriceUpdated 25237000000000000 at block 69159374
+2026-10-08T09:52:32Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:52:33Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:52:33Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:52:33Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #4)
+2026-10-08T09:52:33Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69159416 (tx 0x03c819925e88b3fd6782d1afd3c4d92df69f8e2fc81dd24db37ba50d583bd0ff, index 4)
+2026-10-08T09:52:45Z [USER LOG] guardian: PriceUpdated 20967460000000000 at block 69159419
+2026-10-08T09:52:46Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 1 liquidatable
+2026-10-08T09:52:48Z [USER LOG] MON-PERP-DEMO: LIQUIDATE 0x80e511c00Ff854c1D91de1481D264F309520aE7E tx 0xe65060ba84240d3e92b7b39205375c42d91ec91368bf18d589b85e5a71eaeb34 gasLimit 562899 success
+2026-10-08T09:52:50Z [USER LOG] MON-PERP-DEMO: UNWIND 5000000000000000000000 tx 0x529d6b595be2e5e3546d41dc8144c87ab35186cc8cd6f4bbbc9db92f8473fa82 gasLimit 437122 success
+2026-10-08T09:52:51Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:52:51Z [USER LOG] reads used 9/15
+
+✓ Workflow Simulation Result:
+"MON-PERP-DEMO:liquidate:0xe65060ba84240d3e92b7b39205375c42d91ec91368bf18d589b85e5a71eaeb34 MON-PERP-DEMO:unwind:0x529d6b595be2e5e3546d41dc8144c87ab35186cc8cd6f4bbbc9db92f8473fa82"
+
+2026-10-08T09:52:51Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #5)
+2026-10-08T09:52:51Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69159468 (tx 0xda8de89df92d162ac29a272a0436e5cb714527a200ff0c26e8a206e0c6606769, index 72)
+2026-10-08T09:53:01Z [USER LOG] guardian: PriceUpdated 20957500000000000 at block 69159470
+2026-10-08T09:53:02Z [USER LOG] MON-PERP-DEMO: 2 candidates (4 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:53:02Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:53:02Z [USER LOG] reads used 8/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:53:02Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #6)
+2026-10-08T09:53:02Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69159486)...
+  Still waiting (scanned through block 69159615)...
+✓ Matching EVM log event found at block 69159712 (tx 0xfbc2cb5e55cd261ff2f7c5d325229fc27e289a43748440881702b514cb12a9fb, index 37)
+2026-10-08T09:54:15Z [USER LOG] guardian: PriceUpdated 25308000000000000 at block 69159714
+2026-10-08T09:54:16Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:54:17Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:54:17Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:54:17Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #7)
+2026-10-08T09:54:17Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69159720)...
+✓ Matching EVM log event found at block 69159762 (tx 0x61ede20fed6557344e0d56c21a4f4efdc4ecb7772663bda21f6b2bcdd34c2d9c, index 1)
+2026-10-08T09:54:33Z [USER LOG] guardian: PriceUpdated 25321000000000000 at block 69159772
+2026-10-08T09:54:33Z [USER LOG] MON-PERP-DEMO: 2 candidates (2 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:54:34Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:54:34Z [USER LOG] reads used 8/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:54:34Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #8)
+2026-10-08T09:54:34Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69159815 (tx 0x8741246f134652594789599b1777144bf9e176e40c378c13a7d9048d371ed39e, index 1)
+2026-10-08T09:54:47Z [USER LOG] guardian: PriceUpdated 20246400000000000 at block 69159819
+2026-10-08T09:54:48Z [USER LOG] MON-PERP-DEMO: 2 candidates (2 PositionChanged, 0 indexer), 1 liquidatable
+2026-10-08T09:54:50Z [USER LOG] MON-PERP-DEMO: LIQUIDATE 0x80e511c00Ff854c1D91de1481D264F309520aE7E tx 0x6e46cfb10a22b3d4ec3c1b81a18408973e2acd6ff78c7e7910a6f6e09c84c293 gasLimit 414758 success
+2026-10-08T09:54:53Z [USER LOG] MON-PERP-DEMO: UNWIND 5000000000000000000000 tx 0xd6f0fd72f86c6a7feadc47bd4fbea2431734466d26f03248ec82305dc4411b39 gasLimit 437106 success
+2026-10-08T09:54:53Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:54:53Z [USER LOG] reads used 10/15
+
+✓ Workflow Simulation Result:
+"MON-PERP-DEMO:liquidate:0x6e46cfb10a22b3d4ec3c1b81a18408973e2acd6ff78c7e7910a6f6e09c84c293 MON-PERP-DEMO:unwind:0xd6f0fd72f86c6a7feadc47bd4fbea2431734466d26f03248ec82305dc4411b39"
+
+2026-10-08T09:54:53Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #9)
+2026-10-08T09:54:53Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69159851)...
+✓ Matching EVM log event found at block 69159867 (tx 0x9e499127d4e6de11a1303af713c804e54b15370ddb045bd86fede11a52d9ea23, index 7)
+2026-10-08T09:55:03Z [USER LOG] guardian: PriceUpdated 20293600000000000 at block 69159873
+2026-10-08T09:55:04Z [USER LOG] MON-PERP-DEMO: 2 candidates (4 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:55:05Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:55:05Z [USER LOG] reads used 8/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:55:05Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #10)
+2026-10-08T09:55:05Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69159920 (tx 0x49d3022470048e1cafe482b812986613e18ce93681e82d69363a1b3ace368278, index 74)
+2026-10-08T09:55:21Z [USER LOG] guardian: PriceUpdated 20338400000000000 at block 69159931
+2026-10-08T09:55:21Z [USER LOG] MON-PERP-DEMO: 2 candidates (2 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:55:22Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:55:22Z [USER LOG] reads used 8/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:55:22Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #11)
+2026-10-08T09:55:22Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69159967)...
+✓ Matching EVM log event found at block 69159972 (tx 0xae598082d6333c7ee5693ce9994284a746d85f5d464f3ead6593dcdf4b111159, index 9)
+2026-10-08T09:55:35Z [USER LOG] guardian: PriceUpdated 20356000000000000 at block 69159979
+2026-10-08T09:55:36Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:55:37Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:55:37Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:55:37Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #12)
+2026-10-08T09:55:37Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69160024 (tx 0x0e1619795782ed58785fbad75848ee4b02d6179563893d1941f482c0cde6567c, index 1)
+2026-10-08T09:55:50Z [USER LOG] guardian: PriceUpdated 25369000000000000 at block 69160027
+2026-10-08T09:55:50Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:55:51Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:55:52Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:55:52Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #13)
+2026-10-08T09:55:52Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69160078 (tx 0x058d3cbd06fba6ecdd9d9dcf3057fd723d79d3e2c1f386ccb5304732f5fa5ed1, index 7)
+2026-10-08T09:56:07Z [USER LOG] guardian: PriceUpdated 25420000000000000 at block 69160085
+2026-10-08T09:56:08Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:56:09Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:56:09Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:56:09Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #14)
+2026-10-08T09:56:09Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69160091)...
+✓ Matching EVM log event found at block 69160131 (tx 0x00fb8767bdb803ea23f5faa555de3f0282ee178a6566d7d04c747235d5cff01c, index 2)
+2026-10-08T09:56:25Z [USER LOG] guardian: PriceUpdated 25406000000000000 at block 69160142
+2026-10-08T09:56:25Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:56:26Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:56:26Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:56:26Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #15)
+2026-10-08T09:56:26Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69160182 (tx 0x71b78ffb29a41d540774dea639b335bffe09530dd96d2407a31e88d998b3b492, index 91)
+2026-10-08T09:56:39Z [USER LOG] guardian: PriceUpdated 25394000000000000 at block 69160188
+2026-10-08T09:56:39Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:56:40Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:56:41Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:56:41Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #16)
+2026-10-08T09:56:41Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69160204)...
+✓ Matching EVM log event found at block 69160234 (tx 0x84a444a2a546b4d339f20494c5c07d18298ddea6fec555033ed6dd488f761bcf, index 5)
+2026-10-08T09:56:53Z [USER LOG] guardian: PriceUpdated 25369000000000000 at block 69160236
+2026-10-08T09:56:54Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:56:55Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:56:55Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:56:55Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #17)
+2026-10-08T09:56:55Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69160287 (tx 0xb453c56fa3bb21fc8ce68a3cc56f0f2a496fb6033eb180b21c5ec2c9553b7ad5, index 1)
+2026-10-08T09:57:13Z [USER LOG] guardian: PriceUpdated 25520000000000000 at block 69160298
+2026-10-08T09:57:13Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:57:15Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:57:15Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:57:15Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #18)
+2026-10-08T09:57:15Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69160328)...
+✓ Matching EVM log event found at block 69160355 (tx 0xe2c5496a233063faab7bfe2787e5701f303946322634b5916399eeb3f56b9eef, index 48)
+2026-10-08T09:57:36Z [USER LOG] guardian: PriceUpdated 25522000000000000 at block 69160373
+2026-10-08T09:57:47Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:57:48Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:57:48Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:57:48Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #19)
+2026-10-08T09:57:48Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69160429 (tx 0xbd4326962609f75c4c22784849d34efba509556007da79034a180d4a76778dd1, index 62)
+2026-10-08T09:57:55Z [USER LOG] guardian: PriceUpdated 25532000000000000 at block 69160436
+2026-10-08T09:57:57Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:58:02Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:58:02Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:58:02Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #20)
+2026-10-08T09:58:02Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69160482 (tx 0x7c7c2e0d35a581fd608296b91f023b436feb977d309047175c1f01a714cf0d30, index 134)
+2026-10-08T09:58:14Z [USER LOG] guardian: PriceUpdated 25563000000000000 at block 69160497
+2026-10-08T09:58:15Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:58:16Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:58:16Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:58:16Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #21)
+2026-10-08T09:58:16Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69160522)...
+✓ Matching EVM log event found at block 69160617 (tx 0x4d33a5498d7fb9bc6240191d0751e67d18890cd6b840212b254b87c92cfb48fa, index 11)
+2026-10-08T09:58:56Z [USER LOG] guardian: PriceUpdated 25557000000000000 at block 69160635
+2026-10-08T09:58:57Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:59:00Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:59:01Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:59:01Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #22)
+2026-10-08T09:59:01Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69160719 (tx 0xd75005957c8f104392438f476e3fd4afa3e158e70e820b720dfbb26149c5228a, index 1)
+2026-10-08T09:59:24Z [USER LOG] guardian: PriceUpdated 25588000000000000 at block 69160728
+2026-10-08T09:59:26Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:59:27Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:59:27Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:59:27Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #23)
+2026-10-08T09:59:27Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69160748)...
+✓ Matching EVM log event found at block 69160795 (tx 0x8aa65fd17a9d1170f32a984e4f9df9ea3db6ac6b2b0d16687eee4d7870a1ff3c, index 34)
+2026-10-08T09:59:46Z [USER LOG] guardian: PriceUpdated 25603000000000000 at block 69160798
+2026-10-08T09:59:46Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:59:47Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T09:59:47Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T09:59:47Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #24)
+2026-10-08T09:59:47Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69160847 (tx 0x5104fa61c541745d61bde0784370227de150fd0d1e457eda7e87559e3fc6163b, index 3)
+2026-10-08T10:00:03Z [USER LOG] guardian: PriceUpdated 25591000000000000 at block 69160856
+2026-10-08T10:00:04Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:00:04Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:00:05Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:00:05Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #25)
+2026-10-08T10:00:05Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69160891)...
+✓ Matching EVM log event found at block 69160899 (tx 0x6bddd48b05945759d84fd764e216992a115c88252dc1036ba17a8ca1e04c2ad7, index 1)
+2026-10-08T10:00:17Z [USER LOG] guardian: PriceUpdated 25575000000000000 at block 69160903
+2026-10-08T10:00:18Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:00:19Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:00:19Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:00:19Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #26)
+2026-10-08T10:00:19Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69160950 (tx 0x24a6de8467a24db545769df98b194d19af6954399f78e183d6b1019c7493dbf1, index 70)
+2026-10-08T10:00:34Z [USER LOG] guardian: PriceUpdated 25580000000000000 at block 69160958
+2026-10-08T10:00:35Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:00:36Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:00:36Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:00:36Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #27)
+2026-10-08T10:00:36Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69161002 (tx 0x5db32f5699c6a1b29205d0f5c7f9b20b2aa9c4384ca1835b5ca9fe318434d79a, index 2)
+2026-10-08T10:00:49Z [USER LOG] guardian: PriceUpdated 25573000000000000 at block 69161005
+2026-10-08T10:00:49Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:00:50Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:00:50Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:00:50Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #28)
+2026-10-08T10:00:50Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69161011)...
+✓ Matching EVM log event found at block 69161054 (tx 0x10670ed9f50594f240c0e43f3155854bb7f31e4cd38bd2d4c0da86616146b0ad, index 67)
+2026-10-08T10:01:06Z [USER LOG] guardian: PriceUpdated 25601000000000000 at block 69161062
+2026-10-08T10:01:06Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:01:07Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:01:07Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:01:07Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #29)
+2026-10-08T10:01:07Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69161106 (tx 0x95b094f2f199dee4e477c6e167bb51600a0bf231e36934a923ac825c72b7a4f6, index 1)
+2026-10-08T10:01:20Z [USER LOG] guardian: PriceUpdated 25618000000000000 at block 69161108
+2026-10-08T10:01:21Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:01:21Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:01:21Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:01:21Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #30)
+2026-10-08T10:01:21Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69161124)...
+✓ Matching EVM log event found at block 69161163 (tx 0x7360bf31cf3b6ea65fcd97b0750f6f94bc124ebb217a4e2d1372fd7f3fdb8e83, index 1)
+2026-10-08T10:01:38Z [USER LOG] guardian: PriceUpdated 25618000000000000 at block 69161165
+2026-10-08T10:01:38Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:01:39Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:01:39Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:01:39Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #31)
+2026-10-08T10:01:39Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69161222 (tx 0xad250c5d5d09d62a42975cde46745325903977a13f36534c7d92081fe3c7a048, index 1)
+2026-10-08T10:01:56Z [USER LOG] guardian: PriceUpdated 25581000000000000 at block 69161227
+2026-10-08T10:01:56Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:01:57Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:01:57Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:01:57Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #32)
+2026-10-08T10:01:57Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69161242)...
+✓ Matching EVM log event found at block 69161274 (tx 0x1734446424ee4b434be32ae83d0f6279b231dadfc68f34c38cc9092363e66ae6, index 14)
+2026-10-08T10:02:13Z [USER LOG] guardian: PriceUpdated 25546000000000000 at block 69161284
+2026-10-08T10:02:14Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:02:14Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:02:14Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:02:14Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #33)
+2026-10-08T10:02:14Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69161326 (tx 0x5fceca0175ed86855368fdfede2373980aa7d706662ee9f1d2b6abf0d25d6d1e, index 107)
+2026-10-08T10:02:27Z [USER LOG] guardian: PriceUpdated 25561000000000000 at block 69161331
+2026-10-08T10:02:28Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:02:29Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:02:29Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:02:29Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #34)
+2026-10-08T10:02:29Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69161357)...
+✓ Matching EVM log event found at block 69161375 (tx 0xfec849101ff49a43b5e3984aa0bc93f4537c2daa07c82bf38bcb75c4b19a505f, index 5)
+2026-10-08T10:02:45Z [USER LOG] guardian: PriceUpdated 25573000000000000 at block 69161386
+2026-10-08T10:02:45Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:02:46Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:02:46Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:02:46Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #35)
+2026-10-08T10:02:46Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69161427 (tx 0xfa70f1d638cc82fdd0b4e3d32e887fd2c55025927e5c2ea4f495492147b59d52, index 3)
+2026-10-08T10:02:59Z [USER LOG] guardian: PriceUpdated 25596000000000000 at block 69161433
+2026-10-08T10:02:59Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:03:00Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:03:00Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:03:00Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #36)
+2026-10-08T10:03:00Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69161468)...
+✓ Matching EVM log event found at block 69161479 (tx 0xe162edbfeab5841f85cbbf900adcc39a6b58d27ec19e28d60c65b06b20947d4c, index 1)
+2026-10-08T10:03:16Z [USER LOG] guardian: PriceUpdated 25652000000000000 at block 69161489
+2026-10-08T10:03:16Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:03:17Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:03:17Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:03:17Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #37)
+2026-10-08T10:03:17Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69161531 (tx 0xd5626b73eae75fb1ea9dd4e30d57d4fb4a0378d48f1a399b52b2d675ea95c169, index 11)
+2026-10-08T10:03:29Z [USER LOG] guardian: PriceUpdated 25644000000000000 at block 69161534
+2026-10-08T10:03:30Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:03:30Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:03:30Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:03:30Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #38)
+2026-10-08T10:03:30Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69161575)...
+✓ Matching EVM log event found at block 69161580 (tx 0xc9565fc4d3592419b2b6697d70631a327af9d93fe0b2fa32383f3105c49b95c2, index 1)
+2026-10-08T10:03:46Z [USER LOG] guardian: PriceUpdated 25613000000000000 at block 69161586
+2026-10-08T10:03:46Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:03:47Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:03:47Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:03:47Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #39)
+2026-10-08T10:03:47Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69161631 (tx 0x43a290409cd5f93272758adead3d4bdf68e891542b9d134736b32a398535608d, index 1)
+2026-10-08T10:04:03Z [USER LOG] guardian: PriceUpdated 25629000000000000 at block 69161640
+2026-10-08T10:04:03Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:04:04Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:04:04Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:04:04Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #40)
+2026-10-08T10:04:04Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69161682 (tx 0xb9c1d5c163f2527fe717d7591d7cefb5c4eeb0a20fb70b0ac8cf49fb171f1bb1, index 8)
+2026-10-08T10:04:17Z [USER LOG] guardian: PriceUpdated 25651000000000000 at block 69161687
+2026-10-08T10:04:18Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:04:18Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:04:18Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:04:18Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #41)
+2026-10-08T10:04:18Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69161692)...
+✓ Matching EVM log event found at block 69161735 (tx 0x2eb8e16e46fa44f6aed25d6789e5ffb9b2144913d2a16cffc2d4de4dd8d2f14c, index 10)
+2026-10-08T10:04:34Z [USER LOG] guardian: PriceUpdated 25638000000000000 at block 69161743
+2026-10-08T10:04:35Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:04:35Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:04:36Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:04:36Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #42)
+2026-10-08T10:04:36Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69161785 (tx 0x8c2023d1d83b7855b08a1544161e646b76e164bc0fbcde585b995689fef3ce44, index 1)
+2026-10-08T10:04:54Z [USER LOG] guardian: PriceUpdated 25619000000000000 at block 69161805
+2026-10-08T10:04:55Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:04:56Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:04:56Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:04:56Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #43)
+2026-10-08T10:04:56Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69161822)...
+✓ Matching EVM log event found at block 69161873 (tx 0x24cde09a93fb98eee43e2c1db1bba3df132c9969f5e0085e27893a20837757ab, index 99)
+2026-10-08T10:05:16Z [USER LOG] guardian: PriceUpdated 25609000000000000 at block 69161877
+2026-10-08T10:05:17Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:05:20Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:05:20Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:05:20Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #44)
+2026-10-08T10:05:20Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69161962)...
+  Still waiting (scanned through block 69162061)...
+  Still waiting (scanned through block 69162158)...
+  Still waiting (scanned through block 69162253)...
+  Still waiting (scanned through block 69162349)...
+  Still waiting (scanned through block 69162446)...
+  Still waiting (scanned through block 69162538)...
+  Still waiting (scanned through block 69162638)...
+  Still waiting (scanned through block 69162737)...
+  Still waiting (scanned through block 69162834)...
+  Still waiting (scanned through block 69162934)...
+  Still waiting (scanned through block 69163033)...
+  Still waiting (scanned through block 69163133)...
+  Still waiting (scanned through block 69163227)...
+  Still waiting (scanned through block 69163327)...
+  Still waiting (scanned through block 69163424)...
+  Still waiting (scanned through block 69163524)...
+  Still waiting (scanned through block 69163623)...
+  Still waiting (scanned through block 69163723)...
+  Still waiting (scanned through block 69163822)...
+  Still waiting (scanned through block 69163919)...
+  Still waiting (scanned through block 69164017)...
+  Still waiting (scanned through block 69164114)...
+  Still waiting (scanned through block 69164213)...
+  Still waiting (scanned through block 69164313)...
+  Still waiting (scanned through block 69164408)...
+  Still waiting (scanned through block 69164507)...
+  Still waiting (scanned through block 69164604)...
+  Still waiting (scanned through block 69164704)...
+  Still waiting (scanned through block 69164803)...
+  Still waiting (scanned through block 69164902)...
+  Still waiting (scanned through block 69165002)...
+  Still waiting (scanned through block 69165101)...
+  Still waiting (scanned through block 69165198)...
+  Still waiting (scanned through block 69165296)...
+  Still waiting (scanned through block 69165395)...
+  Still waiting (scanned through block 69165491)...
+  Still waiting (scanned through block 69165590)...
+  Still waiting (scanned through block 69165689)...
+  Still waiting (scanned through block 69165785)...
+  Still waiting (scanned through block 69165882)...
+  Still waiting (scanned through block 69165981)...
+  Still waiting (scanned through block 69166081)...
+  Still waiting (scanned through block 69166180)...
+  Still waiting (scanned through block 69166279)...
+  Still waiting (scanned through block 69166379)...
+  Still waiting (scanned through block 69166478)...
+  Still waiting (scanned through block 69166576)...
+  Still waiting (scanned through block 69166675)...
+✓ Matching EVM log event found at block 69166740 (tx 0x9895b8e0ce7dd860d4945475f2e000e02798c927e716bc2bab67efae8d480c32, index 1)
+2026-10-08T10:30:03Z [USER LOG] guardian: PriceUpdated 25420000000000000 at block 69166742
+2026-10-08T10:30:03Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:30:04Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:30:04Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:30:04Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #45)
+2026-10-08T10:30:04Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69166777)...
+✓ Matching EVM log event found at block 69166793 (tx 0x2fedcee2e6bdf8e8db48f0f6b7bdc695cd733eeb0f058d05fa75c8b903baf265, index 1)
+2026-10-08T10:30:20Z [USER LOG] guardian: PriceUpdated 25451000000000000 at block 69166799
+2026-10-08T10:30:21Z [USER LOG] MON-PERP-DEMO: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:30:21Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:30:22Z [USER LOG] reads used 7/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:30:22Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #46)
+2026-10-08T10:30:22Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69166844 (tx 0x277e75597fb8e8a7c706871aee3d8411fbc30758e0f6df901a08452cf2f83be8, index 3)
+2026-10-08T10:30:34Z [USER LOG] guardian: PriceUpdated 20372000000000000 at block 69166846
+2026-10-08T10:30:35Z [USER LOG] MON-PERP-DEMO: 2 candidates (2 PositionChanged, 0 indexer), 1 liquidatable
+2026-10-08T10:30:38Z [USER LOG] MON-PERP-DEMO: LIQUIDATE 0x80e511c00Ff854c1D91de1481D264F309520aE7E tx 0xb04eb35a5596013e72f3e7bebb43b5d1e6dac5655ae8b22da2e798fd7b895565 gasLimit 493887 success
+2026-10-08T10:30:40Z [USER LOG] MON-PERP-DEMO: UNWIND 5000000000000000000000 tx 0xb89154fc3d280be213bf5f590820bd83686f558c50f79f9b24a02356f0a34a97 gasLimit 437260 success
+2026-10-08T10:30:41Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:30:41Z [USER LOG] reads used 10/15
+
+✓ Workflow Simulation Result:
+"MON-PERP-DEMO:liquidate:0xb04eb35a5596013e72f3e7bebb43b5d1e6dac5655ae8b22da2e798fd7b895565 MON-PERP-DEMO:unwind:0xb89154fc3d280be213bf5f590820bd83686f558c50f79f9b24a02356f0a34a97"
+
+2026-10-08T10:30:41Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #47)
+2026-10-08T10:30:41Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+✓ Matching EVM log event found at block 69166900 (tx 0xc8edc155b1a3ab13090c5901d520674c578d5300fbb3e57691467b41b5b465ff, index 3)
+2026-10-08T10:30:54Z [USER LOG] guardian: PriceUpdated 20360000000000000 at block 69166911
+2026-10-08T10:30:55Z [USER LOG] MON-PERP-DEMO: 2 candidates (6 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:30:56Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:30:56Z [USER LOG] reads used 8/15
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:30:56Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #48)
+2026-10-08T10:30:56Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+  Still waiting (scanned through block 69166918)...
+✓ Matching EVM log event found at block 69166953 (tx 0xb213d1b2168ec80eadda94533cd2020c6034dc9a43878c62aed5be1b72bcd5fa, index 9)
+2026-10-08T10:31:09Z [USER LOG] guardian: PriceUpdated 20352000000000000 at block 69166960
+2026-10-08T10:31:09Z [USER LOG] MON-PERP-DEMO: 2 candidates (2 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:31:10Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+
+✓ Workflow Simulation Result:
+"nothing to do"
+
+2026-10-08T10:31:10Z [SIMULATION] Execution finished signal received
+
+Listen: ready for next request (run #49)
+2026-10-08T10:31:10Z [SIMULATION] Running trigger trigger=evm:ChainSelector:2183018362218727504@1.0.0
+time=2026-10-08T10:31:10.680+05:30 level=INFO msg="context canceled"
+time=2026-10-08T10:31:10.681+05:30 level=INFO msg="context canceled"
+2026-10-08T10:31:17Z [SIMULATION] Skipping WorkflowEngineV2
+✗ failed to run trigger evm:ChainSelector:2183018362218727504@1.0.0: context canceled

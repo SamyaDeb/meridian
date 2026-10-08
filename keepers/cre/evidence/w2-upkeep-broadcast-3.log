@@ -1,0 +1,29 @@
+Initializing...
+Loading settings...
+Checking RPC connectivity...
+Compiling workflow...
+✓ Workflow compiled
+✓ Simulation limits enabled
+  HTTP: req=120kb resp=250kb timeout=10s | ConfHTTP: req=125kb resp=500kb timeout=1m30s | Consensus obs=25kb | ChainWrite evm_report=50kb evm_gas=10000000 solana_report=265b solana_cu=300000 | WASM binary=100mb compressed=20mb
+  Binary hash: d1bda6d050524e8896184f08ffaa63971d0a1e0eb0fff2fbe53dcedb49f0741d
+  Config hash: f5b6e083f825624b69e22357b89488436d4914bb0c2c682371561219593fc3ba
+2026-10-08T10:33:10Z [SIMULATION] Simulator Initialized
+
+2026-10-08T10:33:10Z [SIMULATION] Running trigger trigger=cron-trigger@1.0.0
+2026-10-08T10:33:10Z [USER LOG] 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA: last funding update 69157459, gap 9898 blocks
+2026-10-08T10:33:10Z [USER LOG] 0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01: last funding update 69167315, gap 42 blocks
+2026-10-08T10:33:12Z [USER LOG] FUNDING_POKE 0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA,0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01 tx 0x6bdb5d249467ceb39b556553d78a034ba33d59eac260df3e1bb27dead2c633c5 gasLimit 438672 success
+2026-10-08T10:33:13Z [USER LOG] vault 0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6: needsRebalance = None
+2026-10-08T10:33:13Z [USER LOG] reads used 5/15
+
+✓ Workflow Simulation Result:
+"poke:0x6bdb5d249467ceb39b556553d78a034ba33d59eac260df3e1bb27dead2c633c5"
+
+2026-10-08T10:33:13Z [SIMULATION] Execution finished signal received
+2026-10-08T10:33:13Z [SIMULATION] Skipping WorkflowEngineV2
+
+╭──────────────────────────────────────────────────────╮
+│ Simulation complete! Ready to deploy your workflow?  │
+│                                                      │
+│ Run cre account access to request deployment access. │
+╰──────────────────────────────────────────────────────╯

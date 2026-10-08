@@ -1,0 +1,28 @@
+Initializing...
+Loading settings...
+Checking RPC connectivity...
+Compiling workflow...
+✓ Workflow compiled
+✓ Simulation limits enabled
+  HTTP: req=120kb resp=250kb timeout=10s | ConfHTTP: req=125kb resp=500kb timeout=1m30s | Consensus obs=25kb | ChainWrite evm_report=50kb evm_gas=10000000 solana_report=265b solana_cu=300000 | WASM binary=100mb compressed=20mb
+  Binary hash: 1ec2ae72350aaab91f6b71768952bdc0458f94519518a524972c2f29c9778374
+  Config hash: e92263047109a4d76882a82d39f971ac3eb94bc8b6aebb7accf478e1dec88fd5
+2026-10-08T10:33:20Z [SIMULATION] Simulator Initialized
+
+2026-10-08T10:33:20Z [SIMULATION] Running trigger trigger=cron-trigger@1.0.0
+2026-10-08T10:33:21Z [USER LOG] meridian: averageFundingApr(12000) = 109505486310912000
+2026-10-08T10:33:22Z [USER LOG] perpl: market 64 rate 20 micros / 2580 s = 244465116279069767 APR WAD, event 69159399, OI ≈ 72208 AUSD
+2026-10-08T10:33:24Z [USER LOG] MFI_PUBLISH mfi 244345590502199178 (meridian 109505486310912000, perpl 244465116279069767) at 69167393 tx 0xdbc76b9fd810958b92282b07286fc80b55238544947412b3c35a1309f8fef7fb gasLimit 275352 success
+2026-10-08T10:33:24Z [USER LOG] reads used 6/15
+
+✓ Workflow Simulation Result:
+"mfi:244345590502199178:0xdbc76b9fd810958b92282b07286fc80b55238544947412b3c35a1309f8fef7fb"
+
+2026-10-08T10:33:24Z [SIMULATION] Execution finished signal received
+2026-10-08T10:33:24Z [SIMULATION] Skipping WorkflowEngineV2
+
+╭──────────────────────────────────────────────────────╮
+│ Simulation complete! Ready to deploy your workflow?  │
+│                                                      │
+│ Run cre account access to request deployment access. │
+╰──────────────────────────────────────────────────────╯

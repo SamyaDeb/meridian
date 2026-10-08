@@ -1,0 +1,32 @@
+Initializing...
+Loading settings...
+Checking RPC connectivity...
+Compiling workflow...
+✓ Workflow compiled
+✓ Simulation limits enabled
+  HTTP: req=120kb resp=250kb timeout=10s | ConfHTTP: req=125kb resp=500kb timeout=1m30s | Consensus obs=25kb | ChainWrite evm_report=50kb evm_gas=10000000 solana_report=265b solana_cu=300000 | WASM binary=100mb compressed=20mb
+  Binary hash: e76b17e7efb0efa88e66a2833de0a00f1b8cceb791721073d3e3b298375f502c
+  Config hash: cec78f9fb0cb0c2cfc3419954aca9149984b3c81a0276aa2cff167ebf4237c93
+2026-10-08T10:32:14Z [SIMULATION] Simulator Initialized
+
+2026-10-08T10:32:14Z [SIMULATION] Running trigger trigger=cron-trigger@1.0.0
+2026-10-08T10:32:14Z [USER LOG] guardian: cron at block 69167174
+2026-10-08T10:32:15Z [USER LOG] MON-PERP-DEMO: 2 candidates (2 PositionChanged, 0 indexer), 1 liquidatable
+2026-10-08T10:32:17Z [USER LOG] MON-PERP-DEMO: LIQUIDATE 0x80e511c00Ff854c1D91de1481D264F309520aE7E tx 0xe48411cb185614c09d263da53dd9e61f118b5170711f34d6c9407f7354475e2c gasLimit 497871 success
+time=2026-10-08T10:32:18.083+05:30 level=INFO msg="context deadline exceeded"
+2026-10-08T10:32:19Z [USER LOG] MON-PERP-DEMO: UNWIND 5000000000000000000000 tx 0x4b64dc4ddadfe0215b3211523684b3c280682f65ed4c542d9af5c2b1130d26f5 gasLimit 437368 success
+time=2026-10-08T10:32:20.256+05:30 level=INFO msg="context deadline exceeded"
+2026-10-08T10:32:20Z [USER LOG] MON-PERP: 1 candidates (0 PositionChanged, 0 indexer), 0 liquidatable
+2026-10-08T10:32:20Z [USER LOG] reads used 10/15
+
+✓ Workflow Simulation Result:
+"MON-PERP-DEMO:liquidate:0xe48411cb185614c09d263da53dd9e61f118b5170711f34d6c9407f7354475e2c MON-PERP-DEMO:unwind:0x4b64dc4ddadfe0215b3211523684b3c280682f65ed4c542d9af5c2b1130d26f5"
+
+2026-10-08T10:32:20Z [SIMULATION] Execution finished signal received
+2026-10-08T10:32:20Z [SIMULATION] Skipping WorkflowEngineV2
+
+╭──────────────────────────────────────────────────────╮
+│ Simulation complete! Ready to deploy your workflow?  │
+│                                                      │
+│ Run cre account access to request deployment access. │
+╰──────────────────────────────────────────────────────╯
