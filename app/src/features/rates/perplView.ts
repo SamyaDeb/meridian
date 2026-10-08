@@ -180,3 +180,7 @@ export async function getPerplRoute(path: string, signal?: AbortSignal): Promise
   if (!r.ok) throw new Error((body as { error?: string } | null)?.error ?? `HTTP ${r.status}`);
   return body;
 }
+
+/** Lots the visible Meridian book can fill on one side (the offset is clipped to it; the ticket re-checks slippage). */
+export const visibleBookLots = (levels: readonly { sizeWad: bigint }[] | undefined, lotSizeWad: bigint): bigint | undefined =>
+  levels === undefined ? undefined : levels.reduce((n, l) => n + l.sizeWad / lotSizeWad, 0n);
