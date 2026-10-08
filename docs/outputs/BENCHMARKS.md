@@ -54,7 +54,25 @@ Reading: the < 100k place + cancel target is met on the Foundry (Cancun) schedul
 _**Cut** (owner decision D12, 5 Oct): B3 needs the same MM cycle on a level-array vs a mapping-layout OrderBook, measured on testnet (BENCHMARKS_PLAN B3). The mapping-layout variant would be a bench-only contract to write, deploy and fund before the 8 Oct freeze, for a claim the Foundry B1 numbers and MIP-8 page pricing already explain. Not run; no number is claimed._
 
 ## B4: multi-market parallel load
-_Not run on testnet: **BLOCKED #5 paid RPC** (HUMAN_CHECKLIST #5). Decision D12 approved a reduced B4 on 10143 within ≤ 2.0 testnet MON on a non-public RPC; on 5 Oct the configured testnet endpoint turned out to be a **free tier** (`eth_getLogs` ≤ 10 blocks, HTTP 429 under a short scan), and the keys hold ≈ 1.25 testnet MON after the aborted B1/B2 rerun (`bench/out/partial_gas_onchain_10143_2026-10-05.csv`, not used here). Smallest meaningful B4 (`DRY_RUN=1`, 2 wallets × 15 txs × K = 1, 2) projects ≈ 1.38 MON + 12 unpriced setup txs; full B4 (4 × 60) ≈ 5.2 MON. `bench/load.ts` is ready (K markets, pipelined nonces; outputs record the RPC tier, never the URL)._
+*K7, 8 Oct 2026. Markets: MON-PERP and **ETH-PERP** (added on 10143 by PHASES decision 44). Script `bench/b4_parallel_markets.ts` (`pnpm -C bench b4`), pure parts unit-tested (`bench/test/b4.test.ts`). Raw rows: `bench/out/b4_parallel_anvil-10143_2026-10-08.csv`, summary `….json` (commit `93d8d6f`).*
+
+**Where it ran: an anvil fork of Monad testnet 10143** (blocks 69,238,207–69,238,449, the real deployed MON-PERP and ETH-PERP bytecode and state, 0.4 s blocks), **not on testnet itself**: a testnet run costs ≈ 0.06 MON per round of 6 txs (billed limits), and the keys had ≈ 0.2 MON after the ETH-PERP deploy and evidence (owner action: fund, then re-run with `RPC_URL` = testnet, the same command). Anvil executes sequentially, so this run says nothing about Monad's parallel execution; it measures what our contracts control.
+
+Method: 3 load wallets per market (separate keys) + one maker per market resting a 3-level ladder at the current index (re-quoted every phase). Phases: **a** = load on MON-PERP only, **b** = ETH-PERP only, **ab** = both. 30 rounds per phase; in a round every active wallet sends one op at the same moment (≈ 50% place a resting 1-lot bid, 30% cancel one of its orders, 20% 1-lot IOC market order against the ladder, alternating buy/sell), so in phase ab both markets' txs land in the same blocks. The keeper-fed oracles are kept fresh with real prices (Hermes ETH/USD; mainnet Pyth MON/USD).
+
+| phase | market | txs (included / reverted) | blocks | tx per block (mean / max) | inclusion, blocks after send (p50 / p95) | wall-clock to seen (p50 / p95 ms) | gas used p50: place · cancel · market |
+|---|---|---|---|---|---|---|---|
+| a | MON-PERP | 90 (90 / 0) | 31 | 2.90 / 3 | 1 / 1 | 468 / 933 | 128,054 · 68,126 · 156,559 |
+| b | ETH-PERP | 90 (90 / 0) | 32 | 2.81 / 3 | 1 / 2 | 467 / 926 | 123,869 · 73,002 · 156,559 |
+| ab | MON-PERP | 90 (90 / 0) | 30 | 3.00 / 3 | 1 / 1 | 620 / 2,470 | 128,270 · 73,014 · 162,475 |
+| ab | ETH-PERP | 90 (90 / 0) | 30 | 3.00 / 3 | 1 / 1 | 620 / 2,470 | 125,207 · 68,114 · 156,615 |
+
+- **Same blocks:** all 30 joint-phase blocks carried txs of both markets (6 per block).
+- **No shared storage:** for each op, the heaviest successful tx of each market in phase ab was traced (`debug_traceTransaction`, `prestateTracer`): place 16 vs 18 slots, market 22 vs 22, cancel 9 vs 9; **0 (address, slot) pairs in common** (`storageOverlap` in the JSON). The markets touch only their own CH and OB; the shared InsuranceFund and MarketFactory are not read on these paths (ARCHITECTURE §4).
+- **Gas per op is the same on both markets and with or without the other market's load** (within the usual first-touch / cold-slot spread; ETH-PERP's grid changes no code path).
+- **Inclusion did not degrade:** p50 1 block in every condition, p95 1–2.
+- **Wall-clock latency on anvil is not a chain property:** in phase ab one client process sends 6 txs per round instead of 3 and polls one node; p50 rose 468 → 620 ms and p95 933 → 2,470 ms in this run, but only 1.02× / 1.4× in the previous run of the same script (before the ladder fix, `git log bench/out`). We don't claim a latency number from anvil.
+- Not claimed: Monad parallel-execution speedup, throughput on testnet, any number from a testnet B4 run (not run).
 
 ## B5 funding granularity · B8 UX latency · B9 vault economics
 _Pending: B5 and B9 need indexer history (live Envio pending Docker); B8 needs the login decision + app instrumentation._

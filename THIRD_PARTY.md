@@ -12,12 +12,15 @@ Meridian's own code is [MIT](LICENSE). It depends on the libraries below, which 
 ## Vendored files (copied into this repository)
 | File | From | Licence |
 |---|---|---|
+| `packages/core/src/perpl/abi.ts` | 11 entries copied verbatim from `indexer/abis/PerplExchange.json` (same dex-sdk @ `dbb37c5`), checked equal by `test/perpl-onboarding.test.ts` | MIT |
 | `indexer/abis/PerplExchange.json` | Perpl's exchange ABI, [`PerplFoundation/dex-sdk`](https://github.com/PerplFoundation/dex-sdk) `crates/sdk/abi/dex/Exchange.json` @ `dbb37c5` (`abi` array only), to decode Perpl events in the indexer (`indexer/abis/README.md`) | MIT |
 
 ## TypeScript: direct dependencies
 | Package | Workspace | Licence |
 |---|---|---|
-| viem | app, mfi, mm-bot, keepers, bench | MIT |
+| viem | app, mfi, mm-bot, keepers, bench, packages/core | MIT |
+| @noble/ed25519, @noble/hashes | packages/core (Perpl Ed25519 signing, SHA-256 / SHA-512, HKDF) | MIT |
+| @scure/bip32, @scure/bip39 | packages/core (Mera EVM key path, recovery phrase) | MIT |
 | wagmi, @tanstack/react-query | app | MIT |
 | next, react, react-dom | app | MIT |
 | lightweight-charts (TradingView) | app (price chart) | Apache-2.0; the attribution "Lightweight Charts by TradingView" is shown in the chart settings, as its licence asks |

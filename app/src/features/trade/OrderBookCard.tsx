@@ -4,7 +4,8 @@ import { useDepth, useTrades } from "@/data/hooks";
 import { Card, EmptyState, PillTabs, Skeleton } from "@/components/ds";
 import { GROUPINGS, aggregateLevels, ladder, spread, totalSize, type LadderRow } from "@/lib/book";
 import { formatAusdWad, formatBaseWad, formatFixed, formatPriceWad } from "@/lib/format";
-import { PERP_TICK_SIZE_WAD, WAD } from "@/lib/units";
+import { WAD } from "@/lib/units";
+import { usePerpMarket } from "@/data/market";
 import { setDraft } from "./draft";
 import { FundingCard } from "./FundingCard";
 import { depthPaths } from "@/lib/depth";
@@ -13,42 +14,49 @@ const LEVELS = 12; // per side on screen (§6.2)
 // fetched so coarser groupings still fill rows; getDepth reverts BatchTooLarge above MeridianConstants.MAX_BATCH (32)
 const RAW_LEVELS = 32;
 type View = "both" | "bids" | "asks";
-type Unit = "MON" | "AUSD";
+type Unit = "BASE" | "AUSD";
 
-const sizeText = (r: { sizeWad: bigint; priceWad: bigint }, unit: Unit) => (unit === "MON" ? formatBaseWad(r.sizeWad, 0) : formatAusdWad((r.sizeWad * r.priceWad) / WAD));
-const cumText = (r: LadderRow, unit: Unit) => (unit === "MON" ? formatBaseWad(r.cumSizeWad, 0) : formatAusdWad(r.cumNotionalWad));
+const sizeText = (r: { sizeWad: bigint; priceWad: bigint }, unit: Unit, dp: number) => (unit === "BASE" ? formatBaseWad(r.sizeWad, dp) : formatAusdWad((r.sizeWad * r.priceWad) / WAD));
+const cumText = (r: LadderRow, unit: Unit, dp: number) => (unit === "BASE" ? formatBaseWad(r.cumSizeWad, dp) : formatAusdWad(r.cumNotionalWad));
+/** Market-aware formatters (K7): price at the market's tick, size at its lot precision. */
+function useFmt() {
+  const pm = usePerpMarket();
+  return { pm, fp: (v: bigint) => formatPriceWad(v, pm.tickSizeWad), fb: (v: bigint) => formatBaseWad(v, pm.sizeDp) };
+}
 
 function Level({ r, side, unit }: { r: LadderRow; side: "bid" | "ask"; unit: Unit }) {
+  const { pm, fp, fb } = useFmt();
   return (
     <li>
       <button
         type="button"
-        onClick={() => setDraft({ kind: "limit", limitPx: formatPriceWad(r.priceWad).replace(/,/g, "") })}
-        title={`Sweep to here: ${formatBaseWad(r.cumSizeWad, 0)} MON at avg ${formatPriceWad(r.avgPriceWad)}. Click to use this price.`}
-        aria-label={`${side === "bid" ? "Bid" : "Ask"} ${formatPriceWad(r.priceWad)}, ${sizeText(r, unit)} ${unit}. Use as limit price.`}
+        onClick={() => setDraft({ kind: "limit", limitPx: fp(r.priceWad).replace(/,/g, "") })}
+        title={`Sweep to here: ${fb(r.cumSizeWad)} ${pm.base} at avg ${fp(r.avgPriceWad)}. Click to use this price.`}
+        aria-label={`${side === "bid" ? "Bid" : "Ask"} ${fp(r.priceWad)}, ${sizeText(r, unit, pm.sizeDp)} ${unit === "BASE" ? pm.base : unit}. Use as limit price.`}
         className="num relative grid h-6 w-full grid-cols-3 items-center rounded-[6px] px-2 text-[11px] hover:bg-card-2 pointer-coarse:h-11"
       >
         <span className={`absolute inset-y-0 right-0 rounded-[6px] ${side === "bid" ? "bg-long/12" : "bg-short/12"}`} style={{ width: `${r.depthBps / 100}%` }} aria-hidden />
-        <span className={`relative text-left ${side === "bid" ? "text-long" : "text-short"}`}>{formatPriceWad(r.priceWad)}</span>
-        <span className="relative text-right">{sizeText(r, unit)}</span>
-        <span className="relative text-right text-muted">{cumText(r, unit)}</span>
+        <span className={`relative text-left ${side === "bid" ? "text-long" : "text-short"}`}>{fp(r.priceWad)}</span>
+        <span className="relative text-right">{sizeText(r, unit, pm.sizeDp)}</span>
+        <span className="relative text-right text-muted">{cumText(r, unit, pm.sizeDp)}</span>
       </button>
     </li>
   );
 }
 
 function Book() {
+  const { pm, fp } = useFmt();
   const { data, isError } = useDepth(RAW_LEVELS);
   const [group, setGroup] = useState<bigint>(1n);
   const [view, setView] = useState<View>("both");
-  const [unit, setUnit] = useState<Unit>("MON");
+  const [unit, setUnit] = useState<Unit>("BASE");
   const book = useMemo(() => {
     if (!data) return undefined;
-    const bids = aggregateLevels(data.bids, PERP_TICK_SIZE_WAD, group, "bid").slice(0, LEVELS);
-    const asks = aggregateLevels(data.asks, PERP_TICK_SIZE_WAD, group, "ask").slice(0, LEVELS);
+    const bids = aggregateLevels(data.bids, pm.tickSizeWad, group, "bid").slice(0, LEVELS);
+    const asks = aggregateLevels(data.asks, pm.tickSizeWad, group, "ask").slice(0, LEVELS);
     const scale = totalSize(bids) > totalSize(asks) ? totalSize(bids) : totalSize(asks);
     return { bids: ladder(bids, scale), asks: ladder(asks, scale), spread: spread(data.bids[0]?.priceWad, data.asks[0]?.priceWad) };
-  }, [data, group]);
+  }, [data, group, pm.tickSizeWad]);
   const ctl = "h-7 rounded-full bg-card-2 px-2 text-[11px] text-muted pointer-coarse:h-11";
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -56,12 +64,12 @@ function Book() {
         <select aria-label="Price grouping" value={group.toString()} onChange={(e) => setGroup(BigInt(e.target.value))} className={ctl}>
           {GROUPINGS.map((g) => (
             <option key={g.toString()} value={g.toString()}>
-              {formatFixed(g * PERP_TICK_SIZE_WAD, 18, 6)}
+              {formatFixed(g * pm.tickSizeWad, 18, pm.priceDp)}
             </option>
           ))}
         </select>
         <select aria-label="Size unit" value={unit} onChange={(e) => setUnit(e.target.value as Unit)} className={ctl}>
-          <option value="MON">MON</option>
+          <option value="BASE">{pm.base}</option>
           <option value="AUSD">AUSD</option>
         </select>
         <select aria-label="Book view" value={view} onChange={(e) => setView(e.target.value as View)} className={ctl}>
@@ -72,7 +80,7 @@ function Book() {
       </div>
       <div className="grid grid-cols-3 px-2 pb-1 text-[10px] text-muted">
         <span>Price</span>
-        <span className="text-right">Size ({unit})</span>
+        <span className="text-right">Size ({unit === "BASE" ? pm.base : unit})</span>
         <span className="text-right">Total</span>
       </div>
       {isError ? (
@@ -92,7 +100,7 @@ function Book() {
           )}
           <div className="num my-1 flex items-center justify-between rounded-control bg-card-2 px-2 py-1 text-[11px]" data-testid="spread">
             <span className="text-muted">Spread</span>
-            <span>{book.spread ? `${formatPriceWad(book.spread.absWad)} · ${formatFixed(book.spread.bps * 10n ** 16n, 18, 2)}%` : "—"}</span>
+            <span>{book.spread ? `${fp(book.spread.absWad)} · ${formatFixed(book.spread.bps * 10n ** 16n, 18, 2)}%` : "—"}</span>
           </div>
           {view !== "asks" && (
             <ul aria-label="Bids">
@@ -108,6 +116,7 @@ function Book() {
 }
 
 function Trades() {
+  const { pm, fp, fb } = useFmt();
   const { data, isError } = useTrades(40);
   if (isError) return <EmptyState title="Trades unavailable" body="Retrying." />;
   if (!data) return <Skeleton className="h-64 w-full" label="Loading trades" />;
@@ -116,7 +125,7 @@ function Trades() {
     <div className="min-h-0 flex-1 overflow-auto">
       <div className="grid grid-cols-4 px-2 pb-1 text-[10px] text-muted">
         <span>Price</span>
-        <span className="text-right">Size (MON)</span>
+        <span className="text-right">Size ({pm.base})</span>
         <span className="text-right">Time</span>
         <span className="text-right">Block</span>
       </div>
@@ -124,9 +133,9 @@ function Trades() {
         {data.map((t) => (
           <li key={t.id} className="num grid h-6 grid-cols-4 items-center px-2 text-[11px]">
             <span className={t.takerIsBid ? "text-long" : "text-short"}>
-              {t.takerIsBid ? "▲" : "▼"} {formatPriceWad(t.priceWad)}
+              {t.takerIsBid ? "▲" : "▼"} {fp(t.priceWad)}
             </span>
-            <span className="text-right">{formatBaseWad(t.sizeWad, 0)}</span>
+            <span className="text-right">{fb(t.sizeWad)}</span>
             <span className="text-right text-muted">{t.timestamp > 0n ? new Date(Number(t.timestamp) * 1_000).toISOString().slice(11, 19) : "—"}</span>
             <span className="text-right text-muted">#{t.block.toString()}</span>
           </li>
@@ -162,6 +171,7 @@ function FundingCardBody() {
 
 /** Cumulative depth chart of the visible book (getDepth, up to 32 levels per side). */
 function Depth() {
+  const { pm, fp, fb } = useFmt();
   const { data } = useDepth(RAW_LEVELS);
   if (!data) return <Skeleton className="h-64 w-full" label="Loading depth" />;
   const W = 300;
@@ -174,16 +184,16 @@ function Depth() {
   const hi = data.asks[data.asks.length - 1]?.priceWad ?? data.bids[0]?.priceWad;
   return (
     <figure className="flex min-h-0 flex-1 flex-col" data-testid="depth-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-full min-h-40 w-full" role="img" aria-label={`Depth: ${formatBaseWad(totalSize(data.bids), 0)} MON bid, ${formatBaseWad(totalSize(data.asks), 0)} MON ask`}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-full min-h-40 w-full" role="img" aria-label={`Depth: ${fb(totalSize(data.bids))} ${pm.base} bid, ${fb(totalSize(data.asks))} ${pm.base} ask`}>
         <path d={area(g.bid)} className="fill-long/15" />
         <path d={path(g.bid)} className="fill-none stroke-long" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
         <path d={area(g.ask)} className="fill-short/15" />
         <path d={path(g.ask)} className="fill-none stroke-short" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
       </svg>
       <figcaption className="num mt-1 flex justify-between text-[10px] text-muted">
-        <span>{lo !== undefined ? formatPriceWad(lo) : ""}</span>
-        <span>max Σ {formatBaseWad(g.maxCum, 0)} MON</span>
-        <span>{hi !== undefined ? formatPriceWad(hi) : ""}</span>
+        <span>{lo !== undefined ? fp(lo) : ""}</span>
+        <span>max Σ {fb(g.maxCum)} {pm.base}</span>
+        <span>{hi !== undefined ? fp(hi) : ""}</span>
       </figcaption>
     </figure>
   );

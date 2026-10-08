@@ -10,6 +10,8 @@ import type { AccountMarket, AccountSummary, Address, FundingTick, Market, Redee
 
 export interface ChainAddresses {
   chainId: number;
+  /** market symbol (K7: ETH-PERP); default MON-PERP */
+  symbol?: string;
   clearingHouse: Address;
   orderBook: Address;
   oracle?: Address;
@@ -100,7 +102,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     const m: Market = {
       id: a.clearingHouse,
       chainId: a.chainId,
-      symbol: "MON-PERP",
+      symbol: a.symbol ?? "MON-PERP",
       clearingHouse: a.clearingHouse,
       orderBook: a.orderBook,
       ...(a.oracle ? { oracle: a.oracle } : {}),

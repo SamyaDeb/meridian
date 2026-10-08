@@ -5,16 +5,17 @@ import type { OpenOrder } from "@/data/chain/source";
 import type { PriceLineSpec } from "@/features/chart/engine/types";
 import { formatBaseWad } from "@/lib/format";
 import type { TriggerView } from "@/features/triggers/abi";
-import { PERP_LOT_SIZE_WAD as LOT } from "@/lib/units";
+import { PERP_LOT_SIZE_WAD } from "@/lib/units";
 
-export function accountLines(a: AccountSummary | null | undefined, orders: readonly OpenOrder[] | undefined): PriceLineSpec[] {
+/** `lot` / `sizeDp`: the selected market's lot and its display decimals (K7; default MON-PERP: lot 100, 0 dp). */
+export function accountLines(a: AccountSummary | null | undefined, orders: readonly OpenOrder[] | undefined, lot: bigint = PERP_LOT_SIZE_WAD, sizeDp = 0): PriceLineSpec[] {
   const out: PriceLineSpec[] = [];
   if (a && a.size !== 0n) {
     const long = a.size > 0n;
-    out.push({ id: "entry", priceWad: a.entryPrice, tone: long ? "long" : "short", title: `${long ? "Long" : "Short"} ${formatBaseWad(long ? a.size : -a.size, 0)}` });
+    out.push({ id: "entry", priceWad: a.entryPrice, tone: long ? "long" : "short", title: `${long ? "Long" : "Short"} ${formatBaseWad(long ? a.size : -a.size, sizeDp)}` });
     if (a.liquidationPrice > 0n) out.push({ id: "liq", priceWad: a.liquidationPrice, tone: "warn", title: "Liq.", dashed: true });
   }
-  for (const o of orders ?? []) out.push({ id: `o${o.id}`, priceWad: o.priceWad, tone: o.isBid ? "long" : "short", title: `${o.isBid ? "Bid" : "Ask"} ${formatBaseWad(o.lots * LOT, 0)}`, dashed: true });
+  for (const o of orders ?? []) out.push({ id: `o${o.id}`, priceWad: o.priceWad, tone: o.isBid ? "long" : "short", title: `${o.isBid ? "Bid" : "Ask"} ${formatBaseWad(o.lots * lot, sizeDp)}`, dashed: true });
   return out;
 }
 

@@ -25,6 +25,8 @@ The market needs our keeper and market maker running (otherwise the oracle is st
 | `/fix` | The 30-day funding swap: lock a fixed funding rate | The book is live only while our swap market maker runs (announced hours); otherwise it is empty |
 | `/stats` | Users, trades, volume (our market maker's share shown), swaps, vault, withdrawal queue, liquidations | Each number is from our indexer, "as of block N"; our own accounts are excluded |
 
+**ETH-PERP** (switcher at the top of `/trade`) is a second testnet market with its own book and funding. Its price comes from Pyth ETH/USD, pushed onchain by our keeper (labelled "testnet"); it only moves while that keeper runs. Your margin is per market: deposit into ETH-PERP separately. Minimum size 0.001 ETH.
+
 MON-PERP-DEMO is a separate, labelled **test market** we use to show a crash and a liquidation; don't trade it, its price is moved on purpose.
 
 ## 3. Tell us

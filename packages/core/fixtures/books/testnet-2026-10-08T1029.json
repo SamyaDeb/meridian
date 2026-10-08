@@ -1,0 +1,144 @@
+{
+ "_about": "REAL testnet books, read-only (packages/core/scripts/record-books.ts). Meridian values are decimal strings of the onchain integers.",
+ "recordedAt": "2026-10-08T10:29:25.625Z",
+ "chainId": 10143,
+ "meridian": {
+  "block": "69231439",
+  "orderBook": "0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207",
+  "clearingHouse": "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA",
+  "tickSize": "1000000000000",
+  "lotSize": "100000000000000000000",
+  "bids": {
+   "ticks": [],
+   "lots": []
+  },
+  "asks": {
+   "ticks": [],
+   "lots": []
+  },
+  "riskParams": {
+   "imr": "200000000000000000",
+   "mmr": "100000000000000000",
+   "takerFee": "500000000000000",
+   "makerFee": "-100000000000000",
+   "liqPenalty": "10000000000000000",
+   "keeperShare": "500000000000000000",
+   "maxOpenInterest": "250000000000000000000000",
+   "maxPositionSize": "25000000000000000000000"
+  },
+  "markPrice": "25602820015706088",
+  "fundingParams": {
+   "alpha": "2000000000000000",
+   "interestRate": "3472222222",
+   "rateCap": "555555555556",
+   "maxRateChangePerBlock": "555555556",
+   "blockTimeMs": "300",
+   "premiumBandWad": "50000000000000000"
+  },
+  "previewFundingState": {
+   "cumFunding": "71833940814986",
+   "cumIndexTime": "782424890970000000000",
+   "emaPremium": "613451526",
+   "rate": "3472392625",
+   "lastUpdateBlock": "69231439"
+  }
+ },
+ "perpl": {
+  "marketId": 64,
+  "market": {
+   "id": 64,
+   "name": "MON Perp",
+   "symbol": "MON",
+   "priceDecimals": 5,
+   "sizeDecimals": 0,
+   "fundingIntervalSec": 2580,
+   "fundingIntervalBlocks": 8571
+  },
+  "apiUrl": "https://testnet.perpl.xyz/api",
+  "book": {
+   "mt": 15,
+   "sn": 69231401,
+   "at": {
+    "b": 69231401,
+    "t": 1791455353000
+   },
+   "bid": [
+    {
+     "p": 2550,
+     "s": 4123190,
+     "o": 1
+    },
+    {
+     "p": 2546,
+     "s": 4814810,
+     "o": 1
+    },
+    {
+     "p": 2542,
+     "s": 5253961,
+     "o": 1
+    },
+    {
+     "p": 2538,
+     "s": 5103130,
+     "o": 1
+    },
+    {
+     "p": 2530,
+     "s": 4517180,
+     "o": 1
+    },
+    {
+     "p": 2526,
+     "s": 4876532,
+     "o": 1
+    }
+   ],
+   "ask": [
+    {
+     "p": 2574,
+     "s": 5289905,
+     "o": 1
+    },
+    {
+     "p": 2578,
+     "s": 5293281,
+     "o": 1
+    },
+    {
+     "p": 2582,
+     "s": 6341440,
+     "o": 1
+    },
+    {
+     "p": 2586,
+     "s": 7891772,
+     "o": 1
+    }
+   ]
+  },
+  "ticker": {
+   "mt": 9,
+   "sn": 69231401,
+   "d": {
+    "64": {
+     "at": {
+      "b": 69231401,
+      "t": 1791455353000
+     },
+     "orl": 2558,
+     "mrk": 2556,
+     "lst": 2554,
+     "mid": 2562,
+     "bid": 2550,
+     "ask": 2574,
+     "prv": 2676,
+     "dv": 3896306,
+     "dva": "100588810670",
+     "oi": 2841731,
+     "tvl": "46452857401"
+    }
+   }
+  }
+ }
+}

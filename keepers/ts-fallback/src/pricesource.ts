@@ -99,6 +99,7 @@ export async function latestKeylessPrice(
   feedId: Hex,
   nowSec: bigint,
   maxSourceAgeSec: bigint,
+  hyperliquidCoin = "MON",
 ): Promise<SourcedPrice | null> {
   if (mainnet !== null) {
     try {
@@ -108,6 +109,6 @@ export async function latestKeylessPrice(
       // fall through to the fallback source
     }
   }
-  const h = await fetchHyperliquidMid("MON", nowSec).catch(() => null);
+  const h = await fetchHyperliquidMid(hyperliquidCoin, nowSec).catch(() => null);
   return h === null ? null : { ...h, source: "hyperliquid" };
 }

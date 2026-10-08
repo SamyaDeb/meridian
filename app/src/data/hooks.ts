@@ -25,7 +25,7 @@ export const INDEXER_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? "3133
  */
 export function useMarket() {
   const ds = useDataSource();
-  const q = useQuery({ queryKey: ["market", ds.kind], queryFn: () => ds.market(), refetchInterval: PER_BLOCK });
+  const q = useQuery({ queryKey: ["market", ds.kind, ds.marketKey], queryFn: () => ds.market(), refetchInterval: PER_BLOCK });
   const { data: fw } = useFundingWindow(q.data?.clearingHouse);
   if (!q.data || !fw) return q;
   return { ...q, data: withFundingWindow(q.data, fw) } as typeof q;
@@ -111,17 +111,17 @@ export function usePortfolio(account: Address) {
 
 export function useFundingTicks(limit = 300) {
   const ds = useDataSource();
-  return useQuery({ queryKey: ["fundingTicks", ds.kind, limit], queryFn: () => ds.fundingTicks(limit), refetchInterval: PER_BLOCK });
+  return useQuery({ queryKey: ["fundingTicks", ds.kind, ds.marketKey, limit], queryFn: () => ds.fundingTicks(limit), refetchInterval: PER_BLOCK });
 }
 
 export function useDepth(levels = 6) {
   const ds = useDataSource();
-  return useQuery({ queryKey: ["depth", ds.kind, levels], queryFn: () => ds.depth(levels), refetchInterval: 1_000 });
+  return useQuery({ queryKey: ["depth", ds.kind, ds.marketKey, levels], queryFn: () => ds.depth(levels), refetchInterval: 1_000 });
 }
 
 export function useTrades(limit = 12) {
   const ds = useDataSource();
-  return useQuery({ queryKey: ["trades", ds.kind, limit], queryFn: () => ds.trades(limit), refetchInterval: 1_000 });
+  return useQuery({ queryKey: ["trades", ds.kind, ds.marketKey, limit], queryFn: () => ds.trades(limit), refetchInterval: 1_000 });
 }
 
 /** The connected wallet; the mock account stands in when nothing is connected (mock data layer). */
@@ -136,7 +136,7 @@ export function useOpenOrders(account: Address) {
   const { isConnected } = useAccount();
   return useQuery({
     enabled: ds.kind === "mock" || isConnected, // chain mode: a connected wallet only
-    queryKey: ["openOrders", ds.kind, account],
+    queryKey: ["openOrders", ds.kind, ds.marketKey, account],
     queryFn: () => ("openOrders" in ds ? (ds as import("./chain/source").ChainSource).openOrders(account) : Promise.resolve([])),
     refetchInterval: 1_000,
   });
@@ -144,7 +144,7 @@ export function useOpenOrders(account: Address) {
 
 export function usePositions(account: Address) {
   const ds = useDataSource();
-  return useQuery({ queryKey: ["positions", ds.kind, account], queryFn: () => ds.positions(account), refetchInterval: SLOW });
+  return useQuery({ queryKey: ["positions", ds.kind, ds.marketKey, account], queryFn: () => ds.positions(account), refetchInterval: SLOW });
 }
 
 /** Indexer vault totals + share-price history (whole history, K2.4); off without the indexer or a vault address. */
@@ -165,7 +165,7 @@ function useVaultHistory(vault: Address | undefined, limit: number) {
  */
 export function useVault() {
   const ds = useDataSource();
-  const q = useQuery({ queryKey: ["vault", ds.kind], queryFn: () => ds.vault(), refetchInterval: SLOW });
+  const q = useQuery({ queryKey: ["vault", ds.kind, ds.marketKey], queryFn: () => ds.vault(), refetchInterval: SLOW });
   const { data: h } = useVaultHistory(q.data?.id, 1);
   if (!q.data || !h?.totals) return q;
   const t = h.totals;
@@ -185,10 +185,10 @@ export function useVault() {
 /** Share-price snapshots, newest first: the indexer's whole history when connected, else the data source's window. */
 export function useVaultSnapshots(limit = 168) {
   const ds = useDataSource();
-  const { data: v } = useQuery({ queryKey: ["vault", ds.kind], queryFn: () => ds.vault(), refetchInterval: SLOW });
+  const { data: v } = useQuery({ queryKey: ["vault", ds.kind, ds.marketKey], queryFn: () => ds.vault(), refetchInterval: SLOW });
   const h = useVaultHistory(v?.id, limit);
   const local = useQuery({
-    queryKey: ["vaultSnapshots", ds.kind, limit],
+    queryKey: ["vaultSnapshots", ds.kind, ds.marketKey, limit],
     queryFn: () => ds.vaultSnapshots(limit),
     refetchInterval: 60_000,
     enabled: INDEXER_URL === undefined || h.isError,
@@ -198,7 +198,7 @@ export function useVaultSnapshots(limit = 168) {
 
 export function useVaultUser(account: Address) {
   const ds = useDataSource();
-  return useQuery({ queryKey: ["vaultUser", ds.kind, account], queryFn: () => ds.vaultUser(account), refetchInterval: SLOW });
+  return useQuery({ queryKey: ["vaultUser", ds.kind, ds.marketKey, account], queryFn: () => ds.vaultUser(account), refetchInterval: SLOW });
 }
 
 /**
@@ -239,7 +239,7 @@ export function useVaultRedeems(account: Address, vault: Address | undefined) {
 export function useSwap(account: Address) {
   const ds = useDataSource();
   return useQuery({
-    queryKey: ["swap", ds.kind, account],
+    queryKey: ["swap", ds.kind, ds.marketKey, account],
     queryFn: async () => ({ stats: await ds.swapStats(), info: await ds.swapInfo(), positions: await ds.swapPositions(account) }),
     refetchInterval: 1_000, // accrual ticks per block on the Fix screen
   });
@@ -247,7 +247,7 @@ export function useSwap(account: Address) {
 
 export function useProtocolStats() {
   const ds = useDataSource();
-  return useQuery({ queryKey: ["protocolStats", ds.kind], queryFn: () => ds.protocolStats(), refetchInterval: SLOW });
+  return useQuery({ queryKey: ["protocolStats", ds.kind, ds.marketKey], queryFn: () => ds.protocolStats(), refetchInterval: SLOW });
 }
 
 /** Metrics dashboard (C5): indexer only. Undefined URL ⇒ the query is off and the Stats page says so. */
@@ -295,7 +295,7 @@ export function useAccountView(account: Address) {
   const { isConnected } = useAccount();
   // chain mode reads only a connected wallet (never the mock's placeholder account against a public RPC)
   return useQuery({
-    queryKey: ["accountView", ds.kind, account],
+    queryKey: ["accountView", ds.kind, ds.marketKey, account],
     queryFn: async () => (await ds.accountView(account)) ?? null,
     enabled: ds.kind === "mock" || isConnected,
     refetchInterval: 1_000,
@@ -305,7 +305,7 @@ export function useAccountView(account: Address) {
 /** Market risk params (imr, mmr, fees, caps). Changes only by admin tx: slow refresh. */
 export function useRiskParams() {
   const ds = useDataSource();
-  return useQuery({ queryKey: ["riskParams", ds.kind], queryFn: () => ds.riskParams(), refetchInterval: 60_000, staleTime: 30_000 });
+  return useQuery({ queryKey: ["riskParams", ds.kind, ds.marketKey], queryFn: () => ds.riskParams(), refetchInterval: 60_000, staleTime: 30_000 });
 }
 
 /** Indexer history (trades, orders, liquidations) of the connected account; off without an indexer. */
@@ -328,7 +328,7 @@ export function useFundingSettlements(account: Address) {
   const ds = useDataSource();
   const { isConnected } = useAccount();
   return useQuery({
-    queryKey: ["fundingSettlements", ds.kind, INDEXER_URL, account],
+    queryKey: ["fundingSettlements", ds.kind, ds.marketKey, INDEXER_URL, account],
     queryFn: async ({ signal }): Promise<{ fromBlock: bigint; items: FundingSettlement[]; source: "indexer" | "chain" }> => {
       if (INDEXER_URL !== undefined) {
         const rows = await (await import("./indexer/funding")).fetchFundingPayments(INDEXER_URL, INDEXER_CHAIN_ID, account, 500, signal);
