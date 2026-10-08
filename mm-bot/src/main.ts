@@ -23,6 +23,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { RateWindow, createCountingFetch, newRpcStats } from "@meridian/bot-rpc";
 import { clearingHouseAbi, fundingSwapAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
+import { type PerpMarket, type PerpRecord, resolvePerpMarket } from "./market.js";
 import { DEFAULTS, buildLadder, inventoryRatio, quoteBps, sigmaForQuoting } from "./as.js";
 import { type AnchorSource, aprSigma, aprWadToBps, blocksFor, buildAprLadder, chooseAnchor, movedAprBps } from "./aprbook.js";
 import { type Resting, idsToRefresh, needsRequote, planRequote, shouldTick, touchedId } from "./plan.js";
@@ -71,17 +72,9 @@ const ESTIMATE_BLOCK_TAG = (env("ESTIMATE_BLOCK_TAG") ?? "pending") as "pending"
 const CONFLICT_BUFFER_GAS = BigInt(env("CONFLICT_BUFFER_GAS") ?? "45000");
 const TOUCH_ALLOWANCE_GAS = BigInt(env("TOUCH_ALLOWANCE_GAS") ?? (ESTIMATE_BLOCK_TAG === "pending" ? "0" : "60000"));
 
-interface MarketDeployment {
-  ClearingHouse?: Address;
-  OrderBook?: Address;
-  OracleAdapter?: Address;
-}
-interface Deployments {
+interface Deployments extends PerpRecord {
   chainId: number;
-  deployed?: boolean;
-  contracts: MarketDeployment & { FundingSwapMarket?: Address; SwapOrderBook?: Address };
-  /** MON-PERP-DEMO test market (DeployMeridian on 10143); quote it with MARKET=demo. */
-  demoMarket?: MarketDeployment & { symbol: string; testMarket: true };
+  contracts: PerpMarket & { FundingSwapMarket?: Address; SwapOrderBook?: Address };
 }
 const dep = JSON.parse(readFileSync(DEPLOYMENTS, "utf8")) as Deployments;
 if (dep.chainId !== CHAIN_ID) throw new Error(`deployments chainId ${dep.chainId} != CHAIN_ID ${CHAIN_ID}`);
@@ -93,19 +86,17 @@ const IS_SWAP = MARKET === "swap";
   const refusal = launchGuard({ chainId: CHAIN_ID, market: MARKET, requoteBps: REQUOTE_BPS, allowHighBurn: env("ALLOW_HIGH_BURN") === "1" });
   if (refusal !== null) throw new Error(refusal);
 }
-const market = MARKET === "demo" ? dep.demoMarket : dep.contracts;
+// MARKET = main | demo | swap | an added market (K7: "eth" ⇒ ETH-PERP), src/market.ts
+const market = resolvePerpMarket(dep, MARKET, DEPLOYMENTS);
 const SWAP: Address | undefined = IS_SWAP ? dep.contracts.FundingSwapMarket : undefined;
 if (IS_SWAP && (SWAP === undefined || dep.contracts.SwapOrderBook === undefined)) throw new Error(`${DEPLOYMENTS}: no FundingSwapMarket/SwapOrderBook`);
-if (dep.deployed === false || market?.ClearingHouse === undefined || market.OrderBook === undefined || market.OracleAdapter === undefined) {
-  throw new Error(`${DEPLOYMENTS}: market ${MARKET} is not deployed`);
-}
 const TOUCH_EVENTS = orderBookAbi.filter(
   (x): x is Extract<(typeof orderBookAbi)[number], { type: "event"; name: "Trade" | "OrderEvicted" | "MakerFillSkipped" }> =>
     x.type === "event" && (x.name === "Trade" || x.name === "OrderEvicted" || x.name === "MakerFillSkipped"),
 );
-const CH: Address = market.ClearingHouse;
-const OB: Address = IS_SWAP ? (dep.contracts.SwapOrderBook as Address) : market.OrderBook;
-const ORACLE: Address = market.OracleAdapter;
+const CH: Address = market.clearingHouse;
+const OB: Address = IS_SWAP ? (dep.contracts.SwapOrderBook as Address) : market.orderBook;
+const ORACLE: Address = market.oracle;
 
 const chain = defineChain({
   id: CHAIN_ID,
@@ -450,6 +441,7 @@ log("recovered resting orders", { count: resting.length, lookbackBlocks: RECOVER
 log("mm start", {
   chainId: CHAIN_ID,
   market: MARKET,
+  symbol: market.symbol,
   orderBook: OB,
   maker: account.address,
   levels: LEVELS,
