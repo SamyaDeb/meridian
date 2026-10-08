@@ -111,11 +111,28 @@ export async function vaultDeposit(pub: PublicClient, wallet: WalletClient, toke
   return sendTx(pub, wallet, { address: vault, abi: vaultAbi, functionName: "deposit", args: [amountToken, me] });
 }
 
-/** Vault: redeem(shares) to me (5 bps fee; an unwind's measured cost if idle AUSD doesn't cover it). */
+/** Vault: redeem(shares) to me from idle AUSD (5 bps fee). Idle-only since CR-014: beyond idle use vaultRequestRedeem. */
 export async function vaultRedeem(pub: PublicClient, wallet: WalletClient, vault: Address, shares: bigint) {
   const me = wallet.account?.address;
   if (!me) throw new Error("wallet not connected");
   return sendTx(pub, wallet, { address: vault, abi: vaultAbi, functionName: "redeem", args: [shares, me, me] });
+}
+
+/** Vault queue (CR-014): escrow `shares` for a withdrawal beyond idle, paid to me after the keeper fulfils it. */
+export async function vaultRequestRedeem(pub: PublicClient, wallet: WalletClient, vault: Address, shares: bigint) {
+  const me = wallet.account?.address;
+  if (!me) throw new Error("wallet not connected");
+  return sendTx(pub, wallet, { address: vault, abi: vaultAbi, functionName: "requestRedeem", args: [shares, me, me] });
+}
+
+/** Vault queue: cancel my pending request (owner only); the escrowed shares come back. */
+export async function vaultCancelRedeem(pub: PublicClient, wallet: WalletClient, vault: Address, id: bigint) {
+  return sendTx(pub, wallet, { address: vault, abi: vaultAbi, functionName: "cancelRedeem", args: [id] });
+}
+
+/** Vault queue: pay a fulfilled request to its receiver (anyone may call; the AUSD goes to the receiver). */
+export async function vaultClaimRedeem(pub: PublicClient, wallet: WalletClient, vault: Address, id: bigint) {
+  return sendTx(pub, wallet, { address: vault, abi: vaultAbi, functionName: "claimRedeem", args: [id] });
 }
 
 /** Swap market collateral (same AUSD units as the perp). */

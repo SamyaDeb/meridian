@@ -14,6 +14,7 @@ import type {
   SwapStats,
   Trade,
   Vault,
+  VaultRedeemLive,
   VaultSnapshot,
   VaultUser,
 } from "./types";
@@ -32,6 +33,8 @@ export interface MeridianDataSource {
   vault(): Promise<Vault>;
   vaultSnapshots(limit: number): Promise<VaultSnapshot[]>;
   vaultUser(account: Address): Promise<VaultUser | undefined>;
+  /** Earn queue (CR-014): live getRedeemRequest of `knownIds` (indexer) + my ids in the log window, maxRedeem, slice cap. */
+  vaultRedeems(account: Address, knownIds: readonly bigint[]): Promise<VaultRedeemLive>;
   swapStats(): Promise<SwapStats>;
   swapInfo(): Promise<SwapMarketInfo>;
   swapPositions(account: Address): Promise<SwapPosition[]>;

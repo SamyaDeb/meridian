@@ -67,7 +67,7 @@ export const erc20Abi = parseAbi([
 // MockERC20 (testnet / anvil AUSD only, deployments/<id>.json mockContracts): open mint for the K1 faucet.
 export const mockTokenAbi = parseAbi(["function mint(address to, uint256 amount)"]);
 
-// MeridianVault (ERC-4626 + IMeridianVault, interfaces-v1.5).
+// MeridianVault (ERC-4626 + IMeridianVault, interfaces-v1.5; CR-014 queue from interfaces-v1.7).
 export const vaultAbi = parseAbi([
   "struct HedgeState { uint256 spotBase; int256 perpSize; int256 perpEquity; uint256 idleAssets; uint256 nav; int256 netDelta; uint256 marginRatio; bool hedged; uint64 lastRebalanceBlock; }",
   "function asset() view returns (address)",
@@ -88,6 +88,21 @@ export const vaultAbi = parseAbi([
   "function WITHDRAW_FEE() view returns (uint256)",
   "function deposit(uint256 assets, address receiver) returns (uint256 shares)",
   "function redeem(uint256 shares, address receiver, address owner) returns (uint256 assets)",
+  "struct RedeemRequest { address owner; uint64 requestedBlock; uint8 status; address receiver; uint128 shares; uint128 assets; }",
+  "function requestRedeem(uint256 shares, address receiver, address owner) returns (uint256 id)",
+  "function cancelRedeem(uint256 id)",
+  "function claimRedeem(uint256 id) returns (uint256 assets)",
+  "function getRedeemRequest(uint256 id) view returns (RedeemRequest)",
+  "function claimableAssets() view returns (uint256)",
+  "function pendingRedeemShares() view returns (uint256)",
+  "event RedeemRequested(uint256 indexed id, address indexed owner, address receiver, uint256 shares)",
+  "event RedeemCancelled(uint256 indexed id)",
+  "event RedeemFulfilled(uint256 indexed id, uint256 assets, uint256 unwindCost)",
+  "event RedeemClaimed(uint256 indexed id, address indexed receiver, uint256 assets)",
+  "error RequestNotFound()",
+  "error NotRequestOwner()",
+  "error RequestTooLarge()",
+  "error NothingToDo()",
   "event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)",
   "event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)",
   "event NavSnapshot(uint256 nav, uint256 totalShares, uint256 sharePriceWad, int256 fundingAccruedWad)",
