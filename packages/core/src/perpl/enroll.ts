@@ -54,7 +54,7 @@ export type EnrollDeps = {
   /** the wallet's EIP-712 signer (Mera viem account `signTypedData`) */
   signTypedData: (def: TypedDataDefinition) => Promise<Hex>;
   fetchFn: FetchLike;
-  /** a Perpl-whitelisted Origin; > VERIFY in N4 whether native requests need one (K3 enrolled on testnet without it) */
+  /** a Perpl-whitelisted Origin. Native/server callers send none: measured 9 Oct, none ⇒ 200, a non-whitelisted one ⇒ 400 (README §Open) */
   origin?: string;
   scopeMask?: number;
 };
