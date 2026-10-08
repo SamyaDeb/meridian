@@ -208,10 +208,13 @@ describe("trading WebSocket session", () => {
     expect(Object.keys(hdr)).toEqual(expect.arrayContaining(["X-API-Key", "X-API-Timestamp", "X-API-Nonce", "X-API-Signature"]));
     expect(JSON.parse(post.init.body as string)).toEqual({ sn: 1, d: [{ mkt: 64, t: 1, p: 2600, s: 100, fl: 4, lv: 500, rq: 42, acc: ACC, lb: 5_020 }] });
     expect(await p.ack).toEqual({ code: 0, error: "" });
-    for (let i = 0; i < 3; i++) {
+    // advance until the poll loop settles: signing each GET takes several event-loop turns, so on a slow runner the
+    // next poll's timer can be registered after a fixed number of advances (bounded like the client's 10 polls)
+    let settled = false;
+    void p.outcome.then(() => (settled = true));
+    for (let i = 0; i < 10 && !settled; i++) {
       h.clock.advance(1_000);
-      await flush();
-      await flush();
+      for (let j = 0; j < 5 && !settled; j++) await flush();
     }
     expect(await p.outcome).toMatchObject({ kind: "outcome", outcome: { rq: 42 } });
     expect(h.restCalls.some((c) => c.url.endsWith("/v1/trading/order-history?count=20"))).toBe(true);
