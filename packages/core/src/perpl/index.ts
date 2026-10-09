@@ -1,5 +1,6 @@
 export * from "./abi";
 export * from "./auth";
+export * from "./candles";
 export * from "./client";
 export * from "./enroll";
 export * from "./errors";
