@@ -5,13 +5,17 @@ import { appendLive, candlesToPoints, change24hBps, MAX_POINTS, placeLine, price
 const WAD = 10n ** 18n;
 const PD = 5; // testnet MON priceDecimals (deployments/perpl.json chains.10143.markets.64)
 const H = 3_600_000;
+/** a flat point (o = h = l = close) */
+const fp = (t: number, priceWad: bigint, gap?: true): Point => ({ t, priceWad, o: priceWad, h: priceWad, l: priceWad, ...(gap ? { gap } : {}) });
 
 describe("candles → points", () => {
   it("one point per candle at its close, exact PNS → WAD (recorded testnet 1h series)", () => {
     const s = parseCandleSeries(candles1h);
     const pts = candlesToPoints(s.d, PD, 3600);
     expect(pts).toHaveLength(7);
-    expect(pts[0]).toEqual({ t: 1791496800000, priceWad: 2406n * 10n ** 13n });
+    const c0 = s.d[0]!;
+    expect(pts[0]).toEqual({ t: 1791496800000, priceWad: 2406n * 10n ** 13n, o: BigInt(c0.o) * 10n ** 13n, h: BigInt(c0.h) * 10n ** 13n, l: BigInt(c0.l) * 10n ** 13n });
+    expect(pts.every((p) => p.l <= p.o && p.l <= p.priceWad && p.h >= p.o && p.h >= p.priceWad)).toBe(true);
     expect(pts.at(-1)!.priceWad).toBe(BigInt(s.d.at(-1)!.c) * 10n ** 13n);
     expect(pts.every((p) => p.gap === undefined)).toBe(true);
   });
@@ -34,14 +38,13 @@ describe("candles → points", () => {
 });
 
 describe("per-block append", () => {
-  const base: Point[] = [
-    { t: 0, priceWad: 100n },
-    { t: H, priceWad: 110n },
-  ];
+  const base: Point[] = [fp(0, 100n), fp(H, 110n)];
   it("same bucket ⇒ the last point's price follows the live price (no new point)", () => {
     const next = appendLive(base, 3600, H + 1_234, 115n);
     expect(next).toHaveLength(2);
-    expect(next.at(-1)).toEqual({ t: H, priceWad: 115n });
+    expect(next.at(-1)).toEqual({ t: H, priceWad: 115n, o: 110n, h: 115n, l: 110n });
+    // the live candle widens: a dip below the open sets the low, the high stays
+    expect(appendLive(next, 3600, H + 2_000, 105n).at(-1)).toEqual({ t: H, priceWad: 105n, o: 110n, h: 115n, l: 105n });
     expect(base.at(-1)!.priceWad).toBe(110n); // input untouched
   });
   it("unchanged price ⇒ the same array (no re-render)", () => {
@@ -58,16 +61,16 @@ describe("per-block append", () => {
   });
   it("a late block for an older bucket is ignored; empty series starts with the live point", () => {
     expect(appendLive(base, 3600, 10, 1n)).toBe(base);
-    expect(appendLive([], 60, 61_000, 5n)).toEqual([{ t: 60_000, priceWad: 5n }]);
+    expect(appendLive([], 60, 61_000, 5n)).toEqual([fp(60_000, 5n)]);
   });
   it("a gap point that gets a live price becomes real", () => {
-    const g: Point[] = [{ t: 0, priceWad: 1n }, { t: H, priceWad: 1n, gap: true }];
-    expect(appendLive(g, 3600, H + 1, 2n).at(-1)).toEqual({ t: H, priceWad: 2n });
+    const g: Point[] = [fp(0, 1n), fp(H, 1n, true)];
+    expect(appendLive(g, 3600, H + 1, 2n).at(-1)).toEqual({ t: H, priceWad: 2n, o: 1n, h: 2n, l: 1n });
   });
 });
 
 describe("24 h change", () => {
-  const pts: Point[] = Array.from({ length: 30 }, (_, i) => ({ t: i * H, priceWad: (100n + BigInt(i)) * WAD }));
+  const pts: Point[] = Array.from({ length: 30 }, (_, i) => fp(i * H, (100n + BigInt(i)) * WAD));
   it("reference = the close of the last candle at or before now − 24 h", () => {
     expect(refPriceAt(pts, 29 * H + 10 - 24 * H)).toBe(105n * WAD);
   });
