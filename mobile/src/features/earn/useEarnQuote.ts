@@ -17,7 +17,12 @@ import type { AccountsState } from "../trade/data/accounts";
 import { maxLevOfImr, walletWadFor } from "../trade/ticket/venues";
 import { useTrade } from "../trade/TradeProvider";
 import { useWalletFeed } from "../wallet/WalletFeedProvider";
-import { earnAvailableWad, quoteEarn, type EarnQuote, type EarnVenueInput } from "./plan";
+import type { SwapState } from "./data/swap";
+import { useEarn } from "./EarnProvider";
+import { earnAvailableWad, quoteEarn, type EarnLockInput, type EarnQuote, type EarnVenueInput } from "./plan";
+
+const NO_SWAP = new Store<SwapState | undefined>(undefined);
+const selSwap = (s: SwapState | undefined) => s;
 
 const selM = (s: MeridianMarketState | undefined) => s;
 const selP = (s: PerplMarketState | undefined) => s;
@@ -28,7 +33,7 @@ const selFt = (s: TradingSocketState | undefined) => s?.account?.ft;
 const selSock = (s: TradingSocketState | undefined) => s?.status === "ready";
 export const NO_ACC = new Store<AccountsState>({ atBlock: undefined, meridian: undefined, perpl: undefined, perplMargins: undefined, error: undefined });
 
-export type EarnInputs = { meridian: EarnVenueInput; perpl: EarnVenueInput; availableWad: bigint | undefined; accounts: AccountsState; perplPriceDp: number; meridianPriceDp: number };
+export type EarnInputs = { meridian: EarnVenueInput; perpl: EarnVenueInput; availableWad: bigint | undefined; accounts: AccountsState; perplPriceDp: number; meridianPriceDp: number; swap: SwapState | undefined; indexWad: bigint | undefined };
 
 export function useEarnInputs(): EarnInputs {
   const cfg = useLive().config;
@@ -40,6 +45,7 @@ export function useEarnInputs(): EarnInputs {
   const ready = usePerplOnboarding(selReady);
   const sockReady = usePerplSocket(selSock);
   const ft = usePerplSocket(selFt);
+  const sw = useStore(useEarn().swap?.store ?? NO_SWAP, selSwap);
   return useMemo(() => {
     const takerMicros = p?.takerMicros;
     const perplFee = takerMicros !== undefined ? perplFeeWad(feeForTier({ makerMicros: 0, takerMicros, ...(p?.takerTiers ? { takerTiers: [...p.takerTiers] } : {}) }, ft ?? 0, false)) : undefined;
@@ -74,10 +80,21 @@ export function useEarnInputs(): EarnInputs {
       // getMarginFractions init hdths is a leverage divisor (core liqPerpl header): 300 ⇒ 3×
       ...(acc.perplMargins ? { maxLeverage: Number(acc.perplMargins.initHdths) / 100 } : {}),
     };
-    return { meridian, perpl, availableWad: earnAvailableWad(meridian, perpl), accounts: acc, perplPriceDp: perpl.priceDp, meridianPriceDp: meridian.priceDp };
-  }, [cfg, f, m, p, acc, bal, ready, sockReady, ft]);
+    return { meridian, perpl, availableWad: earnAvailableWad(meridian, perpl), accounts: acc, perplPriceDp: perpl.priceDp, meridianPriceDp: meridian.priceDp, swap: sw && (sw.atBlock !== undefined || sw.params) ? sw : undefined, indexWad: m?.indexWad };
+  }, [cfg, f, m, p, acc, bal, ready, sockReady, ft, sw]);
 }
 
-export function useEarnQuote(amountWad: bigint | undefined, inputs: EarnInputs): EarnQuote {
-  return useMemo(() => quoteEarn({ amountWad, meridian: inputs.meridian, perpl: inputs.perpl }), [amountWad, inputs]);
+/** The Lock input from the swap reader + the oracle index (FundingSwapMarket._observe uses ClearingHouse.indexPrice). */
+export function lockInputOf(inputs: EarnInputs, on: boolean): EarnLockInput | undefined {
+  const s = inputs.swap;
+  if (!s) return undefined;
+  const obs = s.markAprWad !== undefined && s.tauSec !== undefined && s.capAprWad !== undefined && inputs.indexWad !== undefined ? { markAprWad: s.markAprWad, indexWad: inputs.indexWad, capAprWad: s.capAprWad, tauSec: s.tauSec } : undefined;
+  return { on, bids: s.bookKnown ? s.bids : undefined, asks: s.bookKnown ? s.asks : undefined, tickSizeWad: s.tickSizeWad, lotSizeWad: s.lotSizeWad, params: s.params, obs, matured: s.matured, maturity: s.maturity, account: s.account };
+}
+
+export function useEarnQuote(amountWad: bigint | undefined, inputs: EarnInputs, lockOn = false): EarnQuote {
+  return useMemo(() => {
+    const lock = lockInputOf(inputs, lockOn);
+    return quoteEarn({ amountWad, meridian: inputs.meridian, perpl: inputs.perpl, ...(lock ? { lock } : {}) });
+  }, [amountWad, inputs, lockOn]);
 }
