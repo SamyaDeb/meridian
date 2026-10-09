@@ -86,7 +86,7 @@ async function setup(o: { meridianApr?: number; perplApr?: number; meridianFails
   });
   const address = auth.account().address;
   const accounts = new AccountsReader({ client: { multicall: async () => [] } as never, address, meridian: undefined, perpl: undefined });
-  accounts.store.update({ meridian: { collateralWad: 0n, sizeWad: 0n, entryWad: 0n, upnlWad: 0n, pendingFundingWad: 0n, equityWad: 0n, freeWad: 0n, liqWad: 0n, maintenanceWad: 0n }, perpl: { accountId: 7n, freeWad: 0n, position: undefined }, perplMargins: { initHdths: 1000n, maintHdths: 500n } });
+  accounts.store.update({ meridian: { collateralWad: 0n, sizeWad: 0n, entryWad: 0n, upnlWad: 0n, pendingFundingWad: 0n, equityWad: 0n, freeWad: 0n, liqWad: 0n, maintenanceWad: 0n }, perpl: { accountId: 7n, freeWad: 0n, balanceWad: 0n, position: undefined, otherMarkets: false, equityWad: 0n, held: false }, perplMargins: { initHdths: 1000n, maintHdths: 500n } });
   const feed = new WalletFeedStore();
   const cfg = f.live.config;
   const tokens = cfg.meridian.status === "deployed" && cfg.perpl.status === "deployed" ? [cfg.meridian.deployment.contracts.AUSD, cfg.perpl.deployment.collateralToken] : [];
@@ -116,7 +116,7 @@ async function setup(o: { meridianApr?: number; perplApr?: number; meridianFails
     sleep: async () => undefined,
     wrapLegs: (legs, meta) => (meta.devFailMeridian ? (require("../../features/earn/devFail") as typeof import("../../features/earn/devFail")).withForcedMeridianFailure(legs) : legs),
   });
-  const kit: TradeKit = { chart: undefined, accounts, executor: undefined, focus: new Store(true) };
+  const kit: TradeKit = { chart: undefined, accounts, executor: undefined, focus: new Store(1) };
   const venue = { onboarding: { store: new Store({ view: { ready: true } }) }, socket: { store: new Store({ status: "ready", account: { ft: 0 } }) } };
   // the funding-swap market (Lock): a reader with its store filled as the chain would (no network)
   const swap = new SwapReader({ client: { multicall: async () => [] } as never, market: "0x00000000000000000000000000000000000005a0", book: "0x00000000000000000000000000000000000005b0", clearingHouse: "0x00000000000000000000000000000000000005c0", address });
@@ -231,7 +231,7 @@ it("the hedged position closes Meridian first, then Perpl for exactly what close
   s.sent.length = 0;
   // enough asks on Meridian for the 300 MON buy-back (the recorded book holds 100)
   await act(async () => s.meridian.store.update({ asks: [{ priceWad: 25864n * tick, sizeWad: 1_000n * WAD }] }));
-  await act(async () => s.accounts.store.update({ meridian: { ...s.accounts.store.get().meridian!, sizeWad: -300n * WAD }, perpl: { accountId: 7n, freeWad: 0n, position: { side: "Long", sizeWad: 300n * WAD } as never } }));
+  await act(async () => s.accounts.store.update({ meridian: { ...s.accounts.store.get().meridian!, sizeWad: -300n * WAD }, perpl: { accountId: 7n, freeWad: 0n, balanceWad: 0n, position: { side: "Long", sizeWad: 300n * WAD } as never, otherMarkets: false, equityWad: 0n, held: true } }));
   expect(screen.getByTestId("earn-position-size")).toHaveTextContent("300 MON each side");
   await fireEvent.press(screen.getByTestId("earn-close"));
   expect(screen.getByTestId("earn-close-summary")).toHaveTextContent(/^Close 300 MON on Meridian first, then the same on Perpl/);

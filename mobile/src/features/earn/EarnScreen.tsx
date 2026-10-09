@@ -21,7 +21,7 @@ import { plainTradeError } from "../trade/exec/errors";
 import { amountWadOf, presetText } from "../trade/ticket/amountText";
 import { Numpad } from "../trade/ticket/Numpad";
 import { feeText, priceText, sizeText } from "../trade/ticket/quote";
-import { useTrade } from "../trade/TradeProvider";
+import { holdAccountReads, useTrade } from "../trade/TradeProvider";
 import { useEarn } from "./EarnProvider";
 import { earnReceiptStore, type EarnExecState } from "./executor";
 import type { GapHistoryState } from "./history";
@@ -238,11 +238,11 @@ export function EarnScreen() {
   // unknown ("Still checking") is picked up again here, not only on the next unlock
   useFocusEffect(
     useCallback(() => {
-      focus.set(true);
+      const release = holdAccountReads(focus);
       swap?.active.set(true);
       void executor?.resume();
       return () => {
-        focus.set(false);
+        release();
         swap?.active.set(false);
       };
     }, [focus, executor, swap]),

@@ -1,30 +1,38 @@
 // Trade for the unlocked wallet (mounted under the auth gate): the chart feed (Perpl candles + live last price per block),
-// the account reader (positions + collateral on both venues, per block while the Trade screen is focused) and the
+// the account reader (positions + collateral on both venues, per block while a screen that shows them is focused:
+// Trade, Home; `focus` counts them so a tab switch's focus/blur order can't switch reads off) and the
 // executor (one order at a time, persisted, resumed on launch). Built from the app config + core; nothing invented.
 import { clearingHouseAbi } from "@meridian/core/meridian";
 import { createPerplClient, httpTransport } from "@meridian/core/perpl";
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useFocusEffect } from "expo-router";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { LegAdapter } from "@meridian/core/exec";
+import type { Venue } from "@meridian/core/route";
+import type { Hex } from "viem";
 import { AppState } from "react-native";
 import { useAccountAddress, useAuthController, useAuthStatus } from "../../auth/AuthProvider";
 import { secureKv } from "../../auth/secureKv";
 import { useLive } from "../../live/LiveProvider";
 import { Store } from "../../live/store";
 import { usePerpl as usePerplVenue } from "../../venues/perpl/PerplProvider";
+import { useActivity } from "../activity/ActivityProvider";
 import { rnFetch, sleep } from "../../venues/perpl/runtime";
 import { walletClientFor } from "../../wallet/client";
 import { ChartFeed } from "./chart/feed";
 import { AccountsReader, mapMeridian } from "./data/accounts";
 import { MeridianTradesReader } from "./data/trades";
+import { CloseAllExecutor, closeAllStore } from "./exec/closeAll";
 import { ensureMeridianCollateral } from "./exec/collateral";
+import type { Receipt } from "./exec/receipt";
 import { TradeExecutor, type VenueRun } from "./exec/executor";
 import { createMeridianLeg } from "./exec/meridianLeg";
 import { createPerplLeg } from "./exec/perplLeg";
 import { recordStore, type TradeRecord } from "./exec/record";
 import type { TradeSession } from "./exec/runTrade";
 
-export type TradeKit = { chart: ChartFeed | undefined; accounts: AccountsReader | undefined; executor: TradeExecutor | undefined; focus: Store<boolean>; trades?: MeridianTradesReader | undefined };
+export type TradeKit = { chart: ChartFeed | undefined; accounts: AccountsReader | undefined; executor: TradeExecutor | undefined; closeAll?: CloseAllExecutor | undefined; focus: Store<number>; trades?: MeridianTradesReader | undefined };
 
-const TradeContext = createContext<TradeKit>({ chart: undefined, accounts: undefined, executor: undefined, focus: new Store(false) });
+const TradeContext = createContext<TradeKit>({ chart: undefined, accounts: undefined, executor: undefined, focus: new Store(0) });
 
 export function TradeProvider({ children, kit: injected }: { children: ReactNode; kit?: TradeKit }) {
   const live = useLive();
@@ -32,8 +40,9 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
   const status = useAuthStatus();
   const { address } = useAccountAddress();
   const venue = usePerplVenue();
+  const activity = useActivity();
   const cfg = live.config;
-  const [focus] = useState(() => new Store(false));
+  const [focus] = useState(() => new Store(0));
 
   const chart = useMemo(() => {
     if (injected) return injected.chart;
@@ -63,22 +72,47 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
     return new MeridianTradesReader({ client: live.client, orderBook: cfg.meridian.deployment.contracts.OrderBook });
   }, [injected, cfg, live.client]);
 
+  // the venue legs, shared by the single-order executor and Close all (each run passes its own persistence hooks)
+  const legKit = useMemo(() => {
+    if (injected || status !== "unlocked" || !address || !live.client) return undefined;
+    const pub = live.client;
+    const perpl = (saveRqFloor: (rq: number | undefined) => Promise<void>, leverage100: number) => {
+      if (!venue || cfg.perpl.status !== "deployed") throw new Error("Perpl isn't available right now");
+      const meta = cfg.perpl.deployment.markets[venue.marketId]!;
+      return createPerplLeg({
+        trading: () => venue.socket.client,
+        rest: () => venue.onboarding.signedRest(),
+        market: { id: meta.id, priceDecimals: meta.priceDecimals, sizeDecimals: meta.sizeDecimals },
+        leverage100,
+        head: () => venue.socket.client?.state.head?.block ?? live.perpl?.store.get().headBlock,
+        saveRqFloor,
+      });
+    };
+    const meridian = (saveRaw: (raw: Hex, nonce: number) => Promise<void>, loadRaw: () => { raw?: Hex; nonce?: number }) => {
+      if (cfg.meridian.status !== "deployed") throw new Error("Meridian isn't deployed on this chain");
+      const m = live.meridian?.store.get();
+      if (!m?.tickSizeWad || !m.lotSizeWad) throw new Error("Meridian's market is still loading. Try again in a moment.");
+      return createMeridianLeg({ pub, wallet: () => walletClientFor(auth.account(), cfg), orderBook: cfg.meridian.deployment.contracts.OrderBook, tickSizeWad: m.tickSizeWad, lotSizeWad: m.lotSizeWad, saveRaw, loadRaw });
+    };
+    return { pub, perpl, meridian };
+  }, [injected, status, address, live, cfg, venue, auth]);
+
+  const afterTrade = useCallback(() => {
+    accounts?.invalidate();
+    void venue?.refresh().catch(() => undefined);
+    void activity.feed?.refresh();
+  }, [accounts, venue, activity]);
+  const logReceipt = useCallback((r: Receipt) => void activity.log?.add({ atMs: Date.now(), block: live.blocks?.store.get().block, receipt: r }), [activity, live]);
+  // one order at a time across both executors (each asks the other through this ref)
+  const busy = useRef<{ single: () => boolean; closeAll: () => boolean }>({ single: () => false, closeAll: () => false });
+
   const executor = useMemo(() => {
     if (injected) return injected.executor;
-    if (status !== "unlocked" || !address || !live.client) return undefined;
-    const pub = live.client;
+    if (!legKit || !address) return undefined;
+    const { pub } = legKit;
     const venueRun = (session: TradeSession, rec: TradeRecord): VenueRun => {
       if (rec.meta.venue === "perpl") {
-        if (!venue || cfg.perpl.status !== "deployed") throw new Error("Perpl isn't available right now");
-        const meta = cfg.perpl.deployment.markets[venue.marketId]!;
-        const leg = createPerplLeg({
-          trading: () => venue.socket.client,
-          rest: () => venue.onboarding.signedRest(),
-          market: { id: meta.id, priceDecimals: meta.priceDecimals, sizeDecimals: meta.sizeDecimals },
-          leverage100: rec.meta.leverage100,
-          head: () => venue.socket.client?.state.head?.block ?? live.perpl?.store.get().headBlock,
-          saveRqFloor: (rq) => session.patchMeta({ perpl: rq !== undefined ? { rqFloor: rq } : {} }),
-        });
+        const leg = legKit.perpl((rq) => session.patchMeta({ perpl: rq !== undefined ? { rqFloor: rq } : {} }), rec.meta.leverage100);
         return {
           legs: leg.legs,
           findSentPerpl: leg.findSent,
@@ -88,19 +122,12 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
           },
         };
       }
+      const leg = legKit.meridian(
+        (raw, nonce) => session.patchMeta({ meridian: { ...session.rec.meta.meridian, raw, nonce } }),
+        () => session.rec.meta.meridian ?? {},
+      );
       if (cfg.meridian.status !== "deployed") throw new Error("Meridian isn't deployed on this chain");
       const c = cfg.meridian.deployment.contracts;
-      const m = live.meridian?.store.get();
-      if (!m?.tickSizeWad || !m.lotSizeWad) throw new Error("Meridian's market is still loading. Try again in a moment.");
-      const leg = createMeridianLeg({
-        pub,
-        wallet: () => walletClientFor(auth.account(), cfg),
-        orderBook: c.OrderBook,
-        tickSizeWad: m.tickSizeWad,
-        lotSizeWad: m.lotSizeWad,
-        saveRaw: (raw, nonce) => session.patchMeta({ meridian: { ...session.rec.meta.meridian, raw, nonce } }),
-        loadRaw: () => session.rec.meta.meridian ?? {},
-      });
       const freeNow = async () => mapMeridian((await pub.readContract({ address: c.ClearingHouse, abi: clearingHouseAbi, functionName: "getAccount", args: [address] })) as never).freeWad;
       const need = rec.meta.meridian?.needWad ?? 0n;
       return {
@@ -119,12 +146,39 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
       explorerBase: cfg.chain.blockExplorers?.default.url,
       collateralDecimals: cfg.perpl.status === "deployed" ? cfg.perpl.deployment.collateralDecimals : 6,
       sleep,
-      afterTrade: () => {
-        accounts?.invalidate();
-        void venue?.refresh().catch(() => undefined);
-      },
+      blocked: () => (busy.current.closeAll() ? "Close all is still going through. Try again when it's done." : undefined),
+      onReceipt: logReceipt,
+      afterTrade,
     });
-  }, [injected, status, address, live, cfg, venue, auth, accounts]);
+  }, [injected, legKit, address, live, cfg, auth, logReceipt, afterTrade]);
+
+  const closeAll = useMemo(() => {
+    if (injected) return injected.closeAll;
+    if (!legKit || !address) return undefined;
+    return new CloseAllExecutor({
+      store: closeAllStore(secureKv, cfg.chainId, address),
+      legs: (h) => {
+        const p = legKit.perpl(h.saveRqFloor, 100);
+        const m = legKit.meridian(h.saveRaw, h.loadRaw);
+        const pick = (venue: Venue | "swap"): LegAdapter => {
+          if (venue === "swap") throw new Error("A close has no swap leg");
+          return venue === "perpl" ? p.legs : m.legs;
+        };
+        return {
+          legs: { prepare: (leg) => pick(leg.venue).prepare(leg), send: (leg, ref) => pick(leg.venue).send(leg, ref), confirm: (leg, ref) => pick(leg.venue).confirm(leg, ref) },
+          findSentPerpl: p.findSent,
+          perplOrderId: p.orderId,
+        };
+      },
+      busy: () => busy.current.single(),
+      explorerBase: cfg.chain.blockExplorers?.default.url,
+      sleep,
+      onReceipt: logReceipt,
+      afterTrade,
+    });
+  }, [injected, legKit, address, cfg, logReceipt, afterTrade]);
+
+  busy.current = { single: () => executor?.busy ?? false, closeAll: () => closeAll?.busy ?? false };
 
   // per block: the chart's live point; the account reader only while Trade is on screen
   useEffect(() => {
@@ -136,7 +190,7 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
       if (b === undefined || b === last) return;
       last = b;
       chart?.onLive(live.perpl?.store.get().lastWad);
-      if (focus.get()) {
+      if (focus.get() > 0) {
         void accounts?.onBlock(b);
         void trades?.onBlock(b);
       }
@@ -152,12 +206,33 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
     return () => sub.remove();
   }, [chart]);
 
+  // an open single trade resumes first, then an open Close all (one order at a time)
   useEffect(() => {
-    void executor?.resume();
-  }, [executor]);
+    void (async () => {
+      await executor?.resume();
+      await closeAll?.resume();
+    })();
+  }, [executor, closeAll]);
 
-  const kit = useMemo<TradeKit>(() => injected ?? { chart, accounts, executor, focus, trades }, [injected, chart, accounts, executor, focus, trades]);
+  const kit = useMemo<TradeKit>(() => injected ?? { chart, accounts, executor, closeAll, focus, trades }, [injected, chart, accounts, executor, closeAll, focus, trades]);
   return <TradeContext.Provider value={kit}>{children}</TradeContext.Provider>;
 }
 
 export const useTrade = (): TradeKit => useContext(TradeContext);
+
+/** Count `focus` up while the calling component is held (a screen, or an always-on reader like in-app alerts). */
+export function holdAccountReads(focus: Store<number>): () => void {
+  focus.set(focus.get() + 1);
+  let held = true;
+  return () => {
+    if (!held) return;
+    held = false;
+    focus.set(Math.max(0, focus.get() - 1));
+  };
+}
+
+/** Positions + collateral are read per block while the calling screen is on top. */
+export function useAccountReadsWhileFocused(): void {
+  const { focus } = useTrade();
+  useFocusEffect(useCallback(() => holdAccountReads(focus), [focus]));
+}
