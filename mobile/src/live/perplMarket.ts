@@ -13,7 +13,7 @@ import {
   type SocketEvent,
 } from "@meridian/core/perpl";
 import type { PerplDeployment } from "@meridian/core/meridian";
-import { perplLevels, perplRealizedApr, perplWindowBlocks, type Realized } from "@meridian/core/route";
+import { perplCountdown, perplLevels, perplRealizedApr, perplWindowBlocks, type BookLevel, type Countdown, type Realized } from "@meridian/core/route";
 import type { Clock, FetchLike, WsFactory } from "@meridian/core/util";
 import { errText } from "./blockStore";
 import { Store } from "./store";
@@ -24,6 +24,7 @@ export const REALIZED_WINDOW_SEC = 8n * 3600n;
 export const PERPL_STALE_MS = 5_000;
 /** REST backfill: a bit more than the window so the realized average has its first point. */
 const BACKFILL_MS = 9.5 * 3600 * 1000;
+const NO_LEVELS: readonly BookLevel[] = [];
 
 export type PerplMarketState = {
   marketId: number;
@@ -31,10 +32,21 @@ export type PerplMarketState = {
   priceDecimals: number;
   connected: boolean;
   markWad: bigint | undefined;
+  /** last traded price (MarketState.lst), the chart's live point */
+  lastWad: bigint | undefined;
   bestBidWad: bigint | undefined;
   bestAskWad: bigint | undefined;
   /** the L2 book snapshot arrived (so undefined best bid/ask really means an empty side) */
   bookKnown: boolean;
+  /** both sides, best first, WAD (N5 ticket walk + Pro book); empty until the snapshot */
+  bids: readonly BookLevel[];
+  asks: readonly BookLevel[];
+  sizeDecimals: number;
+  /** base taker fee, micros (market-config stream, types.md MarketConfig fees); undefined until it arrives */
+  takerMicros: number | undefined;
+  takerTiers: readonly number[] | undefined;
+  /** next funding event (core perplCountdown from the newest feb and the head) */
+  countdown: Countdown | undefined;
   /** funding rate in force: micros of notional per interval (types.md FundingEvent.rate) */
   rateMicros: number | undefined;
   /** that rate annualized, WAD */
@@ -74,7 +86,7 @@ export class PerplMarket {
     const meta = d.deployment.markets[id];
     if (!meta) throw new Error(`perpl.json: market ${id} missing`);
     this.meta = meta;
-    this.store = new Store<PerplMarketState>({ marketId: id, priceDecimals: meta.priceDecimals, connected: false, markWad: undefined, bestBidWad: undefined, bestAskWad: undefined, bookKnown: false, rateMicros: undefined, aprNowWad: undefined, realized: undefined, headBlock: undefined, lastFrameMs: undefined, stale: false, lastError: undefined });
+    this.store = new Store<PerplMarketState>({ marketId: id, priceDecimals: meta.priceDecimals, connected: false, markWad: undefined, lastWad: undefined, bestBidWad: undefined, bestAskWad: undefined, bookKnown: false, bids: NO_LEVELS, asks: NO_LEVELS, sizeDecimals: meta.sizeDecimals, takerMicros: undefined, takerTiers: undefined, countdown: undefined, rateMicros: undefined, aprNowWad: undefined, realized: undefined, headBlock: undefined, lastFrameMs: undefined, stale: false, lastError: undefined });
     this.feed = new MarketDataFeed(id, 16);
     this.client = d.client ?? createPerplClient({ transport: httpTransport(d.deployment.apiUrl, d.fetch), ...(d.clock ? { clock: d.clock } : {}) });
     this.socket = new MarketDataSocket({
@@ -125,6 +137,7 @@ export class PerplMarket {
     const sd = this.meta.sizeDecimals;
     const now = (this.d.clock ?? { now: Date.now }).now();
     const wsMark = f.state && f.state.value.mrk > 0 ? pnsToWad(f.state.value.mrk, pd) : undefined;
+    const wsLast = f.state && f.state.value.lst > 0 ? pnsToWad(f.state.value.lst, pd) : undefined;
     const book = f.book.ready ? f.book.snapshot() : undefined;
     const inForce = f.fundingInForce(now);
     const headBlock = f.head?.block;
@@ -133,14 +146,25 @@ export class PerplMarket {
       const points = f.fundingEvents().map((e) => ({ feb: BigInt(e.feb), aprWad: perplRateToAprWad(e.rate, this.meta.fundingIntervalSec) }));
       realized = perplRealizedApr(points, BigInt(headBlock), perplWindowBlocks(REALIZED_WINDOW_SEC, BigInt(this.meta.fundingIntervalSec), BigInt(this.meta.fundingIntervalBlocks)));
     }
+    const lastFeb = f.fundingEvents().at(-1)?.feb;
+    const countdown = lastFeb !== undefined && headBlock !== undefined ? perplCountdown(BigInt(lastFeb), BigInt(headBlock), BigInt(this.meta.fundingIntervalBlocks), BigInt(this.meta.fundingIntervalSec)) : undefined;
+    const bids = book ? perplLevels(book.bid, pd, sd) : undefined;
+    const asks = book ? perplLevels(book.ask, pd, sd) : undefined;
+    const fees = f.config?.value.fees;
     const newest = Math.max(f.lastFrameMs ?? -Infinity, this.restAtMs ?? -Infinity);
     const stale = Number.isFinite(newest) && now - newest > PERPL_STALE_MS;
     const prev = this.store.get();
     this.store.update({
       markWad: wsMark ?? this.restMark,
-      bestBidWad: book ? perplLevels(book.bid, pd, sd)[0]?.priceWad : undefined,
-      bestAskWad: book ? perplLevels(book.ask, pd, sd)[0]?.priceWad : undefined,
+      lastWad: wsLast ?? prev.lastWad,
+      bestBidWad: bids?.[0]?.priceWad,
+      bestAskWad: asks?.[0]?.priceWad,
       bookKnown: book !== undefined,
+      bids: bids ?? NO_LEVELS,
+      asks: asks ?? NO_LEVELS,
+      takerMicros: fees?.takerMicros ?? prev.takerMicros,
+      takerTiers: fees?.takerTiers ?? prev.takerTiers,
+      countdown: countdown && prev.countdown && countdown.nextBlock === prev.countdown.nextBlock && countdown.blocksLeft === prev.countdown.blocksLeft ? prev.countdown : countdown,
       rateMicros: inForce?.rate,
       aprNowWad: inForce ? perplRateToAprWad(inForce.rate, this.meta.fundingIntervalSec) : undefined,
       // keep the object identity when the value is unchanged (subscribers compare by reference)
