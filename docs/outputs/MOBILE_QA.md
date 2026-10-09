@@ -126,4 +126,5 @@ screenshots go next to the row.
 | H6 | Settings: passkey card, wallet ••xxxx + Copy, Export recovery phrase, Perpl card, network badge, **Open full terminal** opens the testnet web app in the browser, Sign out (confirm) | ⏳ | | |
 | H7 | TalkBack: hero total, See breakdown, Open PnL, card Close buttons, Activity rows ("Long 600 MON on Perpl, 5 min ago"), alert switches are all read | ⏳ | | |
 | H8 | (if built) test push arrives | n/a | | push cut in N7 (no backend, new native dep) |
+| H9 | Close all on a basis pair (N6 basis open, or a Meridian short + Perpl long of the same size from N5): Home → positions → **Close all** → summary "Meridian first, then the Perpl … for exactly what closed" → hold (or tap) → progress "Closing on Meridian first…" → "Meridian closed. Closing the same size on Perpl…" → "Basis trade closed" with both sizes; both cards gone; Activity shows two "Closed …" rows. Then repeat and kill the app right after confirming → relaunch → unlock → it finishes (no second order on either venue: check Perpl order history + the explorer) | ⏳ | | |
 

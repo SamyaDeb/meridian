@@ -9,8 +9,8 @@ export default function PositionModal() {
       <Text variant="title" accessibilityRole="header">
         Position
       </Text>
-      <Phase phase="N7" title="Position detail">
-        Live PnL, funding paid or earned, liquidation price and distance, with close, flip and add margin.
+      <Phase phase="a later build" title="Flip and add margin">
+        Flip a position in one step and add margin to move its liquidation price. Until then, live PnL, funding, the liquidation meter and Close are on each position card (Home and Trade), and Close all closes everything.
       </Phase>
     </Screen>
   );
