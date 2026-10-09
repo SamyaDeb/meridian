@@ -103,3 +103,11 @@ describe("scrub + lines", () => {
     expect(placeLine(25, d, 100)).toEqual({ y: 0, off: "above" });
   });
 });
+
+describe("header 24 h change display", () => {
+  it("bps → WAD fraction (bps · 1e14) formats as a percent: 2,000 bps = +20.00 %", () => {
+    const { formatValue } = jest.requireActual("../../ui/format") as typeof import("../../ui/format");
+    expect(formatValue(2000n * 10n ** 14n, "apr", { signed: true })).toBe("+20.00%");
+    expect(formatValue(-476n * 10n ** 14n, "apr", { signed: true })).toBe("−4.76%");
+  });
+});
