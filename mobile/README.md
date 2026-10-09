@@ -72,6 +72,12 @@ is the default, **Pro** (full chart + books) is remembered on the device (`featu
   blocks to fill.
 - **Positions:** `features/trade/positions/` — Meridian `getAccount`, Perpl `getPositionV2` → core `perplPositionRisk`;
   swipe Close + visible Close → reduce-only for the whole size at the opposite best ± 2 %.
+- **Pro (completed after N5):** chart **Line / Candles** toggle (candles = open/high/low/close per bucket from the same
+  Perpl candles, the live candle widening per block; up/down coloured, carried gaps dim; scrub label shows O H L C) and
+  **Books / Trades** tabs, both choices remembered (`prefs.ts`). Trades = both venues newest first: Perpl from the
+  market-data socket `trades@<id>` (api-docs websocket.md "Trade Messages", core `parseTrades` + `MarketDataFeed.trades`),
+  Meridian from the OrderBook `Trade` events (`data/trades.ts`: eth_getLogs only while the tab is visible, 100-block
+  backfill, then incremental, ≤ 100 blocks per request — > VERIFY the RPC's getLogs range limit).
 - Providers: `TradeProvider` (root, under the auth gate) sits ABOVE `BottomSheetModalProvider`, as do Toast and the
   wallet feed: sheet content renders through a portal and only sees contexts above the provider.
 

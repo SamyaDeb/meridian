@@ -107,6 +107,8 @@ bot running) or the screen correctly says "No liquidity right now". Tick only wh
 | T6 | Kill the app right after confirming → relaunch → unlock → the trade resolves (receipt or "closed before sending"), never stuck | ⏳ | | |
 | T7 | Errors keep the input: e.g. 0.5 % slippage in a moving book or an amount above the wallet → specific message, amount still there | ⏳ | | |
 | T8 | TalkBack: Long/Short, numpad keys, presets, leverage (adjustable), quote rows (radio), "Or tap here to go long" all read | ⏳ | | |
+| T9 | Pro → tap "Candles": candles drawn (green up / red down), the last one moves each block; drag = label "O … H … L … C … · time" with a haptic per candle; switch timeframe chips; kill + relaunch → still Candles | ⏳ | | |
+| T10 | Pro → tap "Trades": rows from both venues newest first (dot + name, Buy/Sell, price, size, block); place a $5 trade on each venue → your fills appear within a few blocks; an idle venue says "no trades …" instead of fake rows; kill + relaunch → still Trades | ⏳ | | |
 
 ## Native app (MOBILE_PLAN N6): Earn (two-leg basis, auto-unwind, resume, receipt timeline)
 
