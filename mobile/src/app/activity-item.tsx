@@ -37,7 +37,7 @@ export default function ActivityItemModal() {
       </Text>
       {it ? (
         <Card>
-          <Row label="Where" value={it.venue === "perpl" ? "Perpl" : "Meridian"} />
+          <Row label="Where" value={it.venue === "perpl" ? "Perpl" : it.venue === "meridian" ? "Meridian" : "Meridian + Perpl"} />
           <Row label="Amount" value={it.amountWad === undefined ? "—" : `${formatValue(it.amountWad, "usd", { signed: true })} AUSD`} testID="activity-item-amount" />
           <Row label="When" value={it.atMs !== undefined ? new Date(it.atMs).toLocaleString() : whenText(undefined, 0, it.block)} />
           {it.block !== undefined ? <Row label="Block" value={it.block.toString()} /> : null}

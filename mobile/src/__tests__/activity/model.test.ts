@@ -129,10 +129,10 @@ describe("receipts log", () => {
     await log.add({ atMs: 1, block: 7n, receipt: receipt({ orderId: 1 }) });
     await log.add({ atMs: 2, block: 8n, receipt: receipt({ orderId: 2 }) });
     await log.add({ atMs: 3, block: 9n, receipt: receipt({ orderId: 1, filledWad: 5n * WAD }) });
-    expect(log.store.get().map((e) => e.receipt.orderId)).toEqual([1, 2]);
+    expect(log.store.get().map((e) => (e as LoggedReceipt).receipt.orderId)).toEqual([1, 2]);
     const again = new ActivityLog(kv, activityLogKey(10143, ME));
     await again.load();
-    expect(again.store.get()[0]!.receipt.filledWad).toBe(5n * WAD);
+    expect((again.store.get()[0] as LoggedReceipt).receipt.filledWad).toBe(5n * WAD);
     expect(map.has(`meridian.activity.10143.${ME}`)).toBe(true);
     const many = Array.from({ length: LOG_MAX + 5 }, (_, i) => ({ atMs: i, block: undefined, receipt: receipt({ orderId: i }) }));
     expect(decodeLog(encodeLog(many))).toHaveLength(LOG_MAX);

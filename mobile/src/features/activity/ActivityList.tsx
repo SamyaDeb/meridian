@@ -5,6 +5,7 @@ import { memo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Store, useStore } from "../../live/store";
 import { HIT, Num, space, Text } from "../../ui";
+import { earnReceiptStore } from "../earn/executor";
 import { receiptStore } from "../trade/exec/receipt";
 import type { ActivityState } from "./feed";
 import { whenText, type ActivityItem } from "./model";
@@ -13,7 +14,10 @@ import { whenText, type ActivityItem } from "./model";
 export const activityItemStore = new Store<ActivityItem | undefined>(undefined);
 
 export function openActivity(it: ActivityItem): void {
-  if (it.receipt) {
+  if (it.earn) {
+    earnReceiptStore.set(it.earn);
+    router.push("/earn-receipt");
+  } else if (it.receipt) {
     receiptStore.set(it.receipt);
     router.push("/receipt");
   } else {
@@ -22,17 +26,18 @@ export function openActivity(it: ActivityItem): void {
   }
 }
 
-const VENUE = { meridian: "Meridian", perpl: "Perpl" } as const;
+const VENUE = { meridian: "Meridian", perpl: "Perpl", both: "Meridian + Perpl" } as const;
 
 export const ActivityRow = memo(function ActivityRow({ it, nowMs }: { it: ActivityItem; nowMs: number }) {
   const when = whenText(it.atMs, nowMs, it.block);
   return (
-    <Pressable onPress={() => openActivity(it)} accessibilityRole="button" accessibilityLabel={`${it.title} on ${VENUE[it.venue]}, ${when}`} accessibilityHint={it.receipt ? "Opens the receipt" : "Opens the details"} style={({ pressed }) => [s.row, pressed && s.pressed]} testID={`activity-${it.id}`}>
+    <Pressable onPress={() => openActivity(it)} accessibilityRole="button" accessibilityLabel={`${it.title} on ${VENUE[it.venue]}, ${when}`} accessibilityHint={it.receipt || it.earn ? "Opens the receipt" : "Opens the details"} style={({ pressed }) => [s.row, pressed && s.pressed]} testID={`activity-${it.id}`}>
       <View style={s.grow}>
         <Text bold numberOfLines={1}>
           {it.title}
         </Text>
         <Text variant="caption" tone="muted">
+          {it.detail ? `${it.detail} · ` : ""}
           {VENUE[it.venue]} · {when}
         </Text>
       </View>
