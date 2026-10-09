@@ -1,5 +1,5 @@
 // One toast at a time, top of the screen under the safe area; error toasts buzz. Announced to screen readers.
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AccessibilityInfo, StyleSheet } from "react-native";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,6 +25,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setMsg({ id: ++id.current, kind, text });
     timer.current = setTimeout(() => setMsg(undefined), kind === "error" ? 5_000 : 3_000);
   }, []);
+
+  // a pending hide must not outlive the provider (it would set state after unmount and keep jest workers alive)
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   const value = useMemo(() => show, [show]);
   return (
