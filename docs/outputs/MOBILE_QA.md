@@ -24,6 +24,37 @@ Build: production (`pnpm --filter @meridian/app build && start`, or the deployed
 
 Automated coverage (not a substitute): Playwright at 390×844 checks no horizontal scroll + buttons ≥ 44 px on Earn/Fix (`e2e/earn-fix.spec.ts`) and the terms/geo flow (`e2e/terms-geo.spec.ts`); Lighthouse numbers in `docs/standup/C.md`.
 
+## Native app (MOBILE_PLAN N2): Android dev build
+
+Build: EAS `199097cf-2d7e-4291-bca4-7471d2a71dc6` (profile `development`, commit 2b10039, APK, `xyz.meridianfi.app.staging`,
+"Meridian Dev"), JS from Metro over LAN (`npx expo start --dev-client`), public testnet RPC (badge shown). iOS: none
+(no Apple Developer Program). Phone: > pending (model, Android version).
+
+Legend: ✅ pass · ❌ fail · ⏳ not run yet. "Seen by": **owner** = checked on the phone; **claude** = seen only in a
+screenshot / recording or the Metro log.
+
+| # | Check | Result | Seen by | Note |
+|---|---|---|---|---|
+| N1 | Install from the EAS link; app icon + adaptive icon | ⏳ | | |
+| N2 | Splash on #050507, then Welcome (cold start to live numbers) | ⏳ | | |
+| N3 | Welcome: block number ticks per block | ⏳ | | |
+| N4 | Welcome: Meridian APR / Perpl APR / spread real (or "—") | ⏳ | | |
+| N5 | Four tabs switch smoothly; dark theme; safe areas (status bar, gesture bar) | ⏳ | | |
+| N6 | Tab headers: both venues' mark + bid/ask, or "No liquidity right now" | ⏳ | | |
+| N7 | Sheet opens/closes by gesture (Trade → Compare both books) | ⏳ | | |
+| N8 | HoldButton: haptic on start, completes at 600 ms with success haptic, cancels on early release | ⏳ | | |
+| N9 | Background 30 s → foreground: resumes, block jumps to the current head | ⏳ | | |
+| N10 | Airplane mode → offline banner; back online → banner goes, numbers resume | ⏳ | | |
+| N11 | Largest font size: no clipped numbers | ⏳ | | |
+| N12 | TalkBack reads labels (spread, buttons, tabs) | ⏳ | | |
+| N13 | Settings: "Monad testnet" + "Public RPC" badges, block time, version (development) | ⏳ | | |
+| N14 | Hermes smoke: all rows green (numbers below) | ⏳ | | |
+
+Slider detent haptics: no N2 screen uses the Slider yet (the Trade ticket is N5), so they're checked in N5.
+
+### Hermes smoke numbers
+> pending
+
 ## Native app (MOBILE_PLAN N3): Mera passkey login, Android dev build
 
 Build: EAS `4e91111a-2935-4791-becc-f9ed9cac11aa` (profile `development`, commit 4afa094 on `n3-mera`, APK,
