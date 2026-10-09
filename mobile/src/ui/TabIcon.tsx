@@ -1,6 +1,6 @@
-// Tab icons drawn with react-native-svg (no icon font): 24 pt, stroke 2, tinted by focus.
+// Tab icons (portfolio = Home: a house) drawn with react-native-svg (no icon font): 24 pt, stroke 2, tinted by focus.
 import type { ColorValue } from "react-native";
-import Svg, { Circle, Path, Rect } from "react-native-svg";
+import Svg, { Circle, Path } from "react-native-svg";
 
 export type TabIconName = "trade" | "earn" | "portfolio" | "settings";
 
@@ -15,12 +15,7 @@ export function TabIcon({ name, color }: { name: TabIconName; color: ColorValue 
           <Path d="M12 7v10M9 10h4.5a1.5 1.5 0 010 3h-3a1.5 1.5 0 000 3H15" {...p} />
         </>
       ) : null}
-      {name === "portfolio" ? (
-        <>
-          <Rect x={3} y={7} width={18} height={13} rx={2} {...p} />
-          <Path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" {...p} />
-        </>
-      ) : null}
+      {name === "portfolio" ? <Path d="M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5" {...p} /> : null}
       {name === "settings" ? (
         <>
           <Circle cx={12} cy={12} r={3} {...p} />

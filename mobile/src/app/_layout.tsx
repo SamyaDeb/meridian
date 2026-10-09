@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuthStatus } from "../auth/AuthProvider";
+import { WalletFeedProvider } from "../features/wallet/WalletFeedProvider";
 import { LiveProvider } from "../live/LiveProvider";
 import { PerplProvider } from "../venues/perpl/PerplProvider";
 import { colors, OfflineBanner, ToastProvider } from "../ui";
@@ -25,7 +26,7 @@ function RootStack() {
       <Stack.Screen name="(onboarding)" />
       <Stack.Protected guard={unlocked}>
         <Stack.Screen name="(tabs)" />
-        {["route", "receipt", "position", "close-all", "recovery"].map((name) => (
+        {["fund", "route", "receipt", "position", "close-all", "recovery"].map((name) => (
           <Stack.Screen key={name} name={name} options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         ))}
       </Stack.Protected>
@@ -48,8 +49,10 @@ export default function RootLayout() {
             <PerplProvider>
             <BottomSheetModalProvider>
               <ToastProvider>
-                <StatusBar style="light" />
-                <RootStack />
+                <WalletFeedProvider>
+                  <StatusBar style="light" />
+                  <RootStack />
+                </WalletFeedProvider>
                 <OfflineBanner />
               </ToastProvider>
             </BottomSheetModalProvider>

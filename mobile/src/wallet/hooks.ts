@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Address } from "viem";
 import { useAuthController } from "../auth/AuthProvider";
+import type { Live } from "../live/live";
 import { useLive } from "../live/LiveProvider";
 import { Store, useStore } from "../live/store";
 import { balanceTokens, BalanceReader, type BalanceState } from "./balances";
@@ -11,20 +12,34 @@ import { sendTx, type TxRequest, type TxResult } from "./sendTx";
 const EMPTY = new Store<BalanceState | undefined>(undefined);
 const selSelf = <T,>(s: T) => s;
 
+/** One BalanceReader for `address`, re-read on every new head; `onState` sees each state it publishes. */
+export function startBalanceReader(live: Live, address: Address, onState?: (s: BalanceState) => void): { reader: BalanceReader; stop(): void } | undefined {
+  if (!live.client || !live.blocks) return undefined;
+  const r = new BalanceReader({ client: live.client, address, tokens: balanceTokens(live.config) });
+  const blocks = live.blocks;
+  const tick = () => {
+    const b = blocks.store.get().block;
+    if (b !== undefined && b !== r.store.get().block) void r.onBlock(b);
+  };
+  const unsubState = onState ? r.store.subscribe(() => onState(r.store.get())) : () => undefined;
+  tick();
+  const unsubBlocks = blocks.store.subscribe(tick);
+  return {
+    reader: r,
+    stop: () => {
+      unsubBlocks();
+      unsubState();
+    },
+  };
+}
+
 export function useBalances(address: Address | undefined): BalanceState | undefined {
   const live = useLive();
   const [reader, setReader] = useState<BalanceReader | undefined>(undefined);
   useEffect(() => {
-    if (!address || !live.client || !live.blocks) return setReader(undefined);
-    const r = new BalanceReader({ client: live.client, address, tokens: balanceTokens(live.config) });
-    setReader(r);
-    const blocks = live.blocks;
-    const tick = () => {
-      const b = blocks.store.get().block;
-      if (b !== undefined && b !== r.store.get().block) void r.onBlock(b);
-    };
-    tick();
-    return blocks.store.subscribe(tick);
+    const started = address ? startBalanceReader(live, address) : undefined;
+    setReader(started?.reader);
+    return started?.stop;
   }, [address, live]);
   return useStore((reader?.store as Store<BalanceState | undefined> | undefined) ?? EMPTY, selSelf);
 }

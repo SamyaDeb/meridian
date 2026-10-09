@@ -1,16 +1,13 @@
 import { Tabs } from "expo-router";
-import { colors, TabIcon, type TabIconName } from "../../ui";
+import { TABS } from "../../features/shell/tabs";
+import { colors, TabIcon } from "../../ui";
 
-const TABS: { name: TabIconName; title: string }[] = [
-  { name: "trade", title: "Trade" },
-  { name: "earn", title: "Earn" },
-  { name: "portfolio", title: "Portfolio" },
-  { name: "settings", title: "Settings" },
-];
+export const unstable_settings = { initialRouteName: "portfolio" };
 
 export default function TabsLayout() {
   return (
     <Tabs
+      initialRouteName="portfolio"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.text,

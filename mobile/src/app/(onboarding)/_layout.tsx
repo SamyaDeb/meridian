@@ -10,7 +10,6 @@ export default function OnboardingLayout() {
       <Stack.Screen name="create" />
       <Stack.Screen name="unlock" />
       <Stack.Protected guard={unlocked}>
-        <Stack.Screen name="fund" />
         <Stack.Screen name="perpl" />
       </Stack.Protected>
     </Stack>
