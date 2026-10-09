@@ -14,6 +14,7 @@ import { rnFetch, sleep } from "../../venues/perpl/runtime";
 import { walletClientFor } from "../../wallet/client";
 import { ChartFeed } from "./chart/feed";
 import { AccountsReader, mapMeridian } from "./data/accounts";
+import { MeridianTradesReader } from "./data/trades";
 import { ensureMeridianCollateral } from "./exec/collateral";
 import { TradeExecutor, type VenueRun } from "./exec/executor";
 import { createMeridianLeg } from "./exec/meridianLeg";
@@ -21,7 +22,7 @@ import { createPerplLeg } from "./exec/perplLeg";
 import { recordStore, type TradeRecord } from "./exec/record";
 import type { TradeSession } from "./exec/runTrade";
 
-export type TradeKit = { chart: ChartFeed | undefined; accounts: AccountsReader | undefined; executor: TradeExecutor | undefined; focus: Store<boolean> };
+export type TradeKit = { chart: ChartFeed | undefined; accounts: AccountsReader | undefined; executor: TradeExecutor | undefined; focus: Store<boolean>; trades?: MeridianTradesReader | undefined };
 
 const TradeContext = createContext<TradeKit>({ chart: undefined, accounts: undefined, executor: undefined, focus: new Store(false) });
 
@@ -54,6 +55,13 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
       perpl: p && meta ? { exchange: p.exchange, perpId: BigInt(meta.id), priceDecimals: meta.priceDecimals, lotDecimals: meta.sizeDecimals, collateralDecimals: p.collateralDecimals } : undefined,
     });
   }, [injected, status, address, live.client, cfg]);
+
+  // Meridian's public trades (Pro → Trades): read per block only while that tab is on screen
+  const trades = useMemo(() => {
+    if (injected) return injected.trades;
+    if (cfg.meridian.status !== "deployed" || !live.client) return undefined;
+    return new MeridianTradesReader({ client: live.client, orderBook: cfg.meridian.deployment.contracts.OrderBook });
+  }, [injected, cfg, live.client]);
 
   const executor = useMemo(() => {
     if (injected) return injected.executor;
@@ -128,9 +136,12 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
       if (b === undefined || b === last) return;
       last = b;
       chart?.onLive(live.perpl?.store.get().lastWad);
-      if (focus.get()) void accounts?.onBlock(b);
+      if (focus.get()) {
+        void accounts?.onBlock(b);
+        void trades?.onBlock(b);
+      }
     });
-  }, [live, chart, accounts, focus]);
+  }, [live, chart, accounts, trades, focus]);
 
   // candles on mount and on every foreground; an open trade from before a kill resumes once the venue is there
   useEffect(() => {
@@ -145,7 +156,7 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
     void executor?.resume();
   }, [executor]);
 
-  const kit = useMemo<TradeKit>(() => injected ?? { chart, accounts, executor, focus }, [injected, chart, accounts, executor, focus]);
+  const kit = useMemo<TradeKit>(() => injected ?? { chart, accounts, executor, focus, trades }, [injected, chart, accounts, executor, focus, trades]);
   return <TradeContext.Provider value={kit}>{children}</TradeContext.Provider>;
 }
 
