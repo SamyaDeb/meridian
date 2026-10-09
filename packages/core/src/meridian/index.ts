@@ -10,3 +10,4 @@ export * from "./liqDistance";
 export * from "./math";
 export * from "./orders";
 export * from "./permit";
+export * from "./swapMargin";
