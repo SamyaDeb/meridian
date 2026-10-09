@@ -107,3 +107,23 @@ bot running) or the screen correctly says "No liquidity right now". Tick only wh
 | T6 | Kill the app right after confirming → relaunch → unlock → the trade resolves (receipt or "closed before sending"), never stuck | ⏳ | | |
 | T7 | Errors keep the input: e.g. 0.5 % slippage in a moving book or an amount above the wallet → specific message, amount still there | ⏳ | | |
 | T8 | TalkBack: Long/Short, numpad keys, presets, leverage (adjustable), quote rows (radio), "Or tap here to go long" all read | ⏳ | | |
+
+## Native app (MOBILE_PLAN N7): Home portfolio, Activity, Settings
+
+Build: same EAS dev build `4e91111a` (no native dependency added in N7). JS from Metro on :8088 (branch `n7-home`,
+`APP_ENV=development CI=1 npx expo start --dev-client --port 8088 --lan`). Testnet, with open positions from the N5
+rows (T3–T5). Optional: `EXPO_PUBLIC_INDEXER_URL=<Envio testnet GraphQL URL>` in `mobile/.env.local` for Meridian
+history (without it, Activity shows this app's trades + Perpl and says so). Tick only what was seen on the phone;
+screenshots go next to the row.
+
+| # | Check (owner's taps) | Result | Seen by | Note |
+|---|---|---|---|---|
+| H1 | Home → read the total → tap **See breakdown** → screenshot the sheet (Wallet / Meridian account / Perpl account / Total). Then Perpl's own UI (testnet.perpl.xyz, same wallet) → screenshot its account value; Meridian web terminal (Settings → **Open full terminal**) → screenshot its account equity. Each part matches its venue's own number (± the moves of the blocks between screenshots), Total = their sum | ⏳ | | |
+| H2 | With a position open: **Open PnL** next to the total and each card's PnL change with the block pulse (watch ~10 s) | ⏳ | | |
+| H3 | Close from Home: tap the visible **Close** on a card (or swipe it left) → summary sheet → hold (or tap) → receipt → back on Home the card is gone and the total moved by about the PnL | ⏳ | | |
+| H4 | Home → **See all** (Activity): the N4 Perpl deposit, the N5 opens/closes on both venues are listed newest first; tap a trade → its receipt (avg price, fee, order id / tx link); tap the deposit → detail with amount + explorer link; pull down → refreshes | ⏳ | | |
+| H5 | Settings → **Alerts**: both off at first; turn on "Close to liquidation" → no Android permission prompt; with a high-leverage test position near its liq price the red toast + buzz appears once | ⏳ | | |
+| H6 | Settings: passkey card, wallet ••xxxx + Copy, Export recovery phrase, Perpl card, network badge, **Open full terminal** opens the testnet web app in the browser, Sign out (confirm) | ⏳ | | |
+| H7 | TalkBack: hero total, See breakdown, Open PnL, card Close buttons, Activity rows ("Long 600 MON on Perpl, 5 min ago"), alert switches are all read | ⏳ | | |
+| H8 | (if built) test push arrives | n/a | | push cut in N7 (no backend, new native dep) |
+
