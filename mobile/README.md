@@ -74,3 +74,30 @@ is the default, **Pro** (full chart + books) is remembered on the device (`featu
   swipe Close + visible Close → reduce-only for the whole size at the opposite best ± 2 %.
 - Providers: `TradeProvider` (root, under the auth gate) sits ABOVE `BottomSheetModalProvider`, as do Toast and the
   wallet feed: sheet content renders through a portal and only sees contexts above the provider.
+
+## Earn (N6)
+`(tabs)/earn` → `features/earn/`: "Earn X % APR on AUSD" = the funding gap between the venues, net of both taker fees
+(round trip over 30 d) and the book slippage at your size (core `planBasis`), live per block; 24 h gap sparkline
+(`history.ts`: Perpl funding events over REST + Meridian `previewFundingState` read at the block ~each hour ago — falls
+back to "since you opened Earn" when the RPC can't serve old blocks, > VERIFY archive depth); numpad (25 % / 50 % / MAX
+of 2 × the binding venue) → "≈ $Y / day"; legs in plain words; "No edge right now" + Perpl's next funding time; a
+3-step explainer. Lock (fixed-rate swap leg) is **cut** for this build (MOBILE_PLAN cut order, P2).
+- **Sizing (`plan.ts`):** the amount is split evenly, 2× per leg, so notional per leg = the AUSD committed (APR on AUSD =
+  the pair's net APR); room is left for the taker fee; size = notional / the highest price the buy leg could pay,
+  floored to lcm(Meridian lot, Perpl step). Limits = each book walked at that size ± 1 %, snapped buy ↑ / sell ↓.
+  Collateral need per venue = margin + fee (rounds up); deposits in whole AUSD units.
+- **Executor (`executor.ts`):** core `runBasis` — collateral (both venues re-read; ONE fresh passkey prompt for any
+  top-ups: Meridian permit/approve + deposit, Perpl approve exactly + `depositCollateral`) → Perpl IOC → Meridian for
+  exactly the filled size (floored to its lot) → DONE; short hedge ⇒ reduce-only unwind of the difference
+  (PARTIAL_DONE); Meridian fail ⇒ unwind all (ABORTED_UNWOUND); unwind short ⇒ retry at 2× slippage ⇒ MANUAL (alert
+  + one-tap close of the exact leftover via the Trade executor). Close = core `runClose`: Meridian reduce-only first,
+  then Perpl reduce-only for exactly what closed. The N5 venue legs are reused, one instance per leg key.
+- **Persistence + resume:** run record `meridian.earn.run.<chain>.<wallet>` (core exec state + per-leg notes: rq floor,
+  signed raw tx + nonce, ref, order id, fill, error) written after every event; the hedged pair + any one-sided leftover
+  in `meridian.earn.position.<chain>.<wallet>` (folded in idempotently by run id). Resume on unlock: a FIRST leg not
+  sent before the kill is cancelled (nothing placed); any later leg runs to its end (Meridian re-broadcasts the stored
+  signed tx; Perpl finds the order after the stored rq floor). No key material is stored.
+- **Receipt (`app/earn-receipt.tsx`):** outcome in plain words + a timeline per leg (sent → filled / partly filled /
+  didn't fill / undone, Perpl order id, explorer tx link). Success haptic only on DONE / CLOSED.
+- **Dev flag (`devFail.tsx`, `__DEV__` only):** "force the Meridian leg to fail" → the Perpl leg is auto-unwound on the
+  phone. Required only behind `__DEV__`; `check:release` fails if its marker reaches a release bundle.
