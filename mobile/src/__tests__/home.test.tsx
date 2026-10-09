@@ -313,7 +313,7 @@ it("Close all: a hedged pair → plain summary → tap → Meridian first, then 
       findSentPerpl: async () => undefined,
       perplOrderId: () => undefined,
     }),
-    busy: () => false,
+    blocked: () => undefined,
     explorerBase: undefined,
     sleep: async () => undefined,
     afterTrade: () => undefined,
@@ -377,7 +377,7 @@ it("Close all on a locked Earn pair: one summary (lock first), the Earn executor
   const live = booksLive();
   const { kit } = accountsKit({ meridian: shortMeridian, perpl: K3 });
   const venues: string[] = [];
-  const closeAll = new CloseAllExecutor({ store: closeAllStore(memKv().kv, 10143, auth.account().address), legs: () => ({ legs: { prepare: async (leg) => (venues.push(leg.venue), "r"), send: async () => undefined, confirm: async (leg) => ({ filledWad: leg.sizeWad }) }, findSentPerpl: async () => undefined, perplOrderId: () => undefined }), busy: () => false, explorerBase: undefined, sleep: async () => undefined, afterTrade: () => undefined });
+  const closeAll = new CloseAllExecutor({ store: closeAllStore(memKv().kv, 10143, auth.account().address), legs: () => ({ legs: { prepare: async (leg) => (venues.push(leg.venue), "r"), send: async () => undefined, confirm: async (leg) => ({ filledWad: leg.sizeWad }) }, findSentPerpl: async () => undefined, perplOrderId: () => undefined }), blocked: () => undefined, explorerBase: undefined, sleep: async () => undefined, afterTrade: () => undefined });
   const earn = earnKit({ ...FLAT, perplSide: "buy", sizeWad: 2600n * WAD }, -1_000n * WAD);
   await act(async () => feed.push(bal(0n)));
   await render(wrap(auth, feed, <CloseAll />, { trade: { ...kit, closeAll }, live, earn: earn.kit }));
@@ -400,7 +400,7 @@ it("Close all with a lock but no Earn record: refused with the reason and where 
   const live = booksLive();
   const { kit } = accountsKit({ meridian: shortMeridian, perpl: K3 });
   const venues: string[] = [];
-  const closeAll = new CloseAllExecutor({ store: closeAllStore(memKv().kv, 10143, auth.account().address), legs: () => ({ legs: { prepare: async (leg) => (venues.push(leg.venue), "r"), send: async () => undefined, confirm: async (leg) => ({ filledWad: leg.sizeWad }) }, findSentPerpl: async () => undefined, perplOrderId: () => undefined }), busy: () => false, explorerBase: undefined, sleep: async () => undefined, afterTrade: () => undefined });
+  const closeAll = new CloseAllExecutor({ store: closeAllStore(memKv().kv, 10143, auth.account().address), legs: () => ({ legs: { prepare: async (leg) => (venues.push(leg.venue), "r"), send: async () => undefined, confirm: async (leg) => ({ filledWad: leg.sizeWad }) }, findSentPerpl: async () => undefined, perplOrderId: () => undefined }), blocked: () => undefined, explorerBase: undefined, sleep: async () => undefined, afterTrade: () => undefined });
   const earn = earnKit(FLAT, -1_000n * WAD);
   await act(async () => feed.push(bal(0n)));
   await render(wrap(auth, feed, <CloseAll />, { trade: { ...kit, closeAll }, live, earn: earn.kit }));

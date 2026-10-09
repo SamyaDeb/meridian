@@ -40,7 +40,7 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
   const status = useAuthStatus();
   const { address } = useAccountAddress();
   const venue = usePerplVenue();
-  const { accounts } = useTrade();
+  const { accounts, orderLock } = useTrade();
   const cfg = live.config;
 
   // the funding-swap market (Lock), read per block only while Earn is on screen
@@ -142,12 +142,13 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
       explorerBase: cfg.chain.blockExplorers?.default.url,
       sleep,
       ...(devWrap ? { wrapLegs: devWrap } : {}),
+      blocked: () => orderLock?.blocked("earn"),
       afterRun: () => {
         accounts?.invalidate();
         void venue?.refresh().catch(() => undefined);
       },
     });
-  }, [injected, status, address, live, cfg, venue, auth, accounts, swap]);
+  }, [injected, status, address, live, cfg, venue, auth, accounts, swap, orderLock]);
 
   const history = useMemo(() => {
     if (injected) return injected.history;
@@ -164,10 +165,18 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
     });
   }, [injected, cfg, live.client]);
 
-  // a run from before an app kill continues once the venues are there (Perpl's trading socket can lag the unlock)
+  // one order at a time with Trade and Close all (TradeProvider's lock); a run from before an app kill continues once the
+  // venues are there (Perpl's trading socket can lag the unlock), after an open trade and an open Close all
   useEffect(() => {
-    void executor?.resume();
-  }, [executor]);
+    if (!executor) return;
+    if (!orderLock) {
+      void executor.resume();
+      return;
+    }
+    const unregister = orderLock.register("earn", { busy: () => executor.busy, resume: () => executor.resume() });
+    void orderLock.resume();
+    return unregister;
+  }, [executor, orderLock]);
 
   const kit = useMemo<EarnKit>(() => injected ?? { executor, history, swap }, [injected, executor, history, swap]);
   return <EarnContext.Provider value={kit}>{children}</EarnContext.Provider>;

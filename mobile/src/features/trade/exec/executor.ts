@@ -29,7 +29,7 @@ export type ExecutorDeps = {
   sleep: (ms: number) => Promise<void>;
   /** accounts / Perpl state to re-read after a fill */
   afterTrade: () => void;
-  /** another run owns the venues (Close all): why, in plain words */
+  /** another executor owns the venues (Close all, Earn: exec/orderLock.ts): why, in plain words */
   blocked?: () => string | undefined;
   /** every terminal receipt (Activity keeps them) */
   onReceipt?: (r: Receipt) => void;
@@ -66,6 +66,8 @@ export class TradeExecutor {
       await this.d.store.clear();
       return undefined;
     }
+    // another executor is running: the record stays for the next resume (one order at a time)
+    if (this.running || this.d.blocked?.()) return undefined;
     return this.run(rec, true);
   }
 

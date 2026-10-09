@@ -139,8 +139,8 @@ export type CloseLegs = {
 export type CloseAllDeps = {
   store: CloseAllStore;
   legs: (h: CloseLegHooks) => CloseLegs;
-  /** another order (Trade ticket / single close) is going through */
-  busy: () => boolean;
+  /** another executor (Trade ticket / single close, Earn) is running: why, in plain words (exec/orderLock.ts) */
+  blocked: () => string | undefined;
   explorerBase: string | undefined;
   sleep: (ms: number) => Promise<void>;
   onReceipt?: (r: Receipt) => void;
@@ -164,7 +164,8 @@ export class CloseAllExecutor {
 
   async start(p: BasisClosePlan, meta: Omit<CloseAllMeta, "createdAtMs" | "summary">): Promise<CloseAllOutcome | undefined> {
     if (this.running) throw new Error("Close all is already going through");
-    if (this.d.busy()) throw new Error("Another order is still going through. Try again when it's done.");
+    const why = this.d.blocked();
+    if (why) throw new Error(why);
     const now = (this.d.now ?? Date.now)();
     const rec: CloseAllRecord = { v: 1, state: startClose(`c${now}`, p.plan), meta: { ...meta, createdAtMs: now, summary: p.summary } };
     return this.run(rec, false);
@@ -179,6 +180,7 @@ export class CloseAllExecutor {
       await this.d.store.clear();
       return undefined;
     }
+    if (this.running || this.d.blocked()) return undefined; // one order at a time: picked up on the next resume
     return this.run(rec, true);
   }
 

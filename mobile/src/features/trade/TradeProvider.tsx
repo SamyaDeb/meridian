@@ -5,7 +5,7 @@
 import { clearingHouseAbi } from "@meridian/core/meridian";
 import { createPerplClient, httpTransport } from "@meridian/core/perpl";
 import { useFocusEffect } from "expo-router";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { LegAdapter } from "@meridian/core/exec";
 import type { Venue } from "@meridian/core/route";
 import type { Hex } from "viem";
@@ -22,6 +22,7 @@ import { ChartFeed } from "./chart/feed";
 import { AccountsReader, mapMeridian } from "./data/accounts";
 import { MeridianTradesReader } from "./data/trades";
 import { CloseAllExecutor, closeAllStore } from "./exec/closeAll";
+import { OrderLock } from "./exec/orderLock";
 import { ensureMeridianCollateral } from "./exec/collateral";
 import type { Receipt } from "./exec/receipt";
 import { TradeExecutor, type VenueRun } from "./exec/executor";
@@ -30,7 +31,7 @@ import { createPerplLeg } from "./exec/perplLeg";
 import { recordStore, type TradeRecord } from "./exec/record";
 import type { TradeSession } from "./exec/runTrade";
 
-export type TradeKit = { chart: ChartFeed | undefined; accounts: AccountsReader | undefined; executor: TradeExecutor | undefined; closeAll?: CloseAllExecutor | undefined; focus: Store<number>; trades?: MeridianTradesReader | undefined };
+export type TradeKit = { chart: ChartFeed | undefined; accounts: AccountsReader | undefined; executor: TradeExecutor | undefined; closeAll?: CloseAllExecutor | undefined; focus: Store<number>; trades?: MeridianTradesReader | undefined; orderLock?: OrderLock | undefined };
 
 const TradeContext = createContext<TradeKit>({ chart: undefined, accounts: undefined, executor: undefined, focus: new Store(0) });
 
@@ -43,6 +44,8 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
   const activity = useActivity();
   const cfg = live.config;
   const [focus] = useState(() => new Store(0));
+  // one order at a time across the Trade executor, Close all and Earn (EarnProvider registers through the kit)
+  const [orderLock] = useState(() => new OrderLock());
 
   const chart = useMemo(() => {
     if (injected) return injected.chart;
@@ -103,8 +106,6 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
     void activity.feed?.refresh();
   }, [accounts, venue, activity]);
   const logReceipt = useCallback((r: Receipt) => void activity.log?.add({ atMs: Date.now(), block: live.blocks?.store.get().block, receipt: r }), [activity, live]);
-  // one order at a time across both executors (each asks the other through this ref)
-  const busy = useRef<{ single: () => boolean; closeAll: () => boolean }>({ single: () => false, closeAll: () => false });
 
   const executor = useMemo(() => {
     if (injected) return injected.executor;
@@ -146,11 +147,11 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
       explorerBase: cfg.chain.blockExplorers?.default.url,
       collateralDecimals: cfg.perpl.status === "deployed" ? cfg.perpl.deployment.collateralDecimals : 6,
       sleep,
-      blocked: () => (busy.current.closeAll() ? "Close all is still going through. Try again when it's done." : undefined),
+      blocked: () => orderLock.blocked("single"),
       onReceipt: logReceipt,
       afterTrade,
     });
-  }, [injected, legKit, address, live, cfg, auth, logReceipt, afterTrade]);
+  }, [injected, legKit, address, live, cfg, auth, logReceipt, afterTrade, orderLock]);
 
   const closeAll = useMemo(() => {
     if (injected) return injected.closeAll;
@@ -170,15 +171,17 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
           perplOrderId: p.orderId,
         };
       },
-      busy: () => busy.current.single(),
+      blocked: () => orderLock.blocked("closeAll"),
       explorerBase: cfg.chain.blockExplorers?.default.url,
       sleep,
       onReceipt: logReceipt,
       afterTrade,
     });
-  }, [injected, legKit, address, cfg, logReceipt, afterTrade]);
+  }, [injected, legKit, address, cfg, logReceipt, afterTrade, orderLock]);
 
-  busy.current = { single: () => executor?.busy ?? false, closeAll: () => closeAll?.busy ?? false };
+  // registered during render, so they're in place before EarnProvider's (child) effects register Earn and resume
+  orderLock.register("single", { busy: () => executor?.busy ?? false, resume: () => executor?.resume() ?? Promise.resolve() });
+  orderLock.register("closeAll", { busy: () => closeAll?.busy ?? false, resume: () => closeAll?.resume() ?? Promise.resolve() });
 
   // per block: the chart's live point; the account reader only while Trade is on screen
   useEffect(() => {
@@ -206,15 +209,12 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
     return () => sub.remove();
   }, [chart]);
 
-  // an open single trade resumes first, then an open Close all (one order at a time)
+  // resume after a kill, one at a time, awaited: an open single trade, then Close all, then Earn
   useEffect(() => {
-    void (async () => {
-      await executor?.resume();
-      await closeAll?.resume();
-    })();
-  }, [executor, closeAll]);
+    void orderLock.resume();
+  }, [executor, closeAll, orderLock]);
 
-  const kit = useMemo<TradeKit>(() => injected ?? { chart, accounts, executor, closeAll, focus, trades }, [injected, chart, accounts, executor, closeAll, focus, trades]);
+  const kit = useMemo<TradeKit>(() => injected ?? { chart, accounts, executor, closeAll, focus, trades, orderLock }, [injected, chart, accounts, executor, closeAll, focus, trades, orderLock]);
   return <TradeContext.Provider value={kit}>{children}</TradeContext.Provider>;
 }
 

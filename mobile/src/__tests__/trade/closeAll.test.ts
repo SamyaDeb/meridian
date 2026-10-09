@@ -59,7 +59,7 @@ function exec(script: Script, o: { busy?: boolean; findSent?: string; throwOnBui
   const calls: LegSpec[] = [];
   const receipts: Receipt[] = [];
   const after = jest.fn();
-  const ex = new CloseAllExecutor({ store: closeAllStore(kv.kv, 10143, ME), legs: fakeLegs(script, calls, o), busy: () => o.busy ?? false, explorerBase: "https://explorer.invalid", sleep: async () => undefined, onReceipt: (r) => receipts.push(r), afterTrade: after, now: () => 1000, maxConfirmTries: 2, findTries: 1 });
+  const ex = new CloseAllExecutor({ store: closeAllStore(kv.kv, 10143, ME), legs: fakeLegs(script, calls, o), blocked: () => (o.busy ? "A trade is still going through. Try again when it's done." : undefined), explorerBase: "https://explorer.invalid", sleep: async () => undefined, onReceipt: (r) => receipts.push(r), afterTrade: after, now: () => 1000, maxConfirmTries: 2, findTries: 1 });
   return { ex, calls, receipts, after, kv };
 }
 
@@ -147,7 +147,7 @@ describe("executor", () => {
 
   it("one order at a time: refused while the single-order executor is busy", async () => {
     const { ex, calls } = exec({}, { busy: true });
-    await expect(ex.start(plan(), META)).rejects.toThrow(/Another order/);
+    await expect(ex.start(plan(), META)).rejects.toThrow("A trade is still going through. Try again when it's done.");
     expect(calls).toEqual([]);
   });
 
