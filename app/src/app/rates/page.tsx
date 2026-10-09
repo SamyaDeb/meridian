@@ -8,6 +8,9 @@ import { histogram } from "@/lib/liqDistance";
 import { DEFAULT_MMR_WAD } from "@/lib/units";
 import { MfiCard } from "@/features/rates/MfiCard";
 import { CrossVenueCard } from "@/features/rates/CrossVenueCard";
+import { MarketsTable } from "@/features/market/MarketsTable";
+import { MarketSwitcher } from "@/components/market/MarketSwitcher";
+import { usePerpMarket } from "@/data/market";
 
 function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub?: string }) {
   return (
@@ -28,6 +31,7 @@ function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub
 export default function RatesPage() {
   const { data: m } = useMarket();
   const { data: risk } = useRiskParams();
+  const pm = usePerpMarket();
   const market = m?.clearingHouse;
   const q = useQuery({
     queryKey: ["risk", INDEXER_URL, market],
@@ -41,8 +45,13 @@ export default function RatesPage() {
   return (
     <div className="space-y-2">
       <header className="px-1 pt-1">
-        <h1 className="text-xl font-semibold">Rates &amp; risk</h1>
-        <p className="text-xs text-muted">The MON-PERP funding rate, how it has paid, and how close open positions are to liquidation.</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold">Rates &amp; risk</h1>
+          <MarketSwitcher />
+        </div>
+        <p className="text-xs text-muted">
+          The {pm.symbol} funding rate, how it has paid, and how close open positions are to liquidation.{!pm.primary && " The Meridian Funding Index and the cross-venue chart below are MON-PERP only."}
+        </p>
       </header>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -51,6 +60,8 @@ export default function RatesPage() {
         <Kpi label="Realized 8h" sub="funding-rate oracle">{m?.realizedApr8hWad !== undefined ? formatAprWad(m.realizedApr8hWad) : "—"}</Kpi>
         <Kpi label="Realized 24h" sub="funding-rate oracle">{m?.realizedApr24hWad !== undefined ? formatAprWad(m.realizedApr24hWad) : "—"}</Kpi>
       </div>
+
+      <MarketsTable title="Funding by market" />
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-2 lg:grid-cols-2">
         <MfiCard />
@@ -74,11 +85,11 @@ export default function RatesPage() {
                     <span className={`block h-full rounded-full ${r.label.startsWith("≤ 2") || r.label.startsWith("≤ 5") ? "bg-short" : r.label.startsWith("never") ? "bg-long" : "bg-warn"}`} style={{ width: `${(r.count / maxCount) * 100}%` }} />
                   </span>
                   <span className="num text-right">
-                    {r.count} · {formatBaseWad(r.sizeWad, 0)}
+                    {r.count} · {formatBaseWad(r.sizeWad, pm.sizeDp)}
                   </span>
                 </li>
               ))}
-              <li className="pt-1 text-[10px] text-muted">Mark move to the isolated liquidation price (funding ignored), count · MON. Test markets excluded.</li>
+              <li className="pt-1 text-[10px] text-muted">Mark move to the isolated liquidation price (funding ignored), count · {pm.base}. Test markets excluded.</li>
             </ul>
           )}
         </Card>

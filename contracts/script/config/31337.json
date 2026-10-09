@@ -70,5 +70,43 @@
       "_maxDeviationWad": "VERIFY: not set in specs; WS-03 (B) to choose",
       "maxDeviationWad": null
     }
+  },
+  "markets": {
+    "_note": "Additional perp markets added to an existing deployment by script/AddMarket.s.sol (MARKET_KEY = the key below). Each is a standalone OrderBook + ClearingHouse + keeper-fed TestnetKeeperOracle registered in the existing MarketFactory and authorized on the existing InsuranceFund (PHASES decision 44).",
+    "eth": {
+      "symbol": "ETH-PERP",
+      "feedSymbol": "ETH/USD",
+      "pythFeedId": "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+      "_pythFeedId": "Pyth Crypto.ETH/USD, from Hermes GET /v2/price_feeds?query=ETH&asset_type=crypto (keepers/ts-fallback DEFAULT_HERMES_URL), 8 Oct 2026. The keeper pushes Hermes prices into the keeper-fed oracle; testnet Pyth is not sponsored-pushed (PHASES decision 10)",
+      "baseAsset": null,
+      "_baseAsset": "No verified WETH on Monad testnet: informational field (IMarketFactory.Market.baseAsset), left address(0). Chainlink ETH/USD is mainnet only (ARCHITECTURE R11)",
+      "_params": "PHASES decision 44. Reference ETH = 2,574.63 USD (testnet Pyth getPriceUnsafe, 8 Oct 2026), MON = 0.0256. tick 0.10 USD = 0.39 bp of ETH, the same relative tick as MON-PERP (1e-6 / 0.0256 = 0.39 bp), so the 5.9 bp A-S spread spans ~15 ticks (MATH_SPEC §4). lot 0.001 ETH = 2.57 USD = the MON-PERP lot in dollars (100 MON = 2.56 USD). Caps = MON-PERP's in dollars (25k MON = 640 USD -> 0.25 ETH; 250k MON = 6.4k USD -> 2.5 ETH). Risk and funding identical to MON-PERP: funding params are per-second or dimensionless (MATH_SPEC §1.3); mmr 10% >> z*sigma*sqrt(tau) for ETH vol (MATH_SPEC §3.4), set by launch liquidity like MON",
+      "tickSizeWad": "100000000000000000",
+      "lotSizeWad": "1000000000000000",
+      "risk": {
+        "imr": "200000000000000000",
+        "mmr": "100000000000000000",
+        "takerFee": "500000000000000",
+        "makerFee": "-100000000000000",
+        "liqPenalty": "10000000000000000",
+        "keeperShare": "500000000000000000",
+        "maxOpenInterest": "2500000000000000000",
+        "maxPositionSize": "250000000000000000"
+      },
+      "funding": {
+        "alpha": "2000000000000000",
+        "interestRate": "3472222222",
+        "rateCap": "555555555556",
+        "maxRateChangePerBlock": "555555556",
+        "blockTimeMs": 300,
+        "premiumBandWad": "50000000000000000"
+      },
+      "oracle": {
+        "kind": "keeper-fed",
+        "maxStalenessSec": 60,
+        "_maxStalenessSec": "= params.oracle.keeperFedMaxStalenessSec (R24 no-key value)",
+        "maxDeviationWad": "20000000000000000"
+      }
+    }
   }
 }

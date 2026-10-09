@@ -6,6 +6,8 @@ import { formatAprWad, formatAusdWad, formatBaseWad, formatFixed, formatPriceWad
 import { stats24h } from "@/lib/market24h";
 import { signGlyph } from "@/components/ds/logic";
 import { useNow } from "@/lib/useNow";
+import { usePerpMarket, usePerpMarkets } from "@/data/market";
+import { MarketSwitcher } from "./MarketSwitcher";
 
 /** Long label on wide strips, short one on narrow strips (container width), so the stats stay on one line. */
 const L = (long: string, short: string) => (
@@ -39,6 +41,10 @@ const pct = (wad: bigint) => `${signGlyph(wad)}${formatFixed((wad < 0n ? -wad : 
  */
 export function MarketStrip() {
   const { data: m } = useMarket();
+  const pm = usePerpMarket();
+  const { markets } = usePerpMarkets();
+  const price = (v: bigint) => formatPriceWad(v, pm.tickSizeWad);
+  const size = (v: bigint) => formatBaseWad(v, pm.sizeDp);
   const { data: c1h, isError: candlesError, fetchStatus } = useIndexerCandles("Candle1h", 30);
   const nowSec = BigInt(Math.floor(useNow(30_000) / 1_000));
   const s = c1h && nowSec > 0n ? stats24h(c1h, nowSec) : undefined;
@@ -59,44 +65,53 @@ export function MarketStrip() {
       <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4">
       <div className="flex items-end justify-between gap-3 @2xl:items-center @2xl:justify-start @2xl:gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <span className="whitespace-nowrap font-semibold text-text">{m?.symbol ?? "MON-PERP"}</span>
-            <span className="whitespace-nowrap @2xl:max-@3xl:hidden">· AUSD · cross margin</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+            <MarketSwitcher />
+            {/* the switcher already names the market: the plain label is for single-market builds and screen readers */}
+            <span className={`whitespace-nowrap font-semibold text-text ${markets.length > 1 ? "sr-only" : ""}`} data-testid="market-symbol">
+              {m?.symbol ?? pm.symbol}
+            </span>
+            {markets.length < 2 && <span className="whitespace-nowrap @2xl:max-@3xl:hidden">· AUSD · cross margin</span>}
             {m?.testMarket && <Chip tone="warn">test market</Chip>}
+            {!pm.primary && pm.keeperFed && (
+              <Tooltip content="Testnet market: the oracle is pushed by our keeper from Pyth (Hermes). Funding every block, its own book and margin; vault, swaps and the MFI stay on MON-PERP." side="bottom">
+                <span data-testid="keeper-fed-chip"><Chip tone="warn">testnet</Chip></span>
+              </Tooltip>
+            )}
           </div>
           {/* same-metric text placeholder: the LCP element paints in the first frame */}
           <div className="text-2xl font-semibold sm:text-3xl @2xl:text-xl @2xl:leading-tight" data-testid="mark-price">
-            {m ? <NumberCell value={m.lastMarkPrice} format={(v) => formatPriceWad(v)} /> : <span className="num text-muted">—.——————</span>}
+            {m ? <NumberCell value={m.lastMarkPrice} format={price} /> : <span className="num text-muted">—.——————</span>}
           </div>
         </div>
         <div className="text-right text-[11px] text-muted @2xl:hidden">
-          <div className="num">Index {m ? formatPriceWad(m.lastIndexPrice) : "—"}</div>
-          <div className="num">OI {m ? formatBaseWad(m.openInterestLongWad, 0) : "—"} MON</div>
+          <div className="num">Index {m ? price(m.lastIndexPrice) : "—"}</div>
+          <div className="num">OI {m ? size(m.openInterestLongWad) : "—"} {pm.base}</div>
         </div>
       </div>
 
       <div className="-mx-1 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 @2xl:max-@3xl:gap-x-3 @2xl:flex-nowrap @2xl:overflow-x-auto @2xl:[scrollbar-width:none]" aria-label="Market statistics">
         <span className="hidden @2xl:contents">
           <Stat label="Index" hint="Oracle index price">
-            {m ? formatPriceWad(m.lastIndexPrice) : dash}
+            {m ? price(m.lastIndexPrice) : dash}
           </Stat>
         </span>
         <Stat label={L("24h change", "24h")} hint={hint24}>
           {s ? <span className={s.change > 0n ? "text-long" : s.change < 0n ? "text-short" : ""}>{pct(s.changeWad)}</span> : dash}
         </Stat>
         <Stat label={L("24h high", "High")} hint={hint24}>
-          {s ? formatPriceWad(s.high) : dash}
+          {s ? price(s.high) : dash}
         </Stat>
         <Stat label={L("24h low", "Low")} hint={hint24}>
-          {s ? formatPriceWad(s.low) : dash}
+          {s ? price(s.low) : dash}
         </Stat>
         <Stat label={L("24h volume", "Vol 24h")} hint={hint24}>
           {s ? `${formatAusdWad(s.volumeQuoteWad)} AUSD` : dash}
         </Stat>
-        <Stat label={L("Open interest", "OI")} hint="Long / short open interest (MON)">
+        <Stat label={L("Open interest", "OI")} hint={`Long / short open interest (${pm.base})`}>
           {m ? (
             <>
-              <span className="text-long">▲{formatBaseWad(m.openInterestLongWad, 0)}</span> / <span className="text-short">▼{formatBaseWad(m.openInterestShortWad, 0)}</span>
+              <span className="text-long">▲{size(m.openInterestLongWad)}</span> / <span className="text-short">▼{size(m.openInterestShortWad)}</span>
             </>
           ) : (
             dash

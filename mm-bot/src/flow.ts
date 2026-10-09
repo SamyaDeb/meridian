@@ -11,6 +11,7 @@ import { RateWindow, createCountingFetch, newRpcStats } from "@meridian/bot-rpc"
 import { clearingHouseAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
 import { type FlowConfig, type FlowIo, flowStep, nextDelayMs, startupProblem } from "./flowplan.js";
 import { gasLimitFor } from "./send.js";
+import { type PerpRecord, resolvePerpMarket } from "./market.js";
 
 const env = (k: string): string | undefined => {
   const v = process.env[k];
@@ -38,24 +39,19 @@ const cfg: FlowConfig = {
   positionCapLots: BigInt(env("FLOW_POSITION_CAP_LOTS") ?? "10"),
 };
 
-interface Deployments {
+interface Deployments extends PerpRecord {
   chainId: number;
-  deployed?: boolean;
-  contracts: { ClearingHouse?: Address; OrderBook?: Address; OracleAdapter?: Address };
-  demoMarket?: { ClearingHouse?: Address; OrderBook?: Address; OracleAdapter?: Address };
   mmAccounts?: string[];
 }
 const dep = JSON.parse(readFileSync(DEPLOYMENTS, "utf8")) as Deployments;
 if (dep.chainId !== CHAIN_ID) throw new Error(`deployments chainId ${dep.chainId} != CHAIN_ID ${CHAIN_ID}`);
 const MARKET = env("MARKET") ?? "main";
-if (MARKET !== "main" && MARKET !== "demo") throw new Error(`MARKET=${MARKET}: the flow bot takes on the perp book only (main | demo)`);
-const market = MARKET === "demo" ? dep.demoMarket : dep.contracts;
-if (dep.deployed === false || market?.ClearingHouse === undefined || market.OrderBook === undefined || market.OracleAdapter === undefined) {
-  throw new Error(`${DEPLOYMENTS}: market ${MARKET} is not deployed`);
-}
-const CH: Address = market.ClearingHouse;
-const OB: Address = market.OrderBook;
-const ORACLE: Address = market.OracleAdapter;
+if (MARKET === "swap") throw new Error("MARKET=swap: the flow bot takes on a perp book only (main | demo | an added market)");
+// main | demo | an added market (K7: "eth" ⇒ ETH-PERP), src/market.ts
+const market = resolvePerpMarket(dep, MARKET, DEPLOYMENTS);
+const CH: Address = market.clearingHouse;
+const OB: Address = market.orderBook;
+const ORACLE: Address = market.oracle;
 
 const account = privateKeyToAccount(FLOW_PK, { nonceManager });
 const mmPk = env("MM_PK") as Hex | undefined;

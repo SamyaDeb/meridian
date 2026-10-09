@@ -6,6 +6,7 @@ import local from "../../../deployments/31337.json";
 import testnet from "../../../deployments/10143.json";
 import { MAINNET_RECORD } from "./mainnet.generated";
 import type { Address } from "@/data/types";
+import type { AddedMarketRecord } from "./markets";
 
 export type ContractKey =
   | "AUSD"
@@ -38,8 +39,12 @@ export interface Deployment {
   startBlock: number;
   deployed?: boolean;
   oracleKind?: "pyth" | "keeper-fed";
+  /** symbol of the primary market (contracts.*), e.g. MON-PERP */
+  symbol?: string;
   contracts: Partial<Record<ContractKey, Address>>;
   demoMarket?: TestMarket;
+  /** K7: markets added to this deployment by AddMarket.s.sol (ETH-PERP on 10143), see config/markets.ts */
+  markets?: AddedMarketRecord[];
   /** contract keys deployed as our mocks (e.g. AUSD = MockERC20 with an open mint on testnet / anvil) */
   mockContracts?: string[];
 }

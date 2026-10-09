@@ -20,6 +20,9 @@ import type {
 
 export interface MeridianDataSource {
   readonly kind: "mock" | "indexer" | "chain";
+  /** K7: the perp market this source serves (data/market.tsx key); part of every query key so a switch never shows
+   *  the previous market's data. Vault / swap / protocol reads always come from the primary market's source. */
+  readonly marketKey?: string;
   market(): Promise<Market>;
   fundingTicks(limit: number): Promise<FundingTick[]>;
   candles1m(limit: number): Promise<Candle[]>;

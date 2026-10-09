@@ -74,6 +74,8 @@ function RadioMenu<T extends string>({
 }
 
 export type ChartToolbarProps = {
+  /** the MON/USD DEX reference exists only for MON-PERP (K7); default = the build flag */
+  referenceEnabled?: boolean;
   view: ChartView;
   onChange: (patch: Partial<ChartView>) => void;
   fullscreen: boolean;
@@ -83,7 +85,7 @@ export type ChartToolbarProps = {
   redo: { can: boolean; run: () => void };
 };
 
-export function ChartToolbar({ view, onChange, fullscreen, onFullscreen, onScreenshot, undo, redo }: ChartToolbarProps) {
+export function ChartToolbar({ view, onChange, fullscreen, onFullscreen, onScreenshot, undo, redo, referenceEnabled }: ChartToolbarProps) {
   const type = TYPE_META.find((t) => t.id === view.chartType) ?? TYPE_META[0]!;
   const toggleIndicator = (id: IndicatorId) => onChange({ indicators: view.indicators.includes(id) ? view.indicators.filter((x) => x !== id) : [...view.indicators, id] });
   const count = view.indicators.length;
@@ -142,7 +144,7 @@ export function ChartToolbar({ view, onChange, fullscreen, onFullscreen, onScree
           label="Price source"
           face={<span className="max-w-[9rem] truncate font-medium text-text">{SOURCE_LABEL[view.source].label}</span>}
           value={view.source}
-          options={sourceOptions()}
+          options={sourceOptions(referenceEnabled)}
           render={(s) => (
             <span className="block py-1">
               <span className="block font-medium">{SOURCE_LABEL[s].label}</span>

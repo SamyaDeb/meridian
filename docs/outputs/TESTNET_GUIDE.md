@@ -22,6 +22,8 @@ The market needs our keeper and market maker running (otherwise the oracle is st
 | `/earn` | Deposit into the basis vault (total cap 1,200 tAUSD), withdraw a little | Instant withdrawals from idle; a bigger exit is a request the keeper fulfils (the request / claim screens are still being built, so this part may need a founder's help) |
 | `/fix` | The 30-day funding swap | The book may be empty on testnet (no swap market maker funded yet) |
 
+**ETH-PERP** (switcher at the top of `/trade`) is a second testnet market with its own book and funding. Its price comes from Pyth ETH/USD, pushed onchain by our keeper (labelled "testnet"); it only moves while that keeper runs. Your margin is per market: deposit into ETH-PERP separately. Minimum size 0.001 ETH.
+
 MON-PERP-DEMO is a separate, labelled **test market** we use to show a crash and a liquidation; don't trade it, its price is moved on purpose.
 
 ## 3. Tell us

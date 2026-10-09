@@ -1,5 +1,6 @@
 // One-tap testnet onboarding (K1.4): mint test AUSD → approve → deposit. Pure planning so "Retry from here" is
 // idempotent: a step whose effect is already onchain is skipped.
+import { formatFixed } from "./format";
 
 export type OnboardStep = "mint" | "approve" | "deposit";
 export const ONBOARD_STEPS: readonly OnboardStep[] = ["mint", "approve", "deposit"];
@@ -49,7 +50,10 @@ export function firstTradeSizeMon(priceWad: bigint, lotSizeWad: bigint, notional
   let lots = (target + lotNotionalWad / 2n) / lotNotionalWad; // nearest
   if (lots < 1n) lots = 1n;
   if (maxLots !== undefined && lots > maxLots) lots = maxLots;
-  return ((lots * lotSizeWad) / WAD).toString();
+  // the lot's own precision (K7: ETH lot 0.001 ⇒ "0.004"; MON lot 100 ⇒ "200"), no separators: it is an input value
+  let dp = 0;
+  for (let scale = WAD; dp < 18 && lotSizeWad % scale !== 0n; scale /= 10n) dp++;
+  return formatFixed(lots * lotSizeWad, 18, dp).replace(/,/g, "");
 }
 
 export type StepResult = { hash: `0x${string}` };

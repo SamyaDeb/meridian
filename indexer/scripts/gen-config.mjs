@@ -270,7 +270,7 @@ export function renderDeploymentsTs(deployments) {
     if (ch) L.push(`  ${Number(d.chainId)}: ["${ch.toLowerCase()}"],`);
   }
   L.push("};");
-  // Operator accounts (never external users): optional `mmAccounts` / `keeperAccounts` arrays + `owner` in the record.
+  // Operator accounts (never external users): optional `mmAccounts` / `keeperAccounts` / `testAccounts` arrays + `owner`.
   L.push("/** Our market-maker accounts (deployments `mmAccounts`): their volume is disclosed separately (RISKS E9). */");
   L.push("export const MM_ACCOUNTS: Readonly<Record<number, readonly string[]>> = {");
   for (const d of [...deployments].sort((a, b) => Number(a.chainId) - Number(b.chainId))) {
@@ -278,12 +278,13 @@ export function renderDeploymentsTs(deployments) {
     if (mm.length) L.push(`  ${Number(d.chainId)}: [${mm.map((a) => `"${a}"`).join(", ")}],`);
   }
   L.push("};");
-  L.push("/** Accounts that are ours (MM, keeper, owner): excluded from ProtocolStats.externalUsers. */");
+  L.push("/** Accounts that are ours (MM, keeper, scripted test traders, owner): excluded from ProtocolStats.externalUsers. */");
   L.push("export const OPERATOR_ACCOUNTS: Readonly<Record<number, readonly string[]>> = {");
   for (const d of [...deployments].sort((a, b) => Number(a.chainId) - Number(b.chainId))) {
     const ops = [
       ...operatorList(d.mmAccounts, d.chainId, "mmAccounts"),
       ...operatorList(d.keeperAccounts, d.chainId, "keeperAccounts"),
+      ...operatorList(d.testAccounts, d.chainId, "testAccounts"),
       ...(typeof d.owner === "string" && ADDRESS_RE.test(d.owner) ? [d.owner.toLowerCase()] : []),
     ];
     const uniq = [...new Set(ops)];

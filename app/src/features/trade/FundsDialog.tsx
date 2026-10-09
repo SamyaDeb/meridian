@@ -5,6 +5,7 @@ import { useAccount, useChainId, usePublicClient } from "wagmi";
 import { Button, Dialog, Notice } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
 import { contractAddress } from "@/config/deployments";
+import { usePerpMarket } from "@/data/market";
 import { clearingHouseAbi, erc20Abi } from "@/lib/abi";
 import { deposit, sendTx } from "@/lib/tx";
 import { formatAusdToken, parseFixed } from "@/lib/format";
@@ -21,7 +22,9 @@ export function FundsDialog({ mode, open, onClose, freeCollateralWad }: { mode: 
   const { address } = useAccount();
   const tx = useTx();
   const [amount, setAmount] = useState("");
-  const ch = contractAddress(chainId, "ClearingHouse");
+  // K7: margin is isolated per market: funds go to the selected market's ClearingHouse
+  const pm = usePerpMarket();
+  const ch = contractAddress(chainId, "ClearingHouse") ? pm.clearingHouse : undefined;
   const ausd = contractAddress(chainId, "AUSD");
   const { data: walletBal } = useQuery({
     queryKey: ["ausdBalance", chainId, address, ausd],
@@ -34,7 +37,7 @@ export function FundsDialog({ mode, open, onClose, freeCollateralWad }: { mode: 
   const tooMuch = token !== undefined && maxToken !== undefined && token > maxToken;
   const invalid = token === undefined || token === 0n || tooMuch;
   const submit = () =>
-    tx.run(`${mode} ${amount} AUSD`, (p, w) => {
+    tx.run(`${mode} ${amount} AUSD (${pm.symbol})`, (p, w) => {
       if (!ch || !ausd) throw new Error("no AUSD/ClearingHouse for this chain");
       if (token === undefined) throw new Error("invalid amount");
       return mode === "deposit" ? deposit(p, w, ausd, ch, token) : sendTx(p, w, { address: ch, abi: clearingHouseAbi, functionName: "withdraw", args: [token] });

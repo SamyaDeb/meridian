@@ -46,4 +46,6 @@ export type EngineProps = {
   onCrosshair?: (bar: { time: number; open: number; high: number; low: number; close: number } | null) => void;
   /** receives the coordinate API once the chart exists (null on unmount) */
   onCoords?: (c: ChartCoords | null) => void;
+  /** decimals of the market's tick (MON-PERP 6, ETH-PERP 1, K7); default 6 */
+  pricePrecision?: number;
 };
