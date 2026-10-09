@@ -2,7 +2,8 @@
 // venues, each row opening a receipt. Pure: parse each source into rows, then merge (dedupe across sources, sort).
 //
 // Sources (nothing invented):
-//  - this app's own trade receipts (log.ts): the richest row for a trade the app placed;
+//  - this app's own trade receipts (log.ts): the richest row for a trade the app placed; and its Earn runs (N6: open,
+//    close, the one-tap leftover close), one row per run that opens the Earn timeline and stands in for its legs' fills;
 //  - Perpl, signed REST (github.com/PerplFoundation/api-docs rest-endpoints.md "Trading History Endpoints"):
 //    GET /v1/trading/fills (Fill: at, mkt, oid, t OrderType, p PNS, s LNS, f fee CNS) grouped per order, and
 //    GET /v1/trading/account-history (AccountEvent: at, et, a amount change CNS) for Deposit 1 / Withdrawal 2 /
@@ -12,18 +13,22 @@
 import type { Venue } from "@meridian/core/route";
 import { divTrunc, WAD } from "@meridian/core/util";
 import type { Fill } from "@meridian/core/perpl";
+import type { EarnTimeline } from "../earn/timeline";
 import type { Receipt } from "../trade/exec/receipt";
 import { sizeText } from "../trade/ticket/quote";
 
-export type ActivityKind = "trade" | "deposit" | "withdrawal" | "funding" | "liquidation";
+export type ActivityKind = "trade" | "deposit" | "withdrawal" | "funding" | "liquidation" | "earn";
 
 export type ActivityItem = {
   /** dedupe key, the same for one event whichever source reported it (perpl-order-<oid>, meridian-tx-<hash>, …) */
   id: string;
   kind: ActivityKind;
-  venue: Venue;
+  /** "both": an Earn run (a leg on each venue) */
+  venue: Venue | "both";
   /** plain words: "Long 120 MON", "Deposit", "Funding received" */
   title: string;
+  /** a second line before venue · time (an Earn run's sizes) */
+  detail?: string;
   /** AUSD that moved for the user, WAD, signed (+ in, − out); undefined for a trade (its receipt has the detail) */
   amountWad: bigint | undefined;
   /** ms since epoch; undefined sorts last */
@@ -32,13 +37,26 @@ export type ActivityItem = {
   txHash: string | undefined;
   /** trades open the receipt modal with this */
   receipt: Receipt | undefined;
+  /** Earn runs open the Earn receipt (timeline) with this */
+  earn?: EarnTimeline;
+  /** ids of other sources' rows this one stands for (an Earn run's legs: their Perpl fills / Meridian trades) */
+  alsoIds?: readonly string[];
 };
 
-/** Sources in priority order: the first to report an id wins (the app's own receipt has the summary the user saw). */
+/**
+ * Sources in priority order: the first to report an id wins (the app's own receipt has the summary the user saw); a row
+ * that stands for others (an Earn run) hides them, so a leg isn't listed twice.
+ */
 export function mergeActivity(...sources: readonly (readonly ActivityItem[])[]): ActivityItem[] {
   const seen = new Map<string, ActivityItem>();
-  for (const list of sources) for (const it of list) if (!seen.has(it.id)) seen.set(it.id, it);
-  return [...seen.values()].sort(byNewest);
+  const claimed = new Set<string>();
+  for (const list of sources)
+    for (const it of list) {
+      if (seen.has(it.id) || claimed.has(it.id)) continue;
+      seen.set(it.id, it);
+      for (const a of it.alsoIds ?? []) if (a !== it.id) claimed.add(a);
+    }
+  return [...seen.values()].filter((it) => !claimed.has(it.id)).sort(byNewest);
 }
 
 function byNewest(a: ActivityItem, b: ActivityItem): number {
@@ -68,8 +86,42 @@ export function tradeTitle(r: Pick<Receipt, "side" | "reduceOnly" | "filledWad" 
 
 export type LoggedReceipt = { atMs: number; block: bigint | undefined; receipt: Receipt };
 
-export function fromLog(entries: readonly LoggedReceipt[]): ActivityItem[] {
+/**
+ * An Earn run as Activity keeps it (non-secret: sizes, order ids, tx hashes, the plain timeline). Open / close carry
+ * the run's timeline (without the live one-tap close: history never places an order) and their legs' activity ids;
+ * the one-tap leftover close is a Trade order, kept with its receipt.
+ */
+export type EarnRunEntry =
+  | { run: "open" | "close"; runId: string; perplWad: bigint; meridianWad: bigint; lockWad?: bigint; stepWad: bigint; timeline: EarnTimeline; legIds: string[] }
+  | { run: "leftover"; runId: string; receipt: Receipt };
+
+export type LoggedEarn = { kind: "earn"; atMs: number; block: bigint | undefined; earn: EarnRunEntry };
+
+/** What the app's log holds: trade receipts (v1 entries, no `kind`) and Earn runs. */
+export type LogEntry = LoggedReceipt | LoggedEarn;
+
+export const isEarnEntry = (e: LogEntry): e is LoggedEarn => "kind" in e && e.kind === "earn";
+
+/** The activity id a log entry is listed under (a newer entry with the same id replaces the older one). */
+export function logEntryId(e: LogEntry): string | undefined {
+  if (!isEarnEntry(e)) return tradeIdOf(e.receipt.venue, e.receipt.orderId, e.receipt.txHash);
+  return e.earn.run === "leftover" ? (tradeIdOf(e.earn.receipt.venue, e.earn.receipt.orderId, e.earn.receipt.txHash) ?? `earn-${e.earn.runId}`) : `earn-${e.earn.runId}`;
+}
+
+function fromEarn(e: LoggedEarn): ActivityItem {
+  const x = e.earn;
+  if (x.run === "leftover") {
+    const r = x.receipt;
+    return { id: logEntryId(e)!, kind: "earn", venue: r.venue, title: `Earn leftover closed: ${sizeText(r.filledWad, r.stepWad)} MON`, amountWad: undefined, atMs: e.atMs, block: e.block, txHash: r.txHash, receipt: r };
+  }
+  const mon = (w: bigint) => sizeText(w, x.stepWad);
+  const detail = `Perpl ${mon(x.perplWad)} · Meridian ${mon(x.meridianWad)} MON${x.lockWad !== undefined && x.lockWad > 0n ? ` · lock ${mon(x.lockWad)} MON` : ""}`;
+  return { id: `earn-${x.runId}`, kind: "earn", venue: "both", title: `Earn ${x.run === "open" ? "open" : "close"} · ${x.timeline.headline}`, detail, amountWad: undefined, atMs: e.atMs, block: e.block, txHash: undefined, receipt: undefined, earn: x.timeline, alsoIds: x.legIds };
+}
+
+export function fromLog(entries: readonly LogEntry[]): ActivityItem[] {
   return entries.flatMap((e, i) => {
+    if (isEarnEntry(e)) return [fromEarn(e)];
     const r = e.receipt;
     if (!r.ok) return []; // nothing filled ⇒ nothing happened to the money
     const id = tradeIdOf(r.venue, r.orderId, r.txHash) ?? `app-${e.atMs}-${i}`;

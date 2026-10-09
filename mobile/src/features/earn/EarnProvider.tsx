@@ -14,6 +14,7 @@ import { PERPL_TX_ABI, usePerpl as usePerplVenue } from "../../venues/perpl/Perp
 import { rnFetch, sleep } from "../../venues/perpl/runtime";
 import { walletClientFor } from "../../wallet/client";
 import { sendTx } from "../../wallet/sendTx";
+import { useActivity } from "../activity/ActivityProvider";
 import { mapMeridian } from "../trade/data/accounts";
 import { ensureMeridianCollateral } from "../trade/exec/collateral";
 import { createMeridianLeg } from "../trade/exec/meridianLeg";
@@ -41,6 +42,7 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
   const { address } = useAccountAddress();
   const venue = usePerplVenue();
   const { accounts, orderLock } = useTrade();
+  const activity = useActivity();
   const cfg = live.config;
 
   // the funding-swap market (Lock), read per block only while Earn is on screen
@@ -146,9 +148,11 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
       afterRun: () => {
         accounts?.invalidate();
         void venue?.refresh().catch(() => undefined);
+        void activity.feed?.refresh();
       },
+      onRun: (e) => activity.log?.add({ kind: "earn", atMs: Date.now(), block: live.blocks?.store.get().block, earn: e }),
     });
-  }, [injected, status, address, live, cfg, venue, auth, accounts, swap, orderLock]);
+  }, [injected, status, address, live, cfg, venue, auth, accounts, swap, orderLock, activity]);
 
   const history = useMemo(() => {
     if (injected) return injected.history;

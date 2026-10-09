@@ -32,6 +32,9 @@ import { keccak256 } from "viem";
 import { Store } from "../../live/store";
 import { plainTradeError } from "../trade/exec/errors";
 import { applyRun, FLAT, reduceNaked, type EarnMeta, type EarnPosition, type EarnRecord, type EarnRecordStore, type EarnRun, type LegNote, type PositionStore } from "./record";
+import type { EarnRunEntry } from "../activity/model";
+import type { Receipt } from "../trade/exec/receipt";
+import { earnRunEntry } from "./activity";
 import { buildTimeline, type EarnTimeline } from "./timeline";
 
 export const NOT_SENT_FIRST = "The app closed before the first order was sent. Nothing was placed.";
@@ -90,6 +93,12 @@ export type EarnExecutorDeps = {
   wrapLegs?: (legs: LegAdapter, meta: EarnMeta) => LegAdapter;
   /** venue state to re-read after a run */
   afterRun?: () => void;
+  /**
+   * Activity: each run once it reaches a terminal phase (awaited before the run record is cleared, so a kill in between
+   * logs it again on resume under the same run id, which the log replaces: one row per run), and the one-tap leftover
+   * close with its receipt
+   */
+  onRun?: (e: EarnRunEntry) => Promise<void> | void;
   /** another executor (Trade ticket / Close all) is running: why, in plain words (trade/exec/orderLock.ts) */
   blocked?: () => string | undefined;
   now?: () => number;
@@ -148,11 +157,20 @@ export class EarnExecutor {
     return this.run(rec, true);
   }
 
-  /** A one-tap manual close of the leftover filled `filledWad` (the Trade executor ran it). */
-  async noteManualClose(filledWad: bigint): Promise<void> {
+  /** A one-tap manual close of the leftover filled `filledWad` (the Trade executor ran it; its receipt goes to Activity). */
+  async noteManualClose(filledWad: bigint, receipt?: Receipt): Promise<void> {
     const p = reduceNaked(await this.d.positions.load(), filledWad);
     await this.d.positions.save(p);
     this.position.set(p);
+    if (receipt) await this.log({ run: "leftover", runId: `l${(this.d.now ?? Date.now)()}`, receipt });
+  }
+
+  private async log(e: EarnRunEntry): Promise<void> {
+    try {
+      await this.d.onRun?.(e);
+    } catch {
+      // Activity is a convenience: the run itself is done
+    }
   }
 
   /** The progress / receipt view closed after a result. */
@@ -223,8 +241,9 @@ export class EarnExecutor {
       const pos = applyRun(await this.d.positions.load(), state);
       await this.d.positions.save(pos);
       this.position.set(pos);
-      await this.d.runs.clear();
       const timeline = buildTimeline(ses.rec, this.d.explorerBase);
+      await this.log(earnRunEntry(ses.rec, timeline));
+      await this.d.runs.clear();
       this.store.set({ running: false, timeline, error: undefined, ...(resumed ? { resumed: true } : {}) });
       this.d.afterRun?.();
       return timeline;

@@ -39,7 +39,7 @@ export function LeftoverClose({ naked, executor, testID = "earn-leftover" }: { n
       .then(
         async (r) => {
           if (r?.ok) {
-            await executor?.noteManualClose(r.filledWad);
+            await executor?.noteManualClose(r.filledWad, r);
             router.push("/receipt");
           } else {
             haptic.error();
