@@ -29,6 +29,8 @@ export type ExecutorDeps = {
   sleep: (ms: number) => Promise<void>;
   /** accounts / Perpl state to re-read after a fill */
   afterTrade: () => void;
+  /** every terminal receipt (Activity keeps them) */
+  onReceipt?: (r: Receipt) => void;
   now?: () => number;
 };
 
@@ -106,6 +108,7 @@ export class TradeExecutor {
       await this.d.store.clear();
       this.store.set({ phase: receipt.ok ? "done" : "failed", venue: out.meta.venue, error: receipt.error, receipt });
       receiptStore.set(receipt);
+      this.d.onReceipt?.(receipt);
       this.d.afterTrade();
       return receipt;
     } catch (e) {

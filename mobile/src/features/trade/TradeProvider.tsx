@@ -12,6 +12,7 @@ import { secureKv } from "../../auth/secureKv";
 import { useLive } from "../../live/LiveProvider";
 import { Store } from "../../live/store";
 import { usePerpl as usePerplVenue } from "../../venues/perpl/PerplProvider";
+import { useActivity } from "../activity/ActivityProvider";
 import { rnFetch, sleep } from "../../venues/perpl/runtime";
 import { walletClientFor } from "../../wallet/client";
 import { ChartFeed } from "./chart/feed";
@@ -33,6 +34,7 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
   const status = useAuthStatus();
   const { address } = useAccountAddress();
   const venue = usePerplVenue();
+  const activity = useActivity();
   const cfg = live.config;
   const [focus] = useState(() => new Store(0));
 
@@ -113,12 +115,14 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
       explorerBase: cfg.chain.blockExplorers?.default.url,
       collateralDecimals: cfg.perpl.status === "deployed" ? cfg.perpl.deployment.collateralDecimals : 6,
       sleep,
+      onReceipt: (r) => void activity.log?.add({ atMs: Date.now(), block: live.blocks?.store.get().block, receipt: r }),
       afterTrade: () => {
         accounts?.invalidate();
         void venue?.refresh().catch(() => undefined);
+        void activity.feed?.refresh();
       },
     });
-  }, [injected, status, address, live, cfg, venue, auth, accounts]);
+  }, [injected, status, address, live, cfg, venue, auth, accounts, activity]);
 
   // per block: the chart's live point; the account reader only while Trade is on screen
   useEffect(() => {

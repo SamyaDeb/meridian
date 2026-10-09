@@ -1,12 +1,18 @@
-// N4b Home / Add funds / Settings passkey card / tab order, offline: the wallet feed is injected and fed by hand.
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+// N4b + N7 Home / Add funds / Settings passkey card / tab order, offline: the wallet feed, the account reader's store,
+// the activity feed and the alert settings are injected and fed by hand.
+jest.mock("@gorhom/bottom-sheet", () => require("@gorhom/bottom-sheet/mock"));
+import { act, fireEvent, render, screen, within } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { Share } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "../auth/AuthProvider";
 import type { AuthController } from "../auth/controller";
 import { WalletFeedProvider } from "../features/wallet/WalletFeedProvider";
+import { ActivityProvider, type ActivityKit } from "../features/activity/ActivityProvider";
+import { AccountsReader, mapMeridian, mapPerpl, type AccountsState } from "../features/trade/data/accounts";
+import { TradeProvider, type TradeKit } from "../features/trade/TradeProvider";
 import { LiveProvider } from "../live/LiveProvider";
+import { Store } from "../live/store";
 import { COUNT_UP_MS, ToastProvider } from "../ui";
 import { haptic } from "../ui/haptics";
 import type { BalanceState } from "../wallet/balances";
@@ -16,6 +22,7 @@ import { fakeLive } from "./fakeLive";
 
 jest.mock("expo-router", () => ({
   router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), navigate: jest.fn(), canGoBack: () => true },
+  useFocusEffect: () => undefined,
   Redirect: () => null,
   Tabs: Object.assign(() => null, { Screen: () => null }),
 }));
@@ -45,15 +52,29 @@ async function setup() {
   return { auth, feed };
 }
 
-function wrap(auth: AuthController, feed: WalletFeedStore, children: ReactNode) {
-  const { live } = fakeLive();
+const WAD = 10n ** 18n;
+const NO_POSITIONS: Partial<AccountsState> = { meridian: mapMeridian({ collateral: 0n, size: 0n, entryPrice: 0n, unrealizedPnl: 0n, pendingFunding: 0n, equity: 0n, initialMargin: 0n, maintenanceMargin: 0n, reservedOrderMargin: 0n, liquidationPrice: 0n }), perpl: null };
+
+/** An account reader whose store the test sets (no chain reads). */
+function accountsKit(state: Partial<AccountsState> = NO_POSITIONS): { kit: TradeKit; accounts: AccountsReader } {
+  const accounts = new AccountsReader({ client: { multicall: jest.fn() } as never, address: "0x0000000000000000000000000000000000000001", meridian: undefined, perpl: undefined });
+  accounts.store.update({ atBlock: 1n, ...state });
+  return { accounts, kit: { chart: undefined, accounts, executor: undefined, focus: new Store(0) } };
+}
+
+type Extra = { trade?: TradeKit; activity?: ActivityKit; live?: ReturnType<typeof fakeLive> };
+
+function wrap(auth: AuthController, feed: WalletFeedStore, children: ReactNode, x: Extra = {}) {
+  const { live } = x.live ?? fakeLive();
   return (
     <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
       <LiveProvider live={live}>
         <AuthProvider controller={auth}>
           <ToastProvider>
             <WalletFeedProvider feed={feed} read={false}>
-              {children}
+              <ActivityProvider kit={x.activity ?? { log: undefined, feed: undefined }}>
+                <TradeProvider kit={x.trade ?? accountsKit().kit}>{children}</TradeProvider>
+              </ActivityProvider>
             </WalletFeedProvider>
           </ToastProvider>
         </AuthProvider>
@@ -129,4 +150,141 @@ it("Settings passkey card: where it lives and what sign-out does, as visible tex
   expect(screen.getByText(/saved in Google Password Manager on your Google account/)).toBeTruthy();
   expect(screen.getByText(PASSKEY_SIGN_OUT)).toBeTruthy();
   expect(PASSKEY_SIGN_OUT).toMatch(/only forgets this wallet on this phone/);
+});
+
+// ── N7 ──
+
+import { Linking } from "react-native";
+import { ActivityList } from "../features/activity/ActivityList";
+import { ActivityFeed } from "../features/activity/feed";
+import { ActivityLog } from "../features/activity/log";
+import { AlertsCard, ALERTS_SCOPE } from "../features/alerts/AlertsCard";
+import { AlertSettings, AlertsProvider } from "../features/alerts/AlertsProvider";
+import { receiptStore, type Receipt } from "../features/trade/exec/receipt";
+import Settings from "../app/(tabs)/settings";
+
+const P = { exchange: "0x1964c32f0be608e7d29302aff5e61268e72080cc" as const, perpId: 64n, priceDecimals: 5, lotDecimals: 0, collateralDecimals: 6 };
+// the recorded K3 hedge account (packages/core/fixtures/perpl/chain/account-10143-k3-hedge.json)
+const K3 = mapPerpl({ accountId: 969n, balanceCNS: 4977468132n, lockedBalanceCNS: 0n, positions: { bank1: 1n << 64n, bank2: 0n, bank3: 0n, bank4: 0n } }, [{ positionType: 0, depositCNS: 22508666n, pricePNS: 2587n, priceResiduePNSQ16: 35288n, lotLNS: 2600n, deltaPnlCNS: -1469999n, premiumPnlCNS: -10530n }, 2530n], 500n, P)!;
+const meridianLong = mapMeridian({ collateral: 100n * WAD, size: 300n * WAD, entryPrice: 25n * 10n ** 15n, unrealizedPnl: 2n * WAD, pendingFunding: WAD / 2n, equity: 100n * WAD + 2n * WAD - WAD / 2n, initialMargin: 2n * WAD, maintenanceMargin: WAD, reservedOrderMargin: 0n, liquidationPrice: 2n * 10n ** 16n });
+
+function memKv() {
+  const map = new Map<string, string>();
+  return { map, kv: { get: async (k: string) => map.get(k) ?? null, set: async (k: string, v: string) => void map.set(k, v), del: async (k: string) => void map.delete(k) } };
+}
+
+const tradeReceipt: Receipt = { ok: true, venue: "perpl", side: "long", reduceOnly: false, summary: "Long 600 MON on Perpl · worst price $0.02600", filledWad: 600n * WAD, stepWad: WAD, avgPriceWad: 2585n * 10n ** 13n, priceDp: 5, feeWad: 5351n * 10n ** 12n, orderId: 4525855211536, txHash: undefined, explorerTxUrl: undefined, blocksToFill: 2n, error: undefined };
+
+it("Home total = wallet + Meridian equity + Perpl (balance + position); breakdown sheet lists each part", async () => {
+  const { auth, feed } = await setup();
+  const { kit } = accountsKit({ meridian: meridianLong, perpl: K3 });
+  await act(async () => feed.push(bal(12_500_000n)));
+  await render(wrap(auth, feed, <Home />, { trade: kit }));
+  await wait(COUNT_UP_MS + 100);
+  // 12.50 + 101.50 + (4977.468132 + 22.508666 − 1.469999 − 0.010530) = 5,112.496269 → shown rounded down 5,112.49
+  expect(screen.getByTestId("home-total")).toHaveTextContent("5,112.49");
+  expect(screen.getByText("Wallet and trading accounts")).toBeTruthy();
+  const b = screen.getByTestId("home-breakdown");
+  expect(within(b).getByTestId("breakdown-wallet")).toHaveTextContent("12.50");
+  expect(within(b).getByTestId("breakdown-meridian")).toHaveTextContent("101.50");
+  expect(within(b).getByTestId("breakdown-perpl")).toHaveTextContent("4,998.49");
+  expect(within(b).getByTestId("breakdown-total")).toHaveTextContent("5,112.49");
+  expect(screen.getByRole("button", { name: "See breakdown" })).toBeTruthy(); // the visible way into the sheet
+});
+
+it("Home: a part that can't be read ⇒ total '—' and the breakdown says why; open PnL ticks with each account read", async () => {
+  const { auth, feed } = await setup();
+  const { kit, accounts } = accountsKit({ meridian: meridianLong, perpl: { ...K3, otherMarkets: true, equityWad: undefined } });
+  await act(async () => feed.push(bal(12_500_000n)));
+  await render(wrap(auth, feed, <Home />, { trade: kit }));
+  expect(screen.getByTestId("home-total")).toHaveTextContent("—");
+  expect(screen.getByTestId("breakdown-perpl")).toHaveTextContent("—");
+  expect(screen.getByTestId("breakdown-perpl-why")).toHaveTextContent(/another Perpl market/);
+  expect(screen.getByTestId("home-pnl")).toHaveTextContent("—"); // the Perpl part is unknown too
+  await act(async () => accounts.store.update({ atBlock: 2n, perpl: K3 }));
+  // Meridian 2 − 0.5 funding, Perpl −1.469999 − 0.010530 ⇒ +0.019471 → "+0.01"
+  expect(screen.getByTestId("home-pnl")).toHaveTextContent("+0.01");
+  await act(async () => accounts.store.update({ atBlock: 3n, meridian: { ...meridianLong, upnlWad: 5n * WAD } }));
+  expect(screen.getByTestId("home-pnl")).toHaveTextContent("+3.01");
+});
+
+it("Home positions: visible Close button (swipe fallback) opens the close summary; funding shown; a basis pair is grouped", async () => {
+  const { auth, feed } = await setup();
+  const live = fakeLive();
+  live.meridian.store.update({ tickSizeWad: 10n ** 14n, lotSizeWad: WAD, markWad: 26n * 10n ** 15n, bestBidWad: 26n * 10n ** 15n, bestAskWad: 27n * 10n ** 15n });
+  const short = mapMeridian({ collateral: 100n * WAD, size: -2600n * WAD, entryPrice: 25n * 10n ** 15n, unrealizedPnl: 0n, pendingFunding: -WAD, equity: 101n * WAD, initialMargin: 0n, maintenanceMargin: 0n, reservedOrderMargin: 0n, liquidationPrice: 3n * 10n ** 16n });
+  const { kit } = accountsKit({ meridian: short, perpl: K3 });
+  await act(async () => feed.push(bal(0n)));
+  await render(wrap(auth, feed, <Home />, { trade: kit, live }));
+  expect(screen.getByTestId("position-basis")).toHaveTextContent(/Basis trade/);
+  expect(screen.getByTestId("position-meridian-funding")).toHaveTextContent("+1.00"); // −pending funding: received
+  expect(screen.getByTestId("position-perpl-funding")).toHaveTextContent("−0.01");
+  // per card: the swipe action + the always-visible Close button (ui/SwipeRow, WCAG 2.5.1)
+  const visible = screen.getAllByRole("button", { name: "Close" }).filter((b) => b.props.hitSlop !== undefined);
+  expect(visible).toHaveLength(2);
+  await act(async () => fireEvent.press(visible[0]!));
+  expect(screen.getByTestId("close-summary")).toHaveTextContent(/^Close short 2,600 MON on Meridian · worst price/);
+});
+
+it("Activity: rows newest first; a trade opens its receipt, a deposit its detail; Home shows the latest 3 and 'See all'", async () => {
+  const { auth, feed } = await setup();
+  const { kv } = memKv();
+  const log = new ActivityLog(kv, "k");
+  const rest = {
+    fills: async () => ({ d: [], np: "" }),
+    call: async () => ({ d: [1, 2, 3].map((i) => ({ at: { b: i, t: 1791300000000 + i * 1000, txid: "ab".repeat(32), l: i }, et: 1, a: `${i}000000` })), np: "" }),
+  };
+  const af = new ActivityFeed({ log, perpl: () => ({ rest, market: { id: 64, priceDecimals: 5, sizeDecimals: 0, collateralDecimals: 6 } }), perplOff: () => "off", meridian: undefined, explorerBase: undefined });
+  await log.add({ atMs: 1791400000000, block: 9n, receipt: tradeReceipt });
+  await act(async () => feed.push(bal(1_000_000n)));
+  await render(wrap(auth, feed, <Home />, { activity: { log, feed: af } }));
+  await act(async () => void (await af.refresh()));
+  const list = screen.getByTestId("home-activity");
+  expect(within(list).getAllByRole("button").map((b) => b.props.accessibilityLabel).filter((l: string) => /on (Perpl|Meridian)/.test(l))).toHaveLength(3);
+  expect(within(list).getByText("1 more in Activity")).toBeTruthy();
+  await act(async () => fireEvent.press(within(list).getByRole("button", { name: /^Long 600 MON on Perpl/ })));
+  expect(receiptStore.get()).toBe(tradeReceipt);
+  expect(mockRouter.push).toHaveBeenCalledWith("/receipt");
+  await act(async () => fireEvent.press(within(list).getAllByRole("button", { name: /^Deposit to Perpl/ })[0]!));
+  expect(mockRouter.push).toHaveBeenCalledWith("/activity-item");
+  await act(async () => fireEvent.press(screen.getByRole("button", { name: "See all" })));
+  expect(mockRouter.push).toHaveBeenCalledWith("/activity");
+});
+
+it("Activity list: a source that's off or failed says so under the rows", async () => {
+  const { kv } = memKv();
+  const log = new ActivityLog(kv, "k");
+  const af = new ActivityFeed({ log, perpl: () => undefined, perplOff: () => "Turn on Perpl trading (Settings) to see its history here.", meridian: undefined, explorerBase: undefined });
+  await af.refresh();
+  await render(<ActivityList store={af.store} />);
+  expect(screen.getByTestId("activity-empty")).toHaveTextContent("Nothing yet. Deposits, trades and funding show up here.");
+  expect(screen.getAllByTestId("activity-note").map((n) => n.props.children)).toEqual(["Turn on Perpl trading (Settings) to see its history here.", expect.stringMatching(/needs the indexer/)]);
+});
+
+it("Settings: alerts are off until turned on, saved, in-app only (no permission prompt); 'Open full terminal' opens the web app", async () => {
+  const { auth, feed } = await setup();
+  const { kv, map } = memKv();
+  const settings = new AlertSettings(kv);
+  const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+  await render(
+    wrap(
+      auth,
+      feed,
+      <AlertsProvider settings={settings}>
+        <AlertsCard />
+      </AlertsProvider>,
+    ),
+  );
+  expect(screen.getByText(ALERTS_SCOPE)).toBeTruthy();
+  expect(ALERTS_SCOPE).toMatch(/while Meridian is open/);
+  const liq = screen.getByTestId("alert-liq");
+  expect(liq.props.value).toBe(false);
+  expect(screen.getByTestId("alert-funding").props.value).toBe(false);
+  await act(async () => fireEvent(liq, "valueChange", true));
+  expect(screen.getByTestId("alert-liq").props.value).toBe(true);
+  expect(JSON.parse(map.get("meridian.pref.alerts")!)).toEqual({ liq: true, funding: false });
+  open.mockClear();
+  await render(wrap(auth, feed, <Settings />));
+  await act(async () => fireEvent.press(screen.getByRole("button", { name: "Open full terminal" })));
+  expect(open).toHaveBeenCalledWith("https://meridian-testnet.vercel.app");
 });
