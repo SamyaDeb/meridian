@@ -41,3 +41,20 @@ Build: EAS `4e91111a-2935-4791-becc-f9ed9cac11aa` (profile `development`, commit
 | P5 | (if funded) Settings → Dev → "Send 0 MON to myself" → receipt; limit = ceil(estimate × 1.2) | ⏳ | | |
 | P6 | Cancel the prompt → "Cancelled. Try again."; airplane mode during unlock → readable error | ⏳ | | |
 | P7 | Settings → Dev → "Key derivation: N ms" (core deriveEvmKey on Hermes) | ⏳ | | |
+
+## Native app (MOBILE_PLAN N4b): one-button passkey onboarding, Home hero, deposit arrival, passkey card
+
+Build: same EAS dev build `4e91111a` (no native dependency added in N4b). JS from Metro on :8085 (branch `n4b-ux`,
+`APP_ENV=development npx expo start --dev-client --port 8085 --lan`). Passkeys on `meridian-testnet.vercel.app`.
+Tick a row only when it was seen on the phone.
+
+| # | Check | Result | Seen by | Note |
+|---|---|---|---|---|
+| U1 | Fresh install (or Settings → Sign out + clear app data) → stopwatch from launch: Welcome → **Continue with passkey** → hero "Your fingerprint is your wallet" → **Create my wallet** → fingerprint → "Wallet ready ✓" → Home. ≤ 15 s, 2 taps + fingerprint, no address on any of these screens | ⏳ | | time: |
+| U2 | Cancel the OS passkey sheet on the hero → muted "No problem — tap Create when ready", no red, no buzz; Create works after | ⏳ | | |
+| U3 | Home: identicon + "Wallet ••xxxx", total AUSD, heartbeat; tabs read Home · Trade · Earn · Settings; empty wallet shows "Add AUSD to start" | ⏳ | | |
+| U4 | Add funds: QR + full address, Copy (toast), Share (Android share sheet), "Waiting for your deposit…" | ⏳ | | |
+| U5 | Testnet AUSD arrives (Get test funds → mint, or a transfer from the K3 wallet with owner OK) → toast "+N AUSD arrived" + success haptic, Home total counts up | ⏳ | | |
+| U6 | Settings: passkey card "Passkey · Google Password Manager · active" with where it lives + what sign-out does; Sign out → Welcome → "Use an existing passkey" → same wallet ••xxxx | ⏳ | | |
+| U7 | TalkBack on: Welcome buttons, hero, Create, Wallet ready, Home hero + actions, Add funds Copy/Share, passkey card are all read | ⏳ | | |
+| U8 | Enable Perpl: "Allow Perpl to use exactly X AUSD" line, tx hashes only under "Details", success toast per step | ⏳ | | |

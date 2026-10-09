@@ -34,3 +34,15 @@ Recovery export and value-moving actions use a fresh passkey prompt and a per-ac
 `withFreshSession`). Writes go through `src/wallet/sendTx.ts`: gas = estimate × 1.2 rounded up, pending nonce, EIP-1559
 fees, explicit chain id, receipt, reverts decoded to plain English. Android needs
 `https://<rpId>/.well-known/assetlinks.json` listing the package and the signing SHA-256 (served by `app/public`).
+
+## First run and Home (N4b)
+Welcome (live spread) → **Continue with passkey** → passkey hero (`(onboarding)/create`, FIDO copy) → **Create my wallet**
+→ OS sheet → "Wallet ready ✓" (600 ms, success haptic) → Home. "Use an existing passkey" signs in from Welcome directly.
+A cancelled OS sheet shows a calm muted line, never red. Identity everywhere is identicon + "Wallet ••a3f2"
+(`src/wallet/identity.ts`); the full address is only on Add funds (`/fund`, a modal: QR, copy, share).
+Tabs: Home (`(tabs)/portfolio`, first, default after unlock) · Trade · Earn · Settings.
+`WalletFeedProvider` (root, under the auth gate) runs the one BalanceReader for the unlocked wallet; each state goes
+through `detectArrival` (pure) → "+12.50 AUSD arrived" toast + success haptic anywhere in the app, and Home's total
+counts up. Home total = `totalAusdWad({ walletWad, venues })` in `src/features/home/total.ts`: `venues` is empty until
+N7 adds Meridian + Perpl equity. Testnet "Get test funds": Monad faucet for MON, then 10,000 test AUSD minted from
+Meridian's AUSD mock (`src/wallet/testFunds.ts`; never on 143).

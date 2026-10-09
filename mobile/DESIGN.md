@@ -40,11 +40,19 @@ No shadows on dark (elevation = `card` on `bg` + 1 px `border`).
 | Hold start | `impactAsync(Light)` |
 | Hold complete | `notificationAsync(Success)` |
 | Error toast / failed action | `notificationAsync(Error)` |
+| Wallet created / signed in ("Wallet ready"), deposit arrived, Perpl step done | `notificationAsync(Success)` |
+| Cancelled passkey sheet | none (the user's own choice; calm muted line) |
 
 ## Data honesty
 Unknown = "—". Zero = "0.00". Stale (no new block for 3 s, core `STALE_AFTER_MS`) = value dims to `muted` + a "stale"
 tag. Empty book = "No liquidity right now", never placeholder levels. Public RPC and non-production chains get a
 visible badge.
+
+## Identity and passkey copy (N4b)
+Wallets are shown as an identicon (5 × 5 mirrored, from keccak256 of the address) + "Wallet ••a3f2"; hex only on Add
+funds and in "Details". Passkey wording follows FIDO's tested copy (MOBILE_UX_RESEARCH L5, §5.1): "Your fingerprint is
+your wallet" hero before the OS sheet, "Wallet ready ✓" after, and the Settings card "Passkey · Google Password Manager
+· active" with where it lives and what signing out does as visible text. The passkey symbol is `ui/PasskeyIcon`.
 
 ## Accessibility
 Every control: `accessibilityRole` + `accessibilityLabel` (+ `accessibilityState`/`Value` where it has one), hit
