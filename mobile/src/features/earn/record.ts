@@ -7,7 +7,7 @@
 //    Folding a terminal run into it is idempotent by run id, so a kill between "terminal saved" and "run cleared"
 //    never counts a run twice.
 // Holds no key material: rq numbers, order ids, a signed transaction (public once broadcast), amounts.
-import { basisExposureWad, deserializeExec, opposite, serializeExec, type BasisExecState, type CloseExecState, type OrderSide } from "@meridian/core/exec";
+import { basisExposureWad, deserializeExec, opposite, serializeExec, type BasisExecState, type CloseExecState, type LegProgress, type LegSpec, type OrderSide } from "@meridian/core/exec";
 import { parseBig, stringifyBig } from "@meridian/core/util";
 import type { Hex } from "viem";
 
@@ -37,6 +37,10 @@ export type EarnMeta = {
   sentAtBlock?: bigint;
   /** __DEV__ builds only: force the Meridian open leg to fail (auto-unwind on the phone) */
   devFailMeridian?: boolean;
+  /** Lock: collateral to add on the funding-swap market in the collateral step (WAD, whole AUSD units) */
+  lockCollateralWad?: bigint;
+  /** close with a Lock: the reduce-only swap order that runs BEFORE the perp legs (never leaves a swap without its hedge) */
+  swapClose?: { leg: LegSpec; progress: LegProgress; filledWad?: bigint; error?: string };
 };
 
 export type EarnRun = BasisExecState | CloseExecState;

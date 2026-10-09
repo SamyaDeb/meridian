@@ -23,7 +23,12 @@ const MARKET = { id: 64, priceDecimals: 5, sizeDecimals: 0 };
 const noSleep = async () => {};
 
 type Ioc = { side: "buy" | "sell"; reduceOnly: boolean; sizeLns: number; limitPns: number };
-type Venues = { perplFill: (p: Ioc, n: number) => number; meridianFill: (o: { isBid: boolean; lots: bigint; reduceOnly: boolean }) => bigint | "revert" };
+type BookFill = (o: { isBid: boolean; lots: bigint; reduceOnly: boolean }) => bigint | "revert";
+type Venues = { perplFill: (p: Ioc, n: number) => number; meridianFill: BookFill; swapFill?: BookFill };
+/** the funding-swap book (a second OrderBook): lot 1,000 MON, price = 1 + APR, fills at 12 % fixed */
+const SB = "0x00000000000000000000000000000000000005b0" as Address;
+const SWAP_LOT = 1_000n * WAD;
+const SWAP_PX = 112n * 10n ** 16n;
 
 /** Perpl: fills IOCs per `perplFill`, keeps an order history and the net position (lots, + long). Cloneable. */
 class FakePerpl {
@@ -60,21 +65,27 @@ class FakePerpl {
 
 /** Meridian: signs deterministically, mines on broadcast (fill per `meridianFill`), Trade logs for the taker. Cloneable. */
 class FakeChain {
-  mined = new Map<Hex, { ok: boolean; size: bigint; isBid: boolean }>();
-  signed = new Map<Hex, Hex>();
+  mined = new Map<Hex, { ok: boolean; size: bigint; isBid: boolean; to: Address }>();
+  signed = new Map<Hex, { data: Hex; to: Address }>();
   nonce = 5;
+  /** net perp MON on Meridian's book; net swap size on the swap book */
   net = 0n;
+  swapNet = 0n;
   estimates = 0;
-  constructor(private fill: Venues["meridianFill"]) {}
+  constructor(
+    private fill: BookFill,
+    private swapFill: BookFill = (o) => o.lots,
+  ) {}
   clone(): FakeChain {
-    const c = new FakeChain(this.fill);
-    Object.assign(c, { mined: new Map(this.mined), signed: new Map(this.signed), nonce: this.nonce, net: this.net, estimates: this.estimates });
+    const c = new FakeChain(this.fill, this.swapFill);
+    Object.assign(c, { mined: new Map(this.mined), signed: new Map(this.signed), nonce: this.nonce, net: this.net, swapNet: this.swapNet, estimates: this.estimates });
     return c;
   }
-  log(size: bigint, isBid: boolean) {
+  log(to: Address, size: bigint, isBid: boolean) {
     const topics = encodeEventTopics({ abi: orderBookAbi, eventName: "Trade", args: { makerOrderId: 1n, maker: "0x00000000000000000000000000000000000000b2", taker: ME } });
-    const data = encodeAbiParameters([{ type: "bool" }, { type: "uint32" }, { type: "uint64" }, { type: "uint256" }, { type: "uint256" }], [isBid, 25864, 3n, 25864n * 10n ** 12n, size]);
-    return { address: OB, topics, data, blockNumber: 70n, transactionHash: "0x" as Hex, logIndex: 0, blockHash: "0x" as Hex, transactionIndex: 0, removed: false };
+    const px = to === SB ? SWAP_PX : 25864n * 10n ** 12n;
+    const data = encodeAbiParameters([{ type: "bool" }, { type: "uint32" }, { type: "uint64" }, { type: "uint256" }, { type: "uint256" }], [isBid, 25864, 3n, px, size]);
+    return { address: to, topics, data, blockNumber: 70n, transactionHash: "0x" as Hex, logIndex: 0, blockHash: "0x" as Hex, transactionIndex: 0, removed: false };
   }
   get pub() {
     return {
@@ -87,12 +98,15 @@ class FakeChain {
       sendRawTransaction: async ({ serializedTransaction }: { serializedTransaction: Hex }) => {
         const h = keccak256(serializedTransaction);
         if (!this.mined.has(h)) {
-          const { args } = decodeFunctionData({ abi: orderBookAbi, data: this.signed.get(serializedTransaction)! }) as { args: readonly [boolean, bigint, number, bigint, boolean] };
+          const tx = this.signed.get(serializedTransaction)!;
+          const { args } = decodeFunctionData({ abi: orderBookAbi, data: tx.data }) as { args: readonly [boolean, bigint, number, bigint, boolean] };
           const [isBid, lots, , , reduceOnly] = args;
-          const f = this.fill({ isBid, lots, reduceOnly });
-          const size = f === "revert" ? 0n : f * LOT;
-          this.mined.set(h, { ok: f !== "revert", size, isBid });
-          this.net += isBid ? size : -size;
+          const swap = tx.to === SB;
+          const f = (swap ? this.swapFill : this.fill)({ isBid, lots, reduceOnly });
+          const size = f === "revert" ? 0n : f * (swap ? SWAP_LOT : LOT);
+          this.mined.set(h, { ok: f !== "revert", size, isBid, to: tx.to });
+          if (swap) this.swapNet += isBid ? size : -size;
+          else this.net += isBid ? size : -size;
           this.nonce++;
         }
         return h;
@@ -100,7 +114,7 @@ class FakeChain {
       getTransactionReceipt: async ({ hash }: { hash: Hex }) => {
         const m = this.mined.get(hash);
         if (!m) throw new Error("not found");
-        return { status: m.ok ? "success" : "reverted", blockNumber: 70n, logs: m.ok && m.size > 0n ? [this.log(m.size, m.isBid)] : [] };
+        return { status: m.ok ? "success" : "reverted", blockNumber: 70n, logs: m.ok && m.size > 0n ? [this.log(m.to, m.size, m.isBid)] : [] };
       },
       call: async () => {
         throw new Error("SlippageExceeded");
@@ -111,9 +125,9 @@ class FakeChain {
     return {
       account: { address: ME },
       chain: { id: 10143 },
-      signTransaction: async (tx: { nonce: number; data: Hex }) => {
-        const raw = toHex(`signed-${tx.nonce}-${tx.data}`);
-        this.signed.set(raw, tx.data);
+      signTransaction: async (tx: { nonce: number; data: Hex; to: Address }) => {
+        const raw = toHex(`signed-${tx.nonce}-${tx.to}-${tx.data}`);
+        this.signed.set(raw, { data: tx.data, to: tx.to });
         return raw;
       },
     };
@@ -125,13 +139,17 @@ function memKv(init?: Map<string, string>) {
   return { m, kv: { get: async (k: string) => m.get(k) ?? null, set: async (k: string, v: string) => void m.set(k, v), del: async (k: string) => void m.delete(k) } };
 }
 
-type World = { px: FakePerpl; ch: FakeChain; coll: { calls: number; fail?: string } };
+type World = { px: FakePerpl; ch: FakeChain; coll: { calls: number; fail?: string; lockWad?: bigint } };
 
 function legFactory(w: () => World): LegFactory {
   return (leg, io) => {
     if (leg.venue === "perpl") {
       const l = createPerplLeg({ trading: () => w().px.trading as never, rest: () => w().px.rest as never, market: MARKET, leverage100: io.meta.leverage100, head: () => 1001, saveRqFloor: (rq) => io.patch(rq !== undefined ? { rqFloor: rq } : {}) });
       return { legs: l.legs, findSent: l.findSent, orderId: l.orderId };
+    }
+    if (leg.venue === "swap") {
+      const l = createMeridianLeg({ pub: w().ch.pub as never, wallet: () => w().ch.wallet as never, orderBook: SB, tickSizeWad: 10n ** 14n, lotSizeWad: SWAP_LOT, saveRaw: (raw, nonce) => io.patch({ raw, nonce }), loadRaw: () => io.note() });
+      return { legs: l.legs };
     }
     const l = createMeridianLeg({ pub: w().ch.pub as never, wallet: () => w().ch.wallet as never, orderBook: OB, tickSizeWad: 10n ** 12n, lotSizeWad: LOT, saveRaw: (raw, nonce) => io.patch({ raw, nonce }), loadRaw: () => io.note() });
     return { legs: l.legs };
@@ -145,8 +163,9 @@ function executor(w: () => World, kv: ReturnType<typeof memKv>["kv"], o: Partial
     runs: earnRecordStore(kv, 10143, ME),
     positions: positionStore(kv, 10143, ME),
     legFor: legFactory(w),
-    ensureCollateral: async () => {
+    ensureCollateral: async (_p, _m, lockWad) => {
       w().coll.calls++;
+      w().coll.lockWad = lockWad;
       if (w().coll.fail) throw new Error(w().coll.fail);
     },
     head: () => 1000n,
@@ -165,7 +184,7 @@ const META = { summary: "Long 300 MON on Perpl · Short 300 MON on Meridian", pe
 
 const ALL: Venues = { perplFill: (p) => p.sizeLns, meridianFill: (o) => o.lots };
 function world(v: Venues = ALL): World {
-  return { px: new FakePerpl(v.perplFill), ch: new FakeChain(v.meridianFill), coll: { calls: 0 } };
+  return { px: new FakePerpl(v.perplFill), ch: new FakeChain(v.meridianFill, v.swapFill), coll: { calls: 0 } };
 }
 
 /** venue net MON (Perpl lots are 1 MON) */
@@ -329,6 +348,103 @@ describe("close: Meridian first, then Perpl for exactly what closed", () => {
     expect(w.px.iocs.length).toBe(before);
     expect((await positionStore(kv, 10143, ME).load()).sizeWad).toBe(300n * WAD);
   });
+});
+
+describe("Lock: the swap leg after the hedge; the hedge never depends on it", () => {
+  // 1,000 MON pair (one swap lot): long Perpl / short Meridian ⇒ sell the swap (receive fixed on Meridian's funding)
+  const LPLAN: BasisExecPlan = { ...PLAN, sizeWad: 1_000n * WAD, lock: { side: "sell", maxSizeWad: 1_000n * WAD, limitPriceWad: 111n * 10n ** 16n, lotWad: SWAP_LOT } };
+  const LMETA = { ...META, lockCollateralWad: 7n * WAD };
+
+  it("DONE with the lock filled: the swap-market deposit rode the collateral step; the receipt names the fixed rate", async () => {
+    const w = world();
+    const { kv } = memKv();
+    const t = await executor(() => w, kv).open(LPLAN, LMETA);
+    expect(t!.phase).toBe("DONE");
+    expect(w.coll.lockWad).toBe(7n * WAD);
+    expect(w.ch.swapNet).toBe(-1_000n * WAD);
+    expect(venueNet(w)).toBe(0n);
+    expect(t!.steps.map((x) => [x.key, x.status])).toEqual([["collateral", "filled"], ["leg1", "filled"], ["leg2", "filled"], ["leg3", "filled"]]);
+    expect(t!.steps[3]!.detail).toBe("Filled at 12.00% fixed");
+    expect(t!.body).toMatch(/Meridian's funding is fixed at 12\.00% on 1,000 MON until the swap matures/);
+    expect((await positionStore(kv, 10143, ME).load()).sizeWad).toBe(1_000n * WAD);
+  });
+
+  it("the swap reverts ⇒ DONE_LOCK_FAILED: hedge open at the floating rate, nothing unwound", async () => {
+    const w = world({ ...ALL, swapFill: () => "revert" });
+    const { kv } = memKv();
+    const t = await executor(() => w, kv).open(LPLAN, LMETA);
+    expect(t!.phase).toBe("DONE_LOCK_FAILED");
+    expect(t!.body).toBe("Lock failed, hedge open, floating rate applies.");
+    expect(t!.steps.at(-1)).toMatchObject({ key: "leg3", status: "failed" });
+    expect(w.px.iocs).toHaveLength(1); // no unwind
+    expect(venueNet(w)).toBe(0n);
+    expect((await positionStore(kv, 10143, ME).load()).sizeWad).toBe(1_000n * WAD);
+  });
+
+  const CLOSE1K: CloseExecPlan = { meridianSide: "buy", perplSide: "sell", sizeWad: 1_000n * WAD, meridianLimitPriceWad: 26200n * 10n ** 12n, perplRefPriceWad: 2551n * 10n ** 13n, perplSlippageBps: 100n, perplStepWad: WAD };
+  const SWAP_BACK = { side: "buy" as const, sizeWad: 1_000n * WAD, limitPriceWad: 113n * 10n ** 16n };
+
+  it("close with a lock: the swap is bought back FIRST (reduce-only), then Meridian, then Perpl ⇒ flat everywhere", async () => {
+    const w = world();
+    const { kv } = memKv();
+    const ex = executor(() => w, kv);
+    await ex.open(LPLAN, LMETA);
+    const t = await ex.close(CLOSE1K, META, SWAP_BACK);
+    expect(t!.phase).toBe("CLOSED");
+    expect(w.ch.swapNet).toBe(0n);
+    expect(venueNet(w)).toBe(0n);
+    expect(w.px.net).toBe(0);
+    expect(t!.steps.map((x) => [x.key, x.status])).toEqual([["swap-close", "filled"], ["close-m", "filled"], ["close-p1", "filled"]]);
+  });
+
+  it("the lock won't close ⇒ nothing else is sent: the pair stays hedged (never a swap without its hedge, never a hedge half-closed)", async () => {
+    const w = world({ ...ALL, swapFill: (o) => (o.reduceOnly ? "revert" : o.lots) });
+    const { kv } = memKv();
+    const ex = executor(() => w, kv);
+    await ex.open(LPLAN, LMETA);
+    const before = { iocs: w.px.iocs.length, mined: w.ch.mined.size };
+    const t = await ex.close(CLOSE1K, META, SWAP_BACK);
+    expect(t!.phase).toBe("ABORTED");
+    expect(t!.body).toMatch(/^Couldn't close the fixed-rate lock first, so nothing else was sent/);
+    expect(w.px.iocs.length).toBe(before.iocs);
+    expect(w.ch.mined.size).toBe(before.mined + 1); // only the reverted swap tx
+    expect(w.ch.swapNet).toBe(-1_000n * WAD);
+    expect((await positionStore(kv, 10143, ME).load()).sizeWad).toBe(1_000n * WAD);
+  });
+
+  for (const [name, run] of [
+    ["open with lock", "open"],
+    ["close with lock", "close"],
+  ] as const) {
+    it(`${name}: every snapshot, early and late kill ⇒ terminal, nothing sent twice, perp exposure = shown leftover, swap never left without its hedge`, async () => {
+      const w0 = world();
+      const { kv, m } = memKv();
+      const pre = executor(() => w0, kv);
+      if (run === "close") await pre.open(LPLAN, LMETA);
+      const caps: { rec: string; w: World; kv: Map<string, string> }[] = [];
+      const runs = earnRecordStore(kv, 10143, ME);
+      const spy = { ...runs, save: async (r: EarnRecord) => { caps.push({ rec: encodeEarnRecord(r), w: { px: w0.px.clone(), ch: w0.ch.clone(), coll: { calls: 0 } }, kv: new Map(m) }); await runs.save(r); } };
+      const ref = executor(() => w0, kv, { runs: spy });
+      await (run === "open" ? ref.open(LPLAN, LMETA) : ref.close(CLOSE1K, META, SWAP_BACK));
+      const endW = { px: w0.px.clone(), ch: w0.ch.clone(), coll: { calls: 0 } };
+      for (let k = 0; k < caps.length; k++) {
+        for (const late of [false, true]) {
+          const at = late ? (caps[k + 1]?.w ?? endW) : caps[k]!.w;
+          const w: World = { px: at.px.clone(), ch: at.ch.clone(), coll: { calls: 0 } };
+          const store = memKv(caps[k]!.kv);
+          store.m.set(`meridian.earn.run.10143.${ME.toLowerCase()}`, caps[k]!.rec);
+          const t = await executor(() => w, store.kv).resume();
+          const where = `${name} snapshot ${k} ${late ? "late" : "early"}`;
+          expect([where, t?.phase]).toEqual([where, expect.stringMatching(/^(DONE|DONE_LOCK_FAILED|ABORTED|CLOSED)$/)]);
+          expect([where, w.px.iocs.length <= endW.px.iocs.length, w.ch.mined.size <= endW.ch.mined.size]).toEqual([where, true, true]);
+          expect([where, venueNet(w)]).toEqual([where, await shownLeftover(store.kv)]);
+          // a swap is open only while the pair that it fixes is open
+          const pos = await positionStore(store.kv, 10143, ME).load();
+          expect([where, w.ch.swapNet !== 0n && pos.sizeWad === 0n]).toEqual([where, false]);
+        }
+      }
+    });
+  }
 });
 
 describe("kill at every persisted snapshot → resume (fresh executor, nothing in memory)", () => {

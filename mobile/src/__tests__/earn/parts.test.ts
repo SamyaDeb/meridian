@@ -5,6 +5,7 @@ import { perplRateToAprWad, type FundingEvent } from "@meridian/core/perpl";
 import { meridianEffectiveAprWad } from "@meridian/core/route";
 import { decodeFunctionData, erc20Abi, type Address } from "viem";
 import { ensureEarnCollateral, perplTopUp } from "../../features/earn/collateral";
+import { SwapReader } from "../../features/earn/data/swap";
 import { blocksPerHour, gapSeries, GapHistory } from "../../features/earn/history";
 import { fs, path, sourceFiles, SRC_DIR } from "../node";
 
@@ -31,14 +32,27 @@ describe("ensureEarnCollateral", () => {
   };
   it("both venues already cover their leg ⇒ no passkey prompt", async () => {
     const { d, calls } = deps(10n * WAD, 10n * WAD);
-    expect(await ensureEarnCollateral(d, 5n * WAD, 5n * WAD)).toEqual({ meridian: false, perplCns: 0n });
+    expect(await ensureEarnCollateral(d, 5n * WAD, 5n * WAD)).toEqual({ meridian: false, perplCns: 0n, lockWad: 0n });
     expect(calls).toEqual([]);
   });
   it("both short ⇒ one prompt; Perpl's shortfall rounded UP to whole token units", async () => {
     const { d, calls } = deps(0n, 1n * WAD);
     const r = await ensureEarnCollateral(d, 5n * WAD + 1n, 5n * WAD);
-    expect(r).toEqual({ meridian: true, perplCns: 4_000_001n });
+    expect(r).toEqual({ meridian: true, perplCns: 4_000_001n, lockWad: 0n });
     expect(calls).toEqual(["prompt", `meridian ${5n * WAD}`, "perpl 4000001"]);
+  });
+  it("Lock: its swap-market deposit rides the SAME prompt; alone it still prompts once; no lock market ⇒ refused before any prompt", async () => {
+    const { d, calls } = deps(0n, 0n);
+    const withLock = { ...d, depositLock: async (_a: unknown, w: bigint) => void calls.push(`lock ${w}`) };
+    await ensureEarnCollateral(withLock, 1n * WAD, 1n * WAD, 3n * WAD);
+    expect(calls).toEqual(["prompt", `meridian ${WAD}`, "perpl 1000000", `lock ${3n * WAD}`]);
+    calls.length = 0;
+    const covered = { ...withLock, freeMeridian: async () => 9n * WAD, freePerpl: async () => 9n * WAD };
+    expect(await ensureEarnCollateral(covered, WAD, WAD, 2n * WAD)).toEqual({ meridian: false, perplCns: 0n, lockWad: 2n * WAD });
+    expect(calls).toEqual(["prompt", `lock ${2n * WAD}`]);
+    calls.length = 0;
+    await expect(ensureEarnCollateral(d, WAD, WAD, WAD)).rejects.toThrow(/fixed-rate market/);
+    expect(calls).toEqual([]);
   });
 });
 
@@ -100,5 +114,40 @@ describe("dev flag stays out of release builds", () => {
   it("check:release greps the bundle for the dev-flag marker", () => {
     const guard = fs.readFileSync(path.join(SRC_DIR, "..", "scripts", "check-release.mjs"), "utf8");
     expect(guard).toMatch(/meridian-dev-force-meridian-fail/);
+  });
+});
+
+describe("swap reader (Lock inputs from the chain)", () => {
+  it("statics once (tick, lot, params, maturity, cap APR = rateCap · YEAR), then per block only while Earn is shown", async () => {
+    const calls: string[][] = [];
+    const tick = 10n ** 14n;
+    const lot = 1_000n * WAD;
+    const client = {
+      multicall: async ({ contracts }: { contracts: { functionName: string }[] }) => {
+        calls.push(contracts.map((c) => c.functionName));
+        if (contracts[0]!.functionName === "tickSize")
+          return [tick, lot, { liqHorizonSec: 86_400n, aprMoveBuffer: 5n * 10n ** 16n, imMultiplier: 15n * 10n ** 17n, takerFeeApr: 2n * 10n ** 15n }, 1_794_000_000n, { rateCap: 555_555_555_556n }];
+        return [
+          { status: "success", result: [[11200], [2n]] },
+          { status: "success", result: [[11250], [1n]] },
+          { status: "success", result: 12n * 10n ** 16n },
+          { status: "success", result: 2_592_000n },
+          { status: "success", result: false },
+          { status: "success", result: { collateral: 50n * WAD, accruedNet: -1n * WAD, avgFixedApr: 12n * 10n ** 16n } },
+          { status: "success", result: { size: -lot, fixedAprNotional: -120n * WAD } },
+        ];
+      },
+    };
+    const r = new SwapReader({ client: client as never, market: A, book: A, clearingHouse: A, address: A });
+    expect(r.onBlock(10n)).toBeUndefined(); // not on screen
+    r.active.set(true);
+    await r.onBlock(10n);
+    await r.onBlock(11n);
+    expect(calls.filter((c) => c[0] === "tickSize")).toHaveLength(1);
+    const s = r.store.get();
+    expect(s).toMatchObject({ tickSizeWad: tick, lotSizeWad: lot, capAprWad: 555_555_555_556n * 31_536_000n, markAprWad: 12n * 10n ** 16n, tauSec: 2_592_000n, matured: false, bookKnown: true, atBlock: 11n });
+    expect(s.bids).toEqual([{ priceWad: 11200n * tick, sizeWad: 2n * lot }]);
+    // settled collateral = collateral + accruedNet (FundingSwapMarket._previewSettle); K = fixedAprNotional
+    expect(s.account).toEqual({ collateralWad: 49n * WAD, sizeWad: -lot, kWad: -120n * WAD, avgFixedAprWad: 12n * 10n ** 16n });
   });
 });
