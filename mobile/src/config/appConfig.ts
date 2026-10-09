@@ -34,6 +34,10 @@ export type AppConfig = {
   live: boolean;
   /** why `live` is false, in plain words */
   notLiveReason: string | undefined;
+  /** Envio GraphQL endpoint for Meridian history (EXPO_PUBLIC_INDEXER_URL); undefined ⇒ Activity lists this app's own trades + Perpl only */
+  indexerUrl: string | undefined;
+  /** the web terminal ("Open full terminal"); undefined when this env's web app isn't known */
+  webUrl: string | undefined;
 };
 
 const IDENTITY: Record<AppEnv, { chainId: 143 | 10143; rpId: string; androidPackage: string }> = {
@@ -41,6 +45,13 @@ const IDENTITY: Record<AppEnv, { chainId: 143 | 10143; rpId: string; androidPack
   staging: { chainId: 10143, rpId: "meridian-testnet.vercel.app", androidPackage: "xyz.meridianfi.app.staging" },
   production: { chainId: 143, rpId: "meridianfi.vercel.app", androidPackage: "xyz.meridianfi.app" },
 };
+
+/**
+ * Web terminal per env. Staging: the existing testnet Vercel project (MOBILE_PLAN §5, 8 Oct: `/` 307 → /trade).
+ * > VERIFY: the production web URL (meridianfi.vercel.app is a placeholder that only claims the rpId host, §5) — set it
+ * here on mainnet day (N9); until then the button is hidden on production builds.
+ */
+const WEB: Record<AppEnv, string | undefined> = { development: "https://meridian-testnet.vercel.app", staging: "https://meridian-testnet.vercel.app", production: undefined };
 
 const CHAINS: Record<143 | 10143, Chain> = { 143: monad, 10143: monadTestnet };
 
@@ -63,6 +74,7 @@ export type AppConfigInput = {
   meridianDeployments: Partial<Record<number, unknown>>;
   /** parsed deployments/perpl.json */
   perplJson: unknown;
+  indexerUrl?: string | undefined;
 };
 
 export function buildAppConfig(i: AppConfigInput): AppConfig {
@@ -73,6 +85,8 @@ export function buildAppConfig(i: AppConfigInput): AppConfig {
   if (http !== undefined && !/^https:\/\//.test(http)) throw new Error("EXPO_PUBLIC_MONAD_RPC_URL must be an https:// URL");
   const ws = clean(i.wsUrl);
   if (ws !== undefined && !/^wss:\/\//.test(ws)) throw new Error("EXPO_PUBLIC_MONAD_WS_URL must be a wss:// URL");
+  const indexerUrl = clean(i.indexerUrl);
+  if (indexerUrl !== undefined && !/^https:\/\//.test(indexerUrl)) throw new Error("EXPO_PUBLIC_INDEXER_URL must be an https:// URL");
 
   let rpc: RpcConfig | undefined;
   if (http !== undefined) rpc = { http, ws, isPublic: false };
@@ -101,5 +115,7 @@ export function buildAppConfig(i: AppConfigInput): AppConfig {
     perplWsUrl: perpl.status === "deployed" ? PERPL_WS[id.chainId] : undefined,
     live: reasons.length === 0,
     notLiveReason: reasons.length ? reasons.join(" · ") : undefined,
+    indexerUrl,
+    webUrl: WEB[env],
   };
 }

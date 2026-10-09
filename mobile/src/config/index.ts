@@ -14,6 +14,7 @@ export function getAppConfig(): AppConfig {
     appEnv: (Constants.expoConfig?.extra as { appEnv?: unknown } | undefined)?.appEnv,
     rpcUrl: process.env.EXPO_PUBLIC_MONAD_RPC_URL,
     wsUrl: process.env.EXPO_PUBLIC_MONAD_WS_URL,
+    indexerUrl: process.env.EXPO_PUBLIC_INDEXER_URL,
     // deployments/143.json doesn't exist until mainnet day (N9): add `143: meridian143` then.
     meridianDeployments: { 10143: meridian10143 },
     perplJson,

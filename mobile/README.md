@@ -12,6 +12,8 @@ cd mobile && npx expo start --dev-client     # needs a dev build installed on th
 Env (never committed): `mobile/.env.local` or EAS environment variables
 - `EXPO_PUBLIC_MONAD_RPC_URL` — the app-tier RPC key (it ships inside the APK: never the bots' key)
 - `EXPO_PUBLIC_MONAD_WS_URL` — optional; heads over WebSocket, else a 400 ms poll
+- `EXPO_PUBLIC_INDEXER_URL` — optional; the Envio GraphQL URL of this env's indexer (LAUNCH_PLAN §4.3). Without it,
+  Activity lists this app's own trades + Perpl history and says Meridian history needs the indexer
 - `APP_ENV` — `development` (default; testnet, may fall back to viem's public RPC with a badge) · `staging` · `production`
 - `EXPO_PUBLIC_SHORT_LOCK=1` — dev builds only: idle lock after 60 s, background lock after 30 s (device QA)
 - `EXPO_PUBLIC_FAKE_PASSKEY=1` — dev builds with `APP_ENV=development` only: a fake WebAuthn client for emulators without
