@@ -133,15 +133,17 @@ of 2 × the binding venue) → "≈ $Y / day"; legs in plain words; "No edge rig
 - **Account reads** run while any holder is on: `useAccountReadsWhileFocused()` (Home, Trade) and the liquidation
   alert while the app is in the foreground. `focus` is a counter, so tab focus/blur order can't switch reads off.
 - **Positions on Home** = the N5 `PositionCards` (swipe + visible Close → summary → hold/tap → receipt), plus a
-  funding line (Meridian −pendingFunding, Perpl premium PnL; + = received) and a "Basis trade" header when one
-  Meridian and one Perpl position are equal and opposite (fallback until N6 stores a `basisId`).
+  funding line (Meridian −pendingFunding, Perpl premium PnL; + = received). Grouping: an open Earn pair from its
+  record ⇒ "Earn · basis · N MON each side" (or a warning when the venues no longer hold all of it); only without an
+  Earn record, one Meridian and one Perpl position equal and opposite ⇒ "Basis trade" (fallback).
 - **Activity** (`features/activity/`, Home shows the latest 3, `app/activity.tsx` all, pull-to-refresh on both):
   (1) this app's receipts, persisted per (chain, wallet) in SecureStore (`meridian.activity.<chain>.<wallet>`, newest
   25, non-secret); (2) Perpl `GET /v1/trading/fills` grouped per order + `GET /v1/trading/account-history` (deposit,
   withdrawal, liquidation, funding), signed REST, one page of 50 each; (3) Meridian `Trade` / `FundingPayment` /
   `Liquidation` from the Envio indexer, only when `EXPO_PUBLIC_INDEXER_URL` is set (> VERIFY root fields + `_ilike`
   against the live Hasura console, as the web app's `account.ts`). Merged newest first, deduped (the app's own receipt
-  wins over Perpl's row for the same order id / Meridian tx hash). Trade rows → the receipt modal; other rows →
+  wins over Perpl's row for the same order id / Meridian tx hash; an Earn run's row stands for its legs' rows). Trade
+  rows → the receipt modal; Earn rows → the Earn receipt; other rows →
   `app/activity-item.tsx`. A source that is off or failed says so under the list. Not listed: wallet transfers and
   Meridian deposits (no indexed per-event source; the arrival toast covers incoming AUSD live).
 - **Settings**: passkey card, wallet identicon + copy, recovery export, Perpl card, sign out (N3/N4/N4b), plus
@@ -155,7 +157,32 @@ of 2 × the binding venue) → "≈ $Y / day"; legs in plain words; "No edge rig
   lot), one retry at 2× slippage, else MANUAL with the unhedged size named. Persisted per (chain, wallet) in SecureStore
   (`meridian.trade.closeall.<chain>.<wallet>`) after every event and resumed on launch (signed Meridian tx re-broadcast;
   Perpl order adopted by rq floor, which is cleared on every phase change). Unrelated positions close one by one
-  (Meridian first, stop at the first that doesn't fill). One order at a time across the Trade executor and Close all.
+  (Meridian first, stop at the first that doesn't fill). An Earn pair and a fixed-rate lock: see below.
 - **Cut (MOBILE_PLAN cut order, no new native dependency ⇒ the EAS dev build `4e91111a` still works):** push
   (`expo-notifications` + the `/api/push/*` backend, which doesn't exist yet), share card (`react-native-view-shot` +
   `expo-sharing`), Flip / Add margin.
+
+## Earn and Home together (N6 + N7 integration)
+- **Close all with Earn + Lock** (`features/earn/closeAll.ts`, `features/earn/closePair.ts`, `app/close-all.tsx`). The
+  Earn record decides what belongs together, never sizes alone. An open Earn pair (`perplSide` set, `sizeWad` > 0) closes
+  through `EarnExecutor.close` with the same plan and lock order the Earn screen builds (`planEarnPairClose`): the
+  wallet's lock bought / sold back first, in full, else nothing else is sent; then Meridian, then Perpl for exactly what
+  closed; the run is folded into the record by run id, so the record says FLAT when the venues are. Positions outside
+  the pair keep N7's path, and only after the pair closed in full. Refused, with the reason and where to close it,
+  sending nothing: a lock with no Earn record ("…Close the fixed-rate lock first (Settings → Open full terminal →
+  Fix)…"), a lock that doesn't match the record ("…Close the fixed-rate lock on Earn first…"), a record the venues no
+  longer hold. Close all waits while the lock (the swap reader, held while the modal is on top) or the record is still
+  being read. An Earn leftover closed by Close all shrinks in the record. The Earn screen's Close uses the same helper
+  and also waits for the lock to be read.
+- **One order at a time** (`features/trade/exec/orderLock.ts`): TradeProvider owns one lock; the Trade executor (ticket,
+  single close, Earn's one-tap leftover close), Close all and Earn (registered from EarnProvider through the kit) ask it
+  before starting, and every entry point refuses with a plain line while another runs ("An Earn trade is still going
+  through. Try again when it's done.", "A trade is still going through…", "Close all is still going through…"). After
+  an unlock or relaunch, resume runs single trade → Close all → Earn, one at a time, awaited; a resume while another
+  executor runs leaves its record for the next one.
+- **Earn in Activity**: each Earn run (open, close, the one-tap leftover close) is one entry in the app's activity log
+  (`kind: "earn"`, same key; N7's receipt entries still decode, unknown kinds are skipped): outcome title, both sizes,
+  the lock's, `atMs` / block, its legs' ids (their Perpl fills / Meridian trades fold into the row) and the plain
+  timeline without the live one-tap close. The executor logs it when the run reaches a terminal phase, before the run
+  record is cleared (a resume after a kill logs it again under the same id: still one row). The row opens
+  `earn-receipt` with that timeline; the feed refreshes after an Earn run, as after a trade.
