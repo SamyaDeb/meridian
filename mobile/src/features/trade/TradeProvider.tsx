@@ -1,9 +1,11 @@
 // Trade for the unlocked wallet (mounted under the auth gate): the chart feed (Perpl candles + live last price per block),
-// the account reader (positions + collateral on both venues, per block while the Trade screen is focused) and the
+// the account reader (positions + collateral on both venues, per block while a screen that shows them is focused:
+// Trade, Home; `focus` counts them so a tab switch's focus/blur order can't switch reads off) and the
 // executor (one order at a time, persisted, resumed on launch). Built from the app config + core; nothing invented.
 import { clearingHouseAbi } from "@meridian/core/meridian";
 import { createPerplClient, httpTransport } from "@meridian/core/perpl";
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useFocusEffect } from "expo-router";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppState } from "react-native";
 import { useAccountAddress, useAuthController, useAuthStatus } from "../../auth/AuthProvider";
 import { secureKv } from "../../auth/secureKv";
@@ -21,9 +23,9 @@ import { createPerplLeg } from "./exec/perplLeg";
 import { recordStore, type TradeRecord } from "./exec/record";
 import type { TradeSession } from "./exec/runTrade";
 
-export type TradeKit = { chart: ChartFeed | undefined; accounts: AccountsReader | undefined; executor: TradeExecutor | undefined; focus: Store<boolean> };
+export type TradeKit = { chart: ChartFeed | undefined; accounts: AccountsReader | undefined; executor: TradeExecutor | undefined; focus: Store<number> };
 
-const TradeContext = createContext<TradeKit>({ chart: undefined, accounts: undefined, executor: undefined, focus: new Store(false) });
+const TradeContext = createContext<TradeKit>({ chart: undefined, accounts: undefined, executor: undefined, focus: new Store(0) });
 
 export function TradeProvider({ children, kit: injected }: { children: ReactNode; kit?: TradeKit }) {
   const live = useLive();
@@ -32,7 +34,7 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
   const { address } = useAccountAddress();
   const venue = usePerplVenue();
   const cfg = live.config;
-  const [focus] = useState(() => new Store(false));
+  const [focus] = useState(() => new Store(0));
 
   const chart = useMemo(() => {
     if (injected) return injected.chart;
@@ -128,7 +130,7 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
       if (b === undefined || b === last) return;
       last = b;
       chart?.onLive(live.perpl?.store.get().lastWad);
-      if (focus.get()) void accounts?.onBlock(b);
+      if (focus.get() > 0) void accounts?.onBlock(b);
     });
   }, [live, chart, accounts, focus]);
 
@@ -150,3 +152,20 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
 }
 
 export const useTrade = (): TradeKit => useContext(TradeContext);
+
+/** Count `focus` up while the calling component is held (a screen, or an always-on reader like in-app alerts). */
+export function holdAccountReads(focus: Store<number>): () => void {
+  focus.set(focus.get() + 1);
+  let held = true;
+  return () => {
+    if (!held) return;
+    held = false;
+    focus.set(Math.max(0, focus.get() - 1));
+  };
+}
+
+/** Positions + collateral are read per block while the calling screen is on top. */
+export function useAccountReadsWhileFocused(): void {
+  const { focus } = useTrade();
+  useFocusEffect(useCallback(() => holdAccountReads(focus), [focus]));
+}

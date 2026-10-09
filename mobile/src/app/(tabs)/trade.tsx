@@ -1,9 +1,8 @@
 // Trade (MOBILE_PLAN N5, research §5.3): header (price per block, 24 h, both fundings, countdown) → chart (Lite: a
 // sparkline; Pro: the native chart with mark / entry / liq lines, scrub + haptics, timeframes) → position cards →
 // Pro: both books. Sticky Long / Short open the ticket sheet. Lite is the default; Pro is remembered (G3).
-import { useFocusEffect } from "expo-router";
 import { wadToFloatForDisplay } from "@meridian/core/util";
-import { memo, useCallback, useRef } from "react";
+import { memo, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { secureKv } from "../../auth/secureKv";
 import { Screen } from "../../features/shell/Screen";
@@ -15,7 +14,7 @@ import { PositionCards } from "../../features/trade/positions/PositionCards";
 import { useTradeView } from "../../features/trade/prefs";
 import { TicketSheet, type TicketRef } from "../../features/trade/ticket/TicketSheet";
 import { TradeHeader } from "../../features/trade/TradeHeader";
-import { useTrade } from "../../features/trade/TradeProvider";
+import { useAccountReadsWhileFocused, useTrade } from "../../features/trade/TradeProvider";
 import { usePerpl } from "../../live/hooks";
 import type { PerplMarketState } from "../../live/perplMarket";
 import { Store, useStore } from "../../live/store";
@@ -66,16 +65,11 @@ const ProChart = memo(function ProChart() {
 
 export default function Trade() {
   const ticket = useRef<TicketRef>(null);
-  const { focus, chart } = useTrade();
+  const { chart } = useTrade();
   const [view, setView] = useTradeView(secureKv);
 
   // positions / collateral are read per block only while this screen is on top
-  useFocusEffect(
-    useCallback(() => {
-      focus.set(true);
-      return () => focus.set(false);
-    }, [focus]),
-  );
+  useAccountReadsWhileFocused();
 
   return (
     <Screen
