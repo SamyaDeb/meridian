@@ -10,6 +10,7 @@ import { Books } from "../../features/trade/Books";
 import { PriceChart } from "../../features/trade/chart/PriceChart";
 import { TIMEFRAMES, type ChartState, type Timeframe } from "../../features/trade/chart/feed";
 import type { AccountsState } from "../../features/trade/data/accounts";
+import { useEarnPair } from "../../features/earn/EarnProvider";
 import { PositionCards } from "../../features/trade/positions/PositionCards";
 import { CHART_MODE_KEY, PRO_TAB_KEY, usePref, useTradeView, type ChartMode, type ProTab } from "../../features/trade/prefs";
 import { Trades } from "../../features/trade/Trades";
@@ -103,6 +104,7 @@ export default function Trade() {
 
   // positions / collateral are read per block only while this screen is on top
   useAccountReadsWhileFocused();
+  const earnPair = useEarnPair();
 
   return (
     <Screen
@@ -133,7 +135,7 @@ export default function Trade() {
         <TradeHeader chart={chart} />
         {view === "pro" ? <ProChart /> : <LiteChart />}
       </Card>
-      <PositionCards />
+      <PositionCards earnPair={earnPair} />
       {view === "pro" ? <ProTabs /> : null}
       <TicketSheet ref={ticket} />
     </Screen>

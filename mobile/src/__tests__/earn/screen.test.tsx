@@ -235,6 +235,13 @@ it("the hedged position closes Meridian first, then Perpl for exactly what close
   expect(screen.getByTestId("earn-position-size")).toHaveTextContent("300 MON each side");
   await fireEvent.press(screen.getByTestId("earn-close"));
   expect(screen.getByTestId("earn-close-summary")).toHaveTextContent(/^Close 300 MON on Meridian first, then the same on Perpl/);
+  // the wallet's fixed-rate lock isn't read yet: nothing is sent (a pair closed under an open lock would leave the swap naked)
+  await fireEvent.press(screen.getByTestId("earn-close-confirm-tap"));
+  await wait(20);
+  expect(s.sent).toEqual([]);
+  expect(screen.getByTestId("earn-error")).toHaveTextContent("Reading your fixed-rate lock… Try again in a moment.");
+  // read: no lock
+  await act(async () => s.swap.store.update({ atBlock: 2n, account: { collateralWad: 0n, sizeWad: 0n, kWad: 0n, avgFixedAprWad: 0n } }));
   await fireEvent.press(screen.getByTestId("earn-close-confirm-tap"));
   await wait(20);
   expect(s.sent.map((l) => [l.venue, l.side, l.reduceOnly])).toEqual([

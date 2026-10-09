@@ -27,7 +27,8 @@ import { earnReceiptStore, type EarnExecState } from "./executor";
 import type { GapHistoryState } from "./history";
 import { LeftoverClose } from "./LeftoverClose";
 import type { SwapState } from "./data/swap";
-import { EARN_LEVERAGE, planEarnClose, planSwapClose, type EarnLock, type EarnQuote } from "./plan";
+import { planEarnPairClose } from "./closePair";
+import { EARN_LEVERAGE, type EarnLock, type EarnQuote } from "./plan";
 import { FLAT, type EarnPosition } from "./record";
 import { TimelineView } from "./TimelineView";
 import { useEarnInputs, useEarnQuote, type EarnInputs } from "./useEarnQuote";
@@ -239,11 +240,11 @@ export function EarnScreen() {
   useFocusEffect(
     useCallback(() => {
       const release = holdAccountReads(focus);
-      swap?.active.set(true);
+      const releaseSwap = swap?.hold();
       void executor?.resume();
       return () => {
         release();
-        swap?.active.set(false);
+        releaseSwap?.();
       };
     }, [focus, executor, swap]),
   );
@@ -284,27 +285,11 @@ export function EarnScreen() {
 
   const closePair = () => {
     if (!executor || busy) return;
-    const a = inputs.accounts;
-    const pp = a.perpl?.position;
-    const plan = planEarnClose({
-      perplSide: pos.perplSide,
-      sizeWad: pos.sizeWad,
-      meridianSizeWad: a.meridian?.sizeWad,
-      perpl: pp ? { side: pp.side, sizeWad: pp.sizeWad } : undefined,
-      meridian: inputs.meridian,
-      perplBook: inputs.perpl,
-    });
-    if (!plan.ok) return fail(new Error(plan.error));
-    // a Lock closes first (never leaves a swap without its hedge)
-    const sw = inputs.swap;
-    let swapOrder;
-    if (sw?.account && sw.account.sizeWad !== 0n) {
-      const sc = planSwapClose({ sizeWad: sw.account.sizeWad, bids: sw.bookKnown ? sw.bids : undefined, asks: sw.bookKnown ? sw.asks : undefined, tickSizeWad: sw.tickSizeWad, lotSizeWad: sw.lotSizeWad });
-      if (!sc.ok) return fail(new Error(sc.error));
-      swapOrder = sc.order;
-    }
+    // the same plan Close all uses for an Earn pair: a Lock closes first (never leaves a swap without its hedge)
+    const c = planEarnPairClose(pos, inputs, swap !== undefined);
+    if (!c.ok) return fail(new Error(c.error));
     setError(undefined);
-    executor.close(plan.plan, { summary: `Close ${sizeText(plan.sizeWad, inputs.perpl.stepWad ?? 1n)} MON on both venues`, perplPriceDp: inputs.perplPriceDp, meridianPriceDp: inputs.meridianPriceDp, leverage100: Number(EARN_LEVERAGE) * 100 }, swapOrder).then((t) => finish(t, false), fail);
+    executor.close(c.plan, c.meta, c.swap).then((t) => finish(t, false), fail);
   };
 
   return (
