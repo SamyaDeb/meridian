@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuthStatus } from "../auth/AuthProvider";
+import { TradeProvider } from "../features/trade/TradeProvider";
 import { WalletFeedProvider } from "../features/wallet/WalletFeedProvider";
 import { LiveProvider } from "../live/LiveProvider";
 import { PerplProvider } from "../venues/perpl/PerplProvider";
@@ -46,17 +47,21 @@ export default function RootLayout() {
         <ThemeProvider value={theme}>
           <LiveProvider>
             <AuthProvider>
-            <PerplProvider>
-            <BottomSheetModalProvider>
-              <ToastProvider>
-                <WalletFeedProvider>
-                  <StatusBar style="light" />
-                  <RootStack />
-                </WalletFeedProvider>
-                <OfflineBanner />
-              </ToastProvider>
-            </BottomSheetModalProvider>
-            </PerplProvider>
+              <PerplProvider>
+                <ToastProvider>
+                  <WalletFeedProvider>
+                    {/* sheets render through a portal at BottomSheetModalProvider: every context a sheet's content uses
+                        (toast, wallet feed, trade) must sit ABOVE it */}
+                    <TradeProvider>
+                      <BottomSheetModalProvider>
+                        <StatusBar style="light" />
+                        <RootStack />
+                      </BottomSheetModalProvider>
+                    </TradeProvider>
+                  </WalletFeedProvider>
+                  <OfflineBanner />
+                </ToastProvider>
+              </PerplProvider>
             </AuthProvider>
           </LiveProvider>
         </ThemeProvider>

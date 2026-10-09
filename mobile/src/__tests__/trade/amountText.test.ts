@@ -1,4 +1,4 @@
-import { amountWadOf, decimalSeparator, displayAmount, pressKey, presetText } from "../../features/trade/ticket/numpad";
+import { amountWadOf, decimalSeparator, displayAmount, pressKey, presetText } from "../../features/trade/ticket/amountText";
 
 const WAD = 10n ** 18n;
 

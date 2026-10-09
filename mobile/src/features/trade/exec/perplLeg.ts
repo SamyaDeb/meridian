@@ -61,7 +61,9 @@ export function createPerplLeg(d: PerplLegDeps) {
       if (!t) throw new Error("Perpl isn't connected yet. Stay on this screen a moment and try again.");
       const sizeLns = Number(wadToLns(leg.sizeWad, d.market.sizeDecimals));
       if (!Number.isSafeInteger(sizeLns) || sizeLns < 1) throw new Error("Size is below Perpl's minimum (1 MON)");
-      await d.saveRqFloor(t.state.account?.lfr);
+      // the rq floor must be known before sending, or a kill mid-send couldn't find the order again
+      if (t.state.account === undefined) throw new Error("Perpl is still connecting. Try again in a moment.");
+      await d.saveRqFloor(t.state.account.lfr);
       const p = await t.ioc({ side: leg.side, reduceOnly: leg.reduceOnly, sizeLns, limitPns: limitPnsOf(leg.limitPriceWad, leg.side, d.market.priceDecimals), leverage: d.leverage100 });
       const ref = `${p.rq}:${p.lb}`;
       live.set(ref, p.outcome);

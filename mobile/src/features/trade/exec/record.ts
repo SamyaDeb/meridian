@@ -23,7 +23,8 @@ export type TradeMeta = {
   /** chain head when the order went out (blocks-to-fill on the receipt) */
   sentAtBlock?: bigint;
   perpl?: { rqFloor?: number };
-  meridian?: { raw?: Hex; nonce?: number };
+  /** raw / nonce: the signed order; needWad: margin + fee the venue must hold before sending (deposit the rest) */
+  meridian?: { raw?: Hex; nonce?: number; needWad?: bigint };
 };
 
 export type TradeRecord = { v: 1; state: SingleState; meta: TradeMeta };

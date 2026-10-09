@@ -211,32 +211,18 @@ function Ready({ view }: { view: OnboardingView }) {
   );
 }
 
-export function PerplOnboardingScreen() {
+/** The three checks with their status line, errors, txs and gas card: the Enable Perpl screen and, inline, the Trade
+ *  ticket on the first Perpl trade (research §5.3: progressive, not a detour). */
+export function PerplChecks({ compact = false }: { compact?: boolean }) {
   const { address } = useAccountAddress();
   const venue = usePerpl();
   const view = usePerplOnboarding(selView);
-  const busy = usePerplOnboarding(selBusy);
   const error = usePerplOnboarding(selError);
-  if (!venue) {
-    return (
-      <Screen footer={<Button title="Back" variant="secondary" onPress={() => router.back()} />}>
-        <Text variant="title" accessibilityRole="header">
-          Enable Perpl
-        </Text>
-        <Text tone="muted">Perpl isn't available in this build or the wallet is locked.</Text>
-      </Screen>
-    );
-  }
+  if (!venue) return <Text tone="muted">Perpl isn't available in this build or the wallet is locked.</Text>;
   const order = view ? checkOrder(view) : (["key", "account", "forwarding"] as const);
   const topUp = view?.next === "top-up";
   return (
-    <Screen footer={<Button title={view?.ready ? "Done" : "Later"} variant={view?.ready ? "primary" : "secondary"} onPress={() => (router.canGoBack() ? router.back() : router.replace("/portfolio"))} testID="btn-done" />}>
-      <View style={s.head}>
-        <Text variant="title" accessibilityRole="header">
-          Enable Perpl
-        </Text>
-        {busy === "refresh" ? <ActivityIndicator color={colors.muted} accessibilityLabel="Checking Perpl" /> : null}
-      </View>
+    <>
       <Text tone="muted" testID="perpl-reason">
         {view ? plainStatus(view) : "Checking your Perpl account…"}
       </Text>
@@ -245,7 +231,7 @@ export function PerplOnboardingScreen() {
           {error}
         </Text>
       ) : null}
-      {view?.ready ? <Ready view={view} /> : null}
+      {view?.ready && !compact ? <Ready view={view} /> : null}
       {order.map((c, i) =>
         c === "key" ? (
           <KeyCheck key={c} n={i + 1} state={view?.key ?? "unknown"} />
@@ -258,6 +244,33 @@ export function PerplOnboardingScreen() {
       {view?.next === "retry" ? <Button title="Check again" variant="secondary" onPress={() => void venue.refresh()} testID="btn-retry" /> : null}
       <TxList />
       {!view?.ready && address ? <GasCard address={address} /> : null}
+    </>
+  );
+}
+
+export function PerplOnboardingScreen() {
+  const venue = usePerpl();
+  const view = usePerplOnboarding(selView);
+  const busy = usePerplOnboarding(selBusy);
+  if (!venue) {
+    return (
+      <Screen footer={<Button title="Back" variant="secondary" onPress={() => router.back()} />}>
+        <Text variant="title" accessibilityRole="header">
+          Enable Perpl
+        </Text>
+        <Text tone="muted">Perpl isn't available in this build or the wallet is locked.</Text>
+      </Screen>
+    );
+  }
+  return (
+    <Screen footer={<Button title={view?.ready ? "Done" : "Later"} variant={view?.ready ? "primary" : "secondary"} onPress={() => (router.canGoBack() ? router.back() : router.replace("/portfolio"))} testID="btn-done" />}>
+      <View style={s.head}>
+        <Text variant="title" accessibilityRole="header">
+          Enable Perpl
+        </Text>
+        {busy === "refresh" ? <ActivityIndicator color={colors.muted} accessibilityLabel="Checking Perpl" /> : null}
+      </View>
+      <PerplChecks />
     </Screen>
   );
 }
