@@ -4,7 +4,10 @@
 // carried from the previous close and flagged `gap` (drawn dimmed, never shown as a trade).
 import { pnsToWad, type Candle } from "@meridian/core/perpl";
 
-export type Point = { t: number; priceWad: bigint; gap?: true };
+/** `priceWad` = the close; o / h / l = the bucket's open / high / low (candles view). A gap carries the close flat. */
+export type Point = { t: number; priceWad: bigint; o: bigint; h: bigint; l: bigint; gap?: true };
+
+const flat = (t: number, p: bigint, gap?: true): Point => ({ t, priceWad: p, o: p, h: p, l: p, ...(gap ? { gap } : {}) });
 
 /** Points kept per series (≈ 4 KB of floats): enough for 1m over 4 h or 1D over ~8 months. */
 export const MAX_POINTS = 240;
@@ -12,7 +15,7 @@ export const MAX_POINTS = 240;
 const bucketOf = (tMs: number, resSec: number) => tMs - (((tMs % (resSec * 1000)) + resSec * 1000) % (resSec * 1000));
 
 function fillBetween(out: Point[], from: Point, toT: number, stepMs: number): void {
-  for (let t = from.t + stepMs; t < toT; t += stepMs) out.push({ t, priceWad: from.priceWad, gap: true });
+  for (let t = from.t + stepMs; t < toT; t += stepMs) out.push(flat(t, from.priceWad, true));
 }
 
 const cap = (pts: Point[]): Point[] => (pts.length > MAX_POINTS ? pts.slice(pts.length - MAX_POINTS) : pts);
@@ -22,7 +25,8 @@ export function candlesToPoints(candles: readonly Candle[], priceDecimals: numbe
   const step = resSec * 1000;
   const out: Point[] = [];
   for (const c of candles) {
-    const p: Point = { t: bucketOf(c.t, resSec), priceWad: pnsToWad(c.c, priceDecimals) };
+    const w = (v: number) => pnsToWad(v, priceDecimals);
+    const p: Point = { t: bucketOf(c.t, resSec), priceWad: w(c.c), o: w(c.o), h: w(c.h), l: w(c.l) };
     const last = out.at(-1);
     if (last && p.t <= last.t) continue;
     if (last) fillBetween(out, last, p.t, step);
@@ -38,15 +42,19 @@ export function candlesToPoints(candles: readonly Candle[], priceDecimals: numbe
 export function appendLive(pts: readonly Point[], resSec: number, tMs: number, priceWad: bigint): Point[] {
   const t = bucketOf(tMs, resSec);
   const last = pts.at(-1);
-  if (!last) return [{ t, priceWad }];
+  if (!last) return [flat(t, priceWad)];
   if (t < last.t) return pts as Point[];
   if (t === last.t) {
     if (last.priceWad === priceWad && !last.gap) return pts as Point[];
-    return [...pts.slice(0, -1), { t, priceWad }];
+    // the live candle: close moves, high / low widen; a gap bucket that sees a price opens at the carried close
+    const o = last.gap ? last.priceWad : last.o;
+    const h = last.gap ? (priceWad > o ? priceWad : o) : priceWad > last.h ? priceWad : last.h;
+    const l = last.gap ? (priceWad < o ? priceWad : o) : priceWad < last.l ? priceWad : last.l;
+    return [...pts.slice(0, -1), { t, priceWad, o, h, l }];
   }
   const out = [...pts];
   fillBetween(out, last, t, resSec * 1000);
-  out.push({ t, priceWad });
+  out.push(flat(t, priceWad));
   return cap(out);
 }
 

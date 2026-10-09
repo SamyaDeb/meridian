@@ -1,5 +1,6 @@
 // Native price chart (G2: react-native-svg + Reanimated, no new native dep, no WebView). The line is the Perpl last
-// price per candle close with the live point per block; horizontal lines for mark, entry and liquidation (a line off the
+// price per candle close with the live point per block, or candles (open/high/low/close per bucket, the live one widening
+// per block; up = long colour, down = short colour, a carried gap bucket drawn as a dim flat tick); horizontal lines for mark, entry and liquidation (a line off the
 // visible range is pinned to the edge with an arrow so the liq line never flattens the chart). Scrub: a horizontal drag
 // moves the crosshair on the UI thread; each new point under the finger fires one selection haptic and updates the
 // price / time label (only the label re-renders). Vertical swipes still scroll the screen.
@@ -29,21 +30,48 @@ export function timeLabel(tMs: number, resSec: number): string {
   return `${hh}:${mm}`;
 }
 
-export const PriceChart = memo(function PriceChart({ points, lines, priceDp, resSec, height = 200, testID }: { points: readonly Point[]; lines: ChartLines; priceDp: number; resSec: number; height?: number; testID?: string }) {
+export type CandlePaths = { up: string; down: string; gap: string };
+
+/** Candle bodies + wicks as three svg paths (one per colour), so 240 candles stay three elements. Display floats only. */
+export function candlePaths(points: readonly Point[], X: (i: number) => number, Y: (v: number) => number, bodyW: number): CandlePaths {
+  const out = { up: "", down: "", gap: "" };
+  const half = Math.max(0.5, bodyW / 2);
+  points.forEach((p, i) => {
+    const x = X(i);
+    const o = Y(wadToFloatForDisplay(p.o));
+    const c = Y(wadToFloatForDisplay(p.priceWad));
+    const h = Y(wadToFloatForDisplay(p.h));
+    const l = Y(wadToFloatForDisplay(p.l));
+    const top = Math.min(o, c);
+    const bot = Math.max(o, c, top + 1); // a doji keeps a 1 pt body
+    const seg = `M${x.toFixed(1)},${h.toFixed(1)}V${l.toFixed(1)}M${(x - half).toFixed(1)},${top.toFixed(1)}H${(x + half).toFixed(1)}V${bot.toFixed(1)}H${(x - half).toFixed(1)}Z`;
+    if (p.gap) out.gap += seg;
+    else if (p.priceWad >= p.o) out.up += seg;
+    else out.down += seg;
+  });
+  return out;
+}
+
+export const PriceChart = memo(function PriceChart({ points, lines, priceDp, resSec, mode = "line", height = 200, testID }: { points: readonly Point[]; lines: ChartLines; priceDp: number; resSec: number; mode?: "line" | "candles"; height?: number; testID?: string }) {
   const [width, setWidth] = useState(0);
   const [sel, setSel] = useState<number | undefined>(undefined);
 
   const geo = useMemo(() => {
     const ys = points.map((p) => wadToFloatForDisplay(p.priceWad));
     const keep = [lines.mark, lines.entry].filter((v): v is bigint => v !== undefined).map(wadToFloatForDisplay);
-    const dom = priceDomain(ys, keep);
+    // candles: the highs and lows must fit too
+    const range = mode === "candles" ? points.flatMap((p) => [wadToFloatForDisplay(p.h), wadToFloatForDisplay(p.l)]) : ys;
+    const dom = priceDomain(range, keep);
     const n = ys.length;
-    const X = (i: number) => (n <= 1 ? width : (i / (n - 1)) * width);
+    // candles keep half a body of room at both ends
+    const pad = mode === "candles" && n > 1 ? width / n / 2 : 0;
+    const X = (i: number) => (n <= 1 ? width : pad + (i / (n - 1)) * (width - 2 * pad));
     const Y = (v: number) => placeLine(v, dom, height).y;
     let d = "";
-    ys.forEach((v, i) => (d += `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`));
-    return { d, px: ys.map((_, i) => X(i)), py: ys.map(Y), dom };
-  }, [points, lines.mark, lines.entry, width, height]);
+    if (mode === "line") ys.forEach((v, i) => (d += `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`));
+    const candles = mode === "candles" ? candlePaths(points, X, Y, n > 0 ? (width / n) * 0.6 : 0) : undefined;
+    return { d, candles, px: ys.map((_, i) => X(i)), py: ys.map(Y), dom };
+  }, [points, lines.mark, lines.entry, width, height, mode]);
 
   const xs = useSharedValue<number[]>([]);
   const ys = useSharedValue<number[]>([]);
@@ -121,14 +149,18 @@ export const PriceChart = memo(function PriceChart({ points, lines, priceDp, res
 
   const selected = sel !== undefined ? points[sel] : undefined;
   const last = points.at(-1);
-  const summary = last ? `MON price chart, ${points.length} points, last ${fmtPrice(last.priceWad, priceDp)}` : "MON price chart, loading";
+  const summary = last ? `MON price ${mode === "candles" ? "candles" : "chart"}, ${points.length} ${mode === "candles" ? "candles" : "points"}, last ${fmtPrice(last.priceWad, priceDp)}` : "MON price chart, loading";
 
   return (
     <View testID={testID}>
       <View style={s.labelRow}>
         <Animated.View style={labelStyle}>
           <Text variant="caption" bold testID="chart-scrub-label">
-            {selected ? `${fmtPrice(selected.priceWad, priceDp)} · ${timeLabel(selected.t, resSec)}${selected.gap ? " · no trades" : ""}` : " "}
+            {selected
+              ? mode === "candles" && !selected.gap
+                ? `O ${fmtPrice(selected.o, priceDp)} H ${fmtPrice(selected.h, priceDp)} L ${fmtPrice(selected.l, priceDp)} C ${fmtPrice(selected.priceWad, priceDp)} · ${timeLabel(selected.t, resSec)}`
+                : `${fmtPrice(selected.priceWad, priceDp)} · ${timeLabel(selected.t, resSec)}${selected.gap ? " · no trades" : ""}`
+              : " "}
           </Text>
         </Animated.View>
       </View>
@@ -148,7 +180,15 @@ export const PriceChart = memo(function PriceChart({ points, lines, priceDp, res
               {lineSvg("mark", colors.muted, "2 4")}
               {lineSvg("entry", colors.brandSoft, "6 4")}
               {lineSvg("liq", colors.short, "4 3")}
-              <Path d={geo.d} stroke={colors.brand} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+              {geo.candles ? (
+                <>
+                  <Path d={geo.candles.gap} stroke={colors.border} strokeWidth={1} fill={colors.border} testID="candles-gap" />
+                  <Path d={geo.candles.up} stroke={colors.long} strokeWidth={1} fill={colors.long} testID="candles-up" />
+                  <Path d={geo.candles.down} stroke={colors.short} strokeWidth={1} fill={colors.short} testID="candles-down" />
+                </>
+              ) : (
+                <Path d={geo.d} stroke={colors.brand} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+              )}
               <AnimatedLine y1={0} y2={height} stroke={colors.text} strokeWidth={1} animatedProps={cross} />
               <AnimatedCircle r={4} fill={colors.text} stroke={colors.bg} strokeWidth={2} animatedProps={dot} />
             </Svg>
