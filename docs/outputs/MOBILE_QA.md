@@ -58,3 +58,21 @@ Tick a row only when it was seen on the phone.
 | U6 | Settings: passkey card "Passkey · Google Password Manager · active" with where it lives + what sign-out does; Sign out → Welcome → "Use an existing passkey" → same wallet ••xxxx | ⏳ | | |
 | U7 | TalkBack on: Welcome buttons, hero, Create, Wallet ready, Home hero + actions, Add funds Copy/Share, passkey card are all read | ⏳ | | |
 | U8 | Enable Perpl: "Allow Perpl to use exactly X AUSD" line, tx hashes only under "Details", success toast per step | ⏳ | | |
+
+## Native app (MOBILE_PLAN N5): Trade (Lite / Pro, live chart, both books, numpad ticket, receipt)
+
+Build: same EAS dev build `4e91111a` (no native dependency added in N5). JS from Metro on :8086 (branch `n5-trade`,
+`APP_ENV=development CI=1 npx expo start --dev-client --port 8086 --lan`). Testnet; Perpl rows need N4 onboarding
+READY (≥ 100 test AUSD on Perpl testnet, MON for gas); Meridian rows need liquidity on Meridian's testnet book (the MM
+bot running) or the screen correctly says "No liquidity right now". Tick only what was seen on the phone.
+
+| # | Check | Result | Seen by | Note |
+|---|---|---|---|---|
+| T1 | Trade tab: price ticks per block, block pulse, 24 h change, both funding APRs, Perpl countdown; Lite sparkline moves | ⏳ | | |
+| T2 | Pro: chart with 1m–1D chips; horizontal drag scrubs with one haptic tick per point, smooth (fps: ), label shows price · time; vertical swipe still scrolls; Books show both venues, better price outlined | ⏳ | | |
+| T3 | Long $5 (2×) → quote rows show both books after fees, BEST on the cheaper one → summary line → hold (or tap) → receipt with order id / tx, avg price, fee, blocks | ⏳ | | |
+| T4 | Position card: live PnL, liq price + distance meter, liq line on the Pro chart; swipe or tap Close → hold → receipt → card gone (flat) | ⏳ | | |
+| T5 | T3 + T4 on the other venue (tap its row in the ticket to force it) | ⏳ | | |
+| T6 | Kill the app right after confirming → relaunch → unlock → the trade resolves (receipt or "closed before sending"), never stuck | ⏳ | | |
+| T7 | Errors keep the input: e.g. 0.5 % slippage in a moving book or an amount above the wallet → specific message, amount still there | ⏳ | | |
+| T8 | TalkBack: Long/Short, numpad keys, presets, leverage (adjustable), quote rows (radio), "Or tap here to go long" all read | ⏳ | | |

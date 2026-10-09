@@ -46,3 +46,31 @@ through `detectArrival` (pure) → "+12.50 AUSD arrived" toast + success haptic 
 counts up. Home total = `totalAusdWad({ walletWad, venues })` in `src/features/home/total.ts`: `venues` is empty until
 N7 adds Meridian + Perpl equity. Testnet "Get test funds": Monad faucet for MON, then 10,000 test AUSD minted from
 Meridian's AUSD mock (`src/wallet/testFunds.ts`; never on 143).
+
+## Trade (N5)
+`(tabs)/trade`: header (Perpl mark per block, 24 h change from 1 h candles, both funding APRs, Perpl's next-funding
+countdown) → chart → position cards → Pro: both books; sticky **Long / Short** open the ticket sheet. **Lite** (sparkline)
+is the default, **Pro** (full chart + books) is remembered on the device (`features/trade/prefs.ts`, SecureStore KV).
+- **Chart (G2 = own native chart, no new dependency):** `features/trade/chart/` — Perpl candles via core `getCandles`
+  (api-docs rest-endpoints.md, documented resolutions, ≤ 1,024), cached per timeframe (1m 5m 15m 1h 4h 1D), live last
+  price appended per block, refetch on foreground; `react-native-svg` line + Reanimated/gesture-handler scrub on the
+  UI thread with one selection haptic per point; mark / entry / **liquidation** lines (pinned to the edge when off
+  range). `react-native-wagmi-charts` was not used: JS-only but built on `react-native-redash` for Reanimated 2/3,
+  untested on Reanimated 4.5 / RN 0.86, and it would mean another lockfile merge (> VERIFY if revisited).
+- **Ticket:** `features/trade/ticket/` — numpad (`Numpad.tsx` + text model `amountText.ts`, reusable by N6), presets
+  25 % / 50 % / MAX of the chosen venue's free collateral + the wallet token that funds it, leverage detents 1/2/5/10
+  (capped per venue: Meridian 1/imr, Perpl init-margin hdths / 100), slippage 0.5/1/3 %, live quote through core
+  `router` on both books per block (input debounced 150 ms, `quote.ts`), tap a venue row to force it, plain summary,
+  blockers fixed inline (first Perpl trade → the N4 checks; Perpl short → "Move X AUSD"; Meridian short → permit
+  deposit inside the order flow; wallet short → Add funds), hold-to-confirm + visible "Or tap here" alternative.
+- **Execution:** `features/trade/exec/` — core `exec/single` per order, persisted after every event in SecureStore
+  (`meridian.trade.pending.<chain>.<wallet>`): Perpl IOC (`perplLeg.ts`: rq floor saved before sending; outcome from
+  the socket, else REST order history; not in history after lb + 10 blocks ⇒ failed), Meridian `placeMarketOrder`
+  (`meridianLeg.ts`: signed locally, raw tx persisted before broadcast, gas = estimate × 1.2, fills from the `Trade`
+  events). On launch an open trade resumes to filled / failed (`executor.ts`); a trade that never left the phone ends
+  "closed before sending". Receipt (`app/receipt.tsx`): venue, avg price, size, fee, Perpl order id / explorer tx link,
+  blocks to fill.
+- **Positions:** `features/trade/positions/` — Meridian `getAccount`, Perpl `getPositionV2` → core `perplPositionRisk`;
+  swipe Close + visible Close → reduce-only for the whole size at the opposite best ± 2 %.
+- Providers: `TradeProvider` (root, under the auth gate) sits ABOVE `BottomSheetModalProvider`, as do Toast and the
+  wallet feed: sheet content renders through a portal and only sees contexts above the provider.
