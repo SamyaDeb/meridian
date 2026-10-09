@@ -21,6 +21,7 @@ import type { AuthController } from "../../auth/controller";
 import { EarnProvider } from "../../features/earn/EarnProvider";
 import { EarnScreen } from "../../features/earn/EarnScreen";
 import { EarnExecutor, earnReceiptStore } from "../../features/earn/executor";
+import { SwapReader } from "../../features/earn/data/swap";
 import { earnRecordStore, positionStore } from "../../features/earn/record";
 import type { EarnTimeline } from "../../features/earn/timeline";
 import { AccountsReader } from "../../features/trade/data/accounts";
@@ -49,7 +50,7 @@ function memKv() {
 }
 
 /** perplApr / meridianApr as APR %; the run's venues answer per `fill` */
-async function setup(o: { meridianApr?: number; perplApr?: number; meridianFails?: boolean } = {}) {
+async function setup(o: { meridianApr?: number; perplApr?: number; meridianFails?: boolean; lock?: boolean } = {}) {
   const { auth } = makeAuth();
   await auth.init();
   await auth.create();
@@ -117,7 +118,14 @@ async function setup(o: { meridianApr?: number; perplApr?: number; meridianFails
   });
   const kit: TradeKit = { chart: undefined, accounts, executor: undefined, focus: new Store(true) };
   const venue = { onboarding: { store: new Store({ view: { ready: true } }) }, socket: { store: new Store({ status: "ready", account: { ft: 0 } }) } };
-  return { auth, address, live: f.live, kit, feed, executor, sent, map, kv, accounts, venue, meridian: f.meridian };
+  // the funding-swap market (Lock): a reader with its store filled as the chain would (no network)
+  const swap = new SwapReader({ client: { multicall: async () => [] } as never, market: "0x00000000000000000000000000000000000005a0", book: "0x00000000000000000000000000000000000005b0", clearingHouse: "0x00000000000000000000000000000000000005c0", address });
+  if (o.lock) {
+    const SLOT = 1_000n * WAD;
+    f.meridian.store.update({ indexWad: BigInt(m.markPrice), bids: [{ priceWad: 25848n * tick, sizeWad: 5_000n * WAD }] });
+    swap.store.update({ atBlock: 1n, tickSizeWad: 10n ** 14n, lotSizeWad: SLOT, params: { liqHorizonSec: 86_400n, aprMoveBuffer: 5n * 10n ** 16n, imMultiplier: 15n * 10n ** 17n, takerFeeApr: 2n * 10n ** 15n }, maturity: 1_794_000_000n, capAprWad: 555_555_555_556n * 31_536_000n, bids: [{ priceWad: 112n * 10n ** 16n, sizeWad: 3n * SLOT }], asks: [{ priceWad: 1125n * 10n ** 15n, sizeWad: 3n * SLOT }], bookKnown: true, markAprWad: 12n * 10n ** 16n, tauSec: 30n * 86_400n, matured: false, account: undefined });
+  }
+  return { auth, address, live: f.live, kit, feed, executor, sent, map, kv, accounts, venue, meridian: f.meridian, swap };
 }
 
 function wrap(s: Awaited<ReturnType<typeof setup>>, children: ReactNode) {
@@ -129,7 +137,7 @@ function wrap(s: Awaited<ReturnType<typeof setup>>, children: ReactNode) {
             <ToastProvider>
               <WalletFeedProvider feed={s.feed} read={false}>
                 <TradeProvider kit={s.kit}>
-                  <EarnProvider kit={{ executor: s.executor, history: undefined }}>{children}</EarnProvider>
+                  <EarnProvider kit={{ executor: s.executor, history: undefined, swap: s.swap }}>{children}</EarnProvider>
                 </TradeProvider>
               </WalletFeedProvider>
             </ToastProvider>
@@ -245,6 +253,26 @@ it("a one-sided leftover is shown with the one-tap close (never silent)", async 
   await wait(10);
   expect(screen.getByTestId("earn-leftover")).toHaveTextContent(/Action needed/);
   expect(screen.getByTestId("earn-leftover-close")).toHaveTextContent("Close 300 MON on Perpl now");
+});
+
+it("Lock: the live fixed rate + why it's unavailable; on ⇒ the swap leg runs after the hedge and its deposit is named", async () => {
+  const s = await setup({ lock: true });
+  await render(wrap(s, <EarnScreen />));
+  await type(["1", "0"]);
+  expect(screen.getByTestId("earn-lock-reason")).toHaveTextContent("Lock needs at least 1,000 MON on each side (one swap lot).");
+  expect(screen.getByTestId("earn-lock-toggle")).toBeDisabled();
+  await type(["back", "back", "8", "0"]);
+  expect(screen.getByTestId("earn-lock-quote")).toHaveTextContent(/^Receive 11\.\d\d% fixed \(after the swap fee\) instead of Meridian's floating funding on [\d,]+ MON until /);
+  await fireEvent(screen.getByTestId("earn-lock-toggle"), "valueChange", true);
+  expect(screen.getByTestId("earn-deposits")).toHaveTextContent(/and [\d.]+ AUSD to the fixed-rate market from your wallet first/);
+  await fireEvent.press(screen.getByTestId("earn-confirm-tap"));
+  await wait(20);
+  expect(s.sent.map((l) => [l.venue, l.side, l.reduceOnly])).toEqual([
+    ["perpl", "buy", false],
+    ["meridian", "sell", false],
+    ["swap", "sell", false],
+  ]);
+  expect(earnReceiptStore.get()!.steps.map((x) => x.key)).toEqual(["collateral", "leg1", "leg2", "leg3"]);
 });
 
 describe("receipt haptics", () => {

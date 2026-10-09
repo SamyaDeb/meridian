@@ -23,6 +23,10 @@ import {
   type LegAdapter,
   type LegEvent,
   type LegSpec,
+  type OrderSide,
+  advanceLeg,
+  freshLeg,
+  legAction,
 } from "@meridian/core/exec";
 import { keccak256 } from "viem";
 import { Store } from "../../live/store";
@@ -53,6 +57,10 @@ export class EarnSession {
   note(key: string): LegNote {
     return this.rec.meta.legs[key] ?? {};
   }
+  patchMeta(patch: Partial<EarnMeta>): Promise<void> {
+    this.rec = { ...this.rec, meta: { ...this.rec.meta, ...patch } };
+    return this.write();
+  }
   patchLeg(key: string, patch: Partial<LegNote>): Promise<void> {
     this.rec = { ...this.rec, meta: { ...this.rec.meta, legs: { ...this.rec.meta.legs, [key]: { ...this.note(key), ...patch } } } };
     return this.write();
@@ -73,7 +81,8 @@ export type EarnExecutorDeps = {
   positions: PositionStore;
   /** builds the venue leg for a key; throws when the venue isn't ready (a fresh run says why, a resume waits) */
   legFor: LegFactory;
-  ensureCollateral: (perplWad: bigint, meridianWad: bigint) => Promise<void>;
+  /** before the first leg: each venue's need (WAD) + the Lock's swap-market collateral (0 without a Lock) */
+  ensureCollateral: (perplWad: bigint, meridianWad: bigint, lockWad: bigint) => Promise<void>;
   head: () => bigint | undefined;
   explorerBase: string | undefined;
   sleep: (ms: number) => Promise<void>;
@@ -86,7 +95,10 @@ export type EarnExecutorDeps = {
   findTries?: number;
 };
 
-export type RunMeta = Pick<EarnMeta, "summary" | "perplPriceDp" | "meridianPriceDp" | "leverage100"> & { devFailMeridian?: boolean };
+export type RunMeta = Pick<EarnMeta, "summary" | "perplPriceDp" | "meridianPriceDp" | "leverage100"> & { devFailMeridian?: boolean; lockCollateralWad?: bigint };
+
+/** Close with a Lock: the swap position to buy / sell back first (reduce-only, whole swap lots, worst price). */
+export type SwapCloseOrder = { side: OrderSide; sizeWad: bigint; limitPriceWad: bigint };
 
 export class EarnExecutor {
   readonly store = new Store<EarnExecState>({ running: false, timeline: undefined, error: undefined });
@@ -111,10 +123,16 @@ export class EarnExecutor {
     return this.run(this.fresh(startBasis(`e${now}`, plan), meta, now), false);
   }
 
-  /** Close the hedged pair: Meridian first, then Perpl for exactly what closed. */
-  async close(plan: CloseExecPlan, meta: RunMeta): Promise<EarnTimeline | undefined> {
+  /**
+   * Close the hedged pair: Meridian first, then Perpl for exactly what closed. With a Lock, the swap is closed FIRST
+   * (reduce-only); if it doesn't close in full, nothing else is sent (the pair stays hedged at the floating rate).
+   */
+  async close(plan: CloseExecPlan, meta: RunMeta, swap?: SwapCloseOrder): Promise<EarnTimeline | undefined> {
     const now = (this.d.now ?? Date.now)();
-    return this.run(this.fresh(startClose(`c${now}`, plan), meta, now), false);
+    const id = `c${now}`;
+    const rec = this.fresh(startClose(id, plan), meta, now);
+    if (swap) rec.meta.swapClose = { leg: { venue: "swap", side: swap.side, sizeWad: swap.sizeWad, limitPriceWad: swap.limitPriceWad, reduceOnly: true, key: `${id}:swap-close` }, progress: freshLeg() };
+    return this.run(rec, false);
   }
 
   /** Launch / unlock: a run from before an app kill continues to a terminal phase. */
@@ -141,7 +159,7 @@ export class EarnExecutor {
   private fresh(state: EarnRun, m: RunMeta, now: number): EarnRecord {
     if (this.running) throw new Error("Another Earn order is still going through");
     const head = this.d.head();
-    const meta: EarnMeta = { chainId: this.d.chainId, address: this.d.address, createdAtMs: now, summary: m.summary, perplPriceDp: m.perplPriceDp, meridianPriceDp: m.meridianPriceDp, leverage100: m.leverage100, legs: {}, ...(head !== undefined ? { sentAtBlock: head } : {}), ...(m.devFailMeridian ? { devFailMeridian: true } : {}) };
+    const meta: EarnMeta = { chainId: this.d.chainId, address: this.d.address, createdAtMs: now, summary: m.summary, perplPriceDp: m.perplPriceDp, meridianPriceDp: m.meridianPriceDp, leverage100: m.leverage100, legs: {}, ...(head !== undefined ? { sentAtBlock: head } : {}), ...(m.devFailMeridian ? { devFailMeridian: true } : {}), ...(m.lockCollateralWad ? { lockCollateralWad: m.lockCollateralWad } : {}) };
     return { v: 1, state, meta };
   }
 
@@ -182,9 +200,17 @@ export class EarnExecutor {
     };
     publish(ses.rec);
     try {
-      let state = resumed ? await this.resolveOnResume(ses, inst) : ses.rec.state;
+      let state: EarnRun = ses.rec.state;
+      const sc = ses.rec.meta.swapClose;
+      if (state.kind === "close" && sc && sc.filledWad === undefined && sc.error === undefined) {
+        // close with a Lock: the swap first; anything short of a full close stops here (CLOSE_MERIDIAN → ABORTED)
+        const err = await this.runSwapClose(ses, keyed, resumed);
+        if (err !== undefined) state = reduceClose(state, { type: "FAILED", error: err });
+      } else if (state.kind === "close" && sc?.error !== undefined && state.phase === "CLOSE_MERIDIAN") state = reduceClose(state, { type: "FAILED", error: sc.error });
+      else if (resumed) state = await this.resolveOnResume(ses, inst);
       await ses.saveState(state);
-      const a: ExecAdapters = { legs: keyed, ensureCollateral: this.d.ensureCollateral, persist: (s) => ses.saveState(s as EarnRun), sleep: this.d.sleep, maxConfirmTries: this.d.maxConfirmTries ?? 40 };
+      const lockWad = ses.rec.meta.lockCollateralWad ?? 0n;
+      const a: ExecAdapters = { legs: keyed, ensureCollateral: (p, m) => this.d.ensureCollateral(p, m, lockWad), persist: (s) => ses.saveState(s as EarnRun), sleep: this.d.sleep, maxConfirmTries: this.d.maxConfirmTries ?? 40 };
       state = state.kind === "basis" ? await runBasis(state, a) : await runClose(state, a);
       await ses.saveState(state);
       // fold into the position BEFORE clearing the run (idempotent by id: a kill in between can't count it twice)
@@ -206,6 +232,56 @@ export class EarnExecutor {
     }
   }
 
+  /** The Lock's swap close (meta.swapClose), resume-safe through the leg protocol; returns an error when it didn't close in full. */
+  private async runSwapClose(ses: EarnSession, legs: LegAdapter, resumed: boolean): Promise<string | undefined> {
+    const save = (patch: Partial<NonNullable<EarnMeta["swapClose"]>>) => ses.patchMeta({ swapClose: { ...ses.rec.meta.swapClose!, ...patch } });
+    let sc = ses.rec.meta.swapClose!;
+    if (resumed && sc.progress.ref === undefined) {
+      // a signed swap tx stored before the kill is re-broadcast; otherwise it never went out
+      const raw = ses.note(sc.leg.key).raw;
+      if (!raw) {
+        await save({ error: NOT_SENT_FIRST });
+        return NOT_SENT_FIRST;
+      }
+      await save({ progress: advanceLeg(sc.progress, { type: "PREPARED", ref: keccak256(raw) }) });
+    }
+    for (;;) {
+      sc = ses.rec.meta.swapClose!;
+      const act = legAction(sc.leg, sc.progress);
+      if (act.type === "prepare") {
+        try {
+          await save({ progress: advanceLeg(sc.progress, { type: "PREPARED", ref: await legs.prepare(sc.leg) }) });
+        } catch (e) {
+          const error = plainTradeError(e instanceof Error ? e.message : String(e));
+          await save({ error });
+          return error;
+        }
+      } else if (act.type === "send") {
+        await legs.send(sc.leg, act.ref).catch(() => undefined); // confirm decides (idempotent by nonce)
+        await save({ progress: advanceLeg(sc.progress, { type: "SENT" }) });
+      } else {
+        let r: Awaited<ReturnType<LegAdapter["confirm"]>> | undefined;
+        let last = "";
+        for (let i = 0; i < (this.d.maxConfirmTries ?? 40) && !r; i++) {
+          try {
+            r = await legs.confirm(sc.leg, act.ref);
+          } catch (e) {
+            last = e instanceof Error ? e.message : String(e);
+            await this.d.sleep(1_000);
+          }
+        }
+        if (!r) throw new Error(`confirm ${act.ref}: outcome still unknown (${last}); state kept for resume`);
+        if ("failed" in r) {
+          const error = `Couldn't close the fixed-rate lock first, so nothing else was sent: ${plainTradeError(r.failed)}`;
+          await save({ error });
+          return error;
+        }
+        await save({ filledWad: r.filledWad });
+        return r.filledWad < sc.leg.sizeWad ? "The fixed-rate lock closed only partly, so the pair was left open (still hedged). Close again to finish." : undefined;
+      }
+    }
+  }
+
   private async resolveOnResume(ses: EarnSession, inst: (leg: LegSpec) => KeyedLeg): Promise<EarnRun> {
     const s = ses.rec.state;
     if (s.kind === "basis" && s.phase === "COLLATERAL") return reduceBasis(s, { type: "COLLATERAL_FAILED", error: NOT_SENT_FIRST });
@@ -214,7 +290,8 @@ export class EarnExecutor {
     const first = act.phase === "LEG1_PERPL_IOC" || act.phase === "CLOSE_MERIDIAN";
     const apply = (st: EarnRun, e: LegEvent): EarnRun => (st.kind === "basis" ? reduceBasis(st, e) : reduceClose(st, e));
     const note = ses.note(act.leg.key);
-    if (act.leg.venue === "meridian") {
+    if (act.leg.venue !== "perpl") {
+      // Meridian / swap: a signed tx stored before the kill
       if (note.raw) return apply(s, { type: "PREPARED", ref: keccak256(note.raw) });
       // nothing was broadcast (send comes after the signed tx is stored)
       return first ? apply(s, { type: "FAILED", error: NOT_SENT_FIRST }) : s;

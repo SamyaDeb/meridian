@@ -3,6 +3,8 @@
 // state + per-leg notes), so the same timeline renders live, after a resume, and from a MANUAL alert after a relaunch.
 import { isBasisTerminal, isCloseTerminal, meridianSide, opposite, type BasisExecState, type BasisPhase, type ClosePhase, type CloseExecState, type OrderSide } from "@meridian/core/exec";
 import type { Hex } from "viem";
+import { WAD } from "@meridian/core/util";
+import { formatValue } from "../../ui/format";
 import { plainTradeError } from "../trade/exec/errors";
 import { priceText, sizeText } from "../trade/ticket/quote";
 import type { EarnRecord, LegNote } from "./record";
@@ -81,6 +83,13 @@ function basisTimeline(s: BasisExecState, r: EarnRecord, explorerBase: string | 
   } else {
     steps.push({ key: "leg2", title: `${sideWord(meridianSide(p), false)} ${sizeText(p.sizeWad, mStep)} MON on Meridian`, detail: "Waits for the Perpl fill", status: "waiting" });
   }
+  if (p.lock && s.q2 && s.q2.filledWad > 0n) {
+    // Lock: a swap on Meridian's funding (price = 1 + fixed APR); the hedge never depends on it
+    const n = leg("leg3");
+    const size = (s.q2.filledWad < p.lock.maxSizeWad ? s.q2.filledWad : p.lock.maxSizeWad) / p.lock.lotWad * p.lock.lotWad;
+    const st = stepOf({ key: "leg3", venue: "meridian", side: p.lock.side, reduce: false, sizeWad: size, stepWad: p.lock.lotWad, priceDp: 4, note: n, active: s.phase === "LEG3_SWAP", ended, explorerBase, title: `Lock: ${p.lock.side === "sell" ? "receive" : "pay"} a fixed rate on ${sizeText(size, p.lock.lotWad)} MON` });
+    steps.push(n?.avgPriceWad !== undefined && n.error === undefined ? { ...st, detail: `Filled at ${formatValue(n.avgPriceWad - WAD, "apr")} fixed` } : s.phase === "DONE_LOCK_FAILED" && !n ? { ...st, status: "failed", detail: s.lock && "error" in s.lock ? s.lock.error : "Not sent" } : st);
+  }
   if (s.unwind) {
     const u = s.unwind;
     for (const attempt of [1, 2] as const) {
@@ -95,7 +104,7 @@ function basisTimeline(s: BasisExecState, r: EarnRecord, explorerBase: string | 
   const leftover = s.unwind ? s.unwind.targetWad - s.unwind.filledWad : 0n;
   switch (s.phase) {
     case "DONE":
-      return { kind: "open", phase: s.phase, outcome: "success", headline: "You're earning the gap", body: `Both legs filled: ${sizeText(hedged, mStep)} MON each side (${pairs}). Your MON price exposure is zero.`, steps };
+      return { kind: "open", phase: s.phase, outcome: "success", headline: "You're earning the gap", body: `Both legs filled: ${sizeText(hedged, mStep)} MON each side (${pairs}). Your MON price exposure is zero.${s.lock && "filledWad" in s.lock && s.lock.avgPriceWad !== undefined ? ` Meridian's funding is fixed at ${formatValue(s.lock.avgPriceWad - WAD, "apr")} on ${sizeText(s.lock.filledWad, p.lock!.lotWad)} MON until the swap matures.` : ""}`, steps };
     case "DONE_LOCK_FAILED":
       return { kind: "open", phase: s.phase, outcome: "success", headline: "Hedge open, lock failed", body: "Lock failed, hedge open, floating rate applies.", steps };
     case "PARTIAL_DONE":
@@ -116,7 +125,14 @@ function closeTimeline(s: CloseExecState, r: EarnRecord, explorerBase: string | 
   const ended = isCloseTerminal(s);
   const leg = (k: string) => r.meta.legs[`${s.id}:${k}`];
   const step = p.perplStepWad;
-  const steps: TimelineStep[] = [stepOf({ key: "close-m", venue: "meridian", side: p.meridianSide, reduce: true, sizeWad: p.sizeWad, stepWad: step, priceDp: r.meta.meridianPriceDp, note: leg("close-m"), active: s.phase === "CLOSE_MERIDIAN", ended, explorerBase })];
+  const sc = r.meta.swapClose;
+  const steps: TimelineStep[] = [];
+  if (sc) {
+    const n = leg("swap-close");
+    const st = stepOf({ key: "swap-close", venue: "meridian", side: sc.leg.side, reduce: true, sizeWad: sc.leg.sizeWad, stepWad: 1n, priceDp: 4, note: n, active: s.phase === "CLOSE_MERIDIAN" && sc.filledWad === undefined && sc.error === undefined, ended, explorerBase, title: "First: close the fixed-rate lock" });
+    steps.push(sc.error !== undefined && !n?.error ? { ...st, status: "failed", detail: sc.error } : n?.avgPriceWad !== undefined ? { ...st, detail: `Closed at ${formatValue(n.avgPriceWad - WAD, "apr")}` } : st);
+  }
+  steps.push(stepOf({ key: "close-m", venue: "meridian", side: p.meridianSide, reduce: true, sizeWad: p.sizeWad, stepWad: step, priceDp: r.meta.meridianPriceDp, note: leg("close-m"), active: s.phase === "CLOSE_MERIDIAN" && (!sc || sc.filledWad !== undefined), ended, explorerBase }));
   for (const [k, ph] of [["close-p1", "CLOSE_PERPL"], ["close-p2", "CLOSE_PERPL_RETRY"]] as const) {
     const note = leg(k);
     const active = s.phase === ph;
@@ -133,7 +149,7 @@ function closeTimeline(s: CloseExecState, r: EarnRecord, explorerBase: string | 
     case "CLOSED_PARTIAL":
       return { kind: "close", phase: s.phase, outcome: "partial", headline: "Partly closed, still hedged", body: `Closed ${sizeText(closed, step)} of ${sizeText(p.sizeWad, step)} MON on both venues. The rest stays open and hedged; close again to finish.`, steps };
     case "ABORTED":
-      return { kind: "close", phase: s.phase, outcome: "flat", headline: "Nothing closed", body: `${lastReason(s.errors)} Your hedge is unchanged.`, steps };
+      return { kind: "close", phase: s.phase, outcome: "flat", headline: sc?.filledWad !== undefined && sc.filledWad > 0n ? "Lock closed, pair still open" : "Nothing closed", body: sc?.error !== undefined ? `${sc.error}` : `${lastReason(s.errors)} Your hedge is unchanged${sc?.filledWad ? " (the fixed-rate lock was closed; the pair earns the floating rate)" : ""}.`, steps };
     case "MANUAL":
       return { kind: "close", phase: s.phase, outcome: "action", headline: "Action needed", body: `Meridian closed, but ${sizeText(leftover, step)} MON on Perpl is still open (tried twice). Close it now with one tap.`, steps, leftover: { venue: "perpl", side: opposite(p.perplSide), sizeWad: leftover } };
     default:

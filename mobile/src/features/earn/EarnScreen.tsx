@@ -7,12 +7,12 @@ import { formatDuration, formatFixed } from "@meridian/core/meridian";
 import { wadToFloatForDisplay } from "@meridian/core/util";
 import { router, useFocusEffect } from "expo-router";
 import { memo, useCallback, useEffect, useState, type ComponentType } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Switch, View } from "react-native";
 import { useBlockNumber, useCadence, useFundingSpread, useMeridian, usePerpl } from "../../live/hooks";
 import type { MeridianMarketState } from "../../live/meridianMarket";
 import type { PerplMarketState } from "../../live/perplMarket";
 import { Store, useStore } from "../../live/store";
-import { BlockPulse, Button, Card, colors, haptic, Num, radius, space, Sparkline, Text } from "../../ui";
+import { BlockPulse, Button, Card, colors, formatValue, haptic, Num, radius, space, Sparkline, Text } from "../../ui";
 import { formatUnitsExact } from "../../venues/perpl/amounts";
 import { PerplChecks } from "../perpl/PerplOnboarding";
 import { ConfirmBar } from "../trade/ConfirmBar";
@@ -26,7 +26,8 @@ import { useEarn } from "./EarnProvider";
 import { earnReceiptStore, type EarnExecState } from "./executor";
 import type { GapHistoryState } from "./history";
 import { LeftoverClose } from "./LeftoverClose";
-import { EARN_LEVERAGE, planEarnClose, type EarnQuote } from "./plan";
+import type { SwapState } from "./data/swap";
+import { EARN_LEVERAGE, planEarnClose, planSwapClose, type EarnLock, type EarnQuote } from "./plan";
 import { FLAT, type EarnPosition } from "./record";
 import { TimelineView } from "./TimelineView";
 import { useEarnInputs, useEarnQuote, type EarnInputs } from "./useEarnQuote";
@@ -144,9 +145,41 @@ function Explainer() {
   );
 }
 
+const dateOf = (sec: bigint | undefined) => (sec === undefined ? "—" : new Date(Number(sec) * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" }));
+
+/** Lock (MOBILE_PLAN N6, P2): fix Meridian's floating funding on the funding-swap book; Perpl's side stays floating. */
+function LockRow({ lock, on, onChange, hasSwap }: { lock: EarnLock | undefined; on: boolean; onChange: (v: boolean) => void; hasSwap: boolean }) {
+  if (!hasSwap) return null;
+  const ok = lock?.available === true;
+  return (
+    <View style={s.lock} testID="earn-lock">
+      <View style={s.lockText}>
+        <Text bold>Lock a fixed rate</Text>
+        {lock === undefined ? (
+          <Text variant="caption" tone="muted">
+            Enter an amount to see the fixed rate.
+          </Text>
+        ) : lock.available ? (
+          <Text variant="caption" tone="muted" testID="earn-lock-quote">
+            {lock.swapSide === "sell" ? "Receive" : "Pay"} {formatValue(lock.netFixedAprWad, "apr")} fixed (after the swap fee) instead of Meridian's floating funding on {sizeText(lock.sizeWad, lock.lotWad)} MON until {dateOf(lock.maturity)}
+            {lock.unlockedWad > 0n ? `; ${sizeText(lock.unlockedWad, 10n ** 18n)} MON stays floating` : ""}. Perpl's side stays floating. If the lock can't fill, the hedge still opens at the floating rate.
+          </Text>
+        ) : (
+          <Text variant="caption" tone="muted" testID="earn-lock-reason">
+            {lock.reason}
+          </Text>
+        )}
+      </View>
+      <Switch value={on && ok} onValueChange={onChange} disabled={!ok} accessibilityState={{ disabled: !ok, checked: on && ok }} trackColor={{ true: colors.brand, false: colors.border }} accessibilityLabel="Lock a fixed rate" testID="earn-lock-toggle" />
+    </View>
+  );
+}
+
 function PositionCard({ pos, inputs, onClose, busy }: { pos: EarnPosition; inputs: EarnInputs; onClose: () => void; busy: boolean }) {
   const [confirming, setConfirming] = useState(false);
   if (!pos.perplSide || pos.sizeWad === 0n) return null;
+  const sw: SwapState | undefined = inputs.swap;
+  const locked = sw?.account && sw.account.sizeWad !== 0n ? sw.account : undefined;
   const step = inputs.perpl.stepWad ?? 10n ** 18n;
   const size = `${sizeText(pos.sizeWad, step)} MON`;
   const word = (b: boolean) => (b ? "Long" : "Short");
@@ -160,9 +193,16 @@ function PositionCard({ pos, inputs, onClose, busy }: { pos: EarnPosition; input
         {size} each side
       </Text>
       <Text tone="muted">{legs}</Text>
+      {locked ? (
+        <Text variant="caption" tone="muted" testID="earn-position-lock">
+          Fixed {formatValue(locked.avgFixedAprWad, "apr")} on {sizeText(locked.sizeWad < 0n ? -locked.sizeWad : locked.sizeWad, 10n ** 18n)} MON of Meridian's funding until {dateOf(sw?.maturity)}
+        </Text>
+      ) : null}
       {confirming ? (
         <>
-          <Text testID="earn-close-summary">Close {size} on Meridian first, then the same on Perpl. Worst price within 1% of each book.</Text>
+          <Text testID="earn-close-summary">
+            {locked ? "Close the fixed-rate lock first, then " : ""}Close {size} on Meridian first, then the same on Perpl. Worst price within 1% of each book.
+          </Text>
           <ConfirmBar action="close both legs" onConfirm={onClose} disabled={busy} testID="earn-close-confirm" />
           <Button title="Keep it open" variant="link" onPress={() => setConfirming(false)} />
         </>
@@ -186,7 +226,9 @@ export function EarnScreen() {
   const inputs = useEarnInputs();
   const [text, setText] = useState("");
   const amountWad = useDebounced(amountWadOf(text), DEBOUNCE_MS);
-  const q = useEarnQuote(amountWad, inputs);
+  const [lockOn, setLockOn] = useState(false);
+  const q = useEarnQuote(amountWad, inputs, lockOn);
+  const { swap } = useEarn();
   const exec = useStore(executor?.store ?? NO_EXEC, sel);
   const pos = useStore(executor?.position ?? NO_POS, sel);
   const [devFail, setDevFail] = useState(false);
@@ -197,9 +239,13 @@ export function EarnScreen() {
   useFocusEffect(
     useCallback(() => {
       focus.set(true);
+      swap?.active.set(true);
       void executor?.resume();
-      return () => focus.set(false);
-    }, [focus, executor]),
+      return () => {
+        focus.set(false);
+        swap?.active.set(false);
+      };
+    }, [focus, executor, swap]),
   );
 
   const presets = [
@@ -210,7 +256,8 @@ export function EarnScreen() {
   const legs = q.status === "ok" ? legsText(q) : undefined;
   const busy = exec.running;
   const canConfirm = q.status === "ok" && q.exec !== undefined && !busy && executor !== undefined;
-  const deposits = q.legs ? [q.legs.meridian, q.legs.perpl].filter((l) => l.depositWad > 0n) : [];
+  const lockDeposit = q.exec?.lock && q.lock?.available ? q.lock.depositWad : 0n;
+  const deposits = [...(q.legs ? [q.legs.meridian, q.legs.perpl].filter((l) => l.depositWad > 0n).map((l) => `${formatUnitsExact(owedToken(l.depositWad), 6)} AUSD to ${venueName(l.venue)}`) : []), ...(lockDeposit > 0n ? [`${formatUnitsExact(owedToken(lockDeposit), 6)} AUSD to the fixed-rate market`] : [])];
 
   const finish = (t: Awaited<ReturnType<NonNullable<typeof executor>["open"]>>, clearInput: boolean) => {
     if (!t) {
@@ -231,7 +278,7 @@ export function EarnScreen() {
     if (!canConfirm || !legs) return;
     setError(undefined);
     executor!
-      .open(q.exec!, { summary: legs, perplPriceDp: inputs.perplPriceDp, meridianPriceDp: inputs.meridianPriceDp, leverage100: Number(EARN_LEVERAGE) * 100, ...(__DEV__ && devFail ? { devFailMeridian: true } : {}) })
+      .open(q.exec!, { summary: legs, perplPriceDp: inputs.perplPriceDp, meridianPriceDp: inputs.meridianPriceDp, leverage100: Number(EARN_LEVERAGE) * 100, ...(__DEV__ && devFail ? { devFailMeridian: true } : {}), ...(lockDeposit > 0n ? { lockCollateralWad: lockDeposit } : {}) })
       .then((t) => finish(t, true), fail);
   };
 
@@ -248,8 +295,16 @@ export function EarnScreen() {
       perplBook: inputs.perpl,
     });
     if (!plan.ok) return fail(new Error(plan.error));
+    // a Lock closes first (never leaves a swap without its hedge)
+    const sw = inputs.swap;
+    let swapOrder;
+    if (sw?.account && sw.account.sizeWad !== 0n) {
+      const sc = planSwapClose({ sizeWad: sw.account.sizeWad, bids: sw.bookKnown ? sw.bids : undefined, asks: sw.bookKnown ? sw.asks : undefined, tickSizeWad: sw.tickSizeWad, lotSizeWad: sw.lotSizeWad });
+      if (!sc.ok) return fail(new Error(sc.error));
+      swapOrder = sc.order;
+    }
     setError(undefined);
-    executor.close(plan.plan, { summary: `Close ${sizeText(plan.sizeWad, inputs.perpl.stepWad ?? 1n)} MON on both venues`, perplPriceDp: inputs.perplPriceDp, meridianPriceDp: inputs.meridianPriceDp, leverage100: Number(EARN_LEVERAGE) * 100 }).then((t) => finish(t, false), fail);
+    executor.close(plan.plan, { summary: `Close ${sizeText(plan.sizeWad, inputs.perpl.stepWad ?? 1n)} MON on both venues`, perplPriceDp: inputs.perplPriceDp, meridianPriceDp: inputs.meridianPriceDp, leverage100: Number(EARN_LEVERAGE) * 100 }, swapOrder).then((t) => finish(t, false), fail);
   };
 
   return (
@@ -278,7 +333,7 @@ export function EarnScreen() {
             </Text>
             {deposits.length ? (
               <Text variant="caption" tone="muted" testID="earn-deposits">
-                Adds {deposits.map((l) => `${formatUnitsExact(owedToken(l.depositWad), 6)} AUSD to ${venueName(l.venue)}`).join(" and ")} from your wallet first (one fingerprint prompt).
+                Adds {deposits.join(" and ")} from your wallet first (one fingerprint prompt).
               </Text>
             ) : null}
           </View>
@@ -287,6 +342,7 @@ export function EarnScreen() {
             {STATUS_TEXT[q.status]}
           </Text>
         ) : null}
+        <LockRow lock={q.lock} on={lockOn} onChange={setLockOn} hasSwap={swap !== undefined} />
         {q.blockers.map((b) =>
           b.kind === "onboard" ? (
             <View key="onboard" style={s.block} testID="earn-blocker-onboard">
@@ -352,4 +408,6 @@ const s = StyleSheet.create({
   step: { flexDirection: "row", gap: space.m, alignItems: "flex-start" },
   num: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: colors.brand, alignItems: "center", justifyContent: "center" },
   flex: { flex: 1, gap: 2 },
+  lock: { flexDirection: "row", alignItems: "center", gap: space.m, padding: space.m, borderRadius: radius.inner, borderWidth: 1, borderColor: colors.border },
+  lockText: { flex: 1, gap: 2 },
 });

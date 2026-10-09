@@ -5,6 +5,7 @@ import type { LegAdapter } from "@meridian/core/exec";
 import { clearingHouseAbi } from "@meridian/core/meridian";
 import { createPerplClient, httpTransport, perplExchangeAbi } from "@meridian/core/perpl";
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import type { LocalAccount } from "viem";
 import { useAccountAddress, useAuthController, useAuthStatus } from "../../auth/AuthProvider";
 import { secureKv } from "../../auth/secureKv";
 import { useLive } from "../../live/LiveProvider";
@@ -17,12 +18,13 @@ import { ensureMeridianCollateral } from "../trade/exec/collateral";
 import { createMeridianLeg } from "../trade/exec/meridianLeg";
 import { createPerplLeg } from "../trade/exec/perplLeg";
 import { useTrade } from "../trade/TradeProvider";
-import { ensureEarnCollateral, perplTopUp } from "./collateral";
+import { ensureEarnCollateral, perplTopUp, swapDeposit } from "./collateral";
+import { SwapReader } from "./data/swap";
 import { EarnExecutor, type LegFactory } from "./executor";
 import { GapHistory } from "./history";
 import { earnRecordStore, positionStore, type EarnMeta } from "./record";
 
-export type EarnKit = { executor: EarnExecutor | undefined; history: GapHistory | undefined };
+export type EarnKit = { executor: EarnExecutor | undefined; history: GapHistory | undefined; swap?: SwapReader | undefined };
 const EarnContext = createContext<EarnKit>({ executor: undefined, history: undefined });
 
 /** __DEV__ only: the forced-failure wrapper (release bundles drop the require; check:release greps for its marker). */
@@ -38,6 +40,24 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
   const venue = usePerplVenue();
   const { accounts } = useTrade();
   const cfg = live.config;
+
+  // the funding-swap market (Lock), read per block only while Earn is on screen
+  const swap = useMemo(() => {
+    if (injected) return injected.swap;
+    if (status !== "unlocked" || !address || !live.client || cfg.meridian.status !== "deployed") return undefined;
+    const c = cfg.meridian.deployment.contracts;
+    if (!c.FundingSwapMarket || !c.SwapOrderBook) return undefined;
+    return new SwapReader({ client: live.client, market: c.FundingSwapMarket, book: c.SwapOrderBook, clearingHouse: c.ClearingHouse, address });
+  }, [injected, status, address, live.client, cfg]);
+
+  useEffect(() => {
+    const blocks = live.blocks;
+    if (!blocks || !swap) return;
+    return blocks.store.subscribe(() => {
+      const b = blocks.store.get().block;
+      if (b !== undefined) void swap.onBlock(b);
+    });
+  }, [live, swap]);
 
   const executor = useMemo(() => {
     if (injected) return injected.executor;
@@ -81,7 +101,13 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
           orderId: l.orderId,
         };
       }
-      if (leg.venue !== "meridian") throw new Error("Lock isn't available in this build");
+      if (leg.venue === "swap") {
+        // Lock / its close: a market order on the funding-swap book (a second OrderBook), same signed-tx leg as Meridian
+        const sw = swap?.store.get();
+        if (!c.SwapOrderBook || !sw?.tickSizeWad || !sw.lotSizeWad) throw new Error("The fixed-rate book is still loading. Try again in a moment.");
+        const l = createMeridianLeg({ pub, wallet: () => walletClientFor(auth.account(), cfg), orderBook: c.SwapOrderBook, tickSizeWad: sw.tickSizeWad, lotSizeWad: sw.lotSizeWad, saveRaw: (raw, nonce) => io.patch({ raw, nonce }), loadRaw: () => io.note() });
+        return { legs: l.legs };
+      }
       const m = live.meridian?.store.get();
       if (!m?.tickSizeWad || !m.lotSizeWad) throw new Error("Meridian's market is still loading. Try again in a moment.");
       const l = createMeridianLeg({ pub, wallet: () => walletClientFor(auth.account(), cfg), orderBook: c.OrderBook, tickSizeWad: m.tickSizeWad, lotSizeWad: m.lotSizeWad, saveRaw: (raw, nonce) => io.patch({ raw, nonce }), loadRaw: () => io.note() });
@@ -94,11 +120,12 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
       runs: earnRecordStore(secureKv, cfg.chainId, address),
       positions: positionStore(secureKv, cfg.chainId, address),
       legFor,
-      ensureCollateral: async (perplWad, meridianWad) => {
+      ensureCollateral: async (perplWad, meridianWad, lockWad) => {
         await ensureEarnCollateral(
           {
             freeMeridian,
             freePerpl,
+            ...(lockWad > 0n && c.FundingSwapMarket ? { depositLock: (account: LocalAccount, amountWad: bigint) => swapDeposit({ pub, wallet: walletClientFor(account, cfg), token: c.AUSD, market: c.FundingSwapMarket!, amountWad }) } : {}),
             withFreshSession: (fn) => auth.withFreshSession(fn),
             depositMeridian: (account, needWad) => ensureMeridianCollateral({ pub, wallet: walletClientFor(account, cfg), token: c.AUSD, clearingHouse: c.ClearingHouse, needWad, freeNow: freeMeridian }),
             depositPerpl: (account, amountCns) => perplTopUp({ pub, send: (req) => sendTx(pub, walletClientFor(account, cfg), req, { abi: PERPL_TX_ABI }), token: pd.collateralToken, exchange: pd.exchange, owner: address, amountCns }),
@@ -106,6 +133,7 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
           },
           perplWad,
           meridianWad,
+          lockWad,
         );
       },
       head: () => live.blocks?.store.get().block,
@@ -117,7 +145,7 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
         void venue?.refresh().catch(() => undefined);
       },
     });
-  }, [injected, status, address, live, cfg, venue, auth, accounts]);
+  }, [injected, status, address, live, cfg, venue, auth, accounts, swap]);
 
   const history = useMemo(() => {
     if (injected) return injected.history;
@@ -139,7 +167,7 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
     void executor?.resume();
   }, [executor]);
 
-  const kit = useMemo<EarnKit>(() => injected ?? { executor, history }, [injected, executor, history]);
+  const kit = useMemo<EarnKit>(() => injected ?? { executor, history, swap }, [injected, executor, history, swap]);
   return <EarnContext.Provider value={kit}>{children}</EarnContext.Provider>;
 }
 
