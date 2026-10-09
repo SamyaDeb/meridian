@@ -5,8 +5,8 @@
 // removal), README "Rate Limits" (10 requests/min, 16 subscriptions per connection) and "WebSocket Close Codes".
 import { realClock, type Clock, type WsFactory, type WsLike } from "../util/runtime";
 import { PerplSchemaError } from "./errors";
-import type { FundingEvent, L2Book, L2Level, MarketState, PerplFees } from "./types";
-import { parseFees, parseFundingEvent, parseL2Book, parseMarketState } from "./validate";
+import type { FundingEvent, L2Book, L2Level, MarketState, PerplFees, PerplTrade } from "./types";
+import { parseFees, parseFundingEvent, parseL2Book, parseMarketState, parseTrades } from "./validate";
 
 /** websocket.md "Message Types" (the market-data subset). */
 export const MD = { ping: 1, status: 3, subscribe: 5, subscribed: 6, marketConfig: 8, marketState: 9, funding: 10, bookSnapshot: 15, bookUpdate: 16, tradesSnapshot: 17, tradesUpdate: 18, heartbeat: 100 } as const;
@@ -130,9 +130,15 @@ export type FundingUpdate = { marketId: number; event: FundingEvent; kind: "new"
  * Funding is kept per `feb` (types.md: two messages per interval, the second with the final `at.t`), bounded to the last
  * `maxEvents` intervals, so "the rate in force now" can skip an event that applies ahead of the head.
  */
+/** Recent trades kept per feed (the Pro Trades tab shows ~20). */
+export const MAX_TRADES = 50;
+
 export class MarketDataFeed {
   private readonly events = new Map<number, FundingEvent>();
   readonly book = new L2BookState();
+  /** recent public trades of this market, newest first (bounded; `trades@<id>`, mt 17 replaces, mt 18 prepends) */
+  trades: PerplTrade[] = [];
+  lastTradesMs: number | undefined;
   state: { value: MarketState; recvMs: number } | undefined;
   config: { value: MarketConfigWs; recvMs: number } | undefined;
   head: { block: number; sn: number; recvMs: number } | undefined;
@@ -179,6 +185,12 @@ export class MarketDataFeed {
           // order-book@<id> is per market; the frame carries no market id, so a feed follows exactly one book stream
           this.book.apply(parseL2Book(f.raw, `ws.book.${key}`));
           this.lastBookMs = recvMs;
+        } else if (f.mt === MD.tradesSnapshot || f.mt === MD.tradesUpdate) {
+          // trades@<id> is per market like the book; newest first by block, then as sent
+          const t = parseTrades(f.raw, `ws.trades.${key}`).d;
+          const sorted = [...t].sort((a, b) => (b.at.b ?? 0) - (a.at.b ?? 0));
+          this.trades = (f.mt === MD.tradesSnapshot ? sorted : [...sorted, ...this.trades]).slice(0, MAX_TRADES);
+          this.lastTradesMs = recvMs;
         }
         return undefined;
       }
@@ -252,6 +264,8 @@ export type MarketDataSocketOptions = {
   clock?: Clock;
   /** also follow `order-book@<feed.marketId>` (default true: the router needs the book) */
   book?: boolean;
+  /** also follow `trades@<feed.marketId>` (websocket.md "Trade Messages"; default false) */
+  trades?: boolean;
   /** no frame for this long ⇒ reconnect (data arrives every block; default 15 s) */
   silenceMs?: number;
   /** Application ping period. Default 0 = off (websocket.md "Keep-Alive": market-data needs none; pings spend the budget). */
@@ -277,7 +291,7 @@ export class MarketDataSocket {
   connects = 0;
 
   constructor(private readonly o: MarketDataSocketOptions) {
-    this.streams = [`heartbeat@${o.chainId}`, `market-config@${o.chainId}`, `market-state@${o.chainId}`, `funding@${o.chainId}`, ...(o.book === false ? [] : [`order-book@${o.feed.marketId}`])];
+    this.streams = [`heartbeat@${o.chainId}`, `market-config@${o.chainId}`, `market-state@${o.chainId}`, `funding@${o.chainId}`, ...(o.book === false ? [] : [`order-book@${o.feed.marketId}`]), ...(o.trades ? [`trades@${o.feed.marketId}`] : [])];
   }
 
   private get clock(): Clock {

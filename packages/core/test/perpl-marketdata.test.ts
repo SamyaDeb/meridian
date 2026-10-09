@@ -1,7 +1,7 @@
 // Ported from meridian-k3/mfi/test/ws.test.ts (perpl-hedge @ 116e26d) + the L2 book (order-book@64 frames recorded the
 // same session, 7 Oct 2026 15:26 UTC, fixtures/perpl/testnet/ws/order-book.jsonl).
 import { describe, expect, it } from "vitest";
-import { L2BookState, MarketDataFeed, MarketDataSocket, RETRY_DELAYS_MS, feeForTier, parseContext, parseL2Book, parseMarketDataFrame, perplRateToAprWad, reconnectDelayMs, type FundingEvent, type FundingUpdate, type MarketDataFrame, type SocketEvent } from "../src/perpl";
+import { L2BookState, MAX_TRADES, MarketDataFeed, parseTrades, MarketDataSocket, RETRY_DELAYS_MS, feeForTier, parseContext, parseL2Book, parseMarketDataFrame, perplRateToAprWad, reconnectDelayMs, type FundingEvent, type FundingUpdate, type MarketDataFrame, type SocketEvent } from "../src/perpl";
 import { FakeClock, FakeWs, fixtureJson, fixtureLines } from "./helpers";
 
 const lines = (name: string) => fixtureLines(`perpl/testnet/ws/${name}.jsonl`);
@@ -132,6 +132,29 @@ describe("MarketDataFeed funding", () => {
   });
 });
 
+describe("trades (websocket.md 'Trade Messages', mt 17 / 18)", () => {
+  const trade = (b: number, p: number, s: number, sd: number) => ({ at: { b, t: b * 400, txid: `0x${b}` }, p, s, sd });
+  it("snapshot replaces, update prepends, newest first, bounded", () => {
+    const feed = new MarketDataFeed(64);
+    feed.apply(parseMarketDataFrame(JSON.stringify({ mt: 17, sid: 3, d: [trade(10, 2567, 40, 1), trade(12, 2566, 5, 2)] })), 1);
+    expect(feed.trades.map((t) => t.at.b)).toEqual([12, 10]);
+    expect(feed.trades[0]).toEqual({ at: { b: 12, t: 4800, txid: "0x12" }, p: 2566, s: 5, sd: 2 });
+    feed.apply(parseMarketDataFrame(JSON.stringify({ mt: 18, sid: 3, d: [trade(13, 2570, 1, 1)] })), 2);
+    expect(feed.trades.map((t) => t.at.b)).toEqual([13, 12, 10]);
+    expect(feed.lastTradesMs).toBe(2);
+    feed.apply(parseMarketDataFrame(JSON.stringify({ mt: 18, d: Array.from({ length: 60 }, (_, i) => trade(100 + i, 1, 1, 1)) })), 3);
+    expect(feed.trades).toHaveLength(MAX_TRADES);
+    expect(feed.trades[0]!.at.b).toBe(159);
+  });
+  it("a malformed trade never reaches the feed (schema error recorded)", () => {
+    const feed = new MarketDataFeed(64);
+    feed.apply(parseMarketDataFrame(JSON.stringify({ mt: 17, d: [{ at: {}, p: 1, s: 1, sd: 3 }] })), 1);
+    expect(feed.trades).toEqual([]);
+    expect(feed.errors.at(-1)).toMatch(/sd/);
+    expect(() => parseTrades({ mt: 15, d: [] })).toThrow(/17/);
+  });
+});
+
 describe("reconnectDelayMs", () => {
   it("1001 now; schedule ±25 %; 1013 pauses", () => {
     expect(reconnectDelayMs(1001, 5, () => 0.9)).toBe(0);
@@ -140,7 +163,7 @@ describe("reconnectDelayMs", () => {
   });
 });
 
-function harness(over: { silenceMs?: number; book?: boolean } = {}) {
+function harness(over: { silenceMs?: number; book?: boolean; trades?: boolean } = {}) {
   const clock = new FakeClock();
   const sockets: FakeWs[] = [];
   const events: SocketEvent[] = [];
@@ -161,6 +184,10 @@ describe("MarketDataSocket", () => {
     h2.s.start();
     h2.last().open();
     expect((h2.last().sent[0]!.subs as unknown[]).length).toBe(4);
+    const h3 = harness({ trades: true });
+    h3.s.start();
+    h3.last().open();
+    expect((h3.last().sent[0]!.subs as { stream: string }[]).map((x) => x.stream).at(-1)).toBe("trades@64");
   });
   it("network drop ⇒ back-off reconnect; silence ⇒ reconnect; stop ⇒ never again", () => {
     const h = harness({ silenceMs: 5_000 });
