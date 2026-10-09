@@ -1,47 +1,54 @@
-// Create a passkey wallet, or sign in with one that already exists (synced passkey, reinstall, new phone).
+// The passkey hero (FIDO handshake, MOBILE_UX_RESEARCH L4–L6 / §5.1): symbol + headline + plain message + one CTA before
+// the OS sheet, "Wallet ready ✓" after it, then Home. Copy is FIDO's tested wording (L5) adapted per §5.1 — keep verbatim.
 import { router } from "expo-router";
+import { StyleSheet, View } from "react-native";
 import { useAuthController } from "../../auth/AuthProvider";
 import { AuthProgress } from "../../features/auth/AuthProgress";
 import { ErrorLine } from "../../features/auth/ErrorLine";
 import { useAuthAction } from "../../features/auth/useAuthAction";
+import { useWalletReady, WalletReady } from "../../features/auth/WalletReady";
 import { Screen } from "../../features/shell/Screen";
-import { Button, Card, Text } from "../../ui";
+import { Button, Card, colors, PasskeyIcon, space, Text } from "../../ui";
+
+export const HERO_TITLE = "Your fingerprint is your wallet";
+export const HERO_BODY =
+  "Passkeys are encrypted digital keys you create using your fingerprint, face, or screen lock. Saved in Google Password Manager, so a new phone signs you back in.";
+export const CALM_CREATE = "No problem — tap Create when ready";
 
 export default function Create() {
   const auth = useAuthController();
-  const { run, error, busy } = useAuthAction();
+  const { run, error, errorKind, busy } = useAuthAction();
+  const { ready, show } = useWalletReady();
   const blocked = auth.rpProblem;
+  if (ready) return <WalletReady />;
   return (
     <Screen
       footer={
         <>
           <Button
-            title="Create with fingerprint / face"
-            accessibilityHint="Creates a passkey for Meridian and a new wallet from it"
+            title="Create my wallet"
+            accessibilityHint="Opens your phone's passkey prompt"
             disabled={busy || Boolean(blocked)}
-            onPress={() => void run(() => auth.create(), () => router.replace("/fund"))}
-          />
-          <Button
-            title="I already have one"
-            variant="secondary"
-            accessibilityHint="Sign in with an existing Meridian passkey"
-            disabled={busy || Boolean(blocked)}
-            onPress={() => void run(() => auth.unlock({ pick: true }), () => router.replace("/trade"))}
+            onPress={() => void run(() => auth.create(), show)}
           />
           <Button title="Back" variant="ghost" disabled={busy} onPress={() => router.back()} />
         </>
       }
     >
-      <Text variant="title" accessibilityRole="header">
-        Your wallet
-      </Text>
-      <Card>
-        <Text bold>A passkey is your wallet</Text>
-        <Text tone="muted">
-          Your fingerprint or face unlocks a passkey saved in your Google Password Manager. Meridian turns it into your wallet on this phone. No seed phrase to
-          write down, nothing stored on our servers.
+      <View style={s.hero}>
+        <View style={s.symbol}>
+          <PasskeyIcon size={40} color={colors.brandSoft} />
+        </View>
+        <Text variant="title" accessibilityRole="header" style={s.center}>
+          {HERO_TITLE}
         </Text>
-      </Card>
+        <Text tone="muted" style={s.center}>
+          {HERO_BODY}
+        </Text>
+        <Text tone="muted" variant="caption" style={s.center}>
+          No seed phrase to write down. Nothing stored on our servers.
+        </Text>
+      </View>
       {blocked ? (
         <Card>
           <Text tone="warn" bold>
@@ -51,7 +58,13 @@ export default function Create() {
         </Card>
       ) : null}
       <AuthProgress />
-      <ErrorLine message={error} />
+      <ErrorLine message={error} kind={errorKind} calm={CALM_CREATE} />
     </Screen>
   );
 }
+
+const s = StyleSheet.create({
+  hero: { alignItems: "center", gap: space.l, paddingTop: space.xxxl },
+  symbol: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.brandTint, alignItems: "center", justifyContent: "center" },
+  center: { textAlign: "center" },
+});

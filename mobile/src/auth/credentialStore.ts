@@ -57,7 +57,7 @@ export class CredentialStore {
     try {
       return checkRecord(JSON.parse(raw));
     } catch {
-      // unreadable record: forget it (the passkey still exists; "I already have one" finds it)
+      // unreadable record: forget it (the passkey still exists; "Use an existing passkey" finds it)
       await this.kv.del(this.key);
       return undefined;
     }
