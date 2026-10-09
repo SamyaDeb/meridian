@@ -87,7 +87,7 @@ is the default, **Pro** (full chart + books) is remembered on the device (`featu
 (`history.ts`: Perpl funding events over REST + Meridian `previewFundingState` read at the block ~each hour ago — falls
 back to "since you opened Earn" when the RPC can't serve old blocks, > VERIFY archive depth); numpad (25 % / 50 % / MAX
 of 2 × the binding venue) → "≈ $Y / day"; legs in plain words; "No edge right now" + Perpl's next funding time; a
-3-step explainer. Lock (fixed-rate swap leg) is **cut** for this build (MOBILE_PLAN cut order, P2).
+3-step explainer. **Lock** toggle (below).
 - **Sizing (`plan.ts`):** the amount is split evenly, 2× per leg, so notional per leg = the AUSD committed (APR on AUSD =
   the pair's net APR); room is left for the taker fee; size = notional / the highest price the buy leg could pay,
   floored to lcm(Meridian lot, Perpl step). Limits = each book walked at that size ± 1 %, snapped buy ↑ / sell ↓.
@@ -107,3 +107,13 @@ of 2 × the binding venue) → "≈ $Y / day"; legs in plain words; "No edge rig
   didn't fill / undone, Perpl order id, explorer tx link). Success haptic only on DONE / CLOSED.
 - **Dev flag (`devFail.tsx`, `__DEV__` only):** "force the Meridian leg to fail" → the Perpl leg is auto-unwound on the
   phone. Required only behind `__DEV__`; `check:release` fails if its marker reaches a release bundle.
+- **Lock (`plan.ts` quoteLock, `data/swap.ts`, core `meridian/swapMargin.ts`):** fixes the MERIDIAN leg's floating
+  funding on Meridian's funding-swap book (a second OrderBook, price = 1 + fixed APR; MATH_SPEC §6): a Meridian short
+  sells the swap (receives fixed), a long buys it. Size = the hedge floored to the swap lot (1,000 MON on the spec), the
+  rest stays floating; Perpl's side always floats. The quote shows the fixed APR after the swap taker fee and
+  "until <maturity>"; the swap-market collateral = core `swapLockNeedWad` (a 1:1 port of `SwapMarginLib` +
+  `FundingSwapMarket._fee/_check`: IM + fee − V at the worst APR, minus the account's settled collateral, ↑ to whole
+  AUSD), deposited in the SAME fingerprint prompt as the venue top-ups. The swap is core LEG3_SWAP after the hedge: if it
+  fails, the hedge stays open at the floating rate (DONE_LOCK_FAILED, nothing unwound). Closing with a lock buys/sells
+  the swap back FIRST (reduce-only, ±20 bps of price); if it doesn't close in full, nothing else is sent, so a swap is
+  never left without its hedge. Unavailable states are said plainly (below one lot, matured, no quotes, loading).
