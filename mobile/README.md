@@ -45,8 +45,7 @@ A cancelled OS sheet shows a calm muted line, never red. Identity everywhere is 
 Tabs: Home (`(tabs)/portfolio`, first, default after unlock) · Trade · Earn · Settings.
 `WalletFeedProvider` (root, under the auth gate) runs the one BalanceReader for the unlocked wallet; each state goes
 through `detectArrival` (pure) → "+12.50 AUSD arrived" toast + success haptic anywhere in the app, and Home's total
-counts up. Home total = `totalAusdWad({ walletWad, venues })` in `src/features/home/total.ts`: `venues` is empty until
-N7 adds Meridian + Perpl equity. Testnet "Get test funds": Monad faucet for MON, then 10,000 test AUSD minted from
+counts up. Home total = `totalAusdWad({ walletWad, venues })` in `src/features/home/total.ts` (venues: N7, below). Testnet "Get test funds": Monad faucet for MON, then 10,000 test AUSD minted from
 Meridian's AUSD mock (`src/wallet/testFunds.ts`; never on 143).
 
 ## Trade (N5)
@@ -76,3 +75,37 @@ is the default, **Pro** (full chart + books) is remembered on the device (`featu
   swipe Close + visible Close → reduce-only for the whole size at the opposite best ± 2 %.
 - Providers: `TradeProvider` (root, under the auth gate) sits ABOVE `BottomSheetModalProvider`, as do Toast and the
   wallet feed: sheet content renders through a portal and only sees contexts above the provider.
+
+## Home, Activity, Settings (N7)
+- **Total** (`features/home/total.ts`): wallet AUSD (the one `useWalletFeed` reader) + each deployed venue's own account
+  value, bigint WAD, from the same per-block `AccountsReader` the Trade screen uses (no second balance reader).
+  Meridian = AccountView `equity` (= collateral + uPnL − pending funding, `ClearingHouse.getAccount`: collateral is
+  already inside it). Perpl = account `balanceCNS` (excludes open positions: dex-sdk `state/account.rs`) + the MON
+  position's deposit + delta PnL + premium PnL; the account view's position bitmap (dex-sdk
+  `perpetuals_with_position`, checked on the recorded K3 account) marks a position on another Perpl market ⇒ that part
+  is unknown. Any unknown part ⇒ the hero shows "—" and the breakdown sheet ("See breakdown") says which part and why.
+  A venue not deployed on the network is not part of the total (the sheet says so). Values floor at 0.
+- **Open PnL** next to the total (not "today's": no honest per-day baseline without the indexer): Meridian uPnL −
+  pending funding + Perpl delta + premium PnL, per block; "—" while any part is unknown.
+- **Account reads** run while any holder is on: `useAccountReadsWhileFocused()` (Home, Trade) and the liquidation
+  alert while the app is in the foreground. `focus` is a counter, so tab focus/blur order can't switch reads off.
+- **Positions on Home** = the N5 `PositionCards` (swipe + visible Close → summary → hold/tap → receipt), plus a
+  funding line (Meridian −pendingFunding, Perpl premium PnL; + = received) and a "Basis trade" header when one
+  Meridian and one Perpl position are equal and opposite (fallback until N6 stores a `basisId`).
+- **Activity** (`features/activity/`, Home shows the latest 3, `app/activity.tsx` all, pull-to-refresh on both):
+  (1) this app's receipts, persisted per (chain, wallet) in SecureStore (`meridian.activity.<chain>.<wallet>`, newest
+  25, non-secret); (2) Perpl `GET /v1/trading/fills` grouped per order + `GET /v1/trading/account-history` (deposit,
+  withdrawal, liquidation, funding), signed REST, one page of 50 each; (3) Meridian `Trade` / `FundingPayment` /
+  `Liquidation` from the Envio indexer, only when `EXPO_PUBLIC_INDEXER_URL` is set (> VERIFY root fields + `_ilike`
+  against the live Hasura console, as the web app's `account.ts`). Merged newest first, deduped (the app's own receipt
+  wins over Perpl's row for the same order id / Meridian tx hash). Trade rows → the receipt modal; other rows →
+  `app/activity-item.tsx`. A source that is off or failed says so under the list. Not listed: wallet transfers and
+  Meridian deposits (no indexed per-event source; the arrival toast covers incoming AUSD live).
+- **Settings**: passkey card, wallet identicon + copy, recovery export, Perpl card, sign out (N3/N4/N4b), plus
+  **Alerts** (`features/alerts/`): "Close to liquidation" (< 5 %, re-arms above 6 %) and "Funding flips", off by
+  default, saved on the device, shown in-app (error toast + haptic / info toast) — no OS notification permission is
+  asked because this build has no push; and **Open full terminal** (staging/dev: `meridian-testnet.vercel.app`; hidden
+  on production until the prod web URL is set, > VERIFY in `config/appConfig.ts`).
+- **Cut (MOBILE_PLAN cut order, no new native dependency ⇒ the EAS dev build `4e91111a` still works):** push
+  (`expo-notifications` + the `/api/push/*` backend, which doesn't exist yet), share card (`react-native-view-shot` +
+  `expo-sharing`), Flip / Add margin / Close all.
