@@ -113,7 +113,7 @@ describe("Trades tab (RNTL)", () => {
     f.perpl.store.update({ trades: [row("perpl", 70, "sell", "0.02551", 5n)] });
     const reader = new MeridianTradesReader({ client: { getLogs: async () => [] } as never, orderBook: OB });
     reader.store.set({ rows: [row("meridian", 72, "buy", "0.025864", 300n)], toBlock: 72n, error: undefined });
-    const kit: TradeKit = { chart: undefined, accounts: undefined, executor: undefined, focus: new Store(true), trades: reader };
+    const kit: TradeKit = { chart: undefined, accounts: undefined, executor: undefined, focus: new Store(1), trades: reader };
     const view = await render(
       <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
         <LiveProvider live={f.live}>

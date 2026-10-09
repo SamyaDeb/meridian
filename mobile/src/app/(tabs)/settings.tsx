@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { memo } from "react";
-import { StyleSheet, View } from "react-native";
+import { Linking, StyleSheet, View } from "react-native";
+import { AlertsCard } from "../../features/alerts/AlertsCard";
 import { buildInfo, getAppConfig } from "../../config";
 import { Screen } from "../../features/shell/Screen";
 import { PerplSettings } from "../../features/perpl/PerplSettings";
@@ -41,6 +42,15 @@ export default function Settings() {
       </Text>
       <WalletSettings />
       <PerplSettings />
+      <AlertsCard />
+      {cfg.webUrl ? (
+        <Card>
+          <Button title="Open full terminal" variant="secondary" onPress={() => void Linking.openURL(cfg.webUrl!)} accessibilityHint="Opens the Meridian web terminal in your browser" testID="btn-web-terminal" />
+          <Text variant="caption" tone="muted">
+            Every order type, depth and history on the web, signed in with the same passkey.
+          </Text>
+        </Card>
+      ) : null}
       <Card>
         <Row label="Network">
           <NetworkBadge />

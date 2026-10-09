@@ -83,7 +83,7 @@ async function setup(o: { fail?: string } = {}) {
     sleep: async () => undefined,
     afterTrade: () => undefined,
   });
-  const kit: TradeKit = { chart: undefined, accounts, executor, focus: new Store(true) };
+  const kit: TradeKit = { chart: undefined, accounts, executor, focus: new Store(1) };
   const feed = new WalletFeedStore();
   return { auth, live: f.live, kit, feed, sent, map };
 }

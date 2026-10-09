@@ -7,6 +7,8 @@ import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuthStatus } from "../auth/AuthProvider";
+import { ActivityProvider } from "../features/activity/ActivityProvider";
+import { AlertsProvider } from "../features/alerts/AlertsProvider";
 import { EarnProvider } from "../features/earn/EarnProvider";
 import { TradeProvider } from "../features/trade/TradeProvider";
 import { WalletFeedProvider } from "../features/wallet/WalletFeedProvider";
@@ -28,7 +30,7 @@ function RootStack() {
       <Stack.Screen name="(onboarding)" />
       <Stack.Protected guard={unlocked}>
         <Stack.Screen name="(tabs)" />
-        {["fund", "route", "receipt", "earn-receipt", "position", "close-all", "recovery"].map((name) => (
+        {["fund", "route", "receipt", "earn-receipt", "position", "close-all", "recovery", "activity", "activity-item"].map((name) => (
           <Stack.Screen key={name} name={name} options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         ))}
       </Stack.Protected>
@@ -52,15 +54,19 @@ export default function RootLayout() {
                 <ToastProvider>
                   <WalletFeedProvider>
                     {/* sheets render through a portal at BottomSheetModalProvider: every context a sheet's content uses
-                        (toast, wallet feed, trade) must sit ABOVE it */}
-                    <TradeProvider>
-                      <EarnProvider>
-                        <BottomSheetModalProvider>
-                          <StatusBar style="light" />
-                          <RootStack />
-                        </BottomSheetModalProvider>
-                      </EarnProvider>
-                    </TradeProvider>
+                        (toast, wallet feed, activity, trade, earn) must sit ABOVE it */}
+                    <ActivityProvider>
+                      <TradeProvider>
+                        <EarnProvider>
+                          <AlertsProvider>
+                            <BottomSheetModalProvider>
+                              <StatusBar style="light" />
+                              <RootStack />
+                            </BottomSheetModalProvider>
+                          </AlertsProvider>
+                        </EarnProvider>
+                      </TradeProvider>
+                    </ActivityProvider>
                   </WalletFeedProvider>
                   <OfflineBanner />
                 </ToastProvider>
