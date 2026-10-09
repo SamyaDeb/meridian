@@ -10,7 +10,7 @@ import { useMeridian, usePerpl } from "../../../live/hooks";
 import type { MeridianMarketState } from "../../../live/meridianMarket";
 import type { PerplMarketState } from "../../../live/perplMarket";
 import { Store, useStore } from "../../../live/store";
-import { Card, haptic, Meter, Num, Sheet, space, SwipeRow, Text, type SheetRef } from "../../../ui";
+import { Button, Card, haptic, Meter, Num, Sheet, space, SwipeRow, Text, type SheetRef } from "../../../ui";
 import { plainTradeError } from "../exec/errors";
 import { priceText, sizeText } from "../ticket/quote";
 import { ConfirmBar } from "../ConfirmBar";
@@ -108,9 +108,12 @@ export const PositionCards = memo(function PositionCards() {
 
   return (
     <Card style={s.card}>
-      <Text variant="caption" tone="muted" style={s.title}>
-        Your positions
-      </Text>
+      <View style={[s.row, s.title]}>
+        <Text variant="caption" tone="muted">
+          Your positions
+        </Text>
+        {views.length > 1 ? <Button title="Close all" variant="link" onPress={() => router.push("/close-all")} accessibilityHint="One confirm closes every position; a hedged pair closes Meridian first, then Perpl" testID="btn-close-all" /> : null}
+      </View>
       {isBasisPair(views) ? (
         <Text variant="caption" style={s.title} testID="position-basis">
           Basis trade · the two legs hedge each other’s price; the funding gap is the return

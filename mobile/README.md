@@ -106,6 +106,13 @@ is the default, **Pro** (full chart + books) is remembered on the device (`featu
   default, saved on the device, shown in-app (error toast + haptic / info toast) — no OS notification permission is
   asked because this build has no push; and **Open full terminal** (staging/dev: `meridian-testnet.vercel.app`; hidden
   on production until the prod web URL is set, > VERIFY in `config/appConfig.ts`).
+- **Close all** (`app/close-all.tsx`, "Close all" on the positions card when 2+ are open): a hedged basis pair closes
+  through core's two-leg close machine (`features/trade/exec/closeAll.ts` → core `exec/close` + `runClose`): Meridian
+  reduce-only first (final onchain), then Perpl reduce-only IOC for exactly what Meridian closed (floored to Perpl's
+  lot), one retry at 2× slippage, else MANUAL with the unhedged size named. Persisted per (chain, wallet) in SecureStore
+  (`meridian.trade.closeall.<chain>.<wallet>`) after every event and resumed on launch (signed Meridian tx re-broadcast;
+  Perpl order adopted by rq floor, which is cleared on every phase change). Unrelated positions close one by one
+  (Meridian first, stop at the first that doesn't fill). One order at a time across the Trade executor and Close all.
 - **Cut (MOBILE_PLAN cut order, no new native dependency ⇒ the EAS dev build `4e91111a` still works):** push
   (`expo-notifications` + the `/api/push/*` backend, which doesn't exist yet), share card (`react-native-view-shot` +
-  `expo-sharing`), Flip / Add margin / Close all.
+  `expo-sharing`), Flip / Add margin.
