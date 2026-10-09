@@ -1,4 +1,5 @@
-// Settings → Wallet: address + copy, lock now, recovery phrase export, sign out (confirmed). Dev builds also show the
+// Settings → Wallet: identity (identicon + "Wallet ••a3f2"; the hex only via copy / Add funds), the passkey card, lock
+// now, recovery phrase export, sign out (confirmed). Dev builds also show the
 // measured key-derivation time and a 0-MON self-transfer (device QA rows 5 and the deriveEvmKey timing).
 import { router } from "expo-router";
 import { useState } from "react";
@@ -7,7 +8,9 @@ import { useAccountAddress, useAuthController, useDeriveMs } from "../../auth/Au
 import { Button, Card, haptic, Text } from "../../ui";
 import { TxError, type TxResult } from "../../wallet/sendTx";
 import { useSendTx } from "../../wallet/hooks";
-import { AddressCard } from "./AddressCard";
+import { AddressActions } from "./AddressActions";
+import { PasskeyCard, PASSKEY_SIGN_OUT } from "./PasskeyCard";
+import { WalletChip } from "./WalletChip";
 
 function DevTools({ address }: { address: `0x${string}` }) {
   const deriveMs = useDeriveMs();
@@ -56,16 +59,20 @@ export function WalletSettings() {
   if (!address) return null;
   return (
     <>
-      <AddressCard address={address} label="Wallet" />
+      <PasskeyCard />
+      <Card>
+        <WalletChip address={address} size={40} />
+        <AddressActions address={address} />
+      </Card>
       <Card>
         <Button title="Lock now" variant="secondary" onPress={() => auth.lock("manual")} />
         <Button title="Export recovery phrase" variant="secondary" accessibilityHint="Asks for your passkey, then shows your 24 words" onPress={() => router.push("/recovery")} />
         <Button
           title="Sign out"
           variant="ghost"
-          accessibilityHint="Forgets this wallet on this phone. Your passkey stays in your password manager."
+          accessibilityHint="Forgets this wallet on this phone. Your passkey stays in Google Password Manager."
           onPress={() =>
-            Alert.alert("Sign out?", "Meridian forgets this wallet on this phone. Your passkey stays in Google Password Manager: sign in again any time with “I already have one”.", [
+            Alert.alert("Sign out?", PASSKEY_SIGN_OUT, [
               { text: "Cancel", style: "cancel" },
               { text: "Sign out", style: "destructive", onPress: () => void auth.signOut().then(() => router.replace("/welcome")) },
             ])

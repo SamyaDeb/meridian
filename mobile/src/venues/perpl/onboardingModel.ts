@@ -72,3 +72,25 @@ export function onboardingView(o: PerplObservation): OnboardingView {
 export function checkOrder(v: OnboardingView): ("key" | "account" | "forwarding")[] {
   return v.next === "deposit" && v.key === "waiting" ? ["account", "key", "forwarding"] : ["key", "account", "forwarding"];
 }
+
+/** The status line in plain words (MOBILE_UX_RESEARCH principle 4): no HTTP codes, "API", "forwarding" or ids. `reason`
+ *  keeps the technical detail for logs and dev screens. */
+export function plainStatus(v: OnboardingView): string {
+  if (v.ready) return "Perpl is ready to trade.";
+  switch (v.next) {
+    case "enroll":
+      return /401/.test(v.core.reason) ? "Your Perpl trading key stopped working. Enable trading again." : "Enable Perpl trading to start.";
+    case "deposit":
+      return v.key === "waiting" ? "Perpl needs a first deposit before it can enable trading." : "Make a first deposit to open your Perpl account.";
+    case "forwarding":
+      return "One last step: allow fast orders.";
+    case "top-up":
+      return "Your Perpl account has no free AUSD yet. Add some to trade.";
+    case "retry":
+    case "none":
+      return "Couldn't check Perpl just now. Check again in a moment.";
+  }
+}
+
+/** Plain names for the onboarding transactions (Details list). */
+export const STEP_LABEL = { enroll: "Enable trading", approve: "Allow AUSD", createAccount: "Open account", deposit: "Deposit", forwarding: "Fast orders" } as const;

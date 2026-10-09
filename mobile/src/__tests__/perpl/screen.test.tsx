@@ -78,21 +78,32 @@ it("NO_KEY → KEY_ENROLLED → ACCOUNT_CREATED → READY, each step one tap, ea
   await render(wrap(h.auth, h.venue, <PerplOnboardingScreen />));
   expect(chips().key).toHaveTextContent("Next");
   expect(chips().deposit).toHaveTextContent("After the step above"); // chain read: no account yet
-  expect(screen.getByText(/Add ~0.5 MON for network fees/)).toBeTruthy();
+  expect(screen.getByText("Add a little MON for network fees")).toBeTruthy();
+  expect(screen.getByTestId("perpl-reason")).toHaveTextContent("Enable Perpl trading to start.");
 
   await act(async () => fireEvent.press(screen.getByTestId("btn-enroll")));
+  expect(screen.getByText("Perpl trading enabled")).toBeTruthy(); // explicit success
   expect(chips().key).toHaveTextContent("✓ Done");
   expect(chips().deposit).toHaveTextContent("Next");
   expect(screen.getByTestId("deposit-min")).toHaveTextContent("Minimum 100 AUSD (read from Perpl now) · in your wallet 250 AUSD");
 
   await act(async () => fireEvent.press(screen.getByTestId("btn-min")));
+  expect(screen.getByTestId("deposit-allow")).toHaveTextContent("Allow Perpl to use exactly 100 AUSD");
   await act(async () => fireEvent.press(screen.getByTestId("btn-deposit")));
+  expect(screen.getByText("Deposited 100 AUSD to Perpl")).toBeTruthy();
   expect(h.chain.txs.map((t) => t.functionName)).toEqual(["approve", "createAccount"]);
   expect(chips().deposit).toHaveTextContent("✓ Done");
   expect(chips().fwd).toHaveTextContent("Next");
-  expect(screen.getByTestId("tx-list")).toHaveTextContent(/approve · block/);
+  // onchain details (hashes) only behind "Details", in plain step names
+  expect(screen.getByTestId("tx-list")).not.toHaveTextContent(/0x/);
+  await act(async () => fireEvent.press(screen.getByTestId("btn-details")));
+  expect(screen.getByTestId("tx-list")).toHaveTextContent(/Allow AUSD · block/);
+  expect(screen.getByTestId("tx-list")).toHaveTextContent(/Open account · block/);
+  expect(screen.getByTestId("tx-list")).not.toHaveTextContent(/approve/);
 
+  expect(screen.getByTestId("perpl-reason")).toHaveTextContent("One last step: allow fast orders.");
   await act(async () => fireEvent.press(screen.getByTestId("btn-forwarding")));
+  expect(screen.getByText("Fast orders on")).toBeTruthy();
   expect(screen.getByTestId("perpl-ready")).toHaveTextContent(/Perpl is ready/);
   expect(screen.getByTestId("perpl-ready")).toHaveTextContent(/Account #1000/);
   expect(screen.getByTestId("free-collateral")).toBeTruthy();
@@ -110,6 +121,8 @@ it("enrol 404 (wallet unknown to Perpl) → the deposit check moves to the top a
   expect(chips().key).toHaveTextContent("After the step above");
   const titles = screen.getAllByText(/^\d\. /).map((n) => (n.props.children as unknown[]).join(""));
   expect(titles[0]).toMatch(/^1\. Deposit AUSD/);
+  expect(screen.getByTestId("perpl-reason")).toHaveTextContent("Perpl needs a first deposit before it can enable trading.");
+  expect(screen.queryByText("Perpl trading enabled")).toBeNull(); // no success on a failed step
 });
 
 it("a deposit below the minimum shows the plain error and sends nothing", async () => {
@@ -121,6 +134,8 @@ it("a deposit below the minimum shows the plain error and sends nothing", async 
   await act(async () => fireEvent.press(screen.getByTestId("btn-deposit")));
   expect(screen.getByTestId("perpl-error")).toHaveTextContent("Perpl needs at least 100 AUSD to open your account");
   expect(h.chain.txs).toHaveLength(0);
+  expect(screen.getByTestId("deposit-input").props.value).toBe("50"); // the error keeps what was typed
+  expect(screen.getByTestId("deposit-allow")).toHaveTextContent("Allow Perpl to use exactly 50 AUSD");
 });
 
 it("memoryKv is the only store touched (no SecureStore in this test)", () => {

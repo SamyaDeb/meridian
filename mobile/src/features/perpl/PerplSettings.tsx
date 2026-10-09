@@ -7,6 +7,7 @@ import { Alert, StyleSheet, View } from "react-native";
 import { Button, Card, haptic, Num, space, Text } from "../../ui";
 import { toWad } from "../../wallet/balances";
 import type { OnboardingState } from "../../venues/perpl/onboarding";
+import { plainStatus } from "../../venues/perpl/onboardingModel";
 import { usePerpl, usePerplOnboarding, usePerplSocket } from "../../venues/perpl/PerplProvider";
 import type { TradingSocketState } from "../../venues/perpl/tradingSocket";
 
@@ -52,7 +53,7 @@ export function PerplSettings() {
         Perpl
       </Text>
       <Row label="Status">
-        <Text testID="perpl-status">{view ? (view.ready ? "Ready to trade" : view.reason) : "Checking…"}</Text>
+        <Text testID="perpl-status">{view ? (view.ready ? "Ready to trade" : plainStatus(view)) : "Checking…"}</Text>
       </Row>
       <Row label="Account">
         <Text>{a ? `#${a.id}` : "—"}</Text>
