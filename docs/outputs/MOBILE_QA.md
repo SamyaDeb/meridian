@@ -107,3 +107,23 @@ bot running) or the screen correctly says "No liquidity right now". Tick only wh
 | T6 | Kill the app right after confirming → relaunch → unlock → the trade resolves (receipt or "closed before sending"), never stuck | ⏳ | | |
 | T7 | Errors keep the input: e.g. 0.5 % slippage in a moving book or an amount above the wallet → specific message, amount still there | ⏳ | | |
 | T8 | TalkBack: Long/Short, numpad keys, presets, leverage (adjustable), quote rows (radio), "Or tap here to go long" all read | ⏳ | | |
+
+## Native app (MOBILE_PLAN N6): Earn (two-leg basis, auto-unwind, resume, receipt timeline)
+
+Build: same EAS dev build `4e91111a` (**no native dependency added in N6**: Switch is core React Native). JS from Metro on
+:8087 (branch `n6-earn`, `git fetch origin && git switch n6-earn && pnpm install --frozen-lockfile && cd mobile &&
+APP_ENV=development CI=1 npx expo start --dev-client --port 8087 --lan`). Testnet; needs N4 Perpl onboarding READY,
+test AUSD in the wallet for BOTH venues (Meridian's mock AUSD and Perpl's collateral token differ on testnet; "Get test
+funds" on Home), a little MON for gas, and liquidity on both books (the MM bot running on Meridian). Record order ids /
+tx hashes in PROOF.md. Tick only what was seen on the phone.
+
+| # | Check (exact taps) | Result | Seen by | Note |
+|---|---|---|---|---|
+| E1 | Earn tab: hero "X % APR on AUSD" ticks per block (block pulse), sparkline drawn with "Gap over the last 24 h" (or "since you opened Earn" if the RPC can't read old blocks — note which), explainer 3 steps. If the gap doesn't cover fees: "No edge right now" + "Perpl's next funding in …" counting down | ⏳ | | |
+| E2 | Open $10: tap `1` `0` → "≈ $… / day" + "Long/Short N MON on Perpl · Short/Long N MON on Meridian" + "Adds … AUSD to … first" (if a venue is short) → hold "Hold to start earning" (or tap "Or tap here to start earning") → fingerprint (only if a top-up is needed) → receipt "You're earning the gap", timeline: Collateral ✓, Perpl Filled + order #, Meridian Filled + "View on the explorer" opens the tx; success haptic once | ⏳ | | |
+| E3 | Back on Earn: "Your Earn position · N MON each side"; Trade tab shows both positions with equal size, opposite sides | ⏳ | | |
+| E4 | Close: tap "Close" → summary "Close N MON on Meridian first…" → hold "Hold to close both legs" → receipt "Closed on both venues"; Trade tab: flat on both venues; success haptic once | ⏳ | | |
+| E5 | Dev flag forced failure: on Earn switch on "Dev: force the Meridian leg to fail" → tap `1` `0` → hold → receipt "Undone automatically", timeline: Perpl Filled, Meridian "Didn't fill · Dev flag: …", "Undo: sell N MON on Perpl" Filled; Trade tab: flat on Perpl; NO success haptic. Switch the flag off after | ⏳ | | |
+| E6 | Kill mid-trade: tap `1` `0` → hold → as soon as "Opening your position…" shows, swipe the app away from Recents → relaunch → unlock → within ~20 s the run finishes on its own and Earn shows "Finished after the app reopened: …" → tap "See the receipt" (timeline complete) and Trade shows matching sizes on both venues (or flat) — never one-sided without the orange "Action needed" card | ⏳ | | |
+| E7 | Errors keep the input: tap `9` `9` `9` `9` (more than the wallet) → "You need … more AUSD …" + Add funds; confirm stays disabled; the amount stays | ⏳ | | |
+| E8 | TalkBack: hero APR, numpad keys, presets, "Or tap here to start earning", timeline rows ("Step 2: Long … Filled …") all read | ⏳ | | |
