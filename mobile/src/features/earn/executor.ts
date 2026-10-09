@@ -90,6 +90,8 @@ export type EarnExecutorDeps = {
   wrapLegs?: (legs: LegAdapter, meta: EarnMeta) => LegAdapter;
   /** venue state to re-read after a run */
   afterRun?: () => void;
+  /** another executor (Trade ticket / Close all) is running: why, in plain words (trade/exec/orderLock.ts) */
+  blocked?: () => string | undefined;
   now?: () => number;
   maxConfirmTries?: number;
   findTries?: number;
@@ -141,6 +143,8 @@ export class EarnExecutor {
     await this.loadPosition();
     const rec = await this.d.runs.load();
     if (!rec) return undefined;
+    // another executor is running: the run stays stored and is picked up on the next resume (one order at a time)
+    if (this.running || this.d.blocked?.()) return undefined;
     return this.run(rec, true);
   }
 
@@ -158,6 +162,8 @@ export class EarnExecutor {
 
   private fresh(state: EarnRun, m: RunMeta, now: number): EarnRecord {
     if (this.running) throw new Error("Another Earn order is still going through");
+    const why = this.d.blocked?.();
+    if (why) throw new Error(why);
     const head = this.d.head();
     const meta: EarnMeta = { chainId: this.d.chainId, address: this.d.address, createdAtMs: now, summary: m.summary, perplPriceDp: m.perplPriceDp, meridianPriceDp: m.meridianPriceDp, leverage100: m.leverage100, legs: {}, ...(head !== undefined ? { sentAtBlock: head } : {}), ...(m.devFailMeridian ? { devFailMeridian: true } : {}), ...(m.lockCollateralWad ? { lockCollateralWad: m.lockCollateralWad } : {}) };
     return { v: 1, state, meta };
