@@ -14,6 +14,7 @@ import { openPnl, totalAusdWad, VENUE_LABEL, venueEquities, type VenueEquity } f
 import { MarketHeader } from "../../features/markets/MarketHeader";
 import { Screen } from "../../features/shell/Screen";
 import type { AccountsState } from "../../features/trade/data/accounts";
+import { useEarnPair } from "../../features/earn/EarnProvider";
 import { PositionCards } from "../../features/trade/positions/PositionCards";
 import { useAccountReadsWhileFocused, useTrade } from "../../features/trade/TradeProvider";
 import { WalletChip } from "../../features/wallet/WalletChip";
@@ -156,6 +157,7 @@ export default function Home() {
   const sheet = useRef<SheetRef>(null);
   // positions + venue balances per block while Home is on top (the same reader the Trade screen uses)
   useAccountReadsWhileFocused();
+  const earnPair = useEarnPair();
   useEffect(() => {
     void feed?.refresh();
   }, [feed]);
@@ -170,7 +172,7 @@ export default function Home() {
         <BlockPulse />
       </View>
       <Hero onBreakdown={() => sheet.current?.present()} />
-      <PositionCards />
+      <PositionCards earnPair={earnPair} />
       <RecentActivity />
       <MarketHeader />
       <Sheet ref={sheet} title="Where your AUSD is">

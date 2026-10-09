@@ -5,6 +5,7 @@ import type { LegAdapter } from "@meridian/core/exec";
 import { clearingHouseAbi } from "@meridian/core/meridian";
 import { createPerplClient, httpTransport, perplExchangeAbi } from "@meridian/core/perpl";
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { Store, useStore } from "../../live/store";
 import type { LocalAccount } from "viem";
 import { useAccountAddress, useAuthController, useAuthStatus } from "../../auth/AuthProvider";
 import { secureKv } from "../../auth/secureKv";
@@ -22,7 +23,8 @@ import { ensureEarnCollateral, perplTopUp, swapDeposit } from "./collateral";
 import { SwapReader } from "./data/swap";
 import { EarnExecutor, type LegFactory } from "./executor";
 import { GapHistory } from "./history";
-import { earnRecordStore, positionStore, type EarnMeta } from "./record";
+import type { EarnPair } from "../trade/positions/views";
+import { earnRecordStore, FLAT, positionStore, type EarnMeta, type EarnPosition } from "./record";
 
 export type EarnKit = { executor: EarnExecutor | undefined; history: GapHistory | undefined; swap?: SwapReader | undefined };
 const EarnContext = createContext<EarnKit>({ executor: undefined, history: undefined });
@@ -172,3 +174,12 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
 }
 
 export const useEarn = (): EarnKit => useContext(EarnContext);
+
+const NO_POS = new Store<EarnPosition>(FLAT);
+const selPos = (p: EarnPosition) => p;
+
+/** The open Earn pair from the record (Home / Trade group the position cards by it), undefined when flat. */
+export function useEarnPair(): EarnPair | undefined {
+  const pos = useStore(useEarn().executor?.position ?? NO_POS, selPos);
+  return useMemo(() => (pos.perplSide && pos.sizeWad > 0n ? { perplSide: pos.perplSide, sizeWad: pos.sizeWad } : undefined), [pos]);
+}

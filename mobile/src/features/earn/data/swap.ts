@@ -40,11 +40,25 @@ export type SwapReaderDeps = { client: Pick<PublicClient, "multicall">; market: 
 
 export class SwapReader {
   readonly store = new Store<SwapState>(initial);
-  /** read per block only while Earn is on screen */
+  /** read per block only while a screen that needs it is on top (Earn, Close all) */
   readonly active = new Store(false);
   private inFlight = false;
+  private holders = 0;
 
   constructor(private readonly d: SwapReaderDeps) {}
+
+  /** Read per block while held; each holder releases once (focus / blur order between two screens can't switch reads off). */
+  hold(): () => void {
+    this.holders++;
+    this.active.set(true);
+    let held = true;
+    return () => {
+      if (!held) return;
+      held = false;
+      this.holders = Math.max(0, this.holders - 1);
+      if (this.holders === 0) this.active.set(false);
+    };
+  }
 
   onBlock(block: bigint): Promise<void> | undefined {
     const s = this.store.get();

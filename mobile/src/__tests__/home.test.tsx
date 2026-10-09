@@ -11,6 +11,7 @@ import { WalletFeedProvider } from "../features/wallet/WalletFeedProvider";
 import { ActivityProvider, type ActivityKit } from "../features/activity/ActivityProvider";
 import { AccountsReader, mapMeridian, mapPerpl, type AccountsState } from "../features/trade/data/accounts";
 import { TradeProvider, type TradeKit } from "../features/trade/TradeProvider";
+import { EarnProvider, type EarnKit } from "../features/earn/EarnProvider";
 import { LiveProvider } from "../live/LiveProvider";
 import { Store } from "../live/store";
 import { COUNT_UP_MS, ToastProvider } from "../ui";
@@ -62,7 +63,7 @@ function accountsKit(state: Partial<AccountsState> = NO_POSITIONS): { kit: Trade
   return { accounts, kit: { chart: undefined, accounts, executor: undefined, focus: new Store(0) } };
 }
 
-type Extra = { trade?: TradeKit; activity?: ActivityKit; live?: ReturnType<typeof fakeLive> };
+type Extra = { trade?: TradeKit; activity?: ActivityKit; live?: ReturnType<typeof fakeLive>; earn?: EarnKit };
 
 function wrap(auth: AuthController, feed: WalletFeedStore, children: ReactNode, x: Extra = {}) {
   const { live } = x.live ?? fakeLive();
@@ -73,7 +74,7 @@ function wrap(auth: AuthController, feed: WalletFeedStore, children: ReactNode, 
           <ToastProvider>
             <WalletFeedProvider feed={feed} read={false}>
               <ActivityProvider kit={x.activity ?? { log: undefined, feed: undefined }}>
-                <TradeProvider kit={x.trade ?? accountsKit().kit}>{children}</TradeProvider>
+                <TradeProvider kit={x.trade ?? accountsKit().kit}>{x.earn ? <EarnProvider kit={x.earn}>{children}</EarnProvider> : children}</TradeProvider>
               </ActivityProvider>
             </WalletFeedProvider>
           </ToastProvider>
@@ -330,4 +331,84 @@ it("Close all: a hedged pair → plain summary → tap → Meridian first, then 
   expect(screen.getByTestId("close-all-outcome")).toHaveTextContent(/Basis trade closed/);
   expect(screen.getByTestId("close-all-detail")).toHaveTextContent("Meridian closed 2,600 MON, then Perpl closed 2,600 MON. Nothing is left open.");
   expect(haptic.success).toHaveBeenCalled();
+});
+
+// ── N6 + N7: an Earn pair is grouped and closed by its record, with its lock first ──
+import { SwapReader } from "../features/earn/data/swap";
+import { earnReceiptStore, type EarnExecState, type EarnExecutor } from "../features/earn/executor";
+import { FLAT, type EarnPosition } from "../features/earn/record";
+import type { EarnTimeline } from "../features/earn/timeline";
+
+const lvl = (px: bigint) => [{ priceWad: px, sizeWad: 100_000n * WAD }];
+const shortMeridian = mapMeridian({ collateral: 100n * WAD, size: -2600n * WAD, entryPrice: 25n * 10n ** 15n, unrealizedPnl: 0n, pendingFunding: 0n, equity: 100n * WAD, initialMargin: 0n, maintenanceMargin: 0n, reservedOrderMargin: 0n, liquidationPrice: 0n });
+const CLOSED_T: EarnTimeline = { kind: "close", phase: "CLOSED", outcome: "success", headline: "Closed on both venues", body: "You're flat on both venues.", steps: [] };
+
+function booksLive() {
+  const live = fakeLive();
+  live.meridian.store.update({ tickSizeWad: 10n ** 14n, lotSizeWad: WAD, markWad: 26n * 10n ** 15n, bestBidWad: 26n * 10n ** 15n, bestAskWad: 27n * 10n ** 15n, bookKnown: true, bids: lvl(26n * 10n ** 15n), asks: lvl(27n * 10n ** 15n), takerFeeWad: 5n * 10n ** 14n });
+  live.perpl.store.update({ bestBidWad: 2600n * 10n ** 13n, bestAskWad: 2610n * 10n ** 13n, bookKnown: true, bids: lvl(2600n * 10n ** 13n), asks: lvl(2610n * 10n ** 13n) });
+  return live;
+}
+
+/** The Earn kit: a record (position store) + a close spy; the wallet's swap account as the swap reader read it. */
+function earnKit(pos: EarnPosition, lockWad: bigint | undefined) {
+  const close = jest.fn(async () => CLOSED_T);
+  const executor = { position: new Store(pos), store: new Store<EarnExecState>({ running: false, timeline: undefined, error: undefined }), close, loadPosition: async () => pos, resume: async () => undefined, noteManualClose: async () => undefined } as unknown as EarnExecutor;
+  const swap = new SwapReader({ client: { multicall: jest.fn() } as never, market: "0x0000000000000000000000000000000000000001", book: "0x0000000000000000000000000000000000000002", clearingHouse: "0x0000000000000000000000000000000000000003", address: "0x0000000000000000000000000000000000000004" });
+  if (lockWad !== undefined) swap.store.update({ atBlock: 1n, tickSizeWad: 10n ** 14n, lotSizeWad: 1_000n * WAD, bookKnown: true, bids: lvl(111n * 10n ** 16n), asks: lvl(113n * 10n ** 16n), account: { collateralWad: 7n * WAD, sizeWad: lockWad, kWad: 0n, avgFixedAprWad: 12n * 10n ** 16n } });
+  return { kit: { executor, history: undefined, swap } as EarnKit, close };
+}
+
+it("Home groups an open Earn pair by its record ('Earn · basis'), not the size fallback; a record the venues don't hold says so", async () => {
+  const { auth, feed } = await setup();
+  const live = booksLive();
+  const { kit } = accountsKit({ meridian: shortMeridian, perpl: K3 });
+  await act(async () => feed.push(bal(0n)));
+  const view = await render(wrap(auth, feed, <Home />, { trade: kit, live, earn: earnKit({ ...FLAT, perplSide: "buy", sizeWad: 2600n * WAD }, 0n).kit }));
+  expect(screen.getByTestId("position-earn")).toHaveTextContent(/^Earn · basis · 2,600 MON each side/);
+  expect(screen.queryByTestId("position-basis")).toBeNull();
+  await act(async () => view.rerender(wrap(auth, feed, <Home />, { trade: kit, live, earn: earnKit({ ...FLAT, perplSide: "buy", sizeWad: 3000n * WAD }, 0n).kit })));
+  expect(screen.getByTestId("position-earn-stale")).toHaveTextContent(/3,000 MON each side, but the venues no longer hold all of it\. Close it on Earn\./);
+  expect(screen.queryByTestId("position-basis")).toBeNull();
+});
+
+it("Close all on a locked Earn pair: one summary (lock first), the Earn executor closes it with the lock order; the Earn receipt opens", async () => {
+  const { auth, feed } = await setup();
+  const live = booksLive();
+  const { kit } = accountsKit({ meridian: shortMeridian, perpl: K3 });
+  const venues: string[] = [];
+  const closeAll = new CloseAllExecutor({ store: closeAllStore(memKv().kv, 10143, auth.account().address), legs: () => ({ legs: { prepare: async (leg) => (venues.push(leg.venue), "r"), send: async () => undefined, confirm: async (leg) => ({ filledWad: leg.sizeWad }) }, findSentPerpl: async () => undefined, perplOrderId: () => undefined }), busy: () => false, explorerBase: undefined, sleep: async () => undefined, afterTrade: () => undefined });
+  const earn = earnKit({ ...FLAT, perplSide: "buy", sizeWad: 2600n * WAD }, -1_000n * WAD);
+  await act(async () => feed.push(bal(0n)));
+  await render(wrap(auth, feed, <CloseAll />, { trade: { ...kit, closeAll }, live, earn: earn.kit }));
+  await wait(10);
+  expect(screen.getByTestId("close-all-earn")).toHaveTextContent("Close the fixed-rate lock (1,000 MON) first, then the Earn position: 2,600 MON on Meridian first, then the same on Perpl");
+  expect(screen.queryByTestId("close-all-summary")).toBeNull(); // not N7's size-only pair
+  await act(async () => fireEvent.press(screen.getByRole("button", { name: "Or tap here to close everything" })));
+  await wait(10);
+  expect(earn.close).toHaveBeenCalledWith(expect.objectContaining({ meridianSide: "buy", perplSide: "sell", sizeWad: 2600n * WAD }), expect.objectContaining({ summary: "Close 2,600 MON on both venues" }), expect.objectContaining({ side: "buy", sizeWad: 1_000n * WAD }));
+  expect(venues).toEqual([]); // N7's two-leg executor never saw the Earn pair
+  expect(screen.getByTestId("close-all-outcome")).toHaveTextContent(/Closed on both venues/);
+  await act(async () => fireEvent.press(screen.getByTestId("close-all-earn-receipt")));
+  expect(earnReceiptStore.get()).toBe(CLOSED_T);
+  expect(mockRouter.push).toHaveBeenCalledWith("/earn-receipt");
+  earnReceiptStore.set(undefined);
+});
+
+it("Close all with a lock but no Earn record: refused with the reason and where to close it; nothing is sent", async () => {
+  const { auth, feed } = await setup();
+  const live = booksLive();
+  const { kit } = accountsKit({ meridian: shortMeridian, perpl: K3 });
+  const venues: string[] = [];
+  const closeAll = new CloseAllExecutor({ store: closeAllStore(memKv().kv, 10143, auth.account().address), legs: () => ({ legs: { prepare: async (leg) => (venues.push(leg.venue), "r"), send: async () => undefined, confirm: async (leg) => ({ filledWad: leg.sizeWad }) }, findSentPerpl: async () => undefined, perplOrderId: () => undefined }), busy: () => false, explorerBase: undefined, sleep: async () => undefined, afterTrade: () => undefined });
+  const earn = earnKit(FLAT, -1_000n * WAD);
+  await act(async () => feed.push(bal(0n)));
+  await render(wrap(auth, feed, <CloseAll />, { trade: { ...kit, closeAll }, live, earn: earn.kit }));
+  await wait(10);
+  expect(screen.getByTestId("close-all-error")).toHaveTextContent(/fixed-rate lock on 1,000 MON .* no Earn position for it, so Close all won't guess .* sends nothing\. Close the fixed-rate lock first/);
+  await act(async () => fireEvent.press(screen.getByRole("button", { name: "Or tap here to close everything" })));
+  await wait(10);
+  expect(venues).toEqual([]);
+  expect(earn.close).not.toHaveBeenCalled();
+  expect(screen.queryByTestId("close-all-outcome")).toBeNull();
 });

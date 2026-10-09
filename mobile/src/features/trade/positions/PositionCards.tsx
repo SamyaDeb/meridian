@@ -1,6 +1,7 @@
 // Position cards under the chart (research §5.2/§5.3): side, size, entry, live PnL, liquidation price + distance meter,
-// funding accrued, swipe → Close with a visible Close button (ui/SwipeRow fallback). A Meridian + Perpl pair of equal,
-// opposite MON size is shown as one basis trade (N7 fallback until N6 stores a basisId). Close = reduce-only for the whole size (planClose),
+// funding accrued, swipe → Close with a visible Close button (ui/SwipeRow fallback). An open Earn pair is grouped by its
+// record ("Earn · basis"); without one, a Meridian + Perpl pair of equal, opposite MON size is shown as one basis trade
+// (fallback). Close = reduce-only for the whole size (planClose),
 // confirmed with hold-or-tap on a summary sheet, then the receipt. Numbers: Meridian AccountView (contract's own PnL /
 // liq), Perpl getPositionV2 via core perplPositionRisk (Perpl's own rule).
 import { router } from "expo-router";
@@ -18,9 +19,9 @@ import { useTrade } from "../TradeProvider";
 import { useStartOrder } from "../useStartOrder";
 import type { AccountsState } from "../data/accounts";
 import { planClose } from "./close";
-import { isBasisPair, positionViews, type PositionView } from "./views";
+import { groupOf, positionViews, type EarnPair, type PositionView } from "./views";
 
-export { isBasisPair, liqDistance, positionViews, type PositionView } from "./views";
+export { groupOf, isBasisPair, liqDistance, positionViews, type EarnPair, type PositionView } from "./views";
 
 const selAcc = (s: AccountsState) => s;
 const selM = (s: MeridianMarketState | undefined) => s;
@@ -69,7 +70,8 @@ function Card1({ v, onClose }: { v: PositionView; onClose: () => void }) {
   );
 }
 
-export const PositionCards = memo(function PositionCards() {
+/** `earnPair`: the open Earn pair from its record (earn/EarnProvider useEarnPair); the cards are grouped by it. */
+export const PositionCards = memo(function PositionCards({ earnPair }: { earnPair?: EarnPair | undefined }) {
   const { accounts } = useTrade();
   const acc = useStore(accounts?.store ?? NO_ACC, selAcc);
   const m = useMeridian(selM);
@@ -79,6 +81,8 @@ export const PositionCards = memo(function PositionCards() {
   const [closing, setClosing] = useState<{ v: PositionView; error?: string; busy?: boolean } | undefined>();
   const views = positionViews(acc, m, p);
   if (views.length === 0) return null;
+  const group = groupOf(views, earnPair);
+  const pairStep = views.find((v) => v.venue === "perpl")?.stepWad ?? 1n;
 
   const plan = closing
     ? planClose({ venue: closing.v.venue, sizeWad: closing.v.sizeWad, bestBidWad: closing.v.venue === "perpl" ? p?.bestBidWad : m?.bestBidWad, bestAskWad: closing.v.venue === "perpl" ? p?.bestAskWad : m?.bestAskWad, priceStepWad: closing.v.venue === "perpl" ? 10n ** BigInt(18 - (p?.priceDecimals ?? 18)) : (m?.tickSizeWad ?? 1n) })
@@ -114,7 +118,15 @@ export const PositionCards = memo(function PositionCards() {
         </Text>
         {views.length > 1 ? <Button title="Close all" variant="link" onPress={() => router.push("/close-all")} accessibilityHint="One confirm closes every position; a hedged pair closes Meridian first, then Perpl" testID="btn-close-all" /> : null}
       </View>
-      {isBasisPair(views) ? (
+      {group === "earn" ? (
+        <Text variant="caption" style={s.title} testID="position-earn">
+          Earn · basis · {sizeText(earnPair!.sizeWad, pairStep)} MON each side · the two legs hedge each other’s price; the funding gap is the return
+        </Text>
+      ) : group === "earn-stale" ? (
+        <Text variant="caption" tone="warn" style={s.title} testID="position-earn-stale">
+          Earn · your Earn position is {sizeText(earnPair!.sizeWad, pairStep)} MON each side, but the venues no longer hold all of it. Close it on Earn.
+        </Text>
+      ) : group === "basis" ? (
         <Text variant="caption" style={s.title} testID="position-basis">
           Basis trade · the two legs hedge each other’s price; the funding gap is the return
         </Text>

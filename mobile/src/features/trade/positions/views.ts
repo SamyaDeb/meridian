@@ -42,6 +42,34 @@ export function positionViews(acc: AccountsState | undefined, m: MeridianMarketS
   return out;
 }
 
+/** The Earn record's hedged pair (earn/record.ts EarnPosition): the Perpl leg's side, MON per venue. */
+export type EarnPair = { perplSide: "buy" | "sell"; sizeWad: bigint };
+
+/** What the Earn pair holds on each venue, signed (+ long): Perpl on the record's side, Meridian the opposite. */
+export const earnPairWant = (pair: EarnPair): Record<PositionView["venue"], bigint> => {
+  const p = pair.perplSide === "buy" ? pair.sizeWad : -pair.sizeWad;
+  return { perpl: p, meridian: -p };
+};
+
+/** Both venues hold at least the Earn pair, on its sides. */
+export function earnPairHeld(views: readonly PositionView[], pair: EarnPair): boolean {
+  const want = earnPairWant(pair);
+  return (["perpl", "meridian"] as const).every((venue) => {
+    const v = views.find((x) => x.venue === venue);
+    const w = want[venue];
+    return v !== undefined && v.sizeWad > 0n === w > 0n && (v.sizeWad > 0n ? v.sizeWad : -v.sizeWad) >= pair.sizeWad;
+  });
+}
+
+/**
+ * How the cards are grouped: an open Earn pair by its record ("earn"; "earn-stale" when the venues no longer hold it),
+ * else the equal-and-opposite fallback ("basis"). The record wins: sizes alone never make an Earn pair.
+ */
+export function groupOf(views: readonly PositionView[], pair: EarnPair | undefined): "earn" | "earn-stale" | "basis" | undefined {
+  if (pair && pair.sizeWad > 0n) return earnPairHeld(views, pair) ? "earn" : "earn-stale";
+  return isBasisPair(views) ? "basis" : undefined;
+}
+
 /** Fallback basis grouping: one Meridian and one Perpl position, opposite sides, the same MON size. */
 export function isBasisPair(views: readonly PositionView[]): boolean {
   const m = views.find((v) => v.venue === "meridian");
