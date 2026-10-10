@@ -97,6 +97,9 @@ const ProTabs = memo(function ProTabs() {
   );
 });
 
+/** expo-router error boundary for this tab only; the tab bar keeps working: calm screen, Retry + Home (features/shell/ErrorScreen). */
+export { ErrorScreen as ErrorBoundary } from "../../features/shell/ErrorScreen";
+
 export default function Trade() {
   const ticket = useRef<TicketRef>(null);
   const { chart } = useTrade();

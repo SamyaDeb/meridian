@@ -42,6 +42,9 @@ function RootStack() {
   );
 }
 
+/** expo-router error boundary for the whole app (also a provider that throws): calm screen, Retry + Home (features/shell/ErrorScreen). */
+export { ErrorScreen as ErrorBoundary } from "../features/shell/ErrorScreen";
+
 export default function RootLayout() {
   useEffect(() => {
     void SplashScreen.hideAsync();
