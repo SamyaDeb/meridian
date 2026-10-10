@@ -1,3 +1,13 @@
+> **Done in the cloud-prep session (branch `n8-prep`, local, 10 Oct) — skip these here:** `/api/flags` (web, env-backed
+> `FLAGS_*`) + WriteGate; the mobile flags client, one open gate (kill switch) and the forced-update screen with a
+> close path; Maestro flows `mobile/.maestro/*.yaml` (deliverable 4: **written**, the emulator run is still yours) with a
+> jest check of their testIDs; release-safety fixes (Lock state from config, error boundaries, "not live on mainnet yet"
+> for production, `check:release` on the production bundle, an accessibility scan, version **0.2.0 / versionCode 2**);
+> the QA matrix as ⏳ rows in `docs/outputs/MOBILE_QA.md` § N8 (deliverable 3: rows written, **ticking them is yours**)
+> and the hallway script `docs/outputs/HALLWAY_TEST.md` (deliverable 2: **running it and the top-3 fixes are yours**).
+> Still yours here: EAS builds + signer SHA-256 into assetlinks (deliverable 1), the hallway test, phone QA, the
+> Maestro run, `FLAGS_*` on Vercel staging.
+
 You are the senior React Native release engineer for Meridian (public name; internal codename Pulse). This session
 executes MOBILE_PLAN phase **N8 — release builds, device QA, hallway test, Maestro**: a signed Android APK anyone can
 install (judges included), passkeys working on that build, the QA matrix ticked from real phones, and the top UX issues

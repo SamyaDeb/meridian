@@ -112,6 +112,9 @@ External dependencies: paid Monad RPC (HTTP + WS if offered), Perpl API, Pyth He
 ### 4.4 EAS (mobile)
 - `eas.json` profiles: `development`, `preview` (staging, Android APK internal + iOS internal), `production` (TestFlight + APK). Each profile sets `APP_ENV` → `app.config.ts` picks `packages/config/env/<env>.json`, chain id, rpId, bundle id suffix (staging app can install next to production: e.g. `…app.staging` — then assetlinks/AASA list both).
 - `expo-updates` with channels `staging` / `production` for JS-only fixes (no store review); native changes → new build.
+  > VERIFY / later (N8-prep, 10 Oct): **not installed.** `expo-updates` is a native dependency, so adding it means a new
+  > dev client + preview build and a lockfile change; N8 ships without it. Until then a JS fix = a new EAS build, and a
+  > broken build is handled by `/api/flags` (`writes=false`, `minAppVersion` → the update screen with its close path).
 - Credentials (APNs, FCM, signing) managed by EAS.
 
 ### 4.5 Observability
