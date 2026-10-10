@@ -8,6 +8,7 @@ import type { FundingWindow } from "./indexer/funding";
 import { BLOCK_TIME_MS } from "@/lib/units";
 import { MOCK } from "./mock/fixtures";
 import { fetchIndexerStats } from "./indexer/stats";
+import { mergeRedeems } from "@/lib/redeem";
 
 // Per-block data refreshes every block (300 ms); the rest every few seconds.
 // WS-07 task 2: on testnet/mainnet useFundingTicker switches to a WSS newHeads subscription + previewFundingState().
@@ -200,6 +201,41 @@ export function useVaultUser(account: Address) {
   return useQuery({ queryKey: ["vaultUser", ds.kind, ds.marketKey, account], queryFn: () => ds.vaultUser(account), refetchInterval: SLOW });
 }
 
+/**
+ * Earn queue (CR-014): my withdrawal requests with live status from the chain (one multicall, every 3 s) and their
+ * history from the indexer (tx hashes, unwind cost); the vault's pending ids for my place in the queue (the indexer's
+ * full queue when connected, else the chain source's log window). Rows newest first.
+ */
+export function useVaultRedeems(account: Address, vault: Address | undefined) {
+  const ds = useDataSource();
+  const idx = useQuery({
+    queryKey: ["redeemsIdx", INDEXER_URL, INDEXER_CHAIN_ID, vault, account],
+    queryFn: async ({ signal }) => (await import("./indexer/redeem")).fetchRedeems(INDEXER_URL!, INDEXER_CHAIN_ID, vault!, account, signal),
+    enabled: INDEXER_URL !== undefined && vault !== undefined,
+    refetchInterval: SLOW,
+  });
+  const known = idx.data?.mine.map((r) => r.id) ?? [];
+  const live = useQuery({
+    queryKey: ["vaultRedeems", ds.kind, account, known.join(",")],
+    queryFn: () => ds.vaultRedeems(account, known),
+    refetchInterval: 3_000,
+  });
+  const rows = mergeRedeems(idx.data?.mine ?? [], live.data?.live ?? []);
+  const settled = new Set(rows.filter((r) => r.status !== "requested").map((r) => r.id));
+  const pendingIds = [...(idx.data?.pendingIds ?? []), ...(live.data?.pendingIdsInWindow ?? []), ...rows.filter((r) => r.status === "requested").map((r) => r.id)].filter((id) => !settled.has(id));
+  return {
+    rows,
+    pendingIds,
+    queueComplete: idx.data !== undefined,
+    maxRedeemShares: live.data?.maxRedeemShares,
+    maxSliceToken: live.data?.maxSliceToken,
+    block: live.data?.block,
+    isLoading: live.isLoading,
+    error: live.error ?? idx.error ?? null,
+    refetch: () => Promise.all([live.refetch(), idx.refetch()]),
+  };
+}
+
 export function useSwap(account: Address) {
   const ds = useDataSource();
   return useQuery({
@@ -216,6 +252,17 @@ export function useProtocolStats() {
 
 /** Metrics dashboard (C5): indexer only. Undefined URL ⇒ the query is off and the Stats page says so. */
 export const INDEXER_URL = process.env.NEXT_PUBLIC_INDEXER_URL || undefined;
+/** K6 B3: users and product metrics (external users, swaps, vault, queue, liquidations by market kind), indexer only. */
+export function useMetrics() {
+  return useQuery({
+    queryKey: ["metrics", INDEXER_URL, INDEXER_CHAIN_ID],
+    queryFn: async ({ signal }) => (await import("./indexer/metrics")).fetchMetrics(INDEXER_URL!, INDEXER_CHAIN_ID, signal),
+    enabled: INDEXER_URL !== undefined,
+    refetchInterval: 15_000,
+    retry: 1,
+  });
+}
+
 export function useIndexerStats() {
   return useQuery({
     queryKey: ["indexerStats", INDEXER_URL],

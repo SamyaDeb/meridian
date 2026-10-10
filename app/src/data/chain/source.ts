@@ -6,7 +6,7 @@ import { snapshotsFromLogs, swapPositionFromViews } from "@/lib/earnfix";
 import { rateToAprWad, vaultApyWad } from "@/lib/math";
 import { SECONDS_PER_YEAR } from "@/lib/units";
 import type { MeridianDataSource } from "../source";
-import type { AccountMarket, AccountSummary, Address, FundingTick, Market, RiskParamsView, SwapMarketInfo, SwapPosition, SwapStats, Trade, Vault, VaultSnapshot, VaultUser } from "../types";
+import type { AccountMarket, AccountSummary, Address, FundingTick, Market, RedeemChainView, RiskParamsView, SwapMarketInfo, SwapPosition, SwapStats, Trade, Vault, VaultRedeemLive, VaultSnapshot, VaultUser } from "../types";
 
 export interface ChainAddresses {
   chainId: number;
@@ -322,6 +322,36 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     };
   }
 
+  /** Bound on ids read per refresh (my latest + the window's queue): one multicall, never a global scan (rule 5). */
+  const MAX_REDEEM_IDS = 100;
+  async function vaultRedeems(account: Address, knownIds: readonly bigint[]): Promise<VaultRedeemLive> {
+    if (!vt) return fallback.vaultRedeems(account, knownIds);
+    const requested = await recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "RedeemRequested", fromBlock, toBlock, strict: true }));
+    const mineInWindow = requested.filter((l) => l.args.owner.toLowerCase() === account.toLowerCase()).map((l) => l.args.id);
+    const windowIds = requested.map((l) => l.args.id);
+    const ids = [...new Set([...knownIds, ...mineInWindow, ...windowIds])].sort((a, b) => (a > b ? -1 : a < b ? 1 : 0)).slice(0, MAX_REDEEM_IDS);
+    const calls = [
+      { ...vt, functionName: "maxRedeem", args: [account] } as const,
+      { ...vt, functionName: "vaultParams" } as const,
+      ...ids.map((id) => ({ ...vt, functionName: "getRedeemRequest", args: [id] }) as const),
+    ];
+    const block = await client.getBlockNumber();
+    // one multicall when the chain has Multicall3 (Monad testnet / mainnet); anvil has none ⇒ the same reads in parallel
+    const res: unknown[] = client.chain?.contracts?.multicall3
+      ? await client.multicall({ contracts: calls, allowFailure: false, blockNumber: block })
+      : await Promise.all(calls.map((c) => client.readContract({ ...(c as Parameters<typeof client.readContract>[0]), blockNumber: block })));
+    const [maxRedeemShares, params, ...reqs] = res as [bigint, { maxSliceAssets: bigint }, ...{ owner: Address; requestedBlock: bigint; status: number; receiver: Address; shares: bigint; assets: bigint }[]];
+    const views: RedeemChainView[] = reqs.map((r, i) => ({ id: ids[i]!, owner: r.owner, receiver: r.receiver, shares: r.shares, status: Number(r.status), assets: r.assets, requestedBlock: r.requestedBlock }));
+    const mine = new Set([...knownIds, ...mineInWindow]);
+    return {
+      live: views.filter((v) => mine.has(v.id) || v.owner.toLowerCase() === account.toLowerCase()),
+      pendingIdsInWindow: views.filter((v) => v.status === 0).map((v) => v.id),
+      maxRedeemShares,
+      maxSliceToken: params.maxSliceAssets,
+      block,
+    };
+  }
+
   // ─── funding swaps (FundingSwapMarket + its OrderBook) ───
   const sw = a.swapMarket ? ({ address: a.swapMarket, abi: swapAbi } as const) : undefined;
   const sob = a.swapOrderBook ? ({ address: a.swapOrderBook, abi: orderBookAbi } as const) : undefined;
@@ -391,6 +421,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     vault,
     vaultSnapshots,
     vaultUser,
+    vaultRedeems,
     swapInfo,
     swapStats,
     swapPositions,

@@ -1,14 +1,16 @@
 "use client";
 import { useState } from "react";
 import { useAccount, useChainId } from "wagmi";
-import { useAccountAddress, useVault, useVaultSnapshots, useVaultUser } from "@/data/hooks";
+import { useAccountAddress, useVault, useVaultRedeems, useVaultSnapshots, useVaultUser } from "@/data/hooks";
 import { Row, Sparkline } from "@/components/ui";
 import { Button, Card, Chip, Notice, Skeleton } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
 import { contractAddress } from "@/config/deployments";
 import { formatAprWad, formatAusdToken, formatAusdWad, formatBaseWad, formatDuration, formatFixed, parseFixed } from "@/lib/format";
-import { vaultRoutePending, vaultStatus, vaultWithdrawFeeToken, vaultWithdrawPath } from "@/lib/earnfix";
-import { vaultDeposit, vaultRedeem } from "@/lib/tx";
+import { vaultRoutePending, vaultStatus, vaultWithdrawFeeToken } from "@/lib/earnfix";
+import { estimateRedeemToken, withdrawRoute } from "@/lib/redeem";
+import { vaultCancelRedeem, vaultClaimRedeem, vaultDeposit, vaultRedeem, vaultRequestRedeem } from "@/lib/tx";
+import { RedeemQueue } from "@/features/earn/RedeemQueue";
 import { WAD } from "@/lib/units";
 
 export default function EarnPage() {
@@ -22,16 +24,19 @@ export default function EarnPage() {
   const [amt, setAmt] = useState("100");
   const [pct, setPct] = useState(100);
   const vault = contractAddress(chainId, "MeridianVault");
+  const q = useVaultRedeems(me, vault);
   const ausd = contractAddress(chainId, "AUSD");
 
   const myValueWad = v && u ? (u.shares * v.sharePriceWad) / WAD : undefined;
   const routePending = vaultRoutePending(process.env.NEXT_PUBLIC_VAULT_ROUTE_PENDING, v?.skewCapacityWad);
   const status = v ? vaultStatus(v.hedged, v.needsRebalance ?? 0, routePending) : undefined;
-  // redeem preview: shares × price (token units) − the 5 bps fee; the path decides whether an unwind cost applies
+  // redeem preview: shares × price (token units) − the 5 bps fee (previewRedeem's rounding)
   const redeemShares = u ? (u.shares * BigInt(pct)) / 100n : 0n;
   const grossToken = v ? (redeemShares * v.sharePriceWad) / WAD / 10n ** 12n : 0n;
   const feeToken = vaultWithdrawFeeToken(grossToken);
-  const path = v?.idleToken !== undefined ? vaultWithdrawPath(v.idleToken, grossToken - feeToken) : undefined;
+  const netToken = v ? estimateRedeemToken(redeemShares, v.sharePriceWad) : 0n;
+  // CR-014: sync redeem is idle-only (maxRedeem); beyond idle the withdrawal is a request the keeper fulfils
+  const route = q.maxRedeemShares !== undefined ? withdrawRoute(redeemShares, q.maxRedeemShares, netToken, q.maxSliceToken ?? 0n) : undefined;
   const apy = v?.apy24hWad ?? v?.apyWad;
   const apyLabel =
     v?.apy24hWad !== undefined ? "APY, last 24 h" : v?.apyWindowSec !== undefined ? `APY from the share price, last ${formatDuration(v.apyWindowSec)}` : "";
@@ -44,10 +49,20 @@ export default function EarnPage() {
       return vaultDeposit(p, w, ausd, vault, a);
     });
   const doRedeem = () =>
-    tx.run(`withdraw ${pct}%`, (p, w) => {
+    tx.run(route?.kind === "request" ? `request withdrawal of ${pct}%` : `withdraw ${pct}%`, (p, w) => {
       if (!vault) throw new Error("no vault on this chain");
       if (redeemShares === 0n) throw new Error("nothing to withdraw");
-      return vaultRedeem(p, w, vault, redeemShares);
+      return route?.kind === "request" ? vaultRequestRedeem(p, w, vault, redeemShares) : vaultRedeem(p, w, vault, redeemShares);
+    });
+  const doCancel = (id: bigint) =>
+    tx.run(`cancel request #${id}`, (p, w) => {
+      if (!vault) throw new Error("no vault on this chain");
+      return vaultCancelRedeem(p, w, vault, id);
+    });
+  const doClaim = (id: bigint) =>
+    tx.run(`claim request #${id}`, (p, w) => {
+      if (!vault) throw new Error("no vault on this chain");
+      return vaultClaimRedeem(p, w, vault, id);
     });
 
   const statusChip = status && (
@@ -114,6 +129,7 @@ export default function EarnPage() {
           </Card>
         </div>
 
+        <div className="min-w-0 space-y-2">
         <Card title="Your deposit" className="h-fit">
           <div className="num text-2xl font-semibold" data-testid="my-vault-value">
             {myValueWad !== undefined ? `${formatAusdWad(myValueWad)} AUSD` : "—"}
@@ -138,23 +154,34 @@ export default function EarnPage() {
                 Withdraw {pct}%
               </label>
               <input id="wpct" type="range" min={1} max={100} value={pct} onChange={(e) => setPct(Number(e.target.value))} className="mt-1 h-11 w-full" />
-              <Row label="You receive ≈" value={`${formatAusdToken(grossToken - feeToken)} AUSD`} />
+              <Row label={route?.kind === "request" ? "Estimate now ≈" : "You receive ≈"} value={`${formatAusdToken(netToken)} AUSD`} />
               <Row label="Withdrawal fee (5 bps, stays in the vault)" value={`${formatAusdToken(feeToken)} AUSD`} />
               <Row
                 label="Path"
                 value={
-                  path === "unwind"
-                    ? routePending
-                      ? "needs an unwind: not available until the spot route is live; withdraw less"
-                      : "unwind: a slice of both legs is sold; you pay its cost"
-                    : path === "idle"
-                      ? "from idle AUSD (no trade)"
-                      : "—"
+                  <span data-testid="withdraw-path">
+                    {route?.kind === "redeem"
+                      ? "from idle AUSD now (no trade)"
+                      : route?.kind === "request"
+                        ? routePending
+                          ? "beyond idle AUSD: a request. It waits until the spot route is live; you can cancel it while it waits"
+                          : "beyond idle AUSD: a request. The keeper prices it at the share price when it fulfils it; you pay that unwind's cost"
+                        : route?.kind === "split"
+                          ? `above one request's cap: request at most ${formatFixed(route.maxShares, 18, 2)} shares at a time`
+                          : "—"}
+                  </span>
                 }
-                tone={path === "unwind" ? "warn" : undefined}
+                tone={route?.kind === "request" || route?.kind === "split" ? "warn" : undefined}
               />
-              <Button size="lg" block className="mt-2" disabled={!isConnected || tx.busy || (routePending && path === "unwind")} onClick={doRedeem}>
-                Withdraw
+              <Button
+                size="lg"
+                block
+                className="mt-2"
+                data-testid="withdraw"
+                disabled={!isConnected || tx.busy || route === undefined || route.kind === "none" || route.kind === "split"}
+                onClick={doRedeem}
+              >
+                {route?.kind === "request" ? "Request withdrawal" : "Withdraw"}
               </Button>
             </div>
           )}
@@ -166,6 +193,19 @@ export default function EarnPage() {
             </Notice>
           )}
         </Card>
+        <RedeemQueue
+          rows={q.rows}
+          pendingIds={q.pendingIds}
+          queueComplete={q.queueComplete}
+          sharePriceWad={v?.sharePriceWad}
+          me={isConnected ? me : undefined}
+          loading={q.isLoading}
+          busy={tx.busy}
+          block={q.block}
+          onCancel={doCancel}
+          onClaim={doClaim}
+        />
+        </div>
       </div>
     </div>
   );

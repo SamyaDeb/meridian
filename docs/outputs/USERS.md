@@ -1,6 +1,6 @@
 # USERS: external user pipeline (Phase 5 → Phase 6)
 
-> **7 Oct 2026 (PHASES 40, no mainnet before the hackathon):** the mainnet targets below can't be met and are not claimed. Users are now **testnet testers** on 10143 ([`TESTNET_GUIDE.md`](TESTNET_GUIDE.md)); record them in the "Testnet testers" table, labelled testnet, same consent rules. As of 7 Oct: **0 external testers**. Testnet activity so far is only our own keys (deployer, keepers, MMs, flow) and two labelled test wallets (`0x6d2d…58b7`, `0x6058…35f4`), none of which count.
+> **7 Oct 2026 (PHASES 40, no mainnet before the hackathon):** the mainnet targets below can't be met and are not claimed. Users are now **testnet testers** on 10143 ([`TESTNET_GUIDE.md`](TESTNET_GUIDE.md)); record them in the "Testnet testers" table, labelled testnet, same consent rules. As of 7 Oct: **0 external testers**. **8 Oct (K6):** counts now come from `indexer/scripts/users-report.mjs` (needs the hosted indexer for the current deployment), which excludes deployments' operators and every wallet in [`test-wallets.json`](test-wallets.json); addresses are listed only from [`users-consent.json`](users-consent.json). Testnet activity so far is only our own keys (deployer, keepers, MMs, flow) and two labelled test wallets (`0x6d2d…58b7`, `0x6058…35f4`), none of which count.
 
 Targets (original, mainnet): **≥ 5 external users on mainnet by Sat 10 Oct (G5)** and ≥ 50 by Tue 13 Oct (PRD §6).
 
