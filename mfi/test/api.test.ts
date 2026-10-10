@@ -24,7 +24,7 @@ describe("API contract (docs/MFI.md §7)", () => {
     expect(r.status).toBe(200);
     expect(r.headers).toMatchObject({ "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-store" });
     const b = JSON.parse(JSON.stringify(r.body)) as Record<string, unknown>;
-    expect(Object.keys(b).sort()).toEqual(["chainId", "index", "stale", "updatedAt", "updatedBlock", "venues", "venuesIncluded", "version", "warmup"]);
+    expect(Object.keys(b).sort()).toEqual(["chainId", "fees", "index", "spread", "stale", "updatedAt", "updatedBlock", "venues", "venuesIncluded", "version", "warmup"]);
     expect(b.version).toBe("mfi-v0");
     expect(isIntStr((b.index as { aprWad: string }).aprWad)).toBe(true);
     expect(["oi", "equal", "none"]).toContain((b.index as { weighting: string }).weighting);
@@ -68,5 +68,24 @@ describe("API contract (docs/MFI.md §7)", () => {
     expect(handle(svc, "OPTIONS", "/v1/mfi", T0, health)).toMatchObject({ status: 204, headers: { "access-control-allow-methods": "GET" } });
     expect(handle(svc, "GET", "/v1/nope", T0, health).status).toBe(404);
     expect(handle(svc, "GET", "/healthz", T0, health)).toMatchObject({ status: 200, body: { ok: true } });
+  });
+});
+
+describe("GET /v1/mfi/spread (K3)", () => {
+  it("current spread + fees, and the spread history of cycles where both venues were included", () => {
+    const r = handle(svcWith(4), "GET", "/v1/mfi/spread", T0 + 3 * 60_000, health);
+    expect(r.status).toBe(200);
+    const b = JSON.parse(JSON.stringify(r.body)) as { version: string; current: { spread: unknown; fees: unknown; stale: boolean }; points: { spreadAprWad: string; updatedAt: number }[] };
+    expect(b.version).toBe("mfi-v0");
+    expect(b.current.spread).toBeNull(); // the 4th cycle had Perpl rate-limited
+    expect(b.points.map((p) => p.updatedAt)).toEqual([T0, T0 + 2 * 60_000]);
+    expect(b.points.every((p) => isIntStr(p.spreadAprWad))).toBe(true);
+    expect(b.points[0]!.spreadAprWad).toBe((109_499_999_992_992_000n - 105_120_000_000_000_000n).toString());
+  });
+  it("same from/to/limit validation as history; current is null before the first cycle", () => {
+    expect(handle(svcWith(1), "GET", "/v1/mfi/spread?limit=0", T0, health).status).toBe(400);
+    expect(handle(svcWith(1), "GET", "/v1/mfi/spread?from=5&to=1", T0, health).status).toBe(400);
+    const r = handle(new MfiService({ chainId: 10143 }), "GET", "/v1/mfi/spread", T0, health);
+    expect(r.body).toEqual({ version: "mfi-v0", current: null, points: [] });
   });
 });

@@ -17,6 +17,8 @@ export function createMockSource(now: () => number = Date.now): MeridianDataSour
     vault: async () => fx.vault(head()),
     vaultSnapshots: async (limit) => fx.vaultSnapshots(head(), limit),
     vaultUser: async (account) => fx.vaultUser(head(), account),
+    // the mock vault is all idle: every withdrawal is a sync redeem, so there is no queue to show
+    vaultRedeems: async () => ({ live: [], pendingIdsInWindow: [], maxRedeemShares: 2n ** 255n, maxSliceToken: 0n, block: head() }),
     swapStats: async () => fx.swapStats(head()),
     swapInfo: async () => fx.swapInfo(),
     swapPositions: async (account) => fx.swapPositions(head(), account),

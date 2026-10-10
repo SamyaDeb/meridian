@@ -31,6 +31,7 @@ Meridian's own code is [MIT](LICENSE). It depends on the libraries below, which 
 | react, react-native, react-native-reanimated, react-native-worklets, react-native-gesture-handler, react-native-screens, react-native-safe-area-context, react-native-svg | mobile | MIT |
 | @gorhom/bottom-sheet, @react-native-community/netinfo | mobile (sheets, offline banner) | MIT |
 | jest, jest-expo, @testing-library/react-native, test-renderer, @react-native/jest-preset | mobile (tests only) | MIT |
+| @noble/ed25519 | mm-bot (Perpl API-key signing, as in Perpl's own TS examples) | MIT |
 | envio | indexer | **not OSI-approved** (Envio's own licence: source-available, self-hosting allowed). It's a dev/runtime dependency of the indexer only; none of its code is in this repo |
 
 ## Transitive npm dependencies (production, all workspaces)

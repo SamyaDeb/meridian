@@ -1,0 +1,33 @@
+{
+  "_note": "SHAPED from schema.graphql (K6, 8 Oct 2026), not recorded: the hosted indexer for the current deployment is not up yet. Re-record with `users-report.mjs --raw` once it is. Addresses: anvil dev accounts and the labelled test wallets.",
+  "data": {
+    "ProtocolStats": [{ "externalUsers": 4, "users": 9, "perpVolumeQuoteWad": "1000000000000000000000", "perpVolumeMmQuoteWad": "625000000000000000000", "swapVolumeWad": "2000000000000000000000", "trades": 41, "liquidations": 5, "tvlToken": "1234560000", "vaultNavToken": "30556216", "updatedBlock": "69100000" }],
+    "Market": [
+      { "id": "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA", "symbol": "MON-PERP", "testMarket": false },
+      { "id": "0xB2D4DaCc56Da8EfA248AbcCcB196F73C69abdC01", "symbol": "MON-PERP-DEMO", "testMarket": true }
+    ],
+    "Account": [
+      { "id": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "firstSeenBlock": "69000001", "tradeCount": 3, "volumeQuoteWad": "1" },
+      { "id": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", "firstSeenBlock": "69000002", "tradeCount": 0, "volumeQuoteWad": "0" },
+      { "id": "0x90F79bf6EB2c4f870365E785982E1f101E93b906", "firstSeenBlock": "69000003", "tradeCount": 1, "volumeQuoteWad": "1" },
+      { "id": "0x5c2dBeB734bEe60c2Db8aaFA249AA6614506Cc5B", "firstSeenBlock": "68990800", "tradeCount": 1, "volumeQuoteWad": "1" }
+    ],
+    "Liquidation": [
+      { "market": "0xb2d4dacc56da8efa248abcccb196f73c69abdc01", "account": "0x80e511c00Ff854c1D91de1481D264F309520aE7E" },
+      { "market": "0xB2D4DaCc56Da8EfA248AbcCcB196F73C69abdC01", "account": "0x80e511c00Ff854c1D91de1481D264F309520aE7E" },
+      { "market": "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA", "account": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" }
+    ],
+    "SwapPosition": [{ "account_id": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" }, { "account_id": "0x814DB3f310CCB192acaab4a6908A0Cf33323b981" }],
+    "VaultUser": [
+      { "user": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", "depositedToken": "100000000" },
+      { "user": "0x90F79bf6EB2c4f870365E785982E1f101E93b906", "depositedToken": "0" },
+      { "user": "0x5c2dBeB734bEe60c2Db8aaFA249AA6614506Cc5B", "depositedToken": "5000000" }
+    ],
+    "VaultRedeemRequest": [
+      { "owner": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", "status": "Claimed" },
+      { "owner": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", "status": "Pending" },
+      { "owner": "0x5c2dBeB734bEe60c2Db8aaFA249AA6614506Cc5B", "status": "Pending" }
+    ]
+  },
+  "head": { "chain_metadata": [{ "chain_id": 10143, "latest_processed_block": 69188798, "block_height": 69188798 }, { "chain_id": 143, "latest_processed_block": 1, "block_height": 1 }] }
+}

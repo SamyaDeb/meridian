@@ -13,6 +13,9 @@ describe("historyNote", () => {
   it("session mode names the start time and why there is no more", () => {
     expect(historyNote({ source: "index", session: true, firstSec: T })).toBe("Session data since 22:30 UTC (indexer not connected: full history appears once it is)");
   });
+  it("Perpl is named as another venue's trades, even in session mode", () => {
+    expect(historyNote({ source: "perpl", session: true, firstSec: T })).toBe("Perpl MON-PERP · Monad mainnet trades from 2026-10-05 22:30 UTC, via Perpl's public API");
+  });
   it("the reference is labelled as an outside series, even in session mode", () => {
     expect(historyNote({ source: "reference", session: true, firstSec: T })).toBe("MON/USDC on Uniswap v4 (Monad) from 2026-10-05 22:30 UTC, via GeckoTerminal");
   });

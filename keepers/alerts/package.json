@@ -1,0 +1,23 @@
+{
+  "name": "@meridian/alerts",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Rates & Risk alerts (K5): pages when a watched Perpl position nears liquidation or the Meridian − Perpl spread passes a threshold, with the app's own risk math (@meridian/risk) and the keeper's pager",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@meridian/keeper-ts": "workspace:*",
+    "@meridian/risk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}

@@ -4,10 +4,10 @@ import { expect, test } from "@playwright/test";
 test("rates: oracle APR cards, MFI honest empty state, liquidation-distance histogram, insurance fund", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/rates");
-  await expect(page.getByRole("heading", { name: "Rates & risk" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Rates & Risk", level: 1 })).toBeVisible();
   // without NEXT_PUBLIC_MFI_URL the MFI is never simulated (the MFI_STUB build covers the populated card below)
   if (process.env.MFI_STUB !== "1") await expect(page.getByText("MFI service not connected")).toBeVisible();
-  const hist = page.getByRole("list", { name: "Positions by distance to liquidation" });
+  const hist = page.getByRole("list", { name: "User positions by distance to liquidation" });
   await expect(hist).toBeVisible({ timeout: 20_000 });
   const counts = await hist.locator("li .num").allTextContents();
   const total = counts.reduce((s, t) => s + Number(t.split("·")[0]!.trim()), 0);

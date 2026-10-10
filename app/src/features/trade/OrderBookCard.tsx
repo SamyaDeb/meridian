@@ -9,6 +9,8 @@ import { usePerpMarket } from "@/data/market";
 import { setDraft } from "./draft";
 import { FundingCard } from "./FundingCard";
 import { depthPaths } from "@/lib/depth";
+import { PERPL_ENABLED } from "@/features/chart/datafeed/perpl";
+import { PerplBook } from "./PerplBook";
 
 const LEVELS = 12; // per side on screen (§6.2)
 // fetched so coarser groupings still fill rows; getDepth reverts BatchTooLarge above MeridianConstants.MAX_BATCH (32)
@@ -145,17 +147,22 @@ function Trades() {
   );
 }
 
+type Tab = "book" | "trades" | "depth" | "funding" | "perpl";
+/** Tabs of the book card: Meridian's own four, then the read-only outside venue (Perpl) only with its flag, never first. */
+export const bookTabs = (perplEnabled = PERPL_ENABLED): { id: Tab; label: string }[] => [
+  { id: "book", label: "Book" },
+  { id: "trades", label: "Trades" },
+  { id: "depth", label: "Depth" },
+  { id: "funding", label: "Funding" },
+  ...(perplEnabled ? [{ id: "perpl" as const, label: "Perpl" }] : []),
+];
+
 /** Order book / trades card (FRONTEND_TRADE_PLAN §6.2). Click a level to load it as the ticket's limit price. */
 export function OrderBookCard() {
-  const [tab, setTab] = useState<"book" | "trades" | "depth" | "funding">("book");
+  const [tab, setTab] = useState<Tab>("book");
   return (
-    <Card
-      className="h-full"
-      scroll
-      bodyClassName="flex flex-col"
-      header={<PillTabs size="sm" ariaLabel="Book view" value={tab} onChange={setTab} tabs={[{ id: "book", label: "Book" }, { id: "trades", label: "Trades" }, { id: "depth", label: "Depth" }, { id: "funding", label: "Funding" }]} />}
-    >
-      {tab === "book" ? <Book /> : tab === "trades" ? <Trades /> : tab === "depth" ? <Depth /> : <FundingCardBody />}
+    <Card className="h-full" scroll bodyClassName="flex flex-col" header={<PillTabs size="sm" ariaLabel="Book view" value={tab} onChange={setTab} tabs={bookTabs()} className={PERPL_ENABLED ? "flex-wrap gap-0.5 rounded-[14px] [&>button]:px-2" : ""} />}>
+      {tab === "book" ? <Book /> : tab === "trades" ? <Trades /> : tab === "depth" ? <Depth /> : tab === "perpl" ? <PerplBook /> : <FundingCardBody />}
     </Card>
   );
 }

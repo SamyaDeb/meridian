@@ -14,6 +14,7 @@
     "contrast": "vitest run src/lib/contrast.test.ts"
   },
   "dependencies": {
+    "@meridian/risk": "workspace:*",
     "@privy-io/react-auth": "3.47.0",
     "@privy-io/wagmi": "4.0.18",
     "@tanstack/react-query": "5.104.0",

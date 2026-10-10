@@ -4,6 +4,7 @@
 import type { ReactNode } from "react";
 import { Popover } from "@/components/ds";
 import { formatFixed } from "@/lib/format";
+import { PERPL_VENUE } from "../datafeed/perpl";
 import type { PriceSource } from "../datafeed/types";
 import type { ChartView } from "../store";
 import { I } from "./icons";
@@ -18,6 +19,7 @@ export function historyNote({ source, session, firstSec, markRows }: { source: P
   let note: string;
   if (firstSec === undefined) note = "No candle history";
   else if (source === "reference") note = `MON/USDC on Uniswap v4 (Monad) from ${minute(firstSec)} UTC, via GeckoTerminal`;
+  else if (source === "perpl") note = `${PERPL_VENUE} trades from ${minute(firstSec)} UTC, via Perpl's public API`;
   else if (session) note = `Session data since ${hhmm(firstSec)} UTC (indexer not connected: full history appears once it is)`;
   else note = `History starts at ${minute(firstSec)} UTC`;
   if (source === "mark" && markRows !== undefined) note += ` · mark: last ${formatFixed(BigInt(markRows), 0, 0)} funding blocks`;

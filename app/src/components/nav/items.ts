@@ -4,7 +4,7 @@ export const NAV_ITEMS = [
   { href: "/positions", label: "Positions" },
   { href: "/earn", label: "Earn" },
   { href: "/fix", label: "Fix" },
-  { href: "/rates", label: "Rates" },
+  { href: "/rates", label: "Rates & Risk" },
   { href: "/stats", label: "Stats" },
 ] as const;
 

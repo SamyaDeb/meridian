@@ -1,0 +1,477 @@
+{
+ "source": "eth_getLogs Trade(maker = MM 0x814DB3f310CCB192acaab4a6908A0Cf33323b981) on OrderBook 0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207, chain 10143, blocks 69049900-69062300; taker 0x6E02...303A is the house flow account (deployments/10143.json, operator). lot = 100 MON; takerIsBid = the MM sold",
+ "trades": [
+  {
+   "block": 69051026,
+   "tx": "0xcfa99930dae9ca579b9fc9cb6b5d2da9cd859d37eb303c7a75360c3a4d425e7d",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25801,
+   "lots": 1
+  },
+  {
+   "block": 69051117,
+   "tx": "0xae3a4c0b8361f7dfaa3d62b4a697a04d19c225d5c668f6d96d828060f765f20f",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25837,
+   "lots": 1
+  },
+  {
+   "block": 69051548,
+   "tx": "0xbd2bb1e76d8642ee2197368e7d519b0df9765e7983e921d64242f8411ef9c8a2",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25837,
+   "lots": 3
+  },
+  {
+   "block": 69051711,
+   "tx": "0xd6fe0d1855bbae7f4aa2605e52828bf5cbdcfc7cad51a1a12f32e7903425d08e",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25865,
+   "lots": 3
+  },
+  {
+   "block": 69051868,
+   "tx": "0x665544720a37d4204d274214b3902db4c42f6492a53720a636814e1226de08fa",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25883,
+   "lots": 2
+  },
+  {
+   "block": 69052072,
+   "tx": "0x6d99924d0f680e90b157208d55258d4bc08cf9fec3d8796971e5eb47f0e391a2",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25888,
+   "lots": 3
+  },
+  {
+   "block": 69052208,
+   "tx": "0xe5a684a90545e029ee8a6774d1a49a0ff05390b24ee58b03cda0fbfc98da929c",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25901,
+   "lots": 2
+  },
+  {
+   "block": 69052348,
+   "tx": "0x62a856efdb34fc31fc7774c0c776a175c349704f8748eec665198c760e4e3876",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25853,
+   "lots": 2
+  },
+  {
+   "block": 69052532,
+   "tx": "0x3574f6fa955d7c28aca885638185330190a938f493ba3552cb1a7e1559c61347",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25866,
+   "lots": 2
+  },
+  {
+   "block": 69052648,
+   "tx": "0x8fd8c4711f670f0c994d573c27999f5893b656056647265cf0995b0196a50e02",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25853,
+   "lots": 3
+  },
+  {
+   "block": 69052795,
+   "tx": "0x6e9e226ac4bf353c26dfa160be5123f0e83b4a8a402f1ba4fe911dcab571372e",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25780,
+   "lots": 2
+  },
+  {
+   "block": 69052929,
+   "tx": "0x8df5340397d3150b59138c4e4d60c1d4d6e170d9f7c1e96a844525f7c2e2020e",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25796,
+   "lots": 1
+  },
+  {
+   "block": 69053102,
+   "tx": "0x612bf6cf424ccbcd2166ccd999d70e4828e63243d49bbf83bff6159d13ecbbb8",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25796,
+   "lots": 3
+  },
+  {
+   "block": 69053455,
+   "tx": "0x8ea4c64257d7fdb623505ce81c4f071b03c4c7eda71fde48e04c5929851aef2b",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25788,
+   "lots": 3
+  },
+  {
+   "block": 69053576,
+   "tx": "0x97d0342cdd9971b0ebe68d0d221eb8ad5e36670e523d35edce50332d9641d82a",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25780,
+   "lots": 3
+  },
+  {
+   "block": 69053698,
+   "tx": "0x9a72901a4f22444b46e94d460f59feb5f9181616d176456d980c2c7a5a367580",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25770,
+   "lots": 1
+  },
+  {
+   "block": 69053880,
+   "tx": "0x7d3986e85ab1db6ef42b694d750770256db3979c77e54b5c93ce81a1e57fa91e",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25747,
+   "lots": 1
+  },
+  {
+   "block": 69053955,
+   "tx": "0xda084fb83f1183fc851454ba5b61e7bf2ddc8bae5b5eec8a1452d5758b7464a4",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25747,
+   "lots": 3
+  },
+  {
+   "block": 69054060,
+   "tx": "0xa0435999ecc16fde5a37fe418482393c404d8e8b21fbbd3820a415a6a6c79ba4",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25734,
+   "lots": 3
+  },
+  {
+   "block": 69054186,
+   "tx": "0x48c1d0b4d5421f821080e295c21cd64d4008aa8a0253eb5ab229e116ff61f110",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25749,
+   "lots": 2
+  },
+  {
+   "block": 69054379,
+   "tx": "0x1d8ec43356ef8da176dcaa01e1234f190f04091171f3b4da6a455c86fb2c63e0",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25763,
+   "lots": 3
+  },
+  {
+   "block": 69054541,
+   "tx": "0x767ccc6ef3f888adb834ecd911af16f6a7d6df5ec8879a4370b60fac18057140",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25756,
+   "lots": 1
+  },
+  {
+   "block": 69054739,
+   "tx": "0xee0440c837f06539ae338fe0c42264c78436b9ab818cb7067967023cb52eb190",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25778,
+   "lots": 3
+  },
+  {
+   "block": 69054913,
+   "tx": "0x918e5ba5c7bf1be434455cd29a456251afd4d49f1529fde19f1c88bd91c46526",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25810,
+   "lots": 3
+  },
+  {
+   "block": 69055051,
+   "tx": "0x6632e573ad368898387b1cf1306292ad0cfc8db2fab82ae3b8d1f66cef72f4c3",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25826,
+   "lots": 1
+  },
+  {
+   "block": 69055210,
+   "tx": "0xc71b669c7f9f5edf892bd7fa59d80cef59d3b8c70f2f2a0b381a351168a43584",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25802,
+   "lots": 1
+  },
+  {
+   "block": 69055409,
+   "tx": "0x9eacf3e9533d3d49eecdc2e79122ad46fe191bab40da2954b2aa366c699c9cf7",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25802,
+   "lots": 3
+  },
+  {
+   "block": 69056168,
+   "tx": "0xf19cb60b37b6fd3bd6c3cfbaafdc411641e863d02ebb87990a4566f4bbc9f06c",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25788,
+   "lots": 1
+  },
+  {
+   "block": 69056547,
+   "tx": "0x7a77afbeec1bb45ee6d5c2f2a03117bb93d7d05d7deadf685cd10deab22fdf05",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25860,
+   "lots": 1
+  },
+  {
+   "block": 69056624,
+   "tx": "0xf7e42aa1dd01a3ee7d8a8e65f3bec48d4ab7a8961f6aec92f44cd167d4652398",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25861,
+   "lots": 2
+  },
+  {
+   "block": 69056881,
+   "tx": "0x326f720ba0445d9726d2ed7ca08f2ac4885db711419d56b78fa2abff52c87d65",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25821,
+   "lots": 1
+  },
+  {
+   "block": 69057071,
+   "tx": "0x28a7cdcbf98b856cfdad1115b2c46675e91b3921b8a2d2f767b39495f7a4634c",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25767,
+   "lots": 2
+  },
+  {
+   "block": 69057219,
+   "tx": "0x98ab2768415d24e7c711f74d5bbb79df307e00e43412c54a812ef25791512f3a",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25766,
+   "lots": 2
+  },
+  {
+   "block": 69057393,
+   "tx": "0x9c3b40c738f7c3d9f1ea6a790c20b8a4c781123725aec2fc2470491ea93d2613",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25801,
+   "lots": 1
+  },
+  {
+   "block": 69057649,
+   "tx": "0xd518e33c49c4b6898d98da4a707a8f9542295b1abad4d8d197a9ba28b5bd1a94",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25784,
+   "lots": 2
+  },
+  {
+   "block": 69057780,
+   "tx": "0x80263cce361ae767baf81dda9fe04a37c5e3fe88c258ddd529c8573f87927adc",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25801,
+   "lots": 3
+  },
+  {
+   "block": 69057928,
+   "tx": "0xb31de859acd30de40700e3ce4603cb505fc1de4ea2c8d37a88532f7072adc050",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25801,
+   "lots": 1
+  },
+  {
+   "block": 69057928,
+   "tx": "0xb31de859acd30de40700e3ce4603cb505fc1de4ea2c8d37a88532f7072adc050",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25810,
+   "lots": 1
+  },
+  {
+   "block": 69058248,
+   "tx": "0xd2c6777b4223c73c54e25878ab97a483ff194996ac33aafb08af7d419f35a52e",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25844,
+   "lots": 2
+  },
+  {
+   "block": 69058428,
+   "tx": "0x313f8f4ce02dfff5edb7dcefe5ed93e5e56639e6c11c8513514d47f89b53c2eb",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25784,
+   "lots": 2
+  },
+  {
+   "block": 69058578,
+   "tx": "0x8bebcd9f9705437b0f12de572214e2ac47ae405af9d1e7456052cf0c56a4640c",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25810,
+   "lots": 1
+  },
+  {
+   "block": 69058691,
+   "tx": "0x6ad06f4fdd33b7a974ef4f60d4c02313946dc85233ad96ed90fac3e049bf0949",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25793,
+   "lots": 2
+  },
+  {
+   "block": 69058887,
+   "tx": "0x727c4cd63dc1f552872410930b85bc210eac0d98d28af907d3be9a79a6d52d95",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25814,
+   "lots": 3
+  },
+  {
+   "block": 69059065,
+   "tx": "0x1ccd45e9effeb58098d7d9fda7d9fa2f8c53814f1773725e9f17d5c2cc8abf97",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25864,
+   "lots": 3
+  },
+  {
+   "block": 69059164,
+   "tx": "0x3dbe1efdca5a74e40199ade5c3085e0bfd562a1b7bf20fc6e1195ce4b4770176",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25832,
+   "lots": 2
+  },
+  {
+   "block": 69059305,
+   "tx": "0xcd77578d5e5fd2fe773551119fdf92313dc1da10e54ce3b016f201fe0717bdde",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25857,
+   "lots": 3
+  },
+  {
+   "block": 69059481,
+   "tx": "0xadb90a359552ae7e84057c1adc430640824169a7285ef3bc6313b3829ed433a8",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25847,
+   "lots": 3
+  },
+  {
+   "block": 69059580,
+   "tx": "0x7c9abaf2c64f276e702285c1171a784ad7fcb9b9ac2e9b5617739dae273723a1",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25898,
+   "lots": 2
+  },
+  {
+   "block": 69059907,
+   "tx": "0x1fa65eaa587de03dc304ad3e6a7022c300c67873f66d1445088fc1528ee28860",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25860,
+   "lots": 3
+  },
+  {
+   "block": 69060070,
+   "tx": "0x01b02aac09f44c4f29236a63f039ad986f31d106657abdc7dbd3d6aa1dae63ca",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25895,
+   "lots": 2
+  },
+  {
+   "block": 69061077,
+   "tx": "0x98250bbcb9a2303e8f75e25ce3d85a8c13d9c6ab764ca0f45977d00334327b74",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25810,
+   "lots": 2
+  },
+  {
+   "block": 69061191,
+   "tx": "0xa5740ee16cdba063bd9e995cb06204cb9b84eaa3839e50871b0961a7511541e9",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25891,
+   "lots": 3
+  },
+  {
+   "block": 69061333,
+   "tx": "0xd7f49d26dd820117f735b0373bb0b3f3e5dd1773dddb829094f87dffc8917a98",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25889,
+   "lots": 1
+  },
+  {
+   "block": 69061493,
+   "tx": "0x5d88df07bdc13e51cf5bcb40e5ffccbb5a85188ebe992ae8e99ff77320b50a7d",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25854,
+   "lots": 3
+  },
+  {
+   "block": 69061637,
+   "tx": "0x8182441e930243b72d64841c985aa1a030426941585d252e777461c9b32cec99",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25837,
+   "lots": 1
+  },
+  {
+   "block": 69061816,
+   "tx": "0xcfec3ddafd3b893a2b4ab4433dc60ae4ffd92fe33a6ee8285a0d227d9457ba43",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25791,
+   "lots": 1
+  },
+  {
+   "block": 69061990,
+   "tx": "0xd5b1298a95f881b93eac58124bdeb253396e6912678555230bc093bdc10291ce",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25757,
+   "lots": 2
+  },
+  {
+   "block": 69062067,
+   "tx": "0x35631acd6736e8daf3dd8588f42d8ba52f08676c7b9ded1302b141cc615f49f3",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": false,
+   "tick": 25739,
+   "lots": 1
+  },
+  {
+   "block": 69062272,
+   "tx": "0x64a6c4177ade72216035812dc8b65cfb9700cfb6097bb3a283462ee8d7627895",
+   "taker": "0x6e02939822507a5f3e0ad90ce7cd68dc5d49303a",
+   "takerIsBid": true,
+   "tick": 25757,
+   "lots": 2
+  }
+ ]
+}

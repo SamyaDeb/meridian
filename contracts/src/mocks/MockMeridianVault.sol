@@ -17,6 +17,9 @@ contract MockMeridianVault is ERC4626, IMeridianVault {
     uint256 public pendingRedeemShares;
     uint256 public claimableAssets;
     uint256 internal _nextId;
+    /// @notice Test knob: assets treated as deployed into the hedge (not idle), so the sync paths are idle-only like the
+    ///         real vault (CR-014) and a large withdrawal has to go through the queue. 0 = everything idle (as before).
+    uint256 public mockDeployed;
     mapping(uint256 => RedeemRequest) internal _requests;
 
     constructor(address asset_) ERC20("Meridian Vault Share (mock)", "pvAUSD") ERC4626(IERC20(asset_)) {}
@@ -28,6 +31,30 @@ contract MockMeridianVault is ERC4626, IMeridianVault {
     function mockGain(uint256 assets) external {
         MockERC20(asset()).mint(address(this), assets);
         _snapshot();
+    }
+
+    /// @notice Mark `assets` as deployed (not idle). Fulfilment still pays from the balance (an instant "unwind").
+    function mockDeploy(uint256 assets) external {
+        mockDeployed = assets;
+    }
+
+    function _idleFree() internal view returns (uint256) {
+        uint256 free = super.totalAssets() - claimableAssets;
+        return free > mockDeployed ? free - mockDeployed : 0;
+    }
+
+    /// @dev Idle-only like MeridianVault (CR-014): min(owner's assets, idle).
+    function maxWithdraw(address owner_) public view override(ERC4626, IERC4626) returns (uint256) {
+        uint256 a = previewRedeem(balanceOf(owner_));
+        uint256 idle = _idleFree();
+        return a < idle ? a : idle;
+    }
+
+    /// @dev Idle-only: the largest shares whose payout fits idle, rounds down.
+    function maxRedeem(address owner_) public view override(ERC4626, IERC4626) returns (uint256) {
+        uint256 b = balanceOf(owner_);
+        uint256 s = convertToShares(_idleFree());
+        return b < s ? b : s;
     }
 
     function mockLoss(uint256 assets) external {
@@ -129,7 +156,7 @@ contract MockMeridianVault is ERC4626, IMeridianVault {
     }
 
     function hedgeState() external view returns (HedgeState memory h) {
-        h.idleAssets = totalAssets();
+        h.idleAssets = _idleFree();
         h.nav = totalAssets();
     }
 

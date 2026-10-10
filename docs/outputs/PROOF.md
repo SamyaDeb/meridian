@@ -93,6 +93,39 @@ All suites also run at 256 × 128 inside the 499-test default run. Coverage CSVs
 
 Tests: `pnpm -C indexer test` 119 passed, `pnpm -C app test` 440 passed (7 Oct, branch `envio-perpl`).
 
+## 12. Perpl hedge: the MM offloads inventory to Perpl through its trading API (K3)
+| Claim | Evidence |
+|---|---|
+| Perpl API-key signing matches the documented algorithm | `mm-bot/test/perpl-auth.test.ts`: RFC 8032 vector, fixed vectors (key, timestamp, nonce → signature) for REST GET/POST and the WS sign-in, cross-checked against `node:crypto` Ed25519 |
+| Trading client: sign-in first, snapshots before ready, `rq` from `lfr`, `lb` from head + ttl, outcome only from `mt: 24`, gateway rejections, reconnect + fresh sign-in on 3401, gap ⇒ reconnect, ≤ 50 req/min, REST fallback with order-history confirmation | `mm-bot/test/perpl-trading.test.ts` (fake socket + clock) |
+| Hedge policy never over-hedges, never crosses the target, respects caps, prices IOC within slippage on the right side; halts on stale data, `fw` off, low collateral, rejections | `mm-bot/test/hedge.test.ts` (unit + 20,000-state seeded fuzz) |
+| Behaviour unchanged with the hedge off | `perplHedgeFromEnv` returns `undefined` without `PERPL_HEDGE=1` (`test/perpl-config.test.ts`); the existing MM tests are unchanged and green |
+| Perpl trading WS behaviour as documented (testnet, 7 Oct) | no sign-in ⇒ close `1008 "idle timeout"` after 10.9 s; unknown key ⇒ `3401 "unauthorized"` after 1.5 s |
+| MFI on Perpl's live market-data WS, spread route | `mfi/test/ws.test.ts` replays recorded frames (`mfi/fixtures/recorded/testnet/ws*/`); live 7 Oct: `perpl:ok/ws`, `/v1/mfi/spread` = +229.7% APR (Meridian 266.4%, Perpl 36.7%) at block 69,007,268 |
+| **Testnet run with real Perpl fills: two 30-minute halves, hedge off then on, same house flow** (7 Oct, 19:10–20:12 UTC, blocks 69,049,974–69,062,294; not the planned ≥ 1 h) | Table below, from `bench/perpl_hedge.ts report` on `bench/out/perpl_hedge_{off,on}_10143_2026-10-07.csv` (5 s samples, read-only), hedge evidence `bench/out/perpl_hedge_evidence_on_10143_2026-10-07.jsonl`, Perpl fill history `mm-bot/fixtures/recorded/testnet/history-*.json` |
+| Both Perpl hedges are in Perpl's own records: 2 IOC buys, both fully filled as taker, account 969, market 64 (MON) | `GET /v1/trading/{fills,order-history,position-history}` (signed, read-only, `mm-bot/scripts/perpl-history.ts`, 8 Oct): order `4525679575056` 2,000 MON @ 0.02587, fee 0.017851 AUSD, Perpl tx `0xa6f07a604c88bbe2eae3238dbdccc264f8ed15cc194df3b9b9b7a470c61c8d49` (block 69,056,390); order `4525855211536` 600 MON @ 0.02585, fee 0.005351 AUSD, tx `0xd4541c865d57605aed973e9df273236fe50cbfcf9e4d9c8f14016465ad964b14` (block 69,059,070). No other fills on the account since 19:00 UTC |
+| Each hedge offsets Meridian inventory the MM actually holds (fills on Meridian's OrderBook, `Trade` logs with maker = MM `0x814D…b981`) | Hedge 1 offsets the −2,100 MON short carried into the on phase (−2,500 at the start of the off half, +300 during it, +100 after). Hedge 2 offsets the net −500 MON the MM took on in its fills after hedge 1, the last two [`0x727c4cd6…2d95`](https://testnet.monadscan.com/tx/0x727c4cd63dc1f552872410930b85bc210eac0d98d28af907d3be9a79a6d52d95) (69,058,887) and [`0x1ccd45e9…bf97`](https://testnet.monadscan.com/tx/0x1ccd45e9effeb58098d7d9fda7d9fa2f8c53814f1773725e9f17d5c2cc8abf97) (69,059,065, 5 blocks before the Perpl fill). All 59 MM fills (`Trade` logs, blocks 69,049,900–69,062,300): `bench/out/perpl_hedge_meridian_fills_10143_2026-10-07.json`. The only taker was the house flow account `0x6E02…303A` (an operator, not a user): 27 fills / 59 lots in the off half, 31 fills / 60 lots in the on half |
+
+**Before / after** (`OFF_FROM=2026-10-07T19:10:04Z ON_FROM=2026-10-07T19:41:55Z` = the MM start of each half; the first hedge fired 14 s before the on-sampler's first row):
+
+| metric | hedge off (30.0 min) | hedge on (29.5 min) |
+|---|---:|---:|
+| samples | 290 | 214 |
+| time one-sided (%) | 46.6 (135 / 290) | 8.4 (18 / 214) |
+| depth ±1% bid (lots, mean) | 5.3 | 6.9 |
+| depth ±1% ask (lots, mean) | 2.7 | 4.8 |
+| \|net delta\| p50 / p90 / max (MON) | 1,900 / 2,500 / 2,500 | 300 / 500 / 500 |
+| Meridian inner spread p50 / mean (bps, two-sided samples only) | 5.41 / 5.42 | 6.96 / 7.85 |
+| Perpl hedges sent / filled / Perpl fills | 0 / 0 / 0 | 2 / 2 / 2 |
+| rejections / unknown | 0 / 0 | 0 / 0 |
+
+What this shows, and what it doesn't:
+- **The hedge keeps the book two-sided and adds depth.** Off, the MM sat at its inventory limit (`q = −1` in 19 of 49 quotes) and A–S quotes bids only there; on, the net delta stayed ≤ 500 MON and the MM quoted both sides.
+- **The spread was wider with the hedge on, not tighter.** A–S width `δ = γσ²(T−t) + (2/γ)ln(1+γ/k)` doesn't depend on inventory (inventory only moves the reservation price). The MM's realized σ of the index over its trailing 10 min was higher in the on half (mean 2.22 vs 1.41 bps/√s across its quote logs), so its model spread was 7.07 vs 5.18 bps. That is market volatility, not the hedge; a fair spread comparison needs equal σ (longer or interleaved runs).
+- Two 30-minute halves, one hedge account, 2 hedges: a small sample. The 2,600 MON Perpl long was left open after the run (the hedger leaves positions on stop, `docs/PERPL_HEDGE.md` §5). One 10 s halt at 19:52 (Perpl data 15 s old), resumed automatically.
+
+Reproduce: RUNBOOK §4d (start/stop, env), `docs/PERPL_HEDGE.md` §6.
+
 ## 13. Chainlink CRE backstop keeper (K4)
 *8 Oct 2026, branch `cre-receiver`. **How these ran:** every tx below was sent by `cre workflow simulate --broadcast` (CRE CLI v1.37.0, SDK 1.23.0). That is the real workflow WASM in the CRE runtime, run by **one machine**, delivered through Chainlink's simulation forwarder `MockKeystoneForwarder` `0xB9F79d863261869B234c481D1f9A7af84AeAd192` from the CRE wallet `0xb624c6144aA825f22452B3cEFC3728F38b0c088c`. It was **not** executed by a DON: deployment access was "not yet enabled" (`cre account access`, 8 Oct) and not granted at submission. Explorer: `https://testnet.monadscan.com/tx/<hash>`. Logs: `keepers/cre/evidence/`.*
 
@@ -120,6 +153,33 @@ Tests: `pnpm -C indexer test` 119 passed, `pnpm -C app test` 440 passed (7 Oct, 
 | Same flow on a local copy first, and in tests | `bench/eth_perp_evidence.sh` ran on an anvil fork before testnet; `contracts/test/script/AddMarket.t.sol` (11 tests incl. trade → funding → crash → liquidation), `contracts/test/fuzz/EthMarket.fuzz.t.sol` (rounding against the user at 100…100,000 USD: reserve ↑, taker fee ↑, maker rebate ↓, IM/MM ↑, upnl ↓; 3 × 1,000 runs) |
 | **B4: two markets in the same blocks share no storage** | BENCHMARKS B4 (anvil fork of 10143, real bytecode): 360 txs, 0 reverts, all 30 joint blocks carry both markets, **0 storage slots in common** between the markets' place / market / cancel txs, inclusion p50 1 block with or without the other market's load. Not a testnet run |
 | The app switches markets | `/trade` market switcher (MON-PERP / ETH-PERP), ticket / book / chart / positions / deposits per market, ETH prices at the 0.10 tick and sizes in ETH; `/rates` and `/stats` show a row per market; the MFI, vault, swaps and triggers stay MON-PERP (said in the UI). `app/e2e/markets.spec.ts` 7/7 at 390 / 768 / 1440 (mock data), screenshots `app/e2e/screenshots/widths/trade-eth-*.png` |
+
+## 14. Rates & Risk vs Perpl (K5)
+| Claim | Evidence |
+|---|---|
+| The liquidation price is Perpl's own rule, not ours: `P_liq = E + s·(MMR − deposit − premiumPnl)/L`, `MMR = E·L·100/maintMarginFracHdths`, entry with the contract's Q16 residue | Formula and units from Perpl's SDK (`PerplFoundation/dex-sdk` @ `01b9910`, `crates/sdk/src/state/position.rs`, `perpetual.rs`) and docs (`PerplFoundation/perpl-docs` @ `fbbe822`, `exchange/liquidation/README.md`, `margin.md`); implemented in `risk/src/perpl.ts`; **the SDK's own test vectors pass unchanged** (`risk/test/perpl.test.ts`: long 95 → 100 after paying funding, short 105 → 100, received funding 90 / 110, bankruptcy 90 / 110 / 95 / 105) |
+| Maintenance margin per market read from the exchange, never assumed | `getMarginFractions(perpId, 0).perpMaintMarginFracHdths`: testnet MON 500 (= 20 % of notional, max 3x), mainnet MON 2000 (= 5 %, max 10x, as Perpl's docs table says); Perpl `/v1/pub/context` reports the same `maintenance_margin` 500 / 2000 (8 Oct) |
+| Positions are read onchain, exactly as the exchange stores them | `/api/perpl/positions` → `getAccountByAddr` (account id + position bitmap) → `getPositionV2`, `getPerpetualInfoV2`, `getFundingSumAtBlock`, `getTakerFee`, `getMakerFee` in one multicall at one block; recorded reads in `app/src/features/rates/fixtures/`, replayed by `perplRoutes.test.ts` |
+| Rounding against the trader | liquidation price toward the mark (long up, short down), MMR up, shocked equity down, funding owed up / received down: asserted exactly in `risk/test/perpl.test.ts` "rounding against the trader" |
+| Cross-venue funding: rate now, realized 1 h / 8 h / 24 h / 7 d per venue, spread and history, countdown in blocks, net carry after both taker fees | `risk/src/funding.ts`, `app/src/features/rates/crossVenue.ts` (tests `risk/test/funding.test.ts`, `crossVenue.test.ts`); Perpl fees from the exchange (`getTakerFee` 345 / `getMakerFee` 45 micros = 3.45 / 0.45 bps, = Perpl's fee table tier 1) |
+| Alerts fire, repeat per cooldown, hold inside the hysteresis band and recover | `keepers/alerts/test/alerts.test.ts` (fake clock, recorded K3-hedge payload, no network): fire at 11.0 % < 15 %, quiet for 29 min, repeat at 30 min, still firing at 15.5 % (1-point band), `✅ RESOLVED` at 17 %; read failures page with the route's reason |
+| Mobile: Lighthouse on `/rates` (production build, mobile form factor, 8 Oct) | **performance 97, accessibility 100**, best practices 96; FCP 1.1 s, LCP 2.4 s, TBT 90 ms, CLS 0.016: `docs/outputs/lighthouse/rates-mobile.json` |
+| Layouts at 390 / 768 / 1440 px, no horizontal scroll; axe clean | `app/e2e/rates-risk.spec.ts` (8 tests, mocked `/api/perpl/*` with the recorded reads), `app/e2e/screenshots/widths/rates-{390,768,1440}.png`; `e2e/a11y.spec.ts` `/rates` 0 serious / critical |
+
+**Our numbers vs Perpl's.** Both accounts read live by our monitor on 8 Oct 2026 (`docs/outputs/screenshots/k5/ours-*.png`):
+
+| | K3 hedge, Perpl testnet (account 969, `0xFC76…7775`, block 69,169,894) | Public mainnet account 1076 (`0xf277…de8e`, block 111,524,159) |
+|---|---|---|
+| Side · size | Long · 2,600 MON | Long · 19,823 MON |
+| Entry | 0.02586 (0.025865384…, residue included) | 0.025051 |
+| Margin (position deposit) | 22.50 AUSD (22.508666) | 166.75 AUSD (166.757684) |
+| Liquidation price | **0.02239** (0.0223853…, rounded up) | **0.018084** (0.0180839…, rounded up) |
+| Maintenance | 13.44 AUSD (20 %) | 24.82 AUSD (5 %) |
+| Perpl's UI / perpl-cli, same account, same time | > VERIFY (owner): connect the hedge wallet on testnet.perpl.xyz and screenshot the position row; for account 1076, Perpl's UI shows only the connected wallet, so compare with Perpl's own read-only CLI: `perpl-cli show account --account 1076` (mainnet) and `perpl-cli --testnet show account --account 969`, which prints Perpl SDK's "Liq Price" with 6 decimals | |
+
+Expected rounding difference: Perpl's CLI prints 6 decimals of the same exact value; we show the market's own price decimals (5 on testnet, 6 on mainnet) rounded toward the mark, so the CLI's 0.022385 shows here as 0.02239. Running the CLI was not possible from this session (the build ran; executing a third-party binary was not allowed here).
+
+Tests (8 Oct, branch `rates-risk`): `pnpm -C risk test` 27, `pnpm -C keepers/alerts test` 8, `pnpm -C app test` 501 (5 opt-in live recorders skipped), `pnpm -C indexer test` 119, e2e `rates-risk.spec.ts` 8/8.
 
 **Security reviews:** two internal cross-reviews (`docs/outputs/security/review-A.md`, `review-B.md`) plus the 6 Oct audit hardening; status per finding in `docs/outputs/security/STATUS.md`.
 

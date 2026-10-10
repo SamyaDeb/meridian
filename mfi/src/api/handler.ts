@@ -14,7 +14,8 @@ export function handle(svc: MfiService, method: string, rawUrl: string, nowMs: n
       const s = svc.served(nowMs);
       return s ? json(200, s) : json(503, { error: "warming up: no cycle completed yet" });
     }
-    case "/v1/mfi/history": {
+    case "/v1/mfi/history":
+    case "/v1/mfi/spread": {
       const num = (k: string, d: number) => {
         const v = url.searchParams.get(k);
         if (v === null) return d;
@@ -24,7 +25,10 @@ export function handle(svc: MfiService, method: string, rawUrl: string, nowMs: n
       const to = num("to", nowMs);
       const limit = num("limit", 500);
       if (![from, to, limit].every(Number.isSafeInteger) || from > to || limit < 1 || limit > 1000) return json(400, { error: "from, to (ms) and limit (1..1000) must be integers, from <= to" });
-      return json(200, { version: "mfi-v0", points: svc.historyRange(from, to, limit) });
+      if (url.pathname === "/v1/mfi/history") return json(200, { version: "mfi-v0", points: svc.historyRange(from, to, limit) });
+      const s = svc.served(nowMs);
+      const current = s ? { spread: s.spread, fees: s.fees, stale: s.stale, updatedAt: s.updatedAt, updatedBlock: s.updatedBlock } : null;
+      return json(200, { version: "mfi-v0", current, points: svc.spreadRange(from, to, limit) });
     }
     case "/healthz":
       return json(200, health());

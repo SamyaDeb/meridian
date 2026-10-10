@@ -1,6 +1,6 @@
 // Runtime validation of Perpl payloads: anything off-schema throws PerplSchemaError (never a silently wrong rate).
 import { PerplSchemaError } from "./errors";
-import type { BlockTimestamp, Context, FundingEvent, FundingSeries, Market, MarketState, MarketStateUpdate } from "./types";
+import type { BlockTimestamp, Context, FundingEvent, FundingSeries, Market, MarketState, MarketStateUpdate, PerplFees } from "./types";
 
 type Obj = Record<string, unknown>;
 
@@ -63,19 +63,36 @@ const decimals = (o: Obj, k: string, path: string) => {
   return d;
 };
 
+function intArr(o: Obj, k: string, path: string): number[] | undefined {
+  if (o[k] === undefined) return undefined; // omitempty (README "Fees & fee tiers": missing array = base tier only)
+  const a = arr(o, k, path);
+  return a.map((_, i) => int(a as unknown as Obj, String(i), `${path}.${k}`));
+}
+
+/** MarketConfig fee schedule (micros), or undefined when the payload carries none. */
+export function parseFees(c: Obj, path: string): PerplFees | undefined {
+  if (c.maker_fee === undefined && c.taker_fee === undefined) return undefined;
+  const makerTiers = intArr(c, "maker_fees", path);
+  const takerTiers = intArr(c, "taker_fees", path);
+  return { makerMicros: int(c, "maker_fee", path), takerMicros: int(c, "taker_fee", path), ...(makerTiers ? { makerTiers } : {}), ...(takerTiers ? { takerTiers } : {}) };
+}
+
 export function parseMarket(v: unknown, path = "market"): Market {
   const o = obj(v, path);
   const c = obj(o.config, `${path}.config`);
+  const fees = parseFees(c, `${path}.config`);
   return {
     id: int(o, "id", path, { min: 0 }),
     symbol: str(o, "symbol", path),
     name: str(o, "name", path),
     funding_interval_sec: int(o, "funding_interval_sec", path, { min: 1 }),
     funding_interval_blocks: int(o, "funding_interval_blocks", path, { min: 0 }),
+    ...(o.order_ttl_blocks !== undefined ? { order_ttl_blocks: int(o, "order_ttl_blocks", path, { min: 1 }) } : {}),
     config: {
       is_open: bool(c, "is_open", `${path}.config`),
       price_decimals: decimals(c, "price_decimals", `${path}.config`),
       size_decimals: decimals(c, "size_decimals", `${path}.config`),
+      ...(fees ? { fees } : {}),
     },
   };
 }

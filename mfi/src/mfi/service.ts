@@ -2,6 +2,7 @@
 import type { MeridianRead } from "../meridian/read";
 import { PerplSchemaError, PerplUnavailableError } from "../perpl/errors";
 import type { PerplVenueRead } from "../perpl/client";
+import type { PerplFees } from "../perpl/types";
 import { MinOiWindow, computeMfi, type VenueId, type VenueInput, type VenueStatus, type Weighting } from "./compute";
 
 export type VenueView = {
@@ -22,7 +23,18 @@ export type VenueView = {
   rateMicros?: number;
   fundingEventBlock?: number;
   asOfMs?: number;
+  /** perpl: where this read came from (market-data WebSocket, or the REST fallback) */
+  source?: "ws" | "rest";
 };
+
+/** Fees per venue as a fraction of notional in WAD (Perpl micros × 1e12; Meridian RiskParams as is). Display data. */
+export type FeesView = {
+  meridian?: { takerWad: string; makerWad: string };
+  perpl?: { takerWad: string; makerWad: string; takerMicros: number; makerMicros: number };
+};
+
+/** APR_meridian − APR_perpl, annualized WAD (exact: a difference of two neutral-rounded rates). Both venues must be included. */
+export type SpreadView = { aprWad: string; meridianAprWad: string; perplAprWad: string };
 
 export type Snapshot = {
   version: "mfi-v0";
@@ -34,6 +46,9 @@ export type Snapshot = {
   updatedAt: number;
   venuesIncluded: VenueId[];
   venues: VenueView[];
+  /** null unless both venues are included this cycle */
+  spread: SpreadView | null;
+  fees: FeesView;
 };
 
 export type HistoryPoint = {
@@ -63,7 +78,17 @@ export type ServiceConfig = {
   onHistoryPoint?: (p: HistoryPoint, retained: () => readonly HistoryPoint[]) => void;
 };
 
-export type CycleInputs = { nowMs: number; meridian: MeridianRead; perpl: { ok: true; read: PerplVenueRead } | { ok: false; error: unknown } };
+export type CycleInputs = { nowMs: number; meridian: MeridianRead; perpl: { ok: true; read: PerplVenueRead & { source?: "ws" | "rest" } } | { ok: false; error: unknown } };
+
+/** Perpl micros (10^-6) → WAD fraction. Exact. */
+const microsToWad = (m: number) => BigInt(m) * 10n ** 12n;
+
+/** History point → spread point (derived, so points stored before the spread route existed still serve). */
+export type SpreadPoint = { updatedBlock: string | null; updatedAt: number; spreadAprWad: string; meridianAprWad: string; perplAprWad: string };
+export function spreadOf(p: HistoryPoint): SpreadPoint | undefined {
+  if (p.meridianAprWad === null || p.perplAprWad === null) return undefined;
+  return { updatedBlock: p.updatedBlock, updatedAt: p.updatedAt, spreadAprWad: (BigInt(p.meridianAprWad) - BigInt(p.perplAprWad)).toString(), meridianAprWad: p.meridianAprWad, perplAprWad: p.perplAprWad };
+}
 
 export function perplFailure(e: unknown): { status: VenueStatus; reason: string } {
   if (e instanceof PerplSchemaError) return { status: "invalid", reason: e.message };
@@ -76,6 +101,7 @@ export class MfiService {
   private readonly history: HistoryPoint[] = [];
   private last: Snapshot | undefined;
   private lastGood: { index: NonNullable<Snapshot["index"]>; updatedAt: number; updatedBlock: string | null } | undefined;
+  private fees: FeesView = {};
   private readonly cfg: Required<Omit<ServiceConfig, "initialHistory" | "onHistoryPoint">>;
   private readonly onHistoryPoint: ServiceConfig["onHistoryPoint"];
 
@@ -87,6 +113,14 @@ export class MfiService {
 
   current(): Snapshot | undefined {
     return this.last;
+  }
+
+  /** Spread points (both venues included), oldest first, within [fromMs, toMs], newest `limit` points. */
+  spreadRange(fromMs: number, toMs: number, limit: number): SpreadPoint[] {
+    return this.history
+      .filter((p) => p.updatedAt >= fromMs && p.updatedAt <= toMs)
+      .flatMap((p) => spreadOf(p) ?? [])
+      .slice(-limit);
   }
 
   /** History, oldest first, within [fromMs, toMs], newest `limit` points. */
@@ -102,6 +136,8 @@ export class MfiService {
 
     // Meridian
     const m = inp.meridian;
+    if (m.ok && m.fees) this.fees = { ...this.fees, meridian: { takerWad: m.fees.takerWad.toString(), makerWad: m.fees.makerWad.toString() } };
+    if (inp.perpl.ok && inp.perpl.read.fees) this.fees = { ...this.fees, perpl: perplFeesView(inp.perpl.read.fees) };
     if (m.ok) {
       this.oi.meridian.add(nowMs, m.oiNotionalWad);
       const w = this.oi.meridian.min(nowMs);
@@ -117,7 +153,7 @@ export class MfiService {
       const p = inp.perpl.read;
       const fundingAge = p.fundingAtMs === undefined ? Infinity : nowMs - p.fundingAtMs;
       const stateAge = p.stateAtMs === undefined ? Infinity : nowMs - p.stateAtMs;
-      const base: VenueView = { id: "perpl", included: false, status: "ok", aprWad: p.aprWad.toString(), oiNotionalWad: p.oiNotionalWad.toString(), marketId: p.marketId, fundingIntervalSec: p.fundingIntervalSec, rateMicros: p.rateMicros, fundingEventBlock: p.fundingEventBlock, ...(p.stateAtMs !== undefined ? { asOfMs: p.stateAtMs } : {}) };
+      const base: VenueView = { id: "perpl", included: false, status: "ok", aprWad: p.aprWad.toString(), oiNotionalWad: p.oiNotionalWad.toString(), marketId: p.marketId, fundingIntervalSec: p.fundingIntervalSec, rateMicros: p.rateMicros, fundingEventBlock: p.fundingEventBlock, ...(p.stateAtMs !== undefined ? { asOfMs: p.stateAtMs } : {}), ...(p.source ? { source: p.source } : {}) };
       let stale: string | undefined;
       if (fundingAge > p.fundingIntervalSec * 1000 + this.cfg.perplFundingGraceMs) stale = `funding event ${fundingAge} ms old`;
       else if (stateAge > this.cfg.perplStateMaxAgeMs) stale = `ticker ${stateAge} ms old`;
@@ -143,19 +179,24 @@ export class MfiService {
     }
     const updatedBlock = m.ok ? m.headBlock.toString() : m.headBlock !== undefined ? m.headBlock.toString() : null;
     const warmup = r.included.some((id) => this.oi[id].warmup(nowMs));
+    const aprOf = (id: VenueId) => views.find((v) => v.id === id && v.included)?.aprWad ?? null;
+    const mApr = aprOf("meridian");
+    const pApr = aprOf("perpl");
+    // MFI.md §4.4: rounds neutral; a difference of two already-rounded integers is exact
+    const spread = mApr !== null && pApr !== null ? { aprWad: (BigInt(mApr) - BigInt(pApr)).toString(), meridianAprWad: mApr, perplAprWad: pApr } : null;
+    const extra = { spread, fees: this.fees };
     let snap: Snapshot;
     if (r.aprWad !== null) {
       const index = { aprWad: r.aprWad.toString(), weighting: r.weighting };
       this.lastGood = { index, updatedAt: nowMs, updatedBlock };
-      snap = { version: "mfi-v0", chainId: this.cfg.chainId, index, stale: false, warmup, updatedBlock, updatedAt: nowMs, venuesIncluded: r.included, venues: views };
+      snap = { version: "mfi-v0", chainId: this.cfg.chainId, index, stale: false, warmup, updatedBlock, updatedAt: nowMs, venuesIncluded: r.included, venues: views, ...extra };
     } else {
       // nothing fresh: keep the last good value, flagged stale, with ITS timestamp (MFI.md §5)
       const lg = this.lastGood;
-      snap = { version: "mfi-v0", chainId: this.cfg.chainId, index: lg?.index ?? null, stale: true, warmup, updatedBlock: lg?.updatedBlock ?? updatedBlock, updatedAt: lg?.updatedAt ?? nowMs, venuesIncluded: [], venues: views };
+      snap = { version: "mfi-v0", chainId: this.cfg.chainId, index: lg?.index ?? null, stale: true, warmup, updatedBlock: lg?.updatedBlock ?? updatedBlock, updatedAt: lg?.updatedAt ?? nowMs, venuesIncluded: [], venues: views, ...extra };
     }
     this.last = snap;
-    const aprOf = (id: VenueId) => views.find((v) => v.id === id && v.included)?.aprWad ?? null;
-    const point: HistoryPoint = { updatedBlock, updatedAt: nowMs, aprWad: r.aprWad?.toString() ?? null, meridianAprWad: aprOf("meridian"), perplAprWad: aprOf("perpl"), venuesIncluded: r.included, stale: r.aprWad === null };
+    const point: HistoryPoint = { updatedBlock, updatedAt: nowMs, aprWad: r.aprWad?.toString() ?? null, meridianAprWad: mApr, perplAprWad: pApr, venuesIncluded: r.included, stale: r.aprWad === null };
     this.history.push(point);
     if (this.history.length > this.cfg.historyMax) this.history.splice(0, this.history.length - this.cfg.historyMax);
     const cutoff = nowMs - this.cfg.historyRetentionMs;
@@ -171,4 +212,8 @@ export class MfiService {
     if (!s) return undefined;
     return nowMs - s.updatedAt > this.cfg.maxAgeMs ? { ...s, stale: true } : s;
   }
+}
+
+function perplFeesView(f: PerplFees): NonNullable<FeesView["perpl"]> {
+  return { takerWad: microsToWad(f.takerMicros).toString(), makerWad: microsToWad(f.makerMicros).toString(), takerMicros: f.takerMicros, makerMicros: f.makerMicros };
 }

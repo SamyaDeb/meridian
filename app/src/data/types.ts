@@ -153,6 +153,29 @@ export interface VaultSnapshot {
   timestamp: bigint;
 }
 
+/** One vault withdrawal request as getRedeemRequest returns it (status = IMeridianVault.RedeemStatus index). */
+export interface RedeemChainView {
+  id: bigint;
+  owner: Address;
+  receiver: Address;
+  shares: bigint;
+  status: number;
+  assets: bigint;
+  requestedBlock: bigint;
+}
+
+/** Earn queue live state (CR-014) for one account, read at `block`. */
+export interface VaultRedeemLive {
+  live: RedeemChainView[];
+  /** pending ids seen in the chain source's log window (the indexer's queue is complete; this one is a window) */
+  pendingIdsInWindow: bigint[];
+  /** vault.maxRedeem(account): shares redeemable now from idle AUSD */
+  maxRedeemShares: bigint;
+  /** vaultParams().maxSliceAssets, token units (one request's cap); 0 = unknown */
+  maxSliceToken: bigint;
+  block: bigint;
+}
+
 export interface VaultUser {
   id: string;
   vault: Address;

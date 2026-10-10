@@ -150,6 +150,35 @@ Launch settings for the swap MM (decision D13): `REQUOTE_BPS=1000 TICK_EVERY_BLO
 - **Anchor at or below −100% APR (price = 1 + APR ≤ 0):** no level can be priced, so the MM quotes nothing and the watcher pages `mm_empty` for the swap MM until the anchor recovers. This happens right after launch: the perp has no 8 h history, so the anchor is the perp's *current* rate × YEAR, which ranges over ±cap (±1,752% APR). On the fork it read −131% after a one-sided perp book. Before the fix (`mm-bot` `buildAprLadder`, 5 Oct), the ask side then sent tick 0 and every requote reverted `InvalidTick()` (`0xce8ef7fc`).
 - **Requote threshold:** `REQUOTE_BPS` is in APR bps here. Use **≥ 100** (see the `REQUOTE_BPS` row in §1 and the cost table in §4).
 - Start: `MARKET=swap MM_PK=<own key> LEVELS=2 LOTS_PER_LEVEL=3 REQUOTE_BPS=100 KILL_FILE=/tmp/KILL-swap pnpm start` (1 lot = 1,000 MON).
+- **Testnet tester windows (K6 B2, budget config):** a NEW key `SWAP_MM_PK` (never the perp MM's: one nonce stream per bot), MON for the window (§4 table: ≈ 24 MON/h projected) and swap collateral (`FundingSwapMarket.depositFor(<swap mm>, …)` from the deployer, tAUSD). Keeper first with `SWAP_DUTIES` on (default when deployments has `FundingSwapMarket`), then, from `mm-bot/`:
+  `MARKET=swap MM_PK=$SWAP_MM_PK LEVELS=1 LOTS_PER_LEVEL=1 REQUOTE_BPS=1000 TICK_EVERY_BLOCKS=33 KILL_FILE=/tmp/KILL-swap pnpm start`.
+  **Measure 10 min before the first window**, from the chain (not the bot's counters): note the start block, then `RPC_URL=… FROM_BLOCK=<start> ADDRS=swapmm=<swap mm address> GAS_PRICE_GWEI=102 pnpm -C keepers/ts-fallback tx-cost`, and write the MON/h here next to the projection. Then check `/fix` shows a two-sided book, do one swap from a labelled test wallet through the app (Privy) and record the txs in PROOF. Status 8 Oct: **not run**, no swap MM key or MON yet (owner).
+
+## 4d. Perpl hedge (MM, `PERPL_HEDGE=1`, K3; design in `docs/PERPL_HEDGE.md`)
+The MM can offset leftover inventory on Perpl's MON perp (testnet market 64) through Perpl's trading API and quote on the **net** delta (Meridian + Perpl). Off by default; with `PERPL_HEDGE` unset/0 the MM is exactly as before.
+| Var | Default | Notes |
+|---|---|---|
+| `PERPL_HEDGE` | 0 | 1 = on (main market only; `MARKET=swap`/`demo` refuse) |
+| `PERPL_API_KEY`, `PERPL_API_KEY_SECRET` | — | trade-scoped key from testnet.perpl.xyz/apikeys; never logged |
+| `PERPL_API_URL` / `PERPL_WS_URL` / `PERPL_CHAIN_ID` | testnet | **startup fails** unless `testnet.perpl.xyz` + 10143 |
+| `PERPL_MARKET_ID` | 64 | checked against `/v1/pub/context` (symbol MON) |
+| `HEDGE_BAND_BPS` / `HEDGE_RESIDUAL_MON` | 2500 / 0 | hedge when \|Δ\| > 25% of max inventory, down to the residual |
+| `HEDGE_MAX_ORDER_MON` / `HEDGE_MAX_NOTIONAL_USD` | 5000 / 500 | per IOC order / total Perpl exposure |
+| `HEDGE_SLIPPAGE_BPS` / `HEDGE_MAX_DIVERGENCE_BPS` | 50 / 300 | IOC limit from Perpl mid / skip when venues disagree |
+| `HEDGE_MAX_DATA_AGE_MS` / `HEDGE_MAX_REJECTS` / `HEDGE_MIN_COLLATERAL` | 15000 / 3 / 50 | kill-switch thresholds (collateral in AUSD) |
+| `HEDGE_COOLDOWN_MS` / `HEDGE_LEVERAGE` | 15000 / 500 | between hedges / 5× |
+| `HEDGE_EVIDENCE` | — | JSONL of every hedge decision, outcome and fill (PROOF §12) |
+| `PAGE_DISCORD_WEBHOOK_URL` or Telegram vars | — | same paging as the watcher (§8): halts page once, resolve on recovery |
+
+**One-time setup (owner):** new hedge wallet (not the MM key) with ~1 MON → testnet.perpl.xyz: create the exchange account, deposit test AUSD (≥ 100 to open), turn on **One-Click Trading** (`allowOrderForwarding(true)`; without it every order fails `sr: 34`) → API key with trade scope into `.env`.
+
+**Start:** as §2b, with the hedge vars in the MM's env file: `(cd mm-bot && PERPL_HEDGE=1 HEDGE_EVIDENCE=runs/hedge-evidence.jsonl READ_RPC_URL=$READ pnpm start)`. The first lines say `perpl hedge: ready` (account, `fw`, collateral, Perpl position) or `perpl hedge: REFUSING to hedge` with the reasons; refusing never stops the MM, it quotes unhedged.
+
+**Kill switch:** `PERPL_HEDGE=0` (restart) turns the hedge off entirely. While running, the hedger **halts by itself** (cancels resting Perpl orders, stops hedging, pages) on stale Perpl data > 15 s, 3 rejections in a row, `fw` false, frozen account, collateral below the minimum or a closed market; it resumes when the condition clears (the rejection breaker only on restart). `touch mm-bot/KILL` still stops the MM's Meridian quotes as before.
+
+**Stop:** SIGINT the MM by PID (§7b): it cancels its Meridian quotes, then cancels resting Perpl orders and **leaves Perpl positions open** (logged as `perpl hedge: shutdown`). Close a leftover Perpl position from the Perpl UI if needed. Rate budget: ≤ 50 Perpl requests/min (testnet limit 60), one trading + one market-data connection (Perpl allows 4 per wallet, browser sessions included: keep the Perpl UI closed during a run).
+
+**Measure (K3.4):** `bench/perpl_hedge.ts` (read-only): `PHASE=off|on MINUTES=30 CHAIN_ID=10143 RPC_URL=$READ [PERPL_API_KEY=… PERPL_API_KEY_SECRET=…] pnpm -C bench perpl-hedge sample`, then `OFF_CSV=… ON_CSV=… EVIDENCE_ON=… pnpm -C bench perpl-hedge report`.
 
 ## 5. Kill switch (MM)
 `touch $KILL_FILE` → the MM cancels all its orders and stops quoting; `rm $KILL_FILE` → it quotes again on the next block. It also cancels everything by itself when the oracle is stale.
@@ -279,6 +308,19 @@ One line per finding: `ALERT <critical|warn> <code> <message>` (`src/alerts.ts`,
 
 **Paging (`src/paging.ts`, unit-tested):** a code pages when it starts firing, again every 15 min (critical) / 2 h (warn) while it keeps firing, and once as `✅ RESOLVED` when it clears. Everything due in one cycle goes out as **one** message; at most 6 messages per minute, and the overflow is folded into the next message, never dropped. Provider shapes: Discord "Execute Webhook" `POST /webhooks/{id}/{token}` `{"content"}` ≤ 2,000 chars; Telegram `https://api.telegram.org/bot<token>/sendMessage` `{"chat_id","text"}`. A delivery failure prints `PAGE_FAILED <detail>` (secret redacted) and the watcher keeps going. **The team picks ONE channel** (both set = startup error). The webhook URL / bot token is a secret: `.env` only.
 **Balance floors:** = MON/h of that bot (§4, scaled to the mainnet gas price) × 12 h of runway, so a page leaves half a day to refill.
+
+## 8b. Rates & Risk alerts (K5, `keepers/alerts`)
+Pages when a watched **Perpl** position comes within `liqDistancePct` of its liquidation price (Perpl's own rule, `@meridian/risk`, the same code as `/rates`), or when |Meridian − Perpl| funding passes `spread.aprPct` APR. Read-only, no key.
+```bash
+cp keepers/alerts/watchlist.example.json keepers/alerts/watchlist.json   # edit wallets / thresholds
+cd keepers/alerts && ALERTS_WATCHLIST=./watchlist.json ALERTS_APP_URL=https://<the app> ALERTS_MFI_URL=https://<mfi> \
+  PAGE_DISCORD_WEBHOOK_URL=<from .env>   # or PAGE_TELEGRAM_BOT_TOKEN + PAGE_TELEGRAM_CHAT_ID (ONE channel)
+  pnpm start          # ONCE=1 → one cycle and exit
+```
+- Positions come from the app's `/api/perpl/positions` (onchain, cached 5 s, 429 back-off); Perpl's rate from `/api/perpl/market`; Meridian's from the MFI service (no `ALERTS_MFI_URL` ⇒ spread alerts off).
+- A condition fires on crossing its threshold and clears only `hysteresisPct` points back on the safe side; it repeats at most every `cooldownMin` and sends one `✅ RESOLVED` when it clears (the §8 pager). Critical when the distance is under half the threshold.
+- Codes: `perpl_liq:<chain>:<address>:<perpId>`, `spread:<chain>`, `alerts_read:…` (a read failed: the message carries the route's own reason, e.g. which RPC is missing).
+- Tests: `pnpm -C keepers/alerts test` (fake clock, recorded payloads, no network).
 
 ## 9. Swap keeper duties, swap MM, vault rebalancing (Phase 4)
 - **Keeper:** swap liquidations + `settleMaturity` run inside the main keeper whenever the deployment has `FundingSwapMarket` (section 4b). Vault: `VAULT_REBALANCE=1` (needsRebalance every 20 blocks and after each oracle push). **Mainnet launch (PHASES 17): the vault is idle** (`skewCapacity = 0` ⇒ `needsRebalance()` is always `None`, so the keeper sends nothing; `enterHedge` reverts `NothingToDo`). Leave `VAULT_REBALANCE=1`: it starts working by itself when the owner raises `skewCapacity` (vault v2 / CR-014 is the route fix; §9b). The keeper key needs collateral in the CH **and** the swap market, and must be registered as the vault keeper (`DeployMeridian` does it via `KEEPER_ADDRESS`).

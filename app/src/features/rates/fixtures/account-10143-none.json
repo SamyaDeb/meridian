@@ -1,0 +1,42 @@
+{
+ "recordedAt": "2026-10-08T04:19:52.897Z",
+ "source": "Monad 10143 via the server RPC, exchange views (deployments/perpl.json)",
+ "calls": [
+  {
+   "kind": "block",
+   "result": "69158854n"
+  },
+  {
+   "kind": "multicall",
+   "calls": [
+    {
+     "fn": "getAccountByAddr",
+     "args": [
+      "0x000000000000000000000000000000000000dEaD"
+     ]
+    },
+    {
+     "fn": "getFundingInterval",
+     "args": []
+    }
+   ],
+   "results": [
+    {
+     "status": "failure"
+    },
+    {
+     "result": "8571n",
+     "status": "success"
+    }
+   ]
+  }
+ ],
+ "expected": {
+  "chainId": 10143,
+  "address": "0x000000000000000000000000000000000000dEaD",
+  "block": "69158854",
+  "account": null,
+  "positions": [],
+  "unknownPerps": []
+ }
+}

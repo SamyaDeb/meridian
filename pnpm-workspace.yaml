@@ -8,3 +8,4 @@ packages:
   - mfi
   - packages/*
   - mobile
+  - risk

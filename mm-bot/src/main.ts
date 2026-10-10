@@ -6,6 +6,8 @@
 // eth_getLogs for our Trade/OrderEvicted since the last tick; getOrder only for ids those logs mention (plus a full
 // refresh every FULL_REFRESH_TICKS); per-tx gas limits (send.ts gasLimitsForBatch) instead of the batch max; reads can
 // go to a separate READ_RPC_URL; throttled requests retry with jittered back-off (@meridian/bot-rpc).
+// Perpl hedge (K3, docs/PERPL_HEDGE.md): PERPL_HEDGE=1 offsets leftover inventory on Perpl's MON perp through its trading
+// API and quotes on the NET delta; unset/0 ⇒ no Perpl code path at all (behaviour unchanged).
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
@@ -29,6 +31,8 @@ import { type AnchorSource, aprSigma, aprWadToBps, blocksFor, buildAprLadder, ch
 import { type Resting, idsToRefresh, needsRequote, planRequote, shouldTick, touchedId } from "./plan.js";
 import { gasLimitFor, gasLimitsForBatch, sendBatch } from "./send.js";
 import { launchGuard } from "./launch.js";
+import { PerplHedger } from "./hedger.js";
+import { perplHedgeFromEnv } from "./perpl/config.js";
 
 const env = (k: string): string | undefined => {
   const v = process.env[k];
@@ -91,6 +95,9 @@ const IS_SWAP = MARKET === "swap";
 }
 // MARKET = main | demo | swap | an added market (K7: "eth" ⇒ ETH-PERP), src/market.ts
 const market = resolvePerpMarket(dep, MARKET, DEPLOYMENTS);
+const PERPL = perplHedgeFromEnv(process.env); // undefined unless PERPL_HEDGE=1 (hard-fails off testnet)
+if (PERPL && (IS_SWAP || MARKET !== "main")) throw new Error("PERPL_HEDGE=1 is only for the main MON-PERP market (MARKET=main)");
+let hedger: PerplHedger | undefined;
 const SWAP: Address | undefined = IS_SWAP ? dep.contracts.FundingSwapMarket : undefined;
 if (IS_SWAP && (SWAP === undefined || dep.contracts.SwapOrderBook === undefined)) throw new Error(`${DEPLOYMENTS}: no FundingSwapMarket/SwapOrderBook`);
 const TOUCH_EVENTS = orderBookAbi.filter(
@@ -263,6 +270,8 @@ type QuoteState =
       ladder: ReturnType<typeof buildLadder>;
       movedBps: bigint;
       anchorSource?: AnchorSource;
+      /** perp: our Meridian position (WAD), for the Perpl hedge */
+      merPos?: bigint;
     };
 let maturedLogged = false;
 let lastAnchorSource: AnchorSource | null = null;
@@ -284,12 +293,13 @@ async function readQuoteState(block: bigint): Promise<QuoteState> {
     if (!ok || index === 0n) return { kind: "stale" };
     samples.push({ t: nowSec, price: index });
     while (samples.length && samples[0]!.t < nowSec - SIGMA_WINDOW_SEC) samples.shift();
-    const q = inventoryRatio(acct.size, MAX_INVENTORY_LOTS * lotSize);
+    // with the Perpl hedge on: q from the NET delta (hedger.quoteInventory); without it: acct.size exactly as before
+    const q = inventoryRatio(hedger ? hedger.quoteInventory(acct.size) : acct.size, MAX_INVENTORY_LOTS * lotSize);
     const sigma = sigmaForQuoting(samples, { fallback: SIGMA_FALLBACK, minCoverageSec: SIGMA_MIN_COVERAGE_SEC, max: SIGMA_MAX });
     const quote = quoteBps({ sigma, gamma: GAMMA, k: K, horizonSec: HORIZON_SEC, q });
     const ladder = buildLadder({ midWad: index, tickSize, bidBps: quote.bidBps, askBps: quote.askBps, levels: LEVELS, levelSpacingBps: LEVEL_SPACING_BPS, lotsPerLevel: LOTS_PER_LEVEL, q });
     const movedBps = lastQuotedIndex === 0n ? 10_000n : (abs(index - lastQuotedIndex) * 10_000n) / lastQuotedIndex;
-    return { kind: "quote", ref: index, q, sigma, quote, ladder, movedBps };
+    return { kind: "quote", ref: index, q, sigma, quote, ladder, movedBps, merPos: acct.size };
   }
   const [[ok, index], acct, matured, realized, fs] = await Promise.all([
     oracleRead,
@@ -343,6 +353,7 @@ async function tick(block: bigint): Promise<void> {
       return;
     }
     const { ref, q, sigma, quote, ladder, movedBps } = st;
+    if (hedger && st.merPos !== undefined) await hedger.step(st.merPos, ref, block); // never throws
     await refreshResting(idsToRefresh(resting, touched, ticks, FULL_REFRESH_TICKS));
     const requote = needsRequote({
       movedBps,
@@ -389,6 +400,7 @@ async function tick(block: bigint): Promise<void> {
       reservationBps: quote.reservation.toFixed(2),
       bids: ladder.bids.map((l) => l.tick),
       asks: ladder.asks.map((l) => l.tick),
+      ...(hedger ? { merPos: st.merPos, perplPos: hedger.trading.state.netSize() } : {}),
       ...stats,
       ...rpc(),
     });
@@ -439,6 +451,11 @@ if (IS_SWAP) {
   REALIZED_BLOCKS = blocksFor(8 * 3600, fp.blockTimeMs);
   log("swap book", { swapMarket: SWAP, swapOrderBook: OB, maxInventoryWad, realizedWindowBlocks: REALIZED_BLOCKS, sigmaFallbackAprBps: SWAP_SIGMA_BPS });
 }
+if (PERPL) {
+  hedger = new PerplHedger(PERPL, MAX_INVENTORY_LOTS * lotSize, { log, env: process.env });
+  await hedger.start();
+  if (PERPL.hedge.fundingBias) setInterval(() => void hedger?.refreshRates(), 60_000).unref();
+}
 await syncResting();
 log("recovered resting orders", { count: resting.length, lookbackBlocks: RECOVER_LOOKBACK_BLOCKS });
 log("mm start", {
@@ -454,7 +471,7 @@ log("mm start", {
   estimateBlockTag: ESTIMATE_BLOCK_TAG,
   separateReadRpc: READ_RPC_URL !== RPC_URL,
 });
-setInterval(() => log("stats", { ...stats, ...rpc(), resting: resting.length }), 60_000).unref();
+setInterval(() => log("stats", { ...stats, ...rpc(), resting: resting.length, ...(hedger ? { hedge: hedger.stats, perplPos: hedger.trading.state.netSize() } : {}) }), 60_000).unref();
 process.on("SIGINT", () => {
   if (stopping) process.exit(1); // second Ctrl-C: exit now, restart re-adopts resting orders (RECOVER_LOOKBACK_BLOCKS)
   stopping = true;
@@ -464,6 +481,7 @@ process.on("SIGINT", () => {
     while (busy) await new Promise((r) => setTimeout(r, 100));
     await syncResting();
     await cancelAll("shutdown");
+    await hedger?.shutdown(); // cancels resting Perpl orders, leaves (and logs) positions
   };
   void drain().finally(() => process.exit(0));
 });

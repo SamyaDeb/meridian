@@ -1,7 +1,7 @@
 // Typed Perpl read client (public market data only): context, ticker, funding; plus the MFI venue read (docs/MFI.md §2–§5).
 import { PerplSchemaError, PerplUnavailableError } from "./errors";
 import type { PerplTransport } from "./transport";
-import type { FundingEvent, Market, MarketState } from "./types";
+import type { FundingEvent, Market, MarketState, PerplFees } from "./types";
 import { parseContext, parseFundingSeries, parseMarketStateUpdate } from "./validate";
 import { perplOiNotionalWad, perplRateToAprWad } from "./units";
 
@@ -108,6 +108,8 @@ export type PerplVenueRead = {
   oiNotionalWad: bigint;
   markWad: bigint;
   stateAtMs: number | undefined;
+  /** the market's fee schedule (micros), when the source carries it */
+  fees?: PerplFees;
 };
 
 /** One MFI read of the Perpl venue: the funding rate in force now (window: 2 intervals back, 1 ahead) + current ticker (MFI.md §2, §3.2, §3.3). */

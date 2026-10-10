@@ -47,6 +47,10 @@ export interface Deployment {
   markets?: AddedMarketRecord[];
   /** contract keys deployed as our mocks (e.g. AUSD = MockERC20 with an open mint on testnet / anvil) */
   mockContracts?: string[];
+  /** our perp MM, demo MM and house taker flow (deployments `_operators`): disclosed, never counted as users */
+  mmAccounts?: Address[];
+  /** our keepers (main + demo) */
+  keeperAccounts?: Address[];
 }
 
 /** A deployment file is usable once it is not a placeholder and has the perp core. Pure. */
@@ -104,4 +108,11 @@ export function deploymentFor(chainId: number): Deployment | undefined {
 
 export function testMarket(chainId: number): TestMarket | undefined {
   return DEPLOYMENTS[chainId]?.demoMarket;
+}
+
+/** Operator accounts (MM, house flow, keepers) of `chainId`, lower-cased: excluded from user counts like ProtocolStats. */
+export function operatorAccounts(chainId: number): { mm: string[]; all: string[] } {
+  const d = deploymentFor(chainId);
+  const mm = (d?.mmAccounts ?? []).map((a) => a.toLowerCase());
+  return { mm, all: [...mm, ...(d?.keeperAccounts ?? []).map((a) => a.toLowerCase())] };
 }

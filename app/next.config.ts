@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/.well-known/assetlinks.json", headers: [{ key: "Content-Type", value: "application/json" }] }];
   },
+  // @meridian/risk ships TypeScript source (shared with keepers/alerts): Next compiles it like app code
+  transpilePackages: ["@meridian/risk"],
 };
 
 export default nextConfig;
