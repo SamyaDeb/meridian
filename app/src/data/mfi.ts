@@ -3,7 +3,7 @@ export const MFI_URL = process.env.NEXT_PUBLIC_MFI_URL || undefined;
 
 export type MfiVenue = { id: "meridian" | "perpl"; included: boolean; status: string; reason?: string; aprWad?: bigint; weightBps?: number };
 export type MfiCurrent = { aprWad: bigint | null; weighting: string; stale: boolean; warmup: boolean; updatedBlock: bigint | null; updatedAt: number; venues: MfiVenue[] };
-export type MfiPoint = { t: number; mfi: bigint | null; meridian: bigint | null; perpl: bigint | null; stale: boolean };
+export type MfiPoint = { t: number; mfi: bigint | null; meridian: bigint | null; perpl: bigint | null; spread?: bigint | null; stale: boolean };
 
 type Raw = Record<string, unknown>;
 const obj = (v: unknown, f: string): Raw => {

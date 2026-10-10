@@ -1,0 +1,20 @@
+{
+  "name": "@meridian/risk",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Pure Rates & Risk math shared by the app and the alerts bot: Perpl funding and position risk (Perpl's own margin rule), cross-venue carry, countdown, lot conversion (K5)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}

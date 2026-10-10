@@ -121,6 +121,33 @@ Tests: `pnpm -C indexer test` 119 passed, `pnpm -C app test` 440 passed (7 Oct, 
 | **B4: two markets in the same blocks share no storage** | BENCHMARKS B4 (anvil fork of 10143, real bytecode): 360 txs, 0 reverts, all 30 joint blocks carry both markets, **0 storage slots in common** between the markets' place / market / cancel txs, inclusion p50 1 block with or without the other market's load. Not a testnet run |
 | The app switches markets | `/trade` market switcher (MON-PERP / ETH-PERP), ticket / book / chart / positions / deposits per market, ETH prices at the 0.10 tick and sizes in ETH; `/rates` and `/stats` show a row per market; the MFI, vault, swaps and triggers stay MON-PERP (said in the UI). `app/e2e/markets.spec.ts` 7/7 at 390 / 768 / 1440 (mock data), screenshots `app/e2e/screenshots/widths/trade-eth-*.png` |
 
+## 14. Rates & Risk vs Perpl (K5)
+| Claim | Evidence |
+|---|---|
+| The liquidation price is Perpl's own rule, not ours: `P_liq = E + s·(MMR − deposit − premiumPnl)/L`, `MMR = E·L·100/maintMarginFracHdths`, entry with the contract's Q16 residue | Formula and units from Perpl's SDK (`PerplFoundation/dex-sdk` @ `01b9910`, `crates/sdk/src/state/position.rs`, `perpetual.rs`) and docs (`PerplFoundation/perpl-docs` @ `fbbe822`, `exchange/liquidation/README.md`, `margin.md`); implemented in `risk/src/perpl.ts`; **the SDK's own test vectors pass unchanged** (`risk/test/perpl.test.ts`: long 95 → 100 after paying funding, short 105 → 100, received funding 90 / 110, bankruptcy 90 / 110 / 95 / 105) |
+| Maintenance margin per market read from the exchange, never assumed | `getMarginFractions(perpId, 0).perpMaintMarginFracHdths`: testnet MON 500 (= 20 % of notional, max 3x), mainnet MON 2000 (= 5 %, max 10x, as Perpl's docs table says); Perpl `/v1/pub/context` reports the same `maintenance_margin` 500 / 2000 (8 Oct) |
+| Positions are read onchain, exactly as the exchange stores them | `/api/perpl/positions` → `getAccountByAddr` (account id + position bitmap) → `getPositionV2`, `getPerpetualInfoV2`, `getFundingSumAtBlock`, `getTakerFee`, `getMakerFee` in one multicall at one block; recorded reads in `app/src/features/rates/fixtures/`, replayed by `perplRoutes.test.ts` |
+| Rounding against the trader | liquidation price toward the mark (long up, short down), MMR up, shocked equity down, funding owed up / received down: asserted exactly in `risk/test/perpl.test.ts` "rounding against the trader" |
+| Cross-venue funding: rate now, realized 1 h / 8 h / 24 h / 7 d per venue, spread and history, countdown in blocks, net carry after both taker fees | `risk/src/funding.ts`, `app/src/features/rates/crossVenue.ts` (tests `risk/test/funding.test.ts`, `crossVenue.test.ts`); Perpl fees from the exchange (`getTakerFee` 345 / `getMakerFee` 45 micros = 3.45 / 0.45 bps, = Perpl's fee table tier 1) |
+| Alerts fire, repeat per cooldown, hold inside the hysteresis band and recover | `keepers/alerts/test/alerts.test.ts` (fake clock, recorded K3-hedge payload, no network): fire at 11.0 % < 15 %, quiet for 29 min, repeat at 30 min, still firing at 15.5 % (1-point band), `✅ RESOLVED` at 17 %; read failures page with the route's reason |
+| Mobile: Lighthouse on `/rates` (production build, mobile form factor, 8 Oct) | **performance 97, accessibility 100**, best practices 96; FCP 1.1 s, LCP 2.4 s, TBT 90 ms, CLS 0.016: `docs/outputs/lighthouse/rates-mobile.json` |
+| Layouts at 390 / 768 / 1440 px, no horizontal scroll; axe clean | `app/e2e/rates-risk.spec.ts` (8 tests, mocked `/api/perpl/*` with the recorded reads), `app/e2e/screenshots/widths/rates-{390,768,1440}.png`; `e2e/a11y.spec.ts` `/rates` 0 serious / critical |
+
+**Our numbers vs Perpl's.** Both accounts read live by our monitor on 8 Oct 2026 (`docs/outputs/screenshots/k5/ours-*.png`):
+
+| | K3 hedge, Perpl testnet (account 969, `0xFC76…7775`, block 69,169,894) | Public mainnet account 1076 (`0xf277…de8e`, block 111,524,159) |
+|---|---|---|
+| Side · size | Long · 2,600 MON | Long · 19,823 MON |
+| Entry | 0.02586 (0.025865384…, residue included) | 0.025051 |
+| Margin (position deposit) | 22.50 AUSD (22.508666) | 166.75 AUSD (166.757684) |
+| Liquidation price | **0.02239** (0.0223853…, rounded up) | **0.018084** (0.0180839…, rounded up) |
+| Maintenance | 13.44 AUSD (20 %) | 24.82 AUSD (5 %) |
+| Perpl's UI / perpl-cli, same account, same time | > VERIFY (owner): connect the hedge wallet on testnet.perpl.xyz and screenshot the position row; for account 1076, Perpl's UI shows only the connected wallet, so compare with Perpl's own read-only CLI: `perpl-cli show account --account 1076` (mainnet) and `perpl-cli --testnet show account --account 969`, which prints Perpl SDK's "Liq Price" with 6 decimals | |
+
+Expected rounding difference: Perpl's CLI prints 6 decimals of the same exact value; we show the market's own price decimals (5 on testnet, 6 on mainnet) rounded toward the mark, so the CLI's 0.022385 shows here as 0.02239. Running the CLI was not possible from this session (the build ran; executing a third-party binary was not allowed here).
+
+Tests (8 Oct, branch `rates-risk`): `pnpm -C risk test` 27, `pnpm -C keepers/alerts test` 8, `pnpm -C app test` 501 (5 opt-in live recorders skipped), `pnpm -C indexer test` 119, e2e `rates-risk.spec.ts` 8/8.
+
 **Security reviews:** two internal cross-reviews (`docs/outputs/security/review-A.md`, `review-B.md`) plus the 6 Oct audit hardening; status per finding in `docs/outputs/security/STATUS.md`.
 
 **Not claimed (no evidence yet):** mainnet deployment, external users, fees, volume; B4 on testnet itself (B4 ran on an anvil fork of 10143, §K7) and any parallel-execution speedup, the ETH-PERP keeper and MM running unattended (not funded), B5 funding granularity from the indexer, B9 vault economics; CRE workflows executed by a DON (only `cre workflow simulate --broadcast` through the simulation forwarder, §13); the funding-swap demo on testnet (no swap market maker funded); liquidation ≤ 3 blocks on testnet.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_VIEW, parseView, setView } from "./store";
+import { adoptView, DEFAULT_VIEW, getView, parseView, setView } from "./store";
 
 describe("chart view store", () => {
   it("parses valid state and drops unknown / malformed fields", () => {
@@ -22,6 +22,11 @@ describe("chart view store", () => {
     expect(parseView(saved, true).source).toBe("reference");
     expect(parseView(saved, false).source).toBe("last");
   });
+  it("a saved Perpl source survives only while its own flag is on", () => {
+    const saved = JSON.stringify({ ...DEFAULT_VIEW, source: "perpl" });
+    expect(parseView(saved, false, true).source).toBe("perpl");
+    expect(parseView(saved, true, false).source).toBe("last");
+  });
   it("setView survives a throwing localStorage (private mode)", () => {
     const g = globalThis as { localStorage?: unknown };
     const prev = g.localStorage;
@@ -35,5 +40,15 @@ describe("chart view store", () => {
     };
     expect(() => setView("0xabc", { timeframe: "1h" })).not.toThrow();
     g.localStorage = prev;
+  });
+  it("a choice made before the market's address loads is carried over to it (not lost)", () => {
+    setView("placeholder-a", { source: "index", timeframe: "1m" });
+    adoptView("placeholder-a", "0xmarket-a");
+    expect(getView("0xmarket-a")).toMatchObject({ source: "index", timeframe: "1m" });
+    setView("0xmarket-a", { source: "last" });
+    adoptView("placeholder-a", "0xmarket-a"); // already adopted: a later reload of the address keeps its own view
+    expect(getView("0xmarket-a").source).toBe("last");
+    adoptView("never-touched", "0xmarket-b"); // nothing changed under the placeholder: no-op
+    expect(getView("0xmarket-b")).toEqual(DEFAULT_VIEW);
   });
 });

@@ -24,15 +24,33 @@ export function ConnectButton() {
   return PrivyConnect ? <PrivyConnect /> : <InjectedConnect />;
 }
 
+type ConnectorLike = { uid: string; id: string; name: string; type: string };
+/**
+ * Pure: the connect buttons to show. Browsers that announce their wallet (EIP-6963, e.g. Brave Wallet, MetaMask) give
+ * wagmi a named connector besides the generic `injected` one, and both drive the same wallet: drop the generic one
+ * whenever a named one exists. Several named wallets ⇒ each button says which. The anvil dev account stays.
+ */
+export function connectButtons<C extends ConnectorLike>(connectors: readonly C[]): { connector: C; label: string }[] {
+  const wallets = connectors.filter((c) => c.type !== "mock");
+  const named = wallets.filter((c) => c.id !== "injected");
+  const shown = named.length > 0 ? named : wallets;
+  const seen = new Set<string>();
+  const unique = shown.filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+  return [
+    ...unique.map((c) => ({ connector: c, label: unique.length > 1 ? `Connect ${c.name}` : "Connect wallet" })),
+    ...connectors.filter((c) => c.type === "mock").map((c) => ({ connector: c, label: "Dev account" })),
+  ];
+}
+
 function InjectedConnect() {
   const { isConnected, address } = useAccount();
   const { connectors, connect } = useConnect();
   if (isConnected) return <span className="num text-[11px] text-muted">{`${address?.slice(0, 6)}…${address?.slice(-4)}`}</span>;
   return (
     <div className="flex gap-2">
-      {connectors.map((c) => (
-        <button key={c.uid} type="button" onClick={() => connect({ connector: c })} className={`${cta} bg-brand text-on-brand hover:bg-brand-hover`}>
-          {c.type === "mock" ? "Dev account" : "Connect wallet"}
+      {connectButtons(connectors).map(({ connector, label }) => (
+        <button key={connector.uid} type="button" onClick={() => connect({ connector })} className={`${cta} bg-brand text-on-brand hover:bg-brand-hover`}>
+          {label}
         </button>
       ))}
     </div>

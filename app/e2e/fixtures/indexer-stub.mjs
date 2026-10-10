@@ -70,7 +70,37 @@ http
         const endMs = Date.now();
         data.FundingTick = Array.from({ length: limit }, (_, i) => ({ mark: String((26_010n + BigInt(Math.round(Math.cos(i / 40) * 30))) * 10n ** 12n), timestamp: String(Math.floor((endMs - i * 300) / 1000)) }));
       }
-      if (query.includes("InsuranceFund")) data.InsuranceFund = [{ fundedToken: "1000000000", coveredToken: "1232864" }];
+      if (query.includes("InsuranceFund {") || query.includes("InsuranceFund(")) data.InsuranceFund = [{ fundedToken: "1000000000", coveredToken: "1232864" }];
+      // Rates & Risk (K5), all synthetic: realized windows, hourly cross-venue rows, Perpl funding per interval
+      // ending at the recorded /api/perpl/market blocks the e2e mocks (testnet 69,150,828, mainnet 111,508,710).
+      if (query.includes("FundingWindow(")) data.FundingWindow = [{ block: "1", apr1hWad: "109500000000000000", apr8hWad: "121000000000000000", apr24hWad: "98000000000000000", apr7dWad: "104000000000000000", rateAprWad: "109500000000000000" }];
+      if (query.includes("CrossVenueFunding(")) {
+        const h0 = Math.floor(Date.now() / 3_600_000) * 3600;
+        data.CrossVenueFunding = Array.from({ length: Math.min(limit, 72) }, (_, i) => {
+          const m = 109_500_000_000_000_000n + BigInt(Math.round(Math.sin(i / 5) * 3e16));
+          const p = BigInt(((i * 7) % 9) - 4) * 10n ** 13n * 31_536_000n / 2_580n;
+          return { hour: String(h0 - i * 3600), meridianAprWad: String(m), perplAprWad: String(p), spreadAprWad: String(m - p) };
+        });
+      }
+      if (query.includes("PerplMarket(")) {
+        const chain = Number(variables.chainId);
+        const feb0 = chain === 143 ? 111_508_710n : 69_150_828n;
+        const ts0 = Math.floor(Date.now() / 1000) - 600;
+        data.PerplMarket = [{ perpId: chain === 143 ? "10" : "64", name: "MON", isMon: true, lastAprWad: "0", lastRatePct100k: "0", lastFundingEventBlock: String(feb0), lastMarkWad: "25300000000000000", liquidations: 0 }];
+        data.PerplFunding = Array.from({ length: Math.min(limit, 300) }, (_, i) => {
+          const rate = BigInt(((i * 5) % 7) - 3);
+          return { perpId: chain === 143 ? "10" : "64", fundingEventBlock: String(feb0 - BigInt(i) * 8_571n), ratePct100k: String(rate), aprWad: String((rate * 10n ** 13n * 31_536_000n) / 2_580n), fundingPriceWad: "25300000000000000", timestamp: String(ts0 - i * 2580) };
+        });
+        data.PerplLiquidation = [];
+      }
+      if (query.includes("InsuranceFundEvent(")) {
+        const tx = "0x" + "ab".repeat(32);
+        data.InsuranceFundEvent = [
+          { id: "100-1-0", flow: "Funded", direction: "In", amountWad: "1000000000000000000000", balanceAfterToken: "1000000000", block: "100", timestamp: "1", txHash: tx },
+          { id: "200-3-0", flow: "PenaltyIn", direction: "In", kind: "Perp", amountWad: "621775000000000000", balanceAfterToken: "1000621775", block: "200", timestamp: "2", txHash: tx },
+          { id: "300-2-0", flow: "CoveredByInsurance", direction: "Out", kind: "Perp", amountWad: "1854639000000000000", requestedWad: "1854639000000000000", balanceAfterToken: "998767136", block: "300", timestamp: "3", txHash: tx },
+        ];
+      }
       res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*", "access-control-allow-headers": "content-type" });
       res.end(JSON.stringify({ data }));
     });

@@ -142,7 +142,7 @@ export function ChartToolbar({ view, onChange, fullscreen, onFullscreen, onScree
         <Divider />
         <RadioMenu<PriceSource>
           label="Price source"
-          face={<span className="max-w-[9rem] truncate font-medium text-text">{SOURCE_LABEL[view.source].label}</span>}
+          face={<span className="max-w-[9rem] truncate whitespace-nowrap font-medium text-text">{SOURCE_LABEL[view.source].short}</span>}
           value={view.source}
           options={sourceOptions(referenceEnabled)}
           render={(s) => (

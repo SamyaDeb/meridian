@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { MfiPoint } from "@/data/mfi";
-import { SERIES, aprPct, fmtPct, fmtTime, lineModel, nearestIndex } from "./model";
+import { SERIES, aprPct, fmtPct, fmtTime, lineModel, nearestIndex, valueOf, type SeriesKey } from "./model";
 
 const H = 200;
 
 /** MFI vs its venues, one axis (APR %), crosshair tooltip, legend + end labels, table view. `series` limits the lines
  *  (the Rates page's indexer card shows Meridian vs Perpl only). */
-export function MfiChart({ points, series = SERIES }: { points: MfiPoint[]; series?: typeof SERIES }) {
+export function MfiChart({ points, series = SERIES }: { points: MfiPoint[]; series?: readonly { key: SeriesKey; label: string; color: string }[] }) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(358);
   const [hover, setHover] = useState<number | undefined>();
@@ -19,7 +19,7 @@ export function MfiChart({ points, series = SERIES }: { points: MfiPoint[]; seri
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const m = lineModel(points, w, H);
+  const m = lineModel(points, w, H, undefined, series);
   const hp = hover !== undefined ? points[hover] : undefined;
   return (
     <div ref={ref} className="viz">
@@ -46,7 +46,7 @@ export function MfiChart({ points, series = SERIES }: { points: MfiPoint[]; seri
           width={w}
           height={H}
           role="img"
-          aria-label={`Funding APR over time: MFI, Meridian and Perpl. Latest MFI ${m.last.mfi ? fmtPct(m.last.mfi.pct) : "n/a"}.`}
+          aria-label={`Funding APR over time: ${series.map((s) => s.label).join(", ")}.${m.last.mfi ? ` Latest MFI ${fmtPct(m.last.mfi.pct)}.` : ""}`}
           onPointerMove={(e) => setHover(nearestIndex(points, m, e.clientX - e.currentTarget.getBoundingClientRect().left))}
           onPointerLeave={() => setHover(undefined)}
           className="touch-pan-y"
@@ -70,7 +70,7 @@ export function MfiChart({ points, series = SERIES }: { points: MfiPoint[]; seri
             <g>
               <line x1={m.x(hp.t)} x2={m.x(hp.t)} y1={10} y2={H - 22} stroke="var(--muted)" strokeWidth={1} />
               {series.map((s) => {
-                const v = hp[s.key];
+                const v = valueOf(hp, s.key);
                 return v === null ? null : <circle key={s.key} cx={m.x(hp.t)} cy={m.y(aprPct(v))} r={4} fill={s.color} stroke="var(--card)" strokeWidth={2} />;
               })}
             </g>
@@ -82,7 +82,7 @@ export function MfiChart({ points, series = SERIES }: { points: MfiPoint[]; seri
           <span>{fmtTime(hp.t)}</span>
           {series.map((s) => (
             <span key={s.key}>
-              {s.label} <span className="text-text">{hp[s.key] === null ? "n/a" : fmtPct(aprPct(hp[s.key]!))}</span>
+              {s.label} <span className="text-text">{valueOf(hp, s.key) === null ? "n/a" : fmtPct(aprPct(valueOf(hp, s.key)!))}</span>
             </span>
           ))}
         </div>
@@ -91,7 +91,7 @@ export function MfiChart({ points, series = SERIES }: { points: MfiPoint[]; seri
   );
 }
 
-export function MfiTable({ points, series = SERIES }: { points: MfiPoint[]; series?: typeof SERIES }) {
+export function MfiTable({ points, series = SERIES }: { points: MfiPoint[]; series?: readonly { key: SeriesKey; label: string; color: string }[] }) {
   const rows = points.slice(-12).reverse();
   return (
     <table className="num w-full text-left text-xs">
@@ -109,7 +109,7 @@ export function MfiTable({ points, series = SERIES }: { points: MfiPoint[]; seri
           <tr key={p.t} className="border-t border-border">
             <td className="py-1 text-muted">{fmtTime(p.t)}</td>
             {series.map((s) => (
-              <td key={s.key} className="py-1 text-right">{p[s.key] === null ? "n/a" : fmtPct(aprPct(p[s.key]!))}</td>
+              <td key={s.key} className="py-1 text-right">{valueOf(p, s.key) === null ? "n/a" : fmtPct(aprPct(valueOf(p, s.key)!))}</td>
             ))}
           </tr>
         ))}

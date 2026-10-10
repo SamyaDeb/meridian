@@ -5,12 +5,16 @@ export const WAD = 10n ** 18n;
 /** APR WAD → percent (display only; the data stays bigint). */
 export const aprPct = (wad: bigint): number => Number((wad * 1_000_000n) / WAD) / 10_000;
 
-export type SeriesKey = "mfi" | "meridian" | "perpl";
+export type SeriesKey = "mfi" | "meridian" | "perpl" | "spread";
 export const SERIES: { key: SeriesKey; label: string; color: string }[] = [
   { key: "mfi", label: "MFI", color: "var(--viz-1)" },
   { key: "meridian", label: "Meridian", color: "var(--viz-2)" },
   { key: "perpl", label: "Perpl", color: "var(--viz-3)" },
 ];
+/** Meridian − Perpl (Rates & Risk cross-venue panel); not part of the MFI card's default series. */
+export const SPREAD_SERIES = { key: "spread" as const, label: "Spread (Meridian − Perpl)", color: "var(--viz-1)" }; // drawn on its own chart, so slot 1 is free
+/** A point's value for a series; a series the point doesn't carry is a gap. */
+export const valueOf = (p: MfiPoint, k: SeriesKey): bigint | null => p[k] ?? null;
 
 /** "Nice" ticks covering [lo, hi] (≥ 2 ticks), always including 0 when the range crosses it. */
 export function niceTicks(lo: number, hi: number, target = 4): number[] {
@@ -39,9 +43,9 @@ export type LineModel = {
 };
 
 /** Lines break at gaps (null = venue not included that cycle): no interpolation across missing data. */
-export function lineModel(points: MfiPoint[], w: number, h: number, pad = { l: 44, r: 12, t: 10, b: 22 }): LineModel | undefined {
+export function lineModel(points: MfiPoint[], w: number, h: number, pad = { l: 44, r: 12, t: 10, b: 22 }, series: readonly { key: SeriesKey }[] = SERIES): LineModel | undefined {
   if (points.length === 0) return undefined;
-  const vals = points.flatMap((p) => SERIES.map((s) => p[s.key]).filter((v): v is bigint => v !== null).map(aprPct));
+  const vals = points.flatMap((p) => series.map((s) => valueOf(p, s.key)).filter((v): v is bigint => v !== null).map(aprPct));
   if (vals.length === 0) return undefined;
   const yTicks = niceTicks(Math.min(...vals, 0), Math.max(...vals, 0));
   const y0 = yTicks[0]!;
@@ -52,11 +56,11 @@ export function lineModel(points: MfiPoint[], w: number, h: number, pad = { l: 4
   const y = (pct: number) => pad.t + (1 - (pct - y0) / (y1 - y0)) * (h - pad.t - pad.b);
   const paths = {} as Record<SeriesKey, string>;
   const last: LineModel["last"] = {};
-  for (const s of SERIES) {
+  for (const s of series) {
     let d = "";
     let pen = false;
     for (const p of points) {
-      const v = p[s.key];
+      const v = valueOf(p, s.key);
       if (v === null) {
         pen = false;
         continue;

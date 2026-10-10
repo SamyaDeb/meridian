@@ -51,7 +51,11 @@ function makeSources(): { markets: PerpMarket[]; sources: Map<string, MeridianDa
     };
   }
   const { chain, rpcUrl } = readChain();
-  const client = createPublicClient({ chain, transport: http(rpcUrl) });
+  // Reads issued in the same tick go out as one Multicall3 eth_call (the chain defs carry its address; on 10143 it has
+  // code), and what can't be multicalled (block number, logs) shares one JSON-RPC batch. The page polls every block,
+  // so one call per read put a single tab near the public testnet RPC's per-IP eth_call limit (429s: market strip,
+  // RPC chip and block stayed "—").
+  const client = createPublicClient({ chain, transport: http(rpcUrl, { batch: { wait: 16 } }), batch: { multicall: { wait: 16 } } });
   const vault = contractAddress(READ_CHAIN_ID, "MeridianVault");
   const swapMarket = contractAddress(READ_CHAIN_ID, "FundingSwapMarket");
   const swapOrderBook = contractAddress(READ_CHAIN_ID, "SwapOrderBook");

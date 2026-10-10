@@ -1,16 +1,15 @@
 "use client";
 import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { INDEXER_URL, useMarket, useRiskParams } from "@/data/hooks";
-import { Card, EmptyState, Notice, Skeleton } from "@/components/ds";
-import { formatAprWad, formatAusdToken, formatBaseWad, formatSignedAprWad } from "@/lib/format";
-import { histogram } from "@/lib/liqDistance";
-import { DEFAULT_MMR_WAD } from "@/lib/units";
+import { useMarket } from "@/data/hooks";
+import { Card } from "@/components/ds";
+import { formatAprWad, formatSignedAprWad } from "@/lib/format";
 import { MfiCard } from "@/features/rates/MfiCard";
 import { CrossVenueCard } from "@/features/rates/CrossVenueCard";
 import { MarketsTable } from "@/features/market/MarketsTable";
 import { MarketSwitcher } from "@/components/market/MarketSwitcher";
 import { usePerpMarket } from "@/data/market";
+import { PerplMonitorCard } from "@/features/rates/PerplMonitorCard";
+import { AlertsCard, CrashReplayCard, MeridianRiskCards } from "@/features/rates/MeridianRiskCards";
 
 function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub?: string }) {
   return (
@@ -22,99 +21,71 @@ function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub
   );
 }
 
+function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={id} className="space-y-2">
+      <h2 id={id} className="px-1 pt-2 text-sm font-semibold text-muted">
+        {title}
+      </h2>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2 lg:grid-cols-2">{children}</div>
+    </section>
+  );
+}
+
 /**
- * Rates & Risk (decision D3). Real sources only: the funding-rate oracle (chain)
- * for the APR table (realized windows from the indexer's FundingWindow when connected), the MFI service for the Meridian
- * Funding Index (MfiCard), the indexer for Meridian vs Perpl funding (CrossVenueCard), liquidation distance and the
- * insurance fund. A missing source is an empty state, never simulated.
+ * Rates & Risk (K5): funding on both Monad perp venues, a monitor for any Perpl position (Perpl's own liquidation
+ * rule), Meridian's own risk and a recorded crash, and the alerts bot. Real sources only: Meridian's contracts and
+ * indexer, Perpl's exchange read onchain (/api/perpl/*) and its indexed events, the MFI service. A missing source is an
+ * empty state that names it, never a simulated number.
  */
 export default function RatesPage() {
   const { data: m } = useMarket();
-  const { data: risk } = useRiskParams();
   const pm = usePerpMarket();
-  const market = m?.clearingHouse;
-  const q = useQuery({
-    queryKey: ["risk", INDEXER_URL, market],
-    queryFn: async ({ signal }) => (await import("@/data/indexer/risk")).fetchRisk(INDEXER_URL!, market!, signal),
-    enabled: INDEXER_URL !== undefined && market !== undefined,
-    refetchInterval: 15_000,
-    retry: 1,
-  });
-  const rows = q.data && m ? histogram(q.data.positions, m.lastMarkPrice, risk?.mmr ?? DEFAULT_MMR_WAD) : undefined;
-  const maxCount = rows ? Math.max(1, ...rows.map((r) => r.count)) : 1;
   return (
     <div className="space-y-2">
       <header className="px-1 pt-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold">Rates &amp; risk</h1>
+          <h1 className="text-xl font-semibold">Rates &amp; Risk</h1>
           <MarketSwitcher />
         </div>
         <p className="text-xs text-muted">
-          The {pm.symbol} funding rate, how it has paid, and how close open positions are to liquidation.{!pm.primary && " The Meridian Funding Index and the cross-venue chart below are MON-PERP only."}
+          Funding on Meridian and Perpl side by side, how close any Perpl position is to liquidation, and Meridian&apos;s own {pm.symbol} risk.{!pm.primary && " The Meridian Funding Index and the cross-venue chart below are MON-PERP only."}
         </p>
       </header>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <Kpi label="Funding now (APR)" sub="per block">{m ? formatSignedAprWad(m.lastRateAprWad, 3) : "—"}</Kpi>
-        <Kpi label="Realized 1h" sub="funding-rate oracle">{m?.realizedApr1hWad !== undefined ? formatAprWad(m.realizedApr1hWad) : "—"}</Kpi>
-        <Kpi label="Realized 8h" sub="funding-rate oracle">{m?.realizedApr8hWad !== undefined ? formatAprWad(m.realizedApr8hWad) : "—"}</Kpi>
-        <Kpi label="Realized 24h" sub="funding-rate oracle">{m?.realizedApr24hWad !== undefined ? formatAprWad(m.realizedApr24hWad) : "—"}</Kpi>
+        <Kpi label="Meridian funding now (APR)" sub="per block">
+          {m ? formatSignedAprWad(m.lastRateAprWad, 3) : "—"}
+        </Kpi>
+        <Kpi label="Realized 1h" sub="funding-rate oracle">
+          {m?.realizedApr1hWad !== undefined ? formatAprWad(m.realizedApr1hWad) : "—"}
+        </Kpi>
+        <Kpi label="Realized 8h" sub="funding-rate oracle">
+          {m?.realizedApr8hWad !== undefined ? formatAprWad(m.realizedApr8hWad) : "—"}
+        </Kpi>
+        <Kpi label="Realized 24h" sub="funding-rate oracle">
+          {m?.realizedApr24hWad !== undefined ? formatAprWad(m.realizedApr24hWad) : "—"}
+        </Kpi>
       </div>
 
       <MarketsTable title="Funding by market" />
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-2 lg:grid-cols-2">
-        <MfiCard />
+      <Section id="rates-funding" title="Funding across venues">
         <CrossVenueCard />
+        <div className="lg:col-span-2">
+          <MfiCard />
+        </div>
+      </Section>
 
-        <Card title="Liquidation distance (open positions)">
-          {INDEXER_URL === undefined ? (
-            <EmptyState title="Needs the indexer" body="Open positions are read from the Meridian indexer, which isn't connected here." />
-          ) : q.isError ? (
-            <Notice tone="warn" title="Indexer unavailable">Retrying.</Notice>
-          ) : !rows ? (
-            <Skeleton className="h-40 w-full" label="Loading positions" />
-          ) : rows.every((r) => r.count === 0) ? (
-            <EmptyState title="No open positions" />
-          ) : (
-            <ul className="space-y-1.5" aria-label="Positions by distance to liquidation">
-              {rows.map((r) => (
-                <li key={r.label} className="grid grid-cols-[110px_minmax(0,1fr)_88px] items-center gap-2 text-xs">
-                  <span className="text-muted">{r.label}</span>
-                  <span className="h-3 overflow-hidden rounded-full bg-card-2">
-                    <span className={`block h-full rounded-full ${r.label.startsWith("≤ 2") || r.label.startsWith("≤ 5") ? "bg-short" : r.label.startsWith("never") ? "bg-long" : "bg-warn"}`} style={{ width: `${(r.count / maxCount) * 100}%` }} />
-                  </span>
-                  <span className="num text-right">
-                    {r.count} · {formatBaseWad(r.sizeWad, pm.sizeDp)}
-                  </span>
-                </li>
-              ))}
-              <li className="pt-1 text-[10px] text-muted">Mark move to the isolated liquidation price (funding ignored), count · {pm.base}. Test markets excluded.</li>
-            </ul>
-          )}
-        </Card>
+      <Section id="rates-perpl" title="Perpl position risk">
+        <PerplMonitorCard />
+      </Section>
 
-        <Card title="Insurance fund">
-          {INDEXER_URL === undefined ? (
-            <EmptyState title="Needs the indexer" />
-          ) : !q.data ? (
-            <Skeleton className="h-16 w-full" />
-          ) : !q.data.insurance ? (
-            <EmptyState title="Not funded yet" />
-          ) : (
-            <dl className="num grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <dt className="text-xs text-muted">Funded</dt>
-                <dd>{formatAusdToken(q.data.insurance.fundedToken)} AUSD</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted">Bad debt covered</dt>
-                <dd>{formatAusdToken(q.data.insurance.coveredToken)} AUSD</dd>
-              </div>
-            </dl>
-          )}
-        </Card>
-      </div>
+      <Section id="rates-meridian" title="Meridian risk">
+        <MeridianRiskCards />
+        <CrashReplayCard />
+        <AlertsCard />
+      </Section>
     </div>
   );
 }

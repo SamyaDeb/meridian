@@ -1,0 +1,138 @@
+{
+ "recordedAt": "2026-10-08T04:19:53.070Z",
+ "source": "Monad 10143 via the server RPC, exchange views (deployments/perpl.json)",
+ "calls": [
+  {
+   "kind": "block",
+   "result": "69158854n"
+  },
+  {
+   "kind": "multicall",
+   "calls": [
+    {
+     "fn": "getPerpetualInfoV2",
+     "args": [
+      "64n"
+     ]
+    },
+    {
+     "fn": "getFundingSumAtBlock",
+     "args": [
+      "64n",
+      "69158854n"
+     ]
+    },
+    {
+     "fn": "getFundingInterval",
+     "args": []
+    },
+    {
+     "fn": "getTakerFee",
+     "args": [
+      "64n"
+     ]
+    },
+    {
+     "fn": "getMakerFee",
+     "args": [
+      "64n"
+     ]
+    },
+    {
+     "fn": "getMarginFractions",
+     "args": [
+      "64n",
+      "0n"
+     ]
+    }
+   ],
+   "results": [
+    {
+     "result": {
+      "name": "MON Perp",
+      "symbol": "MON",
+      "priceDecimals": "5n",
+      "lotDecimals": "0n",
+      "linkFeedId": "0x000381c8eef81ce25de70989747ed85f75cf383e91db61097bbe15b15cf2f60a",
+      "priceTolPer100K": "5000n",
+      "marginTol": "100n",
+      "marginTolDecimals": "9n",
+      "refPriceMaxAgeSec": "60n",
+      "positionBalanceCNS": "107561510129n",
+      "insuranceBalanceCNS": "6547947124n",
+      "markPNS": "2530n",
+      "markTimestamp": "1791433188n",
+      "lastPNS": "2534n",
+      "lastTimestamp": "1791433186n",
+      "oraclePNS": "2527n",
+      "oracleTimestampSec": "1791433190n",
+      "longOpenInterestLNS": "2845155n",
+      "shortOpenInterestLNS": "2845155n",
+      "fundingStartBlock": "12179391n",
+      "fundingRatePct100k": 0,
+      "absFundingClampPctPer100K": "10n",
+      "status": 4,
+      "basePricePNS": "1n",
+      "maxBidPriceONS": "2527n",
+      "minBidPriceONS": "2499n",
+      "maxAskPriceONS": "16776215n",
+      "minAskPriceONS": "2531n",
+      "numOrders": "23n",
+      "ignOracle": false,
+      "fundingSumScalingExp": "3n"
+     },
+     "status": "success"
+    },
+    {
+     "result": [
+      -22607,
+      "69150828n"
+     ],
+     "status": "success"
+    },
+    {
+     "result": "8571n",
+     "status": "success"
+    },
+    {
+     "result": "345n",
+     "status": "success"
+    },
+    {
+     "result": "45n",
+     "status": "success"
+    },
+    {
+     "result": [
+      "300n",
+      "500n",
+      "300n",
+      "100000000n",
+      "90n",
+      "95n"
+     ],
+     "status": "success"
+    }
+   ]
+  }
+ ],
+ "expected": {
+  "chainId": 10143,
+  "perpId": 64,
+  "name": "MON",
+  "block": "69158854",
+  "markPNS": "2530",
+  "priceDecimals": 5,
+  "lotDecimals": 0,
+  "fundingRatePct100k": "0",
+  "lastFundingEventBlock": "69150828",
+  "fundingIntervalSec": 2580,
+  "fundingIntervalBlocks": "8571",
+  "longOpenInterestLNS": "2845155",
+  "shortOpenInterestLNS": "2845155",
+  "takerFeeMicros": "345",
+  "makerFeeMicros": "45",
+  "maintMarginHdths": "500",
+  "initMarginHdths": "300"
+ }
+}
