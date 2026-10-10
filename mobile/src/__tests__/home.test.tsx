@@ -291,6 +291,8 @@ it("Settings: alerts are off until turned on, saved, in-app only (no permission 
   await render(wrap(auth, feed, <Settings />));
   await act(async () => fireEvent.press(screen.getByRole("button", { name: "Open full terminal" })));
   expect(open).toHaveBeenCalledWith("https://meridian-testnet.vercel.app");
+  // N8: version · profile · chain (no git sha in the config)
+  expect(screen.getByTestId("settings-version")).toHaveTextContent(/^\S+ · development · chain 10143$/);
 });
 
 import CloseAll from "../app/close-all";

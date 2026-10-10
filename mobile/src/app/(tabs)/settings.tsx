@@ -68,8 +68,8 @@ export default function Settings() {
           <Text>{cfg.rpId}</Text>
         </Row>
         <Row label="Version">
-          <Text>
-            {info.version} ({info.env})
+          <Text testID="settings-version">
+            {info.version} · {info.env} · chain {info.chainId}
           </Text>
         </Row>
       </Card>
