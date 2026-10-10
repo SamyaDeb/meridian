@@ -165,6 +165,14 @@ the dev client (or after uninstalling it: they share the package). Its signer SH
 env (LAUNCH_PLAN §3.2) for N8-F rows. Tick only what was seen on the phone; record the build id, APK link and signer
 fingerprint in the N8 log line.
 
+**Build record (L2, 11 Oct 2026):** EAS `2242d587-c4b4-461f-a716-a9b04e5c277c`, profile `preview`, commit `ca84977`
+(main after #15), version 0.2.0 / versionCode 2, package `xyz.meridianfi.app.staging`, 108.8 MB APK.
+Install link: https://expo.dev/artifacts/eas/01yczpPT3kBHg7kN-gGJDCOD609c_jbb2_BZoS4NlT4.apk (EAS page expires 24 Oct).
+Signer SHA-256 (`apksigner verify --print-certs`): `23:2F:3C:C0:DA:54:87:A5:9B:18:1A:06:7B:77:B6:53:69:59:29:13:D2:03:DF:90:9F:36:9D:D7:DC:46:16:B2`
+= the entry already in staging `assetlinks.json` and in Google's Digital Asset Links API
+(`get_login_creds`, `xyz.meridianfi.app.staging`), so no assetlinks change was needed. Phone rows below stay ⏳ until
+seen on a phone.
+
 | # | Check (owner's taps) | Pass looks like | Result | Seen by | Note |
 |---|---|---|---|---|---|
 | N8-0 | Settings → scroll to **Version** | "0.2.0 · staging · chain 10143" | ⏳ | | |
