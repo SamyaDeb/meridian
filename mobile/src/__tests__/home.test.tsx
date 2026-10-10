@@ -1,6 +1,7 @@
 // N4b + N7 Home / Add funds / Settings passkey card / tab order, offline: the wallet feed, the account reader's store,
 // the activity feed and the alert settings are injected and fed by hand.
 jest.mock("@gorhom/bottom-sheet", () => require("@gorhom/bottom-sheet/mock"));
+import { clipRisks } from "./layoutRisk";
 import { act, fireEvent, render, screen, within } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { Share } from "react-native";
@@ -191,6 +192,8 @@ it("Home total = wallet + Meridian equity + Perpl (balance + position); breakdow
   expect(within(b).getByTestId("breakdown-perpl")).toHaveTextContent("4,998.49");
   expect(within(b).getByTestId("breakdown-total")).toHaveTextContent("5,112.49");
   expect(screen.getByRole("button", { name: "See breakdown" })).toBeTruthy(); // the visible way into the sheet
+  // large text (N8): nothing around the hero total can clip it at fontScale 2
+  expect(clipRisks(screen.getByTestId("home-total") as never)).toEqual([]);
 });
 
 it("Home: a part that can't be read ⇒ total '—' and the breakdown says why; open PnL ticks with each account read", async () => {

@@ -35,6 +35,7 @@ import { WalletFeedStore } from "../../wallet/feed";
 import { makeAuth } from "../auth/authFixtures";
 import { fakeLive } from "../fakeLive";
 import { fakeFlags } from "../flags/flagsFixtures";
+import { clipRisks } from "../layoutRisk";
 
 const WAD = 10n ** 18n;
 const mockRouter = (jest.requireMock("expo-router") as { router: Record<"push", jest.Mock> }).router;
@@ -134,6 +135,8 @@ it("short $5 × 2: numpad → Meridian quote → plain summary → tap alternati
   const tap = screen.getByTestId("ticket-confirm-tap");
   expect(tap).toHaveProp("accessibilityHint", "Confirms with one tap instead of holding");
   expect(screen.getByTestId("ticket-confirm-hold")).toBeTruthy();
+  // large text (N8): the plain summary wraps, nothing clips it at fontScale 2
+  expect(clipRisks(screen.getByTestId("ticket-summary") as never)).toEqual([]);
   await fireEvent.press(tap);
   await wait(20);
   expect(s.sent).toHaveLength(1);

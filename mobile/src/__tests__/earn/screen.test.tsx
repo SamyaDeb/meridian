@@ -37,6 +37,7 @@ import { WalletFeedStore } from "../../wallet/feed";
 import { makeAuth } from "../auth/authFixtures";
 import { fakeLive } from "../fakeLive";
 import { fakeFlags } from "../flags/flagsFixtures";
+import { clipRisks } from "../layoutRisk";
 
 const WAD = 10n ** 18n;
 const pct = (x: number) => (BigInt(x * 100) * WAD) / 10_000n;
@@ -176,6 +177,8 @@ it("$10: hero APR, legs in plain words, ≈ $/day, deposits named; the tap alter
   const s = await setup();
   await render(wrap(s, <EarnScreen />));
   expect(screen.getByTestId("earn-apr")).toHaveTextContent(/^4\d\.\d\d%$/); // 45 % gap minus the 30 d fee drag
+  // large text (N8): the hero APR line wraps (flexWrap) instead of clipping at fontScale 2
+  expect(clipRisks(screen.getByTestId("earn-apr") as never)).toEqual([]);
   await type(["1", "0"]);
   expect(screen.getByTestId("earn-legs")).toHaveTextContent("Long 300 MON on Perpl · Short 300 MON on Meridian");
   expect(screen.getByTestId("earn-per-day")).toHaveTextContent(/^≈ \$0\.0\d \/ day$/);
