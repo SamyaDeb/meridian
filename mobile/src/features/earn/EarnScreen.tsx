@@ -9,6 +9,7 @@ import { router, useFocusEffect } from "expo-router";
 import { memo, useCallback, useEffect, useState, type ComponentType } from "react";
 import { StyleSheet, Switch, View } from "react-native";
 import { useBlockNumber, useCadence, useFundingSpread, useMeridian, usePerpl } from "../../live/hooks";
+import { useLive } from "../../live/LiveProvider";
 import type { MeridianMarketState } from "../../live/meridianMarket";
 import type { PerplMarketState } from "../../live/perplMarket";
 import { Store, useStore } from "../../live/store";
@@ -29,7 +30,7 @@ import { earnReceiptStore, type EarnExecState } from "./executor";
 import type { GapHistoryState } from "./history";
 import { LeftoverClose } from "./LeftoverClose";
 import type { SwapState } from "./data/swap";
-import { planEarnPairClose } from "./closePair";
+import { planEarnPairClose, swapMarketDeployed } from "./closePair";
 import { EARN_LEVERAGE, type EarnLock, type EarnQuote } from "./plan";
 import { FLAT, type EarnPosition } from "./record";
 import { TimelineView } from "./TimelineView";
@@ -230,6 +231,7 @@ const STATUS_TEXT: Partial<Record<EarnQuote["status"], string>> = {
 export function EarnScreen() {
   const { executor } = useEarn();
   const { focus } = useTrade();
+  const live = useLive();
   const inputs = useEarnInputs();
   const [text, setText] = useState("");
   const amountWad = useDebounced(amountWadOf(text), DEBOUNCE_MS);
@@ -295,7 +297,7 @@ export function EarnScreen() {
   const closePair = () => {
     if (!executor || busy) return;
     // the same plan Close all uses for an Earn pair: a Lock closes first (never leaves a swap without its hedge)
-    const c = planEarnPairClose(pos, inputs, swap !== undefined);
+    const c = planEarnPairClose(pos, inputs, swapMarketDeployed(live.config.meridian));
     if (!c.ok) return fail(new Error(c.error));
     setError(undefined);
     executor.close(c.plan, c.meta, c.swap).then((t) => finish(t, false), fail);

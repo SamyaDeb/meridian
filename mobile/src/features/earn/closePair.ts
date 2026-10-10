@@ -3,6 +3,7 @@
 // (planSwapClose). The wallet's lock must be known before anything is planned: a pair closed while a lock is still open
 // would leave the swap without its hedge.
 import type { CloseExecPlan, OrderSide } from "@meridian/core/exec";
+import type { DeploymentRead, MeridianDeployment } from "@meridian/core/meridian";
 import { sizeText } from "../trade/ticket/quote";
 import type { RunMeta, SwapCloseOrder } from "./executor";
 import { EARN_LEVERAGE, planEarnClose, planSwapClose } from "./plan";
@@ -13,6 +14,15 @@ export type PairCloseInputs = Pick<EarnInputs, "accounts" | "meridian" | "perpl"
 
 /** The wallet's funding-swap position: `sizeWad` signed (+ bought), 0 when none; unknown until the swap reader has read it. */
 export type LockState = { known: false } | { known: true; sizeWad: bigint };
+
+/**
+ * The funding-swap market (Lock) is deployed on this network: FundingSwapMarket + SwapOrderBook in deployments/<chain>.json.
+ * From CONFIG, never from whether the swap reader exists yet: the reader is created a moment after unlock, and a lock
+ * treated as 0 in that window would let a close leave the swap without its hedge.
+ */
+export function swapMarketDeployed(meridian: DeploymentRead<MeridianDeployment>): boolean {
+  return meridian.status === "deployed" && Boolean(meridian.deployment.contracts.FundingSwapMarket) && Boolean(meridian.deployment.contracts.SwapOrderBook);
+}
 
 /** `swapMarket`: the funding-swap market is deployed on this network (no market ⇒ no lock can exist). */
 export function lockOf(inputs: Pick<EarnInputs, "swap">, swapMarket: boolean): LockState {

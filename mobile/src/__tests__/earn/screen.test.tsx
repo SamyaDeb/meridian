@@ -131,14 +131,14 @@ async function setup(o: { meridianApr?: number; perplApr?: number; meridianFails
   return { auth, address, live: f.live, kit, feed, executor, sent, map, kv, accounts, venue, meridian: f.meridian, swap };
 }
 
-function wrap(s: Awaited<ReturnType<typeof setup>>, children: ReactNode, flags?: FlagsClient) {
+function wrap(s: Awaited<ReturnType<typeof setup>> & { noReader?: boolean }, children: ReactNode, flags?: FlagsClient) {
   const app = (
     <AuthProvider controller={s.auth as AuthController}>
       <PerplProvider venue={s.venue as never}>
         <ToastProvider>
           <WalletFeedProvider feed={s.feed} read={false}>
             <TradeProvider kit={s.kit}>
-              <EarnProvider kit={{ executor: s.executor, history: undefined, swap: s.swap }}>{children}</EarnProvider>
+              <EarnProvider kit={{ executor: s.executor, history: undefined, swap: s.noReader ? undefined : s.swap }}>{children}</EarnProvider>
             </TradeProvider>
           </WalletFeedProvider>
         </ToastProvider>
@@ -284,6 +284,21 @@ it("Lock: the live fixed rate + why it's unavailable; on ⇒ the swap leg runs a
     ["swap", "sell", false],
   ]);
   expect(earnReceiptStore.get()!.steps.map((x) => x.key)).toEqual(["collateral", "leg1", "leg2", "leg3"]);
+});
+
+it("N8 D4.1: the swap market is deployed (config) but its reader isn't there yet ⇒ Close waits, nothing sent", async () => {
+  const s = await setup();
+  // a pair from an earlier session; the swap reader is created a moment after unlock
+  await positionStore(s.kv, 10143, s.address).save({ v: 1, perplSide: "buy", sizeWad: 300n * WAD, naked: undefined, applied: ["e0"] });
+  await act(async () => s.meridian.store.update({ asks: [{ priceWad: 25864n * tick, sizeWad: 1_000n * WAD }] }));
+  await act(async () => s.accounts.store.update({ meridian: { ...s.accounts.store.get().meridian!, sizeWad: -300n * WAD }, perpl: { accountId: 7n, freeWad: 0n, balanceWad: 0n, position: { side: "Long", sizeWad: 300n * WAD } as never, otherMarkets: false, equityWad: 0n, held: true } }));
+  await render(wrap({ ...s, noReader: true }, <EarnScreen />));
+  await wait(10);
+  await fireEvent.press(screen.getByTestId("earn-close"));
+  await fireEvent.press(screen.getByTestId("earn-close-confirm-tap"));
+  await wait(20);
+  expect(s.sent).toEqual([]);
+  expect(screen.getByTestId("earn-error")).toHaveTextContent("Reading your fixed-rate lock… Try again in a moment.");
 });
 
 describe("remote kill switch (N8 flags)", () => {
