@@ -1,0 +1,18 @@
+# Maestro workspace config (`maestro test mobile/.maestro`): runs the top-level flows in this order and stops at the first
+# failure. Subflows in subflows/ are only run from the flows.
+#
+# appId per build (src/config/appConfig.ts IDENTITY / app.config.ts): pass it with -e APP_ID=…
+#   development (dev client, the only build with the fake passkey) → xyz.meridianfi.app.staging
+#   staging (EAS preview APK)                                      → xyz.meridianfi.app.staging
+#   production (EAS production APK)                                → xyz.meridianfi.app
+# The flows here need the development build (EXPO_PUBLIC_FAKE_PASSKEY=1, APP_ENV=development) on an emulator;
+# passkey steps on real devices are run by hand (MOBILE_QA N8).
+flows:
+  - "*.yaml"
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - onboarding
+    - trade-open-close
+    - earn-open-close
+    - close-all

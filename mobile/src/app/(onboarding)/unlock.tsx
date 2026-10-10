@@ -39,7 +39,7 @@ export default function Unlock() {
     <Screen
       footer={
         <>
-          <Button title="Unlock with your fingerprint" icon={<PasskeyIcon color={colors.onBrand} />} accessibilityHint="Unlocks your wallet with your passkey" disabled={busy} onPress={unlock} />
+          <Button title="Unlock with your fingerprint" icon={<PasskeyIcon color={colors.onBrand} />} accessibilityHint="Unlocks your wallet with your passkey" disabled={busy} onPress={unlock} testID="btn-unlock" />
           <Button
             title="Use a different passkey"
             variant="ghost"

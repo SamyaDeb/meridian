@@ -1,0 +1,45 @@
+# Close all (MOBILE_PLAN N7 + N6): opens an Earn pair (two positions, so Home shows "Close all"), then Home → Close all
+# → one confirm → the outcome stated exactly → Done → nothing open. Same needs as earn-open-close.yaml.
+appId: ${APP_ID}
+---
+- launchApp
+- runFlow: subflows/open-dev.yaml
+- runFlow: subflows/unlock.yaml
+- tapOn:
+    id: "btn-home-earn"
+- tapOn:
+    id: "earn-key-1"
+- tapOn:
+    id: "earn-key-0"
+- extendedWaitUntil:
+    visible:
+      id: "earn-legs"
+    timeout: 20000
+- tapOn:
+    id: "earn-confirm-tap"
+- extendedWaitUntil:
+    visible:
+      id: "earn-receipt-title"
+    timeout: 90000
+- tapOn:
+    id: "earn-receipt-done"
+- tapOn:
+    id: "tab-portfolio"
+- scrollUntilVisible:
+    element:
+      id: "btn-close-all"
+    direction: DOWN
+- tapOn:
+    id: "btn-close-all"
+- extendedWaitUntil:
+    visible:
+      id: "close-all-earn"
+    timeout: 20000
+- tapOn:
+    id: "close-all-tap"
+- extendedWaitUntil:
+    visible:
+      id: "close-all-outcome"
+    timeout: 120000
+- tapOn:
+    id: "close-all-done"

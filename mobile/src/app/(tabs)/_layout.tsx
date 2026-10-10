@@ -19,7 +19,7 @@ export default function TabsLayout() {
       }}
     >
       {TABS.map((t) => (
-        <Tabs.Screen key={t.name} name={t.name} options={{ title: t.title, tabBarAccessibilityLabel: `${t.title} tab`, tabBarIcon: ({ color }) => <TabIcon name={t.name} color={color} /> }} />
+        <Tabs.Screen key={t.name} name={t.name} options={{ title: t.title, tabBarAccessibilityLabel: `${t.title} tab`, tabBarButtonTestID: `tab-${t.name}`, tabBarIcon: ({ color }) => <TabIcon name={t.name} color={color} /> }} />
       ))}
     </Tabs>
   );

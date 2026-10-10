@@ -1,0 +1,21 @@
+# Gets to Home from a cold launch: unlocks with the (fake, dev-only) passkey when the wallet is locked.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      visible:
+        id: "btn-welcome-unlock"
+    commands:
+      - tapOn:
+          id: "btn-welcome-unlock"
+- runFlow:
+    when:
+      visible:
+        id: "btn-unlock"
+    commands:
+      - tapOn:
+          id: "btn-unlock"
+- extendedWaitUntil:
+    visible:
+      id: "home-total"
+    timeout: 20000

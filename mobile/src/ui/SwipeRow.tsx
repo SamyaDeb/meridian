@@ -6,7 +6,7 @@ import ReanimatedSwipeable, { type SwipeableMethods } from "react-native-gesture
 import { Text } from "./Text";
 import { colors, HIT, space } from "./tokens";
 
-export type SwipeAction = { key: string; label: string; tone?: "short" | "brand"; onPress: () => void };
+export type SwipeAction = { key: string; label: string; tone?: "short" | "brand"; onPress: () => void; /** on the visible fallback button (Maestro) */ testID?: string };
 
 export function SwipeRow({ children, actions, label }: { children: ReactNode; actions: readonly SwipeAction[]; label: string }) {
   const ref = useRef<SwipeableMethods>(null);
@@ -35,7 +35,7 @@ export function SwipeRow({ children, actions, label }: { children: ReactNode; ac
         <View style={{ flex: 1 }}>{children}</View>
         <View style={s.fallback}>
           {actions.map((a) => (
-            <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.label} onPress={() => a.onPress()} hitSlop={8} style={s.fallbackBtn}>
+            <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.label} onPress={() => a.onPress()} hitSlop={8} style={s.fallbackBtn} testID={a.testID}>
               <Text variant="caption" tone={a.tone === "short" ? "short" : "brand"} bold>
                 {a.label}
               </Text>

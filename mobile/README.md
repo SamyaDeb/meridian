@@ -219,3 +219,30 @@ for the new version"). "Close my positions" always stays: it opens the app in cl
 Close all) with a "closing only" banner; every open refuses with "Update Meridian to open new trades…". The app stays
 mounted under the screen, so persisted runs and resume are untouched. Turning flags off needs no rebuild: set the env on
 Vercel and redeploy (edge cache 30 s, app poll 60 s).
+
+## Maestro (N8)
+Flows in `mobile/.maestro/` (run in this order by `config.yaml`): `onboarding` (Welcome → Continue with passkey →
+Create my wallet → Wallet ready → Home), `trade-open-close` (`VENUE=meridian|perpl`), `earn-open-close`, `close-all`.
+`subflows/` holds the dev-client deep link and the unlock step. CI can't run Maestro, so
+`src/__tests__/maestro.test.ts` parses every flow and fails if an `id:` it uses isn't a `testID` in `mobile/src`.
+
+Run on the Android emulator (owner, local):
+```
+# once: install the Maestro CLI (> VERIFY the current version and install line on maestro.dev before running)
+curl -fsSL "https://get.maestro.mobile.dev" | bash
+maestro --version
+# the dev build (dev client 4e91111a) on a running emulator, Metro with the dev-only fake passkey
+adb install <path-to-dev-client.apk>
+cd mobile && APP_ENV=development EXPO_PUBLIC_FAKE_PASSKEY=1 npx expo start --dev-client --port 8089
+# another terminal, repo root
+maestro test -e APP_ID=xyz.meridianfi.app.staging mobile/.maestro                      # all four, in order
+maestro test -e APP_ID=xyz.meridianfi.app.staging -e VENUE=perpl mobile/.maestro/trade-open-close.yaml
+```
+The fake passkey exists only in `__DEV__` builds with `APP_ENV=development` (release-guarded), so these flows run on the
+dev client only. **Passkey steps on real devices are manual** (MOBILE_QA N8). `onboarding` uses `clearState` (wipes the
+wallet record on that emulator). Trade / Earn / Close all need testnet AUSD + MON ("Get test funds"), Perpl setup done,
+and liquidity on both books (the MM bot running for Meridian).
+
+testIDs added for the flows: `btn-continue-passkey`, `btn-existing-passkey`, `btn-welcome-unlock` (Welcome),
+`btn-create-wallet` (Create), `btn-unlock` (Unlock), `position-<venue>-close` (the position card's visible Close
+button, `SwipeAction.testID`), `tab-portfolio` / `tab-trade` / `tab-earn` / `tab-settings` (`tabBarButtonTestID`).

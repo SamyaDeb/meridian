@@ -30,6 +30,7 @@ export default function Create() {
             accessibilityHint="Opens your phone's passkey prompt"
             disabled={busy || Boolean(blocked)}
             onPress={() => void run(() => auth.create(), show)}
+            testID="btn-create-wallet"
           />
           <Button title="Back" variant="ghost" disabled={busy} onPress={() => router.back()} />
         </>

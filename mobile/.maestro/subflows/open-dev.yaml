@@ -1,0 +1,8 @@
+# Points the dev client at Metro (after clearState it has no server). Emulator → host Metro on port 8089.
+# > VERIFY: the dev-client deep link scheme `exp+<slug>` (slug "meridian", app.config.ts) on the first emulator run;
+# if the launcher already shows the app, this is a no-op.
+appId: ${APP_ID}
+env:
+  METRO_URL: http%3A%2F%2F10.0.2.2%3A8089
+---
+- openLink: exp+meridian://expo-development-client/?url=${METRO_URL}
