@@ -179,9 +179,9 @@ tag vX.Y.Z ─► Vercel promote to production · Railway production deploy · E
 Acceptance: `pnpm stack:local` brings up chain + bots + MFI + web in one command; the Expo dev build on a phone trades against it over LAN.
 
 ### P2 — Staging live 24/7 on testnet (Fri 9)
-- [ ] Redeploy the Envio testnet indexer on the **current** addresses (K6 blocker).
+- [ ] Redeploy the Envio testnet indexer on the **current** addresses (K6 blocker). Config `indexer/config.hosted.testnet.yaml` already matches `deployments/10143.json` (checked 10 Oct); the hosted deploy needs the owner's Envio login, then `NEXT_PUBLIC_INDEXER_URL` on Vercel staging.
 - [ ] Railway IaC partials for S2–S8; `railway config plan` → `apply` (staging).
-- [ ] Vercel staging alias + envs; `/.well-known/*` for `staging.<domain>`.
+- [~] Vercel staging deploys `main` (10 Oct: `/api/health` commit `ca84977`, `/api/flags` 200, assetlinks 200). `/api/health` still `ready:false`: indexer URL unset. Prod `meridianfi` assetlinks still 404 (waits for the L2 EAS production signer SHA-256).
 - [ ] Push worker (S8) skeleton: `/api/push/register` (web) stores tokens; worker evaluates rules every block-ish (≥ 2 s) and sends via Expo.
 - [ ] EAS `preview` builds pointing at staging, installed on both phones.
 - [ ] Uptime monitor on every health URL; watcher paging live.
@@ -190,7 +190,7 @@ Acceptance: web + iOS + Android all trading on testnet against hosted keeper/MM/
 ### P3 — CI/CD, flags, smoke (Fri 9 – Sat 10)
 - [ ] CI jobs for core/config/mobile; config drift check.
 - [ ] Release workflow on tags (§5); Railway prod deploy on tag; Vercel promote; EAS build/submit job (manual approval).
-- [ ] `/api/flags` + clients (web WriteGate, mobile gate + forced update).
+- [x] `/api/flags` + clients (web WriteGate, mobile gate + forced update): merged in #15, live on staging 10 Oct.
 - [ ] `smoke:local`, `smoke:staging`, `smoke:production` (§5.1).
 Acceptance: a tag on staging runs the full flow end to end (with production steps in dry-run mode until Sun).
 
@@ -272,3 +272,4 @@ Finish by ticking only verified boxes, listing HUMAN steps left, updating §11 l
 - 2026-10-08 — `<domain>` resolved as free Vercel hosts: production `meridianfi.vercel.app` (project `meridianfi`, created + placeholder), staging `meridian-testnet.vercel.app`. Permanent rpId = `meridianfi.vercel.app` (renaming/deleting that project strands passkeys; recovery = mnemonic export).
 - 2026-10-08 — P0: Railway runs on teammate Priyanshu's account (owner confirmed; CLI + MCP both on it). Faucet: keeper 0x0D3B… and MM 0x814D… now 5.00 MON each (≈ 25–40 min of unthrottled keeper+MM at 12.3 MON/h). `meridian-m` cloned (main 0ba1664, SSH signing as SamyaDeb, pnpm i on Node 24). EAS logged in as samyadeb.
 - 2026-10-08 — Owner chose **option A**: staging runs only during test sessions + the demo (not 24/7) — testnet MON too scarce (10 MON on keeper+MM). P2 acceptance "12 h with no page" → replace with "a full test session (web + Android) with no page". Android install path: EAS cloud dev build + Wi-Fi Metro (no USB needed). N1 prompt: docs/prompts/mobile/N1-core.md.
+- 2026-10-10 — **L1**: all finished branches are on `main` (see MOBILE_PLAN §5, same date). Staging web redeployed itself from main (`ca84977`): `/api/health` 200 JSON (`ready:false`, `indexerUrl` missing), `/api/flags` 200 `{v:1,writes,perpl,earn,lock,minAppVersion}`, assetlinks 200. Open for the owner: Envio hosted redeploy + URL into Vercel staging, app-only RPC key, `FLAGS_*`, Pyth; prod assetlinks fingerprint after L2.
