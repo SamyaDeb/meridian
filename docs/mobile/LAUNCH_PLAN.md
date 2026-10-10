@@ -79,6 +79,7 @@ External dependencies: paid Monad RPC (HTTP + WS if offered), Perpl API, Pyth He
 | `ENVIO_API_TOKEN` | GitHub Actions / local | deploy |
 | APNs key, FCM creds, Apple App Store Connect API key | EAS credentials | S11–S12 |
 | `DEPLOYER_PK` | **local only, deploy day, then emptied** | S1 |
+| `FLAGS_WRITES`, `FLAGS_PERPL`, `FLAGS_EARN`, `FLAGS_LOCK` (`"true"`/`"false"`, default on), `FLAGS_MIN_APP_VERSION` (x.y.z, default `0.0.0`), `FLAGS_MESSAGE` (not secrets; kill switches, §3.3) | Vercel (per environment) | `/api/flags` → web WriteGate, mobile flags client |
 - Rotation: any key printed in a log or committed → rotate the same day. Hot wallets hold only what they need (top-up alerts at < 5 MON exist in the watcher).
 
 ### 3.3 Flags and kill switches

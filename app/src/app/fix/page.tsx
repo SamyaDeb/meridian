@@ -74,7 +74,7 @@ export default function FixPage() {
       const lim = marketLimitTick(isBid, isBid ? book?.bestAsk : book?.bestBid, SLIPPAGE_TICKS);
       if (lim === null) throw new Error("no liquidity on the other side");
       return sendTx(p, w, { address: swapBook, abi: orderBookAbi, functionName: "placeMarketOrder", args: [isBid, nLots, lim, 0n, false] });
-    });
+    }, { opens: true });
   const close = () =>
     tx.run("close swap (reduce-only)", (p, w) => {
       const c = pos ? closeOrder(pos.size, SWAP_LOT_WAD) : null;

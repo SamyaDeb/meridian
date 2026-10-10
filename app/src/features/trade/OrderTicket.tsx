@@ -213,7 +213,7 @@ export function OrderTicket() {
       }
       if (limitTick === undefined) throw new Error("invalid limit price");
       return sendTx(p, w, { address: ob, abi: orderBookAbi, functionName: "placeLimitOrder", args: [isBid, limitTick, lots, orderFlags({ postOnly, ioc, reduceOnly })] });
-    });
+    }, { opens: !reduceOnly });
   };
 
   const setPct = (pct: bigint) => {
