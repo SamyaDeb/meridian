@@ -22,6 +22,8 @@ import { PerplChecks } from "../../perpl/PerplOnboarding";
 import { ConfirmBar } from "../ConfirmBar";
 import { owedToken } from "../exec/collateral";
 import { plainTradeError } from "../exec/errors";
+import { useOpenBlocked } from "../../flags/FlagsProvider";
+import { FlagsLine } from "../../flags/FlagsLine";
 import type { ExecState } from "../exec/executor";
 import { useTrade } from "../TradeProvider";
 import { useStartOrder } from "../useStartOrder";
@@ -167,7 +169,10 @@ export const TicketSheet = forwardRef<TicketRef>(function TicketSheet(_props, re
   ];
 
   const blocked = q.chosen?.blockers.some((b) => b.kind !== "deposit") ?? true;
-  const canConfirm = q.status === "ok" && q.chosen !== undefined && !blocked && !busy;
+  // the ticket only opens (closes go through the position cards / Close all): the remote kill switch applies
+  const openKind = target === "perpl" ? "trade-perpl" : "trade-meridian";
+  const flagsBlocked = useOpenBlocked(openKind);
+  const canConfirm = q.status === "ok" && q.chosen !== undefined && !blocked && !busy && flagsBlocked === undefined;
   const summary = q.chosen && q.status === "ok" ? summaryText({ side, chosen: q.chosen }) : undefined;
 
   const onMove = useCallback(
@@ -302,6 +307,7 @@ export const TicketSheet = forwardRef<TicketRef>(function TicketSheet(_props, re
             {error}
           </Text>
         ) : null}
+        <FlagsLine kind={openKind} testID="ticket-flags" />
         <ConfirmBar action={side === "long" ? "go long" : "go short"} onConfirm={confirm} disabled={!canConfirm} testID="ticket-confirm" />
         {busy ? (
           <Text variant="caption" tone="muted" accessibilityLiveRegion="polite" testID="ticket-progress">

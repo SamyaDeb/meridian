@@ -155,3 +155,45 @@ screenshots go next to the row.
 | H11 | One order at a time: Earn → tap `1` `0` → hold "Hold to start earning" → while "Opening your position…" shows, switch to Trade → Long → `5` → hold → "An Earn trade is still going through. Try again when it's done." (input kept, nothing sent). Reverse: Trade → Long $5 → hold → while the receipt is pending, switch to Earn → `1` `0` → hold → "A trade is still going through. Try again when it's done." Also Close all while an Earn run is going → same Earn line. Then kill the app during an Earn open → relaunch → unlock → it finishes before anything else starts | ⏳ | | |
 | H12 | Earn in Activity: after an Earn open (E2) and its close (E4 or H10): Home → **See all** → two rows "Earn open · You're earning the gap" / "Earn close · Closed on both venues" with "Perpl N · Meridian N MON" (+ "lock 1,000 MON" with Lock), venue "Meridian + Perpl"; the legs' Perpl fills are NOT listed separately; tap a row → the Earn receipt with that run's timeline (no "Close now" button on an old MANUAL row); kill + relaunch during an Earn run → still one row for it | ⏳ | | |
 
+
+## Native app (MOBILE_PLAN N8): release build QA matrix (preview APK, staging, testnet)
+
+Build: the first **preview** APK (`eas build -p android --profile preview`, version **0.2.0 / versionCode 2**, package
+`xyz.meridianfi.app.staging`, rpId `meridian-testnet.vercel.app`) installed from the EAS link on a phone that never had
+the dev client (or after uninstalling it: they share the package). Its signer SHA-256 must be in the staging
+`assetlinks.json` **before** row N8-1. Branch `n8-prep` (+ the hallway-test fixes). Vercel staging needs the `FLAGS_*`
+env (LAUNCH_PLAN §3.2) for N8-F rows. Tick only what was seen on the phone; record the build id, APK link and signer
+fingerprint in the N8 log line.
+
+| # | Check (owner's taps) | Pass looks like | Result | Seen by | Note |
+|---|---|---|---|---|---|
+| N8-0 | Settings → scroll to **Version** | "0.2.0 · staging · chain 10143" | ⏳ | | |
+| N8-1 | Passkey create: fresh install → **Continue with passkey** → **Create my wallet** → fingerprint | "Wallet ready ✓" then Home with the total, ≤ 15 s from launch (stopwatch), 2 taps + fingerprint | ⏳ | | |
+| N8-2 | Unlock: swipe the app away → reopen → **Unlock with your fingerprint** → fingerprint | Home with the same address (Settings → wallet ••xxxx unchanged) | ⏳ | | |
+| N8-3 | Reinstall: uninstall → install the same APK → **Use an existing passkey** → pick the Meridian passkey → fingerprint | the same address as N8-1 (no new wallet), balances back | ⏳ | | |
+| N8-4 | Perpl onboarding resume: Trade → Long → `5` → pick Perpl → **Set up Perpl** → do step ① only → swipe the app away → reopen + unlock → Settings → Perpl | step ① shows Done, step ② is Next (resumed, not restarted) | ⏳ | | |
+| N8-5 | Trade on Meridian: Trade → **Long** → `5` → tap the Meridian quote row → summary → hold (or **Or tap here to go long**) | receipt with fill size, avg price, fee, blocks to fill, explorer link; position card appears | ⏳ | | needs the MM bot on testnet |
+| N8-6 | Trade on Perpl: Trade → **Short** → `5` → tap the Perpl quote row → hold | receipt with the Perpl order id; position card "Short … on Perpl" | ⏳ | | |
+| N8-7 | Close each: on each card tap the visible **Close** (or swipe) → hold | receipt; card gone; Home total moved by about the PnL | ⏳ | | |
+| N8-8 | Earn + forced unwind: Earn → `1` `0` → hold "start earning" → receipt timeline (Perpl then Meridian) → back → **Close** → confirm. Forced unwind: dev build only (the toggle isn't in the APK, by design) → E-rows of N6 | open: "You're earning the gap"; close: "Closed on both venues"; flat on both venues | ⏳ | | |
+| N8-9 | Kill-resume: Trade → Long `5` → hold → as soon as "Sending…" shows, swipe the app away → reopen → unlock | the order finishes on its own and its receipt shows; exactly one fill on the venue (Perpl order history / explorer) | ⏳ | | |
+| N8-10 | Home totals: Home → **See breakdown** | Wallet + Meridian + Perpl = Total; each part matches the venue's own UI (as H1) | ⏳ | | |
+| N8-11 | Activity: Home → **See all** | the opens / closes / Earn runs from N8-5…N8-8 newest first; a row opens its receipt | ⏳ | | |
+| N8-12 | Offline banner: airplane mode on (app open on Trade) → wait 5 s → airplane off | "Offline" banner + writes disabled while off; live numbers resume within a few seconds after | ⏳ | | |
+| N8-13 | Background / foreground: Trade open → Home button → wait 60 s → reopen | numbers resume; in Perpl's API session list (or app logs) still **one** trading socket, not two | ⏳ | | |
+| N8-14 | Large text: Android Settings → Display → Font size **max** (+ Display size max) → Home, Trade ticket (`5`), Earn | the Home total, the ticket summary and the Earn APR wrap, nothing cut off or overlapping; buttons still tappable (unit check: `clipRisks`, D4.5) | ⏳ | | |
+| N8-15 | TalkBack: on → swipe through Home, Trade (Long/Short, numpad keys, quote rows, hold + "Or tap here…"), Earn (APR, Lock switch), Settings | every control is read with a name; the tap alternative is reachable without holding | ⏳ | | |
+| N8-16 | 60 fps: Trade → Pro → drag a finger across the chart for 5 s; open / drag / close the ticket sheet 3× (Developer options → Profile HWUI rendering → On screen as bars) | bars stay under the green line; a selection tick per chart point | ⏳ | | |
+| N8-17 | Cold start: swipe away → reopen (already unlocked within the idle window, or unlock) → stopwatch to the first live block number on Home | < 2 s to live numbers | ⏳ | | |
+| N8-18 | First run ≤ 15 s: = N8-1 timing | ≤ 15 s launch → wallet | ⏳ | | |
+| N8-19 | Push | n/a | n/a | | push cut in N7 |
+| N8-A1 | Error boundary: (no way to force a crash in a release build) | n/a on the phone; unit-tested with a throwing child (D4.2) | n/a | | |
+| N8-A2 | Production APK before N9 (`--profile production`, package `xyz.meridianfi.app`): install → open | full-screen "Meridian isn't live on mainnet yet", no testnet data anywhere, Version not reachable (expected) | ⏳ | | only if the production APK is built before N9 |
+| N8-F1 | Kill switch: Vercel staging env `FLAGS_WRITES=false` (+ optional `FLAGS_MESSAGE="Testing the kill switch"`) → redeploy → `curl -s https://meridian-testnet.vercel.app/api/flags` shows `"writes":false` → on the phone foreground the app (or wait ≤ 60 s) → Trade → Long → `5` | the ticket shows the message (or "Trading is paused for maintenance. You can still close positions."), the hold / tap stay disabled; Earn shows the same line instead of "Hold to start earning"; the web terminal's order button shows "Trading is paused" | ⏳ | | |
+| N8-F2 | Close still works with writes off: with a position open from N8-5 → its card **Close** → hold; Earn position → **Close**; Close all (2 positions) | each close goes through to its receipt | ⏳ | | |
+| N8-F3 | Writes back: unset `FLAGS_WRITES` (or `true`) → redeploy → foreground the app | the line disappears, opens work again (within 60 s + 30 s edge cache) | ⏳ | | |
+| N8-F4 | Forced update: `FLAGS_MIN_APP_VERSION=0.3.0` → redeploy → reopen the app | full-screen "Update Meridian", "This app: 0.2.0 · needed: 0.3.0 or newer", "Ask the Meridian team for the new version." (no install link yet) | ⏳ | | |
+| N8-F5 | Close path from the update screen: **Close my positions** → unlock → Home | "Update required · closing only · Update" banner; position cards' **Close** and **Close all** work; Trade → Long → `5` shows "Update Meridian to open new trades. You can still close positions." | ⏳ | | |
+| N8-F6 | Undo: `FLAGS_MIN_APP_VERSION` unset (or `0.0.0`) → redeploy → foreground | update screen gone, opens work | ⏳ | | |
+| N8-F7 | Perpl / Earn / Lock switches: `FLAGS_PERPL=false` → Perpl quote row can't be confirmed, Earn refused, Meridian ticket still works; `FLAGS_LOCK=false` → Earn's Lock switch off with "Fixed-rate locks are paused…" | as described; reset all `FLAGS_*` after | ⏳ | | |
+| N8-M | Maestro on the emulator (README § Maestro): `maestro test -e APP_ID=xyz.meridianfi.app.staging mobile/.maestro` with the dev client + Metro :8089 + `EXPO_PUBLIC_FAKE_PASSKEY=1` | onboarding, trade-open-close, earn-open-close, close-all all green (trade / earn need funds + liquidity) | ⏳ | | dev client only (fake passkey) |

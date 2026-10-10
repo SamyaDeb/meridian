@@ -7,6 +7,8 @@ import { memo, useCallback, useState } from "react";
 import { ActivityIndicator, StyleSheet, TextInput, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { useAccountAddress } from "../../auth/AuthProvider";
+import { FlagsLine } from "../flags/FlagsLine";
+import { useOpenBlocked } from "../flags/FlagsProvider";
 import { Screen } from "../shell/Screen";
 import { AddressActions } from "../wallet/AddressActions";
 import { WalletChip } from "../wallet/WalletChip";
@@ -218,7 +220,10 @@ export function PerplChecks({ compact = false }: { compact?: boolean }) {
   const venue = usePerpl();
   const view = usePerplOnboarding(selView);
   const error = usePerplOnboarding(selError);
+  // Perpl setup opens a new venue account: the remote kill switch applies until it's done (never to anything after)
+  const paused = useOpenBlocked("perpl-setup");
   if (!venue) return <Text tone="muted">Perpl isn't available in this build or the wallet is locked.</Text>;
+  if (paused !== undefined && !view?.ready) return <FlagsLine kind="perpl-setup" testID="perpl-flags" />;
   const order = view ? checkOrder(view) : (["key", "account", "forwarding"] as const);
   const topUp = view?.next === "top-up";
   return (

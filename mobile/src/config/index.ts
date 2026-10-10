@@ -22,7 +22,14 @@ export function getAppConfig(): AppConfig {
   return cached;
 }
 
-/** Build profile + version for Settings. */
-export function buildInfo(): { version: string; env: string } {
-  return { version: Constants.expoConfig?.version ?? "—", env: getAppConfig().env };
+/** This build's version (app.config.ts `version`, via expo-constants); undefined when Constants has no config. */
+export function appVersion(): string | undefined {
+  return Constants.expoConfig?.version;
+}
+
+/** Settings → Version: app version (app.config.ts), build profile and chain. No git sha: not in the config today, and
+ *  adding one would need a build step (N8: don't). */
+export function buildInfo(): { version: string; env: string; chainId: number } {
+  const cfg = getAppConfig();
+  return { version: Constants.expoConfig?.version ?? "—", env: cfg.env, chainId: cfg.chainId };
 }

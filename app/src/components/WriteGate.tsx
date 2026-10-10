@@ -3,22 +3,27 @@ import Link from "next/link";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { TERMS_STATUS, TERMS_SUMMARY } from "@/content/terms";
 import { isGeoRestricted } from "@/lib/geo";
+import { fetchFlags, gateDecision, PAUSED_TEXT } from "@/lib/flags";
 import { isAccepted, readAcceptance, writeAcceptance } from "@/lib/terms";
 
-/** `ensure()` resolves true when a write may go ahead: terms accepted (asks once per version) and not geo-restricted.
+/** `ensure()` resolves true when a write may go ahead: terms accepted (asks once per version), not geo-restricted, and
+ *  for a write that opens risk (`{ opens: true }`: a new or larger order) the remote `writes` flag on (/api/flags,
+ *  LAUNCH_PLAN §3.3). Closes, cancels, withdrawals and deposits pass nothing and are never paused.
  *  `accepted()` / `accept()` let a flow show the same terms checkbox inline (K1.4 onboarding) instead of this dialog. */
-type Gate = { ensure: () => Promise<boolean>; accepted: () => boolean; accept: () => void };
+type EnsureOpts = { opens?: boolean };
+type Gate = { ensure: (opts?: EnsureOpts) => Promise<boolean>; accepted: () => boolean; accept: () => void };
 const GateContext = createContext<Gate>({ ensure: async () => true, accepted: () => true, accept: () => undefined });
 
 export function useWriteGate(): Gate {
   return useContext(GateContext);
 }
 
-type Dialog = "terms" | "restricted" | null;
+type Dialog = "terms" | "restricted" | "paused" | null;
 
 export function WriteGateProvider({ children }: { children: ReactNode }) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [checked, setChecked] = useState(false);
+  const [pausedText, setPausedText] = useState(PAUSED_TEXT);
   const acceptedThisSession = useRef(false);
   const pending = useRef<((ok: boolean) => void) | null>(null);
   // Native modal <dialog>: it joins the top layer above any other open modal (e.g. the deposit dialog), traps focus
@@ -31,12 +36,21 @@ export function WriteGateProvider({ children }: { children: ReactNode }) {
     if (!dialog && d.open) d.close();
   }, [dialog]);
 
-  const ensure = useCallback(async () => {
-    if (isGeoRestricted(typeof document === "undefined" ? undefined : document.cookie)) {
+  const ensure = useCallback(async (opts?: EnsureOpts) => {
+    const opens = opts?.opens === true;
+    // read per open (edge-cached 30 s); unreachable ⇒ undefined ⇒ allowed
+    const flags = opens ? await fetchFlags() : undefined;
+    const d = gateDecision({ geoRestricted: isGeoRestricted(typeof document === "undefined" ? undefined : document.cookie), opens, flags, termsAccepted: acceptedThisSession.current || isAccepted(readAcceptance()) });
+    if (d === "restricted") {
       setDialog("restricted");
       return false;
     }
-    if (acceptedThisSession.current || isAccepted(readAcceptance())) return true;
+    if (d === "paused") {
+      setPausedText(flags?.message ?? PAUSED_TEXT);
+      setDialog("paused");
+      return false;
+    }
+    if (d === "ok") return true;
     setChecked(false);
     setDialog("terms");
     return new Promise<boolean>((resolve) => {
@@ -74,7 +88,15 @@ export function WriteGateProvider({ children }: { children: ReactNode }) {
       >
       {dialog && (
           <div className="max-h-[85dvh] w-full overflow-y-auto rounded-t-card border border-border bg-card p-4 pb-[calc(16px+env(safe-area-inset-bottom))] card-elev sm:rounded-card">
-            {dialog === "restricted" ? (
+            {dialog === "paused" ? (
+              <>
+                <h2 id="gate-title" className="text-base font-semibold">Trading is paused</h2>
+                <p className="mt-2 text-sm text-muted">{pausedText}</p>
+                <button type="button" onClick={() => close(false)} className="mt-4 h-12 w-full rounded-control bg-surface-2 font-semibold">
+                  OK
+                </button>
+              </>
+            ) : dialog === "restricted" ? (
               <>
                 <h2 id="gate-title" className="text-base font-semibold">Not available in your region</h2>
                 <p className="mt-2 text-sm text-muted">Trading, deposits and other write actions aren&apos;t available from your location. You can still browse markets and stats.</p>

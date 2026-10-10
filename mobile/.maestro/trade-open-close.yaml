@@ -1,0 +1,51 @@
+# Trade open + close on one venue (MOBILE_PLAN N5): Home → Trade → Long → $5 on the numpad → pick the venue → summary →
+# the visible tap alternative → receipt → the position card's Close (button fallback of the swipe) → confirm → receipt.
+# Needs: the onboarding flow run first, testnet AUSD + MON in the wallet ("Get test funds"), liquidity on the venue's
+# book (Meridian: the MM bot running; Perpl: Perpl setup done). VENUE = meridian | perpl.
+appId: ${APP_ID}
+env:
+  VENUE: meridian
+---
+- launchApp
+- runFlow: subflows/open-dev.yaml
+- runFlow: subflows/unlock.yaml
+- tapOn:
+    id: "btn-home-trade"
+- tapOn:
+    id: "btn-long"
+- tapOn:
+    id: "ticket-key-5"
+- tapOn:
+    id: "quote-${VENUE}"
+- extendedWaitUntil:
+    visible:
+      id: "ticket-summary"
+    timeout: 15000
+- tapOn:
+    id: "ticket-confirm-tap"
+- extendedWaitUntil:
+    visible:
+      id: "receipt-title"
+    timeout: 60000
+- assertVisible:
+    id: "receipt-size"
+- tapOn:
+    id: "receipt-done"
+- extendedWaitUntil:
+    visible:
+      id: "position-${VENUE}-close"
+    timeout: 20000
+- tapOn:
+    id: "position-${VENUE}-close"
+- extendedWaitUntil:
+    visible:
+      id: "close-summary"
+    timeout: 15000
+- tapOn:
+    id: "close-tap"
+- extendedWaitUntil:
+    visible:
+      id: "receipt-title"
+    timeout: 60000
+- tapOn:
+    id: "receipt-done"

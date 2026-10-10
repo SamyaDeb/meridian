@@ -6,7 +6,9 @@
 import type { BookLevel } from "@meridian/core/route";
 import type { CloseExecState } from "@meridian/core/exec";
 import { EARN_LOADING, lockMismatch, lockNoRecord, pairNotHeld, planCloseAll, runCloseAll, type CloseAllInput, type CloseAllRoute, type CloseAllRunDeps } from "../../features/earn/closeAll";
-import { LOCK_UNKNOWN, planEarnPairClose } from "../../features/earn/closePair";
+import { tryReadMeridianDeployment } from "@meridian/core/meridian";
+import meridian10143 from "../../../../deployments/10143.json";
+import { LOCK_UNKNOWN, planEarnPairClose, swapMarketDeployed } from "../../features/earn/closePair";
 import { earnRecordStore, encodeEarnRecord, FLAT, positionStore, type EarnPosition, type EarnRecord } from "../../features/earn/record";
 import type { EarnVenueInput } from "../../features/earn/plan";
 import type { SwapState } from "../../features/earn/data/swap";
@@ -308,4 +310,27 @@ describe("kill at every persisted snapshot of Close all's Earn run → resume (f
       }
     });
   }
+});
+
+describe("N8 D4.1: the lock's market comes from config, not from the swap reader", () => {
+  it("swapMarketDeployed reads deployments/<chain>.json (FundingSwapMarket + SwapOrderBook)", () => {
+    expect(swapMarketDeployed(tryReadMeridianDeployment(meridian10143, 10143))).toBe(true);
+    const noSwap = JSON.parse(JSON.stringify(meridian10143)) as { contracts: Record<string, unknown> };
+    delete noSwap.contracts.SwapOrderBook;
+    expect(swapMarketDeployed(tryReadMeridianDeployment(noSwap, 10143))).toBe(false);
+    // mainnet before N9: no deployments/143.json
+    expect(swapMarketDeployed(tryReadMeridianDeployment(undefined, 143))).toBe(false);
+  });
+
+  it("market deployed, reader not created yet (inputs.swap undefined) ⇒ Close all and the Earn close WAIT, never treat the lock as 0", () => {
+    const w = world();
+    w.ch.net = -300n * WAD;
+    w.px.net = 300;
+    const pos: EarnPosition = { v: 1, perplSide: "buy", sizeWad: 300n * WAD, naked: undefined, applied: [] };
+    const i = input(w, pos);
+    const swapMarket = swapMarketDeployed(tryReadMeridianDeployment(meridian10143, 10143));
+    const noReader = { ...i.inputs, swap: undefined };
+    expect(planCloseAll({ ...i, swapMarket, inputs: noReader })).toEqual({ kind: "wait", reason: LOCK_UNKNOWN });
+    expect(planEarnPairClose(pos, noReader, swapMarket)).toEqual({ ok: false, error: LOCK_UNKNOWN });
+  });
 });

@@ -1,6 +1,7 @@
 // N4b + N7 Home / Add funds / Settings passkey card / tab order, offline: the wallet feed, the account reader's store,
 // the activity feed and the alert settings are injected and fed by hand.
 jest.mock("@gorhom/bottom-sheet", () => require("@gorhom/bottom-sheet/mock"));
+import { clipRisks } from "./layoutRisk";
 import { act, fireEvent, render, screen, within } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { Share } from "react-native";
@@ -191,6 +192,8 @@ it("Home total = wallet + Meridian equity + Perpl (balance + position); breakdow
   expect(within(b).getByTestId("breakdown-perpl")).toHaveTextContent("4,998.49");
   expect(within(b).getByTestId("breakdown-total")).toHaveTextContent("5,112.49");
   expect(screen.getByRole("button", { name: "See breakdown" })).toBeTruthy(); // the visible way into the sheet
+  // large text (N8): nothing around the hero total can clip it at fontScale 2
+  expect(clipRisks(screen.getByTestId("home-total") as never)).toEqual([]);
 });
 
 it("Home: a part that can't be read ⇒ total '—' and the breakdown says why; open PnL ticks with each account read", async () => {
@@ -288,6 +291,8 @@ it("Settings: alerts are off until turned on, saved, in-app only (no permission 
   await render(wrap(auth, feed, <Settings />));
   await act(async () => fireEvent.press(screen.getByRole("button", { name: "Open full terminal" })));
   expect(open).toHaveBeenCalledWith("https://meridian-testnet.vercel.app");
+  // N8: version · profile · chain (no git sha in the config)
+  expect(screen.getByTestId("settings-version")).toHaveTextContent(/^\S+ · development · chain 10143$/);
 });
 
 import CloseAll from "../app/close-all";
@@ -323,7 +328,9 @@ it("Close all: a hedged pair → plain summary → tap → Meridian first, then 
   await act(async () => fireEvent.press(screen.getByRole("button", { name: "Close all" })));
   expect(mockRouter.push).toHaveBeenCalledWith("/close-all");
 
-  await render(wrap(auth, feed, <CloseAll />, { trade: { ...kit, closeAll }, live }));
+  // the wallet's lock read (none) and no Earn record ⇒ N7's two-leg close (without the read it waits: next test)
+  await render(wrap(auth, feed, <CloseAll />, { trade: { ...kit, closeAll }, live, earn: earnKit(FLAT, 0n).kit }));
+  await wait(10);
   expect(screen.getByTestId("close-all-summary")).toHaveTextContent("Close the basis trade: short 2,600 MON on Meridian first, then the Perpl long for exactly what closed");
   await act(async () => fireEvent.press(screen.getByRole("button", { name: "Or tap here to close everything" })));
   await wait(10);
@@ -331,6 +338,20 @@ it("Close all: a hedged pair → plain summary → tap → Meridian first, then 
   expect(screen.getByTestId("close-all-outcome")).toHaveTextContent(/Basis trade closed/);
   expect(screen.getByTestId("close-all-detail")).toHaveTextContent("Meridian closed 2,600 MON, then Perpl closed 2,600 MON. Nothing is left open.");
   expect(haptic.success).toHaveBeenCalled();
+});
+
+it("N8 D4.1: the swap market is deployed (config) but the wallet's lock isn't read yet ⇒ Close all waits, nothing to confirm", async () => {
+  const { auth, feed } = await setup();
+  const live = fakeLive();
+  live.meridian.store.update({ tickSizeWad: 10n ** 14n, lotSizeWad: WAD, markWad: 26n * 10n ** 15n, bestBidWad: 26n * 10n ** 15n, bestAskWad: 27n * 10n ** 15n });
+  live.perpl.store.update({ bestBidWad: 2600n * 10n ** 13n, bestAskWad: 2610n * 10n ** 13n });
+  const short = mapMeridian({ collateral: 100n * WAD, size: -2600n * WAD, entryPrice: 25n * 10n ** 15n, unrealizedPnl: 0n, pendingFunding: 0n, equity: 100n * WAD, initialMargin: 0n, maintenanceMargin: 0n, reservedOrderMargin: 0n, liquidationPrice: 0n });
+  const { kit } = accountsKit({ meridian: short, perpl: K3 });
+  await act(async () => feed.push(bal(0n)));
+  // no swap reader yet (it's created a moment after unlock)
+  await render(wrap(auth, feed, <CloseAll />, { trade: kit, live }));
+  expect(screen.getByTestId("close-all-wait")).toHaveTextContent("Reading your fixed-rate lock… Try again in a moment.");
+  expect(screen.getByRole("button", { name: "Or tap here to close everything" })).toBeDisabled();
 });
 
 // ── N6 + N7: an Earn pair is grouped and closed by its record, with its lock first ──

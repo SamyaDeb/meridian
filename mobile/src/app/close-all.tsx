@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useAccountAddress } from "../auth/AuthProvider";
 import { planCloseAll, runCloseAll, type CloseAllResult, type CloseAllRoute, type RestRoute } from "../features/earn/closeAll";
+import { swapMarketDeployed } from "../features/earn/closePair";
 import { useEarn } from "../features/earn/EarnProvider";
 import { earnReceiptStore, type EarnExecState } from "../features/earn/executor";
 import { FLAT, type EarnPosition } from "../features/earn/record";
@@ -101,7 +102,7 @@ export default function CloseAllModal() {
     meridian: { bestBidWad: m?.bestBidWad, bestAskWad: m?.bestAskWad, tickSizeWad: m?.tickSizeWad },
     perpl: { bestBidWad: p?.bestBidWad, bestAskWad: p?.bestAskWad, priceDecimals: p?.priceDecimals ?? 18, sizeDecimals: p?.sizeDecimals ?? 0 },
   };
-  const route: CloseAllRoute = planCloseAll({ views, mk, earnPos: !earn.executor ? null : earnLoaded ? earnPosNow : undefined, inputs, swapMarket: earn.swap !== undefined });
+  const route: CloseAllRoute = planCloseAll({ views, mk, earnPos: !earn.executor ? null : earnLoaded ? earnPosNow : undefined, inputs, swapMarket: swapMarketDeployed(live.config.meridian) });
   const runnable = route.kind === "earn" || route.kind === "plain" ? route : undefined;
   const planError = route.kind === "refused" ? route.error : runnable?.rest?.kind === "error" ? runnable.rest.error : undefined;
 

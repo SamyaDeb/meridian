@@ -79,6 +79,7 @@ External dependencies: paid Monad RPC (HTTP + WS if offered), Perpl API, Pyth He
 | `ENVIO_API_TOKEN` | GitHub Actions / local | deploy |
 | APNs key, FCM creds, Apple App Store Connect API key | EAS credentials | S11–S12 |
 | `DEPLOYER_PK` | **local only, deploy day, then emptied** | S1 |
+| `FLAGS_WRITES`, `FLAGS_PERPL`, `FLAGS_EARN`, `FLAGS_LOCK` (`"true"`/`"false"`, default on), `FLAGS_MIN_APP_VERSION` (x.y.z, default `0.0.0`), `FLAGS_MESSAGE` (not secrets; kill switches, §3.3) | Vercel (per environment) | `/api/flags` → web WriteGate, mobile flags client |
 - Rotation: any key printed in a log or committed → rotate the same day. Hot wallets hold only what they need (top-up alerts at < 5 MON exist in the watcher).
 
 ### 3.3 Flags and kill switches
@@ -111,6 +112,9 @@ External dependencies: paid Monad RPC (HTTP + WS if offered), Perpl API, Pyth He
 ### 4.4 EAS (mobile)
 - `eas.json` profiles: `development`, `preview` (staging, Android APK internal + iOS internal), `production` (TestFlight + APK). Each profile sets `APP_ENV` → `app.config.ts` picks `packages/config/env/<env>.json`, chain id, rpId, bundle id suffix (staging app can install next to production: e.g. `…app.staging` — then assetlinks/AASA list both).
 - `expo-updates` with channels `staging` / `production` for JS-only fixes (no store review); native changes → new build.
+  > VERIFY / later (N8-prep, 10 Oct): **not installed.** `expo-updates` is a native dependency, so adding it means a new
+  > dev client + preview build and a lockfile change; N8 ships without it. Until then a JS fix = a new EAS build, and a
+  > broken build is handled by `/api/flags` (`writes=false`, `minAppVersion` → the update screen with its close path).
 - Credentials (APNs, FCM, signing) managed by EAS.
 
 ### 4.5 Observability

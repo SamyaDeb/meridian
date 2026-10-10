@@ -76,9 +76,10 @@ export function useTx() {
   const sponsored = useSponsored();
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  async function run(label: string, fn: (p: PublicClient, w: WalletClient) => Promise<{ block: bigint; gasUsed: bigint; gasLimit: bigint }>) {
+  /** `opts.opens`: the write opens risk (a non-reduce-only order), so the remote `writes` flag applies (WriteGate). */
+  async function run(label: string, fn: (p: PublicClient, w: WalletClient) => Promise<{ block: bigint; gasUsed: bigint; gasLimit: bigint }>, opts?: { opens?: boolean }) {
     if (!pub || !wallet) return setStatus("Connect first");
-    if (!(await gate.ensure())) return setStatus(`${label} cancelled`);
+    if (!(await gate.ensure(opts))) return setStatus(`${label} cancelled`);
     if (chainId !== undefined && chainId !== READ_CHAIN_ID) {
       try {
         await switchChainAsync({ chainId: READ_CHAIN_ID });

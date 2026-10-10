@@ -32,6 +32,9 @@ const Cadence = memo(function Cadence() {
   );
 });
 
+/** expo-router error boundary for this tab only; the tab bar keeps working: calm screen, Retry + Home (features/shell/ErrorScreen). */
+export { ErrorScreen as ErrorBoundary } from "../../features/shell/ErrorScreen";
+
 export default function Settings() {
   const cfg = getAppConfig();
   const info = buildInfo();
@@ -65,8 +68,8 @@ export default function Settings() {
           <Text>{cfg.rpId}</Text>
         </Row>
         <Row label="Version">
-          <Text>
-            {info.version} ({info.env})
+          <Text testID="settings-version">
+            {info.version} · {info.env} · chain {info.chainId}
           </Text>
         </Row>
       </Card>

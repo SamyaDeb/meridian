@@ -24,12 +24,17 @@ export type StartOrder = {
 };
 
 export function useStartOrder(): (o: StartOrder) => Promise<Receipt | undefined> {
-  const { executor } = useTrade();
+  const { executor, orderLock } = useTrade();
   const live = useLive();
   const { address } = useAccountAddress();
   return useCallback(
     async (o: StartOrder) => {
       if (!executor || !address) throw new Error("Unlock to trade");
+      // a kill switch stops new risk only: reduce-only orders (closes, the Earn leftover close) are never asked
+      if (!o.reduceOnly) {
+        const why = orderLock?.opensBlocked(o.venue === "perpl" ? "trade-perpl" : "trade-meridian");
+        if (why) throw new Error(why);
+      }
       const cfg = live.config;
       let priceDp = 4;
       let stepWad = 1n;
@@ -64,6 +69,6 @@ export function useStartOrder(): (o: StartOrder) => Promise<Receipt | undefined>
         },
       );
     },
-    [executor, address, live],
+    [executor, orderLock, address, live],
   );
 }

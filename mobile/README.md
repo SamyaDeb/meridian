@@ -15,10 +15,16 @@ Env (never committed): `mobile/.env.local` or EAS environment variables
 - `EXPO_PUBLIC_INDEXER_URL` — optional; the Envio GraphQL URL of this env's indexer (LAUNCH_PLAN §4.3). Without it,
   Activity lists this app's own trades + Perpl history and says Meridian history needs the indexer
 - `APP_ENV` — `development` (default; testnet, may fall back to viem's public RPC with a badge) · `staging` · `production`
+- `EXPO_PUBLIC_APP_ENV` — set equal to `APP_ENV` in every `eas.json` profile; Metro inlines it, so a production bundle
+  doesn't contain the testnet web URL. Changing it locally needs `npx expo start --clear` (Metro's transform cache
+  doesn't key on env values)
 - `EXPO_PUBLIC_SHORT_LOCK=1` — dev builds only: idle lock after 60 s, background lock after 30 s (device QA)
 - `EXPO_PUBLIC_FAKE_PASSKEY=1` — dev builds with `APP_ENV=development` only: a fake WebAuthn client for emulators without
-  a passkey provider. Compiled out of release bundles; `pnpm --filter @meridian/mobile check:release` exports a
-  production bundle with the flag on and fails if the fake is in it.
+  a passkey provider. Compiled out of release bundles; `pnpm --filter @meridian/mobile check:release` exports the
+  `preview` and `production` bundles (each profile's env from eas.json, clean cache) with the flag on and fails if the
+  fake or another dev-only marker is in them, if production first-party code (attributed through the source map) has a
+  `localhost` / `127.0.0.1` / `10.0.2.2` URL, or if production carries the testnet web URL. Library defaults (viem's
+  local chains, React Native's dev-server fallback) are listed, not failed.
 
 Builds: `eas.json` profiles `development` (dev client APK) · `preview` (staging APK) · `production` (mainnet APK).
 Dev-only screens (`/dev/smoke`, the hold-to-confirm test in the Trade sheet) are compiled out of release bundles.
@@ -186,3 +192,63 @@ of 2 × the binding venue) → "≈ $Y / day"; legs in plain words; "No edge rig
   timeline without the live one-tap close. The executor logs it when the run reaches a terminal phase, before the run
   record is cleared (a resume after a kill logs it again under the same id: still one row). The row opens
   `earn-receipt` with that timeline; the feed refreshes after an Earn run, as after a trade.
+
+## Flags, kill switch and forced update (N8)
+`features/flags/` reads `${webUrl}/api/flags` (the web route `app/src/app/api/flags/route.ts`, env-backed `FLAGS_*`;
+`webUrl` is the `WEB` map in `src/config/appConfig.ts`) on start, on every foreground and every 60 s while the app is
+active (never in the background). The last good value sits in the app's KV (`meridian.flags.v1.<env>`, non-secret) with
+its read time. Shape: `{ v: 1, writes, perpl, earn, lock, minAppVersion, message? }`.
+
+**Fail-safe policy** (`model.ts resolveFlags`; > VERIFY with the owner):
+| flags read now | last good value | result |
+|---|---|---|
+| yes | — | use them |
+| no (offline, error, bad body, or no web URL for this env — production until N9) | < 24 h old | use the stored value |
+| no | none / ≥ 24 h old | allow everything; **production** also shows a small "Can't check service status" line next to the open buttons |
+
+Meridian is a demo on its own contracts, not a custodian: the contracts are the real guard, and an unreachable flags
+endpoint must not stop trading.
+
+**What each flag stops** (`opensBlocked(kind)`, asked through `OrderLock.opensBlocked` / `useOpenBlocked`, the only gate):
+- `writes: false` — every open: the Trade ticket, Earn open, Lock-on, Perpl setup. The line is the flag's `message`, or
+  "Trading is paused for maintenance. You can still close positions."
+- `perpl: false` — Perpl opens, Perpl setup, and Earn (it opens a Perpl leg). Meridian trades still open.
+- `earn: false` — Earn open (the button is replaced by the message). `lock: false` — the Lock toggle is off with the reason;
+  Earn still opens at the floating rate.
+- **Never gated:** reduce-only orders (a position's Close, Close all and its singles, the Earn leftover close), the Earn
+  pair's Close, Close all, and resume after a kill (`useStartOrder` asks the gate only when `reduceOnly` is false).
+
+**Forced update:** if `expo-constants` `expoConfig.version` (app.config.ts `version`) is below `minAppVersion` (plain
+x.y.z compare; an unreadable version never locks anyone out), `UpdateGate` covers the app with "Update Meridian". Its
+button opens `installUrl` from config (> VERIFY: set at N8 to the EAS APK link; until then it says "Ask the Meridian team
+for the new version"). "Close my positions" always stays: it opens the app in close-only mode (Unlock → Home positions +
+Close all) with a "closing only" banner; every open refuses with "Update Meridian to open new trades…". The app stays
+mounted under the screen, so persisted runs and resume are untouched. Turning flags off needs no rebuild: set the env on
+Vercel and redeploy (edge cache 30 s, app poll 60 s).
+
+## Maestro (N8)
+Flows in `mobile/.maestro/` (run in this order by `config.yaml`): `onboarding` (Welcome → Continue with passkey →
+Create my wallet → Wallet ready → Home), `trade-open-close` (`VENUE=meridian|perpl`), `earn-open-close`, `close-all`.
+`subflows/` holds the dev-client deep link and the unlock step. CI can't run Maestro, so
+`src/__tests__/maestro.test.ts` parses every flow and fails if an `id:` it uses isn't a `testID` in `mobile/src`.
+
+Run on the Android emulator (owner, local):
+```
+# once: install the Maestro CLI (> VERIFY the current version and install line on maestro.dev before running)
+curl -fsSL "https://get.maestro.mobile.dev" | bash
+maestro --version
+# the dev build (dev client 4e91111a) on a running emulator, Metro with the dev-only fake passkey
+adb install <path-to-dev-client.apk>
+cd mobile && APP_ENV=development EXPO_PUBLIC_FAKE_PASSKEY=1 npx expo start --dev-client --port 8089
+# another terminal, repo root
+maestro test -e APP_ID=xyz.meridianfi.app.staging mobile/.maestro                      # all four, in order
+maestro test -e APP_ID=xyz.meridianfi.app.staging -e VENUE=perpl mobile/.maestro/trade-open-close.yaml
+```
+The fake passkey exists only in `__DEV__` builds with `APP_ENV=development` (release-guarded), so these flows run on the
+dev client only. **Passkey steps on real devices are manual** (MOBILE_QA N8). `onboarding` uses `clearState` (wipes the
+wallet record on that emulator). Trade / Earn / Close all need testnet AUSD + MON ("Get test funds"), Perpl setup done,
+and liquidity on both books (the MM bot running for Meridian).
+
+testIDs added for the flows: `btn-continue-passkey`, `btn-existing-passkey`, `btn-welcome-unlock` (Welcome),
+`btn-create-wallet` (Create), `btn-unlock` (Unlock), `position-<venue>-close` (the position card's visible Close
+button, `SwipeAction.testID`), `tab-portfolio` / `tab-trade` / `tab-earn` / `tab-settings` (`tabBarButtonTestID`).

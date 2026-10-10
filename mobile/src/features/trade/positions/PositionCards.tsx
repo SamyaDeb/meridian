@@ -38,7 +38,7 @@ function Card1({ v, onClose }: { v: PositionView; onClose: () => void }) {
   const meter = meterOf(v.distanceBps);
   const label = `${long ? "Long" : "Short"} ${sizeText(abs, v.stepWad)} MON on ${v.label}`;
   return (
-    <SwipeRow label={label} actions={[{ key: "close", label: "Close", tone: "short", onPress: onClose }]}>
+    <SwipeRow label={label} actions={[{ key: "close", label: "Close", tone: "short", onPress: onClose, testID: `position-${v.venue}-close` }]}>
       <View style={s.body} testID={`position-${v.venue}`}>
         <View style={s.row}>
           <Text bold tone={long ? "long" : "short"}>

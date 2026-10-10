@@ -1,0 +1,28 @@
+# First run (MOBILE_PLAN N8 §4, research §5.1): Welcome → Continue with passkey → Create my wallet → "Wallet ready" →
+# Home with the AUSD total. Dev build only: the fake passkey client (EXPO_PUBLIC_FAKE_PASSKEY=1, __DEV__ +
+# APP_ENV=development) stands in for the fingerprint prompt. clearState wipes the wallet record on this emulator.
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/open-dev.yaml
+- extendedWaitUntil:
+    visible:
+      id: "btn-continue-passkey"
+    timeout: 20000
+- tapOn:
+    id: "btn-continue-passkey"
+- tapOn:
+    id: "btn-create-wallet"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-ready"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "home-total"
+    timeout: 15000
+- assertVisible:
+    id: "btn-home-trade"
+- assertVisible:
+    id: "btn-home-add"

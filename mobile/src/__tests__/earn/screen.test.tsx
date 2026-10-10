@@ -19,6 +19,8 @@ import EarnReceiptModal from "../../app/earn-receipt";
 import { AuthProvider } from "../../auth/AuthProvider";
 import type { AuthController } from "../../auth/controller";
 import { EarnProvider } from "../../features/earn/EarnProvider";
+import { FlagsProvider } from "../../features/flags/FlagsProvider";
+import type { FlagsClient } from "../../features/flags/client";
 import { EarnScreen } from "../../features/earn/EarnScreen";
 import { EarnExecutor, earnReceiptStore } from "../../features/earn/executor";
 import { SwapReader } from "../../features/earn/data/swap";
@@ -34,6 +36,8 @@ import { PerplProvider } from "../../venues/perpl/PerplProvider";
 import { WalletFeedStore } from "../../wallet/feed";
 import { makeAuth } from "../auth/authFixtures";
 import { fakeLive } from "../fakeLive";
+import { fakeFlags } from "../flags/flagsFixtures";
+import { clipRisks } from "../layoutRisk";
 
 const WAD = 10n ** 18n;
 const pct = (x: number) => (BigInt(x * 100) * WAD) / 10_000n;
@@ -128,22 +132,23 @@ async function setup(o: { meridianApr?: number; perplApr?: number; meridianFails
   return { auth, address, live: f.live, kit, feed, executor, sent, map, kv, accounts, venue, meridian: f.meridian, swap };
 }
 
-function wrap(s: Awaited<ReturnType<typeof setup>>, children: ReactNode) {
+function wrap(s: Awaited<ReturnType<typeof setup>> & { noReader?: boolean }, children: ReactNode, flags?: FlagsClient) {
+  const app = (
+    <AuthProvider controller={s.auth as AuthController}>
+      <PerplProvider venue={s.venue as never}>
+        <ToastProvider>
+          <WalletFeedProvider feed={s.feed} read={false}>
+            <TradeProvider kit={s.kit}>
+              <EarnProvider kit={{ executor: s.executor, history: undefined, swap: s.noReader ? undefined : s.swap }}>{children}</EarnProvider>
+            </TradeProvider>
+          </WalletFeedProvider>
+        </ToastProvider>
+      </PerplProvider>
+    </AuthProvider>
+  );
   return (
     <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-      <LiveProvider live={s.live}>
-        <AuthProvider controller={s.auth as AuthController}>
-          <PerplProvider venue={s.venue as never}>
-            <ToastProvider>
-              <WalletFeedProvider feed={s.feed} read={false}>
-                <TradeProvider kit={s.kit}>
-                  <EarnProvider kit={{ executor: s.executor, history: undefined, swap: s.swap }}>{children}</EarnProvider>
-                </TradeProvider>
-              </WalletFeedProvider>
-            </ToastProvider>
-          </PerplProvider>
-        </AuthProvider>
-      </LiveProvider>
+      <LiveProvider live={s.live}>{flags ? <FlagsProvider client={flags}>{app}</FlagsProvider> : app}</LiveProvider>
     </SafeAreaProvider>
   );
 }
@@ -172,6 +177,8 @@ it("$10: hero APR, legs in plain words, ≈ $/day, deposits named; the tap alter
   const s = await setup();
   await render(wrap(s, <EarnScreen />));
   expect(screen.getByTestId("earn-apr")).toHaveTextContent(/^4\d\.\d\d%$/); // 45 % gap minus the 30 d fee drag
+  // large text (N8): the hero APR line wraps (flexWrap) instead of clipping at fontScale 2
+  expect(clipRisks(screen.getByTestId("earn-apr") as never)).toEqual([]);
   await type(["1", "0"]);
   expect(screen.getByTestId("earn-legs")).toHaveTextContent("Long 300 MON on Perpl · Short 300 MON on Meridian");
   expect(screen.getByTestId("earn-per-day")).toHaveTextContent(/^≈ \$0\.0\d \/ day$/);
@@ -280,6 +287,87 @@ it("Lock: the live fixed rate + why it's unavailable; on ⇒ the swap leg runs a
     ["swap", "sell", false],
   ]);
   expect(earnReceiptStore.get()!.steps.map((x) => x.key)).toEqual(["collateral", "leg1", "leg2", "leg3"]);
+});
+
+it("N8 D4.1: the swap market is deployed (config) but its reader isn't there yet ⇒ Close waits, nothing sent", async () => {
+  const s = await setup();
+  // a pair from an earlier session; the swap reader is created a moment after unlock
+  await positionStore(s.kv, 10143, s.address).save({ v: 1, perplSide: "buy", sizeWad: 300n * WAD, naked: undefined, applied: ["e0"] });
+  await act(async () => s.meridian.store.update({ asks: [{ priceWad: 25864n * tick, sizeWad: 1_000n * WAD }] }));
+  await act(async () => s.accounts.store.update({ meridian: { ...s.accounts.store.get().meridian!, sizeWad: -300n * WAD }, perpl: { accountId: 7n, freeWad: 0n, balanceWad: 0n, position: { side: "Long", sizeWad: 300n * WAD } as never, otherMarkets: false, equityWad: 0n, held: true } }));
+  await render(wrap({ ...s, noReader: true }, <EarnScreen />));
+  await wait(10);
+  await fireEvent.press(screen.getByTestId("earn-close"));
+  await fireEvent.press(screen.getByTestId("earn-close-confirm-tap"));
+  await wait(20);
+  expect(s.sent).toEqual([]);
+  expect(screen.getByTestId("earn-error")).toHaveTextContent("Reading your fixed-rate lock… Try again in a moment.");
+});
+
+describe("remote kill switch (N8 flags)", () => {
+  it("writes off: Earn open is refused with the message; the open position still closes; back on ⇒ open returns", async () => {
+    const s = await setup();
+    const f = fakeFlags();
+    await render(wrap(s, <EarnScreen />, f.client));
+    await wait(10);
+    await type(["1", "0"]);
+    await fireEvent.press(screen.getByTestId("earn-confirm-tap"));
+    await wait(20);
+    expect(s.executor.position.get().sizeWad).toBe(300n * WAD);
+    s.sent.length = 0;
+    // the kill switch flips while the position is open
+    f.set({ writes: false });
+    await act(async () => f.client.refresh());
+    expect(screen.getByTestId("earn-flags")).toHaveTextContent("Trading is paused for maintenance. You can still close positions.");
+    expect(screen.queryByTestId("earn-confirm-tap")).toBeNull();
+    // Close is never gated
+    await act(async () => s.meridian.store.update({ asks: [{ priceWad: 25864n * tick, sizeWad: 1_000n * WAD }] }));
+    await act(async () => s.accounts.store.update({ meridian: { ...s.accounts.store.get().meridian!, sizeWad: -300n * WAD }, perpl: { accountId: 7n, freeWad: 0n, balanceWad: 0n, position: { side: "Long", sizeWad: 300n * WAD } as never, otherMarkets: false, equityWad: 0n, held: true } }));
+    await act(async () => s.swap.store.update({ atBlock: 2n, account: { collateralWad: 0n, sizeWad: 0n, kWad: 0n, avgFixedAprWad: 0n } }));
+    await fireEvent.press(screen.getByTestId("earn-close"));
+    await fireEvent.press(screen.getByTestId("earn-close-confirm-tap"));
+    await wait(20);
+    expect(s.sent.map((l) => [l.venue, l.reduceOnly])).toEqual([
+      ["meridian", true],
+      ["perpl", true],
+    ]);
+    expect(earnReceiptStore.get()!.phase).toBe("CLOSED");
+    f.set({});
+    await act(async () => f.client.refresh());
+    expect(screen.getByTestId("earn-confirm-tap")).toBeTruthy();
+  });
+
+  it("earn off: open refused, the reason shown", async () => {
+    const s = await setup();
+    const f = fakeFlags({ flags: { earn: false } });
+    await render(wrap(s, <EarnScreen />, f.client));
+    await wait(10);
+    expect(screen.getByTestId("earn-flags")).toHaveTextContent("Earn is paused for now. You can still close positions.");
+    expect(screen.queryByTestId("earn-confirm-tap")).toBeNull();
+  });
+
+  it("a leftover's one-tap close shows whatever the flags say", async () => {
+    const s = await setup();
+    const f = fakeFlags({ flags: { writes: false } });
+    await positionStore(s.kv, 10143, s.address).save({ v: 1, perplSide: undefined, sizeWad: 0n, naked: { venue: "perpl", side: "buy", sizeWad: 300n * WAD }, applied: ["e1"] });
+    await render(wrap(s, <EarnScreen />, f.client));
+    await wait(10);
+    expect(screen.getByTestId("earn-leftover-close")).not.toBeDisabled();
+  });
+
+  it("lock off: the Lock toggle is off with the reason; Earn still opens at the floating rate (no swap leg)", async () => {
+    const s = await setup({ lock: true });
+    const f = fakeFlags({ flags: { lock: false } });
+    await render(wrap(s, <EarnScreen />, f.client));
+    await wait(10);
+    await type(["8", "0"]);
+    expect(screen.getByTestId("earn-lock-paused")).toHaveTextContent("Fixed-rate locks are paused for now. Earn still opens at the floating rate.");
+    expect(screen.getByTestId("earn-lock-toggle")).toBeDisabled();
+    expect(screen.getByTestId("earn-lock-toggle")).toHaveProp("value", false);
+    await fireEvent.press(screen.getByTestId("earn-confirm-tap"));
+    await wait(20);
+    expect(s.sent.map((l) => l.venue)).toEqual(["perpl", "meridian"]);
+  });
 });
 
 describe("receipt haptics", () => {

@@ -28,7 +28,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: id.name,
     slug: "meridian",
-    version: "0.1.0",
+    // N8: the first preview build (owner confirms the numbers in the N8-prep PR). Bump both for every build that
+    // ships, and set FLAGS_MIN_APP_VERSION on Vercel at or below this version.
+    version: "0.2.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: id.scheme,
@@ -36,6 +38,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     backgroundColor: BG,
     android: {
       package: id.androidPackage,
+      versionCode: 2,
       adaptiveIcon: {
         backgroundColor: BG,
         foregroundImage: "./assets/images/android-icon-foreground.png",

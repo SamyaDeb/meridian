@@ -30,7 +30,7 @@ export default function Welcome() {
     <Screen
       footer={
         returning ? (
-          <Button title="Unlock with your fingerprint" icon={<PasskeyIcon color={colors.onBrand} />} accessibilityHint="Unlocks your wallet with your passkey" onPress={() => router.push("/unlock")} />
+          <Button title="Unlock with your fingerprint" icon={<PasskeyIcon color={colors.onBrand} />} accessibilityHint="Unlocks your wallet with your passkey" onPress={() => router.push("/unlock")} testID="btn-welcome-unlock" />
         ) : (
           <>
             <Button
@@ -39,6 +39,7 @@ export default function Welcome() {
               accessibilityHint="Explains passkeys, then creates your Meridian wallet"
               disabled={busy || Boolean(blocked)}
               onPress={() => router.push("/create")}
+              testID="btn-continue-passkey"
             />
             <Button
               title="Use an existing passkey"
@@ -46,6 +47,7 @@ export default function Welcome() {
               accessibilityHint="Signs in with a Meridian passkey you already have"
               disabled={busy || Boolean(blocked)}
               onPress={() => void run(() => auth.unlock({ pick: true }), show)}
+              testID="btn-existing-passkey"
             />
           </>
         )

@@ -9,11 +9,14 @@ import { router, useFocusEffect } from "expo-router";
 import { memo, useCallback, useEffect, useState, type ComponentType } from "react";
 import { StyleSheet, Switch, View } from "react-native";
 import { useBlockNumber, useCadence, useFundingSpread, useMeridian, usePerpl } from "../../live/hooks";
+import { useLive } from "../../live/LiveProvider";
 import type { MeridianMarketState } from "../../live/meridianMarket";
 import type { PerplMarketState } from "../../live/perplMarket";
 import { Store, useStore } from "../../live/store";
 import { BlockPulse, Button, Card, colors, formatValue, haptic, Num, radius, space, Sparkline, Text } from "../../ui";
 import { formatUnitsExact } from "../../venues/perpl/amounts";
+import { FlagsLine } from "../flags/FlagsLine";
+import { useOpenBlocked } from "../flags/FlagsProvider";
 import { PerplChecks } from "../perpl/PerplOnboarding";
 import { ConfirmBar } from "../trade/ConfirmBar";
 import { owedToken } from "../trade/exec/collateral";
@@ -27,7 +30,7 @@ import { earnReceiptStore, type EarnExecState } from "./executor";
 import type { GapHistoryState } from "./history";
 import { LeftoverClose } from "./LeftoverClose";
 import type { SwapState } from "./data/swap";
-import { planEarnPairClose } from "./closePair";
+import { planEarnPairClose, swapMarketDeployed } from "./closePair";
 import { EARN_LEVERAGE, type EarnLock, type EarnQuote } from "./plan";
 import { FLAT, type EarnPosition } from "./record";
 import { TimelineView } from "./TimelineView";
@@ -149,14 +152,18 @@ function Explainer() {
 const dateOf = (sec: bigint | undefined) => (sec === undefined ? "—" : new Date(Number(sec) * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short" }));
 
 /** Lock (MOBILE_PLAN N6, P2): fix Meridian's floating funding on the funding-swap book; Perpl's side stays floating. */
-function LockRow({ lock, on, onChange, hasSwap }: { lock: EarnLock | undefined; on: boolean; onChange: (v: boolean) => void; hasSwap: boolean }) {
+function LockRow({ lock, on, onChange, hasSwap, paused }: { lock: EarnLock | undefined; on: boolean; onChange: (v: boolean) => void; hasSwap: boolean; paused: string | undefined }) {
   if (!hasSwap) return null;
-  const ok = lock?.available === true;
+  const ok = lock?.available === true && paused === undefined;
   return (
     <View style={s.lock} testID="earn-lock">
       <View style={s.lockText}>
         <Text bold>Lock a fixed rate</Text>
-        {lock === undefined ? (
+        {paused !== undefined ? (
+          <Text variant="caption" tone="muted" testID="earn-lock-paused">
+            {paused}
+          </Text>
+        ) : lock === undefined ? (
           <Text variant="caption" tone="muted">
             Enter an amount to see the fixed rate.
           </Text>
@@ -224,11 +231,15 @@ const STATUS_TEXT: Partial<Record<EarnQuote["status"], string>> = {
 export function EarnScreen() {
   const { executor } = useEarn();
   const { focus } = useTrade();
+  const live = useLive();
   const inputs = useEarnInputs();
   const [text, setText] = useState("");
   const amountWad = useDebounced(amountWadOf(text), DEBOUNCE_MS);
   const [lockOn, setLockOn] = useState(false);
-  const q = useEarnQuote(amountWad, inputs, lockOn);
+  // remote kill switch: Earn open refused / the Lock toggle forced off with the reason; closes are never asked
+  const earnPaused = useOpenBlocked("earn");
+  const lockPaused = useOpenBlocked("lock");
+  const q = useEarnQuote(amountWad, inputs, lockOn && lockPaused === undefined);
   const { swap } = useEarn();
   const exec = useStore(executor?.store ?? NO_EXEC, sel);
   const pos = useStore(executor?.position ?? NO_POS, sel);
@@ -256,7 +267,7 @@ export function EarnScreen() {
   ];
   const legs = q.status === "ok" ? legsText(q) : undefined;
   const busy = exec.running;
-  const canConfirm = q.status === "ok" && q.exec !== undefined && !busy && executor !== undefined;
+  const canConfirm = q.status === "ok" && q.exec !== undefined && !busy && executor !== undefined && earnPaused === undefined;
   const lockDeposit = q.exec?.lock && q.lock?.available ? q.lock.depositWad : 0n;
   const deposits = [...(q.legs ? [q.legs.meridian, q.legs.perpl].filter((l) => l.depositWad > 0n).map((l) => `${formatUnitsExact(owedToken(l.depositWad), 6)} AUSD to ${venueName(l.venue)}`) : []), ...(lockDeposit > 0n ? [`${formatUnitsExact(owedToken(lockDeposit), 6)} AUSD to the fixed-rate market`] : [])];
 
@@ -276,7 +287,7 @@ export function EarnScreen() {
   };
 
   const confirm = () => {
-    if (!canConfirm || !legs) return;
+    if (!canConfirm || !legs || earnPaused !== undefined) return;
     setError(undefined);
     executor!
       .open(q.exec!, { summary: legs, perplPriceDp: inputs.perplPriceDp, meridianPriceDp: inputs.meridianPriceDp, leverage100: Number(EARN_LEVERAGE) * 100, ...(__DEV__ && devFail ? { devFailMeridian: true } : {}), ...(lockDeposit > 0n ? { lockCollateralWad: lockDeposit } : {}) })
@@ -286,7 +297,7 @@ export function EarnScreen() {
   const closePair = () => {
     if (!executor || busy) return;
     // the same plan Close all uses for an Earn pair: a Lock closes first (never leaves a swap without its hedge)
-    const c = planEarnPairClose(pos, inputs, swap !== undefined);
+    const c = planEarnPairClose(pos, inputs, swapMarketDeployed(live.config.meridian));
     if (!c.ok) return fail(new Error(c.error));
     setError(undefined);
     executor.close(c.plan, c.meta, c.swap).then((t) => finish(t, false), fail);
@@ -327,7 +338,7 @@ export function EarnScreen() {
             {STATUS_TEXT[q.status]}
           </Text>
         ) : null}
-        <LockRow lock={q.lock} on={lockOn} onChange={setLockOn} hasSwap={swap !== undefined} />
+        <LockRow lock={q.lock} on={lockOn} onChange={setLockOn} hasSwap={swap !== undefined} paused={lockPaused} />
         {q.blockers.map((b) =>
           b.kind === "onboard" ? (
             <View key="onboard" style={s.block} testID="earn-blocker-onboard">
@@ -353,7 +364,8 @@ export function EarnScreen() {
             {error}
           </Text>
         ) : null}
-        <ConfirmBar action="start earning" onConfirm={confirm} disabled={!canConfirm} testID="earn-confirm" />
+        <FlagsLine kind="earn" testID="earn-flags" />
+        {earnPaused === undefined ? <ConfirmBar action="start earning" onConfirm={confirm} disabled={!canConfirm} testID="earn-confirm" /> : null}
         {busy && exec.timeline ? (
           <View style={s.summary} accessibilityLiveRegion="polite" testID="earn-progress">
             <Text bold>{exec.timeline.headline}</Text>
