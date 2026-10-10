@@ -52,8 +52,11 @@ const IDENTITY: Record<AppEnv, { chainId: 143 | 10143; rpId: string; androidPack
  * Web terminal per env. Staging: the existing testnet Vercel project (MOBILE_PLAN §5, 8 Oct: `/` 307 → /trade).
  * > VERIFY: the production web URL (meridianfi.vercel.app is a placeholder that only claims the rpId host, §5) — set it
  * here on mainnet day (N9); until then the button is hidden on production builds.
+ * EXPO_PUBLIC_APP_ENV (eas.json, next to APP_ENV) is inlined by Metro, so a production bundle folds this to the
+ * production entry and doesn't even contain the testnet web URL (check:release asserts it).
  */
-const WEB: Record<AppEnv, string | undefined> = { development: "https://meridian-testnet.vercel.app", staging: "https://meridian-testnet.vercel.app", production: undefined };
+const TESTNET_WEB = process.env.EXPO_PUBLIC_APP_ENV === "production" ? undefined : "https://meridian-testnet.vercel.app";
+const WEB: Record<AppEnv, string | undefined> = { development: TESTNET_WEB, staging: TESTNET_WEB, production: undefined };
 
 /**
  * APK install link per env (the forced-update screen's button). > VERIFY: the EAS internal-distribution links are made at

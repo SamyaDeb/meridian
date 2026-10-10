@@ -15,10 +15,16 @@ Env (never committed): `mobile/.env.local` or EAS environment variables
 - `EXPO_PUBLIC_INDEXER_URL` — optional; the Envio GraphQL URL of this env's indexer (LAUNCH_PLAN §4.3). Without it,
   Activity lists this app's own trades + Perpl history and says Meridian history needs the indexer
 - `APP_ENV` — `development` (default; testnet, may fall back to viem's public RPC with a badge) · `staging` · `production`
+- `EXPO_PUBLIC_APP_ENV` — set equal to `APP_ENV` in every `eas.json` profile; Metro inlines it, so a production bundle
+  doesn't contain the testnet web URL. Changing it locally needs `npx expo start --clear` (Metro's transform cache
+  doesn't key on env values)
 - `EXPO_PUBLIC_SHORT_LOCK=1` — dev builds only: idle lock after 60 s, background lock after 30 s (device QA)
 - `EXPO_PUBLIC_FAKE_PASSKEY=1` — dev builds with `APP_ENV=development` only: a fake WebAuthn client for emulators without
-  a passkey provider. Compiled out of release bundles; `pnpm --filter @meridian/mobile check:release` exports a
-  production bundle with the flag on and fails if the fake is in it.
+  a passkey provider. Compiled out of release bundles; `pnpm --filter @meridian/mobile check:release` exports the
+  `preview` and `production` bundles (each profile's env from eas.json, clean cache) with the flag on and fails if the
+  fake or another dev-only marker is in them, if production first-party code (attributed through the source map) has a
+  `localhost` / `127.0.0.1` / `10.0.2.2` URL, or if production carries the testnet web URL. Library defaults (viem's
+  local chains, React Native's dev-server fallback) are listed, not failed.
 
 Builds: `eas.json` profiles `development` (dev client APK) · `preview` (staging APK) · `production` (mainnet APK).
 Dev-only screens (`/dev/smoke`, the hold-to-confirm test in the Trade sheet) are compiled out of release bundles.
