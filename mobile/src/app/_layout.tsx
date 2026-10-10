@@ -12,6 +12,7 @@ import { AlertsProvider } from "../features/alerts/AlertsProvider";
 import { EarnProvider } from "../features/earn/EarnProvider";
 import { FlagsProvider } from "../features/flags/FlagsProvider";
 import { UpdateGate } from "../features/flags/UpdateGate";
+import { NotLiveGate } from "../features/shell/NotLive";
 import { TradeProvider } from "../features/trade/TradeProvider";
 import { WalletFeedProvider } from "../features/wallet/WalletFeedProvider";
 import { LiveProvider } from "../live/LiveProvider";
@@ -69,7 +70,10 @@ export default function RootLayout() {
                               <BottomSheetModalProvider>
                                 <StatusBar style="light" />
                                 <UpdateGate>
-                                  <RootStack />
+                                  {/* production before N9 (no deployments/143.json): the calm "not live on mainnet yet" */}
+                                  <NotLiveGate>
+                                    <RootStack />
+                                  </NotLiveGate>
                                 </UpdateGate>
                               </BottomSheetModalProvider>
                             </AlertsProvider>
