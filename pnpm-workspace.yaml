@@ -7,4 +7,5 @@ packages:
   - bench
   - mfi
   - packages/*
+  - mobile
   - risk

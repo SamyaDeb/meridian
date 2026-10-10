@@ -2,6 +2,7 @@
 // Ported from mfi/src/perpl/{client,transport}.ts (main @ 0ba1664) with the RN-safe changes: no AbortController
 // (timeout races the transport via the injected clock), FetchLike instead of the DOM fetch type, + getBook.
 import { realClock, type Clock, type FetchLike } from "../util/runtime";
+import { MAX_CANDLES_PER_REQUEST, isCandleResolution, parseCandleSeries, type CandleSeries } from "./candles";
 import { PerplSchemaError, PerplUnavailableError } from "./errors";
 import type { FundingEvent, L2Book, Market, MarketState } from "./types";
 import { parseContext, parseFundingSeries, parseL2Book, parseMarketStateUpdate } from "./validate";
@@ -119,6 +120,15 @@ export function createPerplClient(opts: PerplClientOptions) {
       const b = parseL2Book(await get(`/v1/market-data/${marketId}/book?levels=${levels}`));
       if (b.mt !== 15) throw new PerplSchemaError("book.mt", "REST book must be a snapshot (15)");
       return b;
+    },
+    /** GET /v1/market-data/:id/candles/:resolution/:from-:to (resolution s, from/to ms, ≤ 1024 candles), oldest first. */
+    getCandles: async (marketId: number, resolutionSec: number, fromMs: number, toMs: number): Promise<CandleSeries> => {
+      if (!isCandleResolution(resolutionSec)) throw new RangeError(`unsupported candle resolution ${resolutionSec}s`);
+      if (!(Number.isSafeInteger(fromMs) && Number.isSafeInteger(toMs) && fromMs <= toMs)) throw new RangeError("bad candle window");
+      if (Math.floor((toMs - fromMs) / (resolutionSec * 1000)) + 1 > MAX_CANDLES_PER_REQUEST) throw new RangeError(`window spans more than ${MAX_CANDLES_PER_REQUEST} candles`);
+      const s = parseCandleSeries(await get(`/v1/market-data/${marketId}/candles/${resolutionSec}/${fromMs}-${toMs}`));
+      if (s.r !== resolutionSec) throw new PerplSchemaError("candles.r", `expected resolution ${resolutionSec}, got ${s.r}`);
+      return s;
     },
     /** Resolve a market by symbol, never by a hard-coded id; see matchMarket. */
     findMarket: async (symbol: string): Promise<Market> => {

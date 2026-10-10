@@ -82,7 +82,7 @@ export const allowForwardingTx = (exchange: Address, allow = true): TxRequest =>
 /** depositCollateral(amountCNS) into an existing account (approve first). */
 export const depositCollateralTx = (exchange: Address, amountCns: bigint): TxRequest => ({ to: exchange, data: encodeFunctionData({ abi: perplExchangeAbi, functionName: "depositCollateral", args: [amountCns] }), value: 0n });
 
-/** The read the app makes before createAccount (returns CNS). > VERIFY raw unit on mainnet in the N4 canary. */
+/** The read the app makes before createAccount: collateral units (CNS); 10 AUSD on 143, 100 on 10143 (README §Open, 9 Oct). */
 export const minAccountOpenRead = (exchange: Address) => ({ address: exchange, abi: perplExchangeAbi, functionName: "getMinAccountOpenCNS" }) as const;
 /** getAccountByAddr reverts when no account exists (README "Checking Account Status"): treat a revert as "none". */
 export const accountByAddrRead = (exchange: Address, wallet: Address) => ({ address: exchange, abi: perplExchangeAbi, functionName: "getAccountByAddr", args: [wallet] }) as const;

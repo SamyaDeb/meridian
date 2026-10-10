@@ -13,7 +13,7 @@
 // - every outbound frame (orders and pings) spends a token, under the documented per-minute limit;
 // - at most ONE trading connection (4 per wallet, shared with browser sessions).
 import { realClock, type Clock, type FetchLike, type RandomBytes, type WsFactory, type WsLike } from "../util/runtime";
-import { newNonce, redact, signInFrame } from "./auth";
+import { newNonce, redact, signInFrame, type PerplKeyRef } from "./auth";
 import { TokenBucket, tradingBudgetPerMin } from "./ratelimit";
 import { createSignedRest, type SignedRest } from "./rest";
 import { PerplState, type OrderOutcome, type StateEvent } from "./state";
@@ -32,7 +32,8 @@ export type TradingConfig = {
   wsUrl: string;
   chainId: number;
   apiKey: string;
-  secret: Uint8Array;
+  /** the Ed25519 key: raw secret or an in-memory signer (auth.ts PerplSigner) */
+  secret: PerplKeyRef;
   marketId: number;
   /** market.order_ttl_blocks from /v1/pub/context */
   orderTtlBlocks: number;

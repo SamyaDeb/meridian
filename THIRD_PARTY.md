@@ -18,8 +18,8 @@ Meridian's own code is [MIT](LICENSE). It depends on the libraries below, which 
 ## TypeScript: direct dependencies
 | Package | Workspace | Licence |
 |---|---|---|
-| viem | app, mfi, mm-bot, keepers, bench, packages/core | MIT |
-| @noble/ed25519, @noble/hashes | packages/core (Perpl Ed25519 signing, SHA-256 / SHA-512, HKDF) | MIT |
+| viem | app, mfi, mm-bot, keepers, bench, packages/core, mobile | MIT |
+| @noble/ed25519, @noble/hashes | packages/core (Perpl Ed25519 signing, SHA-256 / SHA-512, HKDF); mobile (dev smoke: Ed25519 verify) | MIT |
 | @scure/bip32, @scure/bip39 | packages/core (Mera EVM key path, recovery phrase) | MIT |
 | wagmi, @tanstack/react-query | app | MIT |
 | next, react, react-dom | app | MIT |
@@ -27,6 +27,10 @@ Meridian's own code is [MIT](LICENSE). It depends on the libraries below, which 
 | @privy-io/react-auth | app (login) | Apache-2.0 |
 | @privy-io/wagmi | app (login) | no SPDX field in its package.json. > VERIFY: the LICENSE file shipped in the package |
 | tsx | mfi | MIT |
+| expo (SDK 57), expo-router, expo-constants, expo-crypto, expo-haptics, expo-linking, expo-splash-screen, expo-status-bar, expo-system-ui | mobile (native app shell, `crypto.getRandomValues` polyfill, haptics) | MIT |
+| react, react-native, react-native-reanimated, react-native-worklets, react-native-gesture-handler, react-native-screens, react-native-safe-area-context, react-native-svg | mobile | MIT |
+| @gorhom/bottom-sheet, @react-native-community/netinfo | mobile (sheets, offline banner) | MIT |
+| jest, jest-expo, @testing-library/react-native, test-renderer, @react-native/jest-preset | mobile (tests only) | MIT |
 | @noble/ed25519 | mm-bot (Perpl API-key signing, as in Perpl's own TS examples) | MIT |
 | envio | indexer | **not OSI-approved** (Envio's own licence: source-available, self-hosting allowed). It's a dev/runtime dependency of the indexer only; none of its code is in this repo |
 

@@ -36,24 +36,46 @@ export function newNonce(random: RandomBytes): string {
   return base64UrlEncode(random(16));
 }
 
-export async function signCanonical(canonical: string, secret: Uint8Array): Promise<string> {
-  return base64UrlEncode(edSign(utf8ToBytes(canonical), secret));
+/**
+ * An Ed25519 key held somewhere else (the app's in-memory keyring): it signs bytes and shows its public key, and never
+ * hands out the secret. Every signing entry point takes a `PerplKeyRef`: the raw 32-byte secret (bots, tests) or a signer.
+ */
+export interface PerplSigner {
+  readonly publicKey: Uint8Array;
+  sign(message: Uint8Array): Uint8Array;
+}
+export type PerplKeyRef = Uint8Array | PerplSigner;
+
+/** A raw secret wrapped as a signer (the secret stays in the closure); a signer is returned as is. */
+export function toSigner(key: PerplKeyRef): PerplSigner {
+  if (!(key instanceof Uint8Array)) return key;
+  let pub: Uint8Array | undefined;
+  return {
+    get publicKey() {
+      return (pub ??= edPublicKey(key));
+    },
+    sign: (m) => edSign(m, key),
+  };
 }
 
-export async function publicKeyHex(secret: Uint8Array): Promise<string> {
-  return bytesToHex(edPublicKey(secret));
+export async function signCanonical(canonical: string, key: PerplKeyRef): Promise<string> {
+  return base64UrlEncode(toSigner(key).sign(utf8ToBytes(canonical)));
+}
+
+export async function publicKeyHex(key: PerplKeyRef): Promise<string> {
+  return bytesToHex(toSigner(key).publicKey);
 }
 
 export type ApiHeaders = { "X-API-Key": string; "X-API-Timestamp": string; "X-API-Nonce": string; "X-API-Signature": string };
 
-export async function restHeaders(apiKey: string, secret: Uint8Array, i: RestSigningInput): Promise<ApiHeaders> {
+export async function restHeaders(apiKey: string, secret: PerplKeyRef, i: RestSigningInput): Promise<ApiHeaders> {
   return { "X-API-Key": apiKey, "X-API-Timestamp": String(i.timestampMs), "X-API-Nonce": i.nonce, "X-API-Signature": await signCanonical(restCanonical(i), secret) };
 }
 
 /** types.md "ApiKeySignInRequest" (mt: 29). `timestamp` is a decimal string. */
 export type SignInFrame = { mt: 29; chain_id: number; api_key: string; timestamp: string; nonce: string; signature: string };
 
-export async function signInFrame(apiKey: string, secret: Uint8Array, i: { chainId: number; timestampMs: number; nonce: string }): Promise<SignInFrame> {
+export async function signInFrame(apiKey: string, secret: PerplKeyRef, i: { chainId: number; timestampMs: number; nonce: string }): Promise<SignInFrame> {
   return { mt: 29, chain_id: i.chainId, api_key: apiKey, timestamp: String(i.timestampMs), nonce: i.nonce, signature: await signCanonical(wsSignInCanonical(i), secret) };
 }
 
