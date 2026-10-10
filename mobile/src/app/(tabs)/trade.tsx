@@ -1,9 +1,8 @@
 // Trade (MOBILE_PLAN N5, research §5.3): header (price per block, 24 h, both fundings, countdown) → chart (Lite: a
 // sparkline; Pro: the native chart with mark / entry / liq lines, scrub + haptics, timeframes) → position cards →
-// Pro: both books. Sticky Long / Short open the ticket sheet. Lite is the default; Pro is remembered (G3).
-import { useFocusEffect } from "expo-router";
+// Pro: Books | Trades (both venues). Sticky Long / Short open the ticket sheet. Lite is the default; Pro is remembered (G3).
 import { wadToFloatForDisplay } from "@meridian/core/util";
-import { memo, useCallback, useRef } from "react";
+import { memo, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { secureKv } from "../../auth/secureKv";
 import { Screen } from "../../features/shell/Screen";
@@ -11,11 +10,13 @@ import { Books } from "../../features/trade/Books";
 import { PriceChart } from "../../features/trade/chart/PriceChart";
 import { TIMEFRAMES, type ChartState, type Timeframe } from "../../features/trade/chart/feed";
 import type { AccountsState } from "../../features/trade/data/accounts";
+import { useEarnPair } from "../../features/earn/EarnProvider";
 import { PositionCards } from "../../features/trade/positions/PositionCards";
-import { useTradeView } from "../../features/trade/prefs";
+import { CHART_MODE_KEY, PRO_TAB_KEY, usePref, useTradeView, type ChartMode, type ProTab } from "../../features/trade/prefs";
+import { Trades } from "../../features/trade/Trades";
 import { TicketSheet, type TicketRef } from "../../features/trade/ticket/TicketSheet";
 import { TradeHeader } from "../../features/trade/TradeHeader";
-import { useTrade } from "../../features/trade/TradeProvider";
+import { useAccountReadsWhileFocused, useTrade } from "../../features/trade/TradeProvider";
 import { usePerpl } from "../../live/hooks";
 import type { PerplMarketState } from "../../live/perplMarket";
 import { Store, useStore } from "../../live/store";
@@ -35,8 +36,12 @@ const LiteChart = memo(function LiteChart() {
   return <Sparkline points={pts} height={64} zeroLine={false} label={pts.length ? "MON price, last hour" : "MON price loading"} />;
 });
 
+const CHART_MODES: readonly ChartMode[] = ["line", "candles"];
+const PRO_TABS: readonly ProTab[] = ["books", "trades"];
+
 const ProChart = memo(function ProChart() {
   const { chart, accounts } = useTrade();
+  const [mode, setMode] = usePref<ChartMode>(secureKv, CHART_MODE_KEY, CHART_MODES, "line");
   const c = useStore(chart?.store ?? NO_CHART, selChart);
   const acc = useStore(accounts?.store ?? NO_ACC, selAcc);
   const mark = usePerpl(selMark);
@@ -49,7 +54,16 @@ const ProChart = memo(function ProChart() {
   const res = TIMEFRAMES.find((t) => t.key === c.tf)!.sec;
   return (
     <View style={s.gap}>
-      <PriceChart points={c.points} lines={{ mark, entry, liq }} priceDp={dp} resSec={res} testID="pro-chart" />
+      <Segmented
+        options={[
+          { value: "line", label: "Line" },
+          { value: "candles", label: "Candles" },
+        ]}
+        value={mode}
+        onChange={setMode}
+        accessibilityLabel="Line or candles"
+      />
+      <PriceChart points={c.points} lines={{ mark, entry, liq }} priceDp={dp} resSec={res} mode={mode} testID="pro-chart" />
       {c.error ? (
         <Text variant="caption" tone="warn">
           Chart: {c.error}
@@ -64,18 +78,33 @@ const ProChart = memo(function ProChart() {
   );
 });
 
+/** Pro → Books | Trades (the choice is remembered). */
+const ProTabs = memo(function ProTabs() {
+  const [tab, setTab] = usePref<ProTab>(secureKv, PRO_TAB_KEY, PRO_TABS, "books");
+  return (
+    <Card>
+      <Segmented
+        options={[
+          { value: "books", label: "Books" },
+          { value: "trades", label: "Trades" },
+        ]}
+        value={tab}
+        onChange={setTab}
+        accessibilityLabel="Books or trades"
+      />
+      {tab === "books" ? <Books /> : <Trades />}
+    </Card>
+  );
+});
+
 export default function Trade() {
   const ticket = useRef<TicketRef>(null);
-  const { focus, chart } = useTrade();
+  const { chart } = useTrade();
   const [view, setView] = useTradeView(secureKv);
 
   // positions / collateral are read per block only while this screen is on top
-  useFocusEffect(
-    useCallback(() => {
-      focus.set(true);
-      return () => focus.set(false);
-    }, [focus]),
-  );
+  useAccountReadsWhileFocused();
+  const earnPair = useEarnPair();
 
   return (
     <Screen
@@ -106,15 +135,8 @@ export default function Trade() {
         <TradeHeader chart={chart} />
         {view === "pro" ? <ProChart /> : <LiteChart />}
       </Card>
-      <PositionCards />
-      {view === "pro" ? (
-        <Card>
-          <Text variant="caption" tone="muted">
-            Books
-          </Text>
-          <Books />
-        </Card>
-      ) : null}
+      <PositionCards earnPair={earnPair} />
+      {view === "pro" ? <ProTabs /> : null}
       <TicketSheet ref={ticket} />
     </Screen>
   );

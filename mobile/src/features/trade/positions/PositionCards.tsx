@@ -1,5 +1,7 @@
 // Position cards under the chart (research §5.2/§5.3): side, size, entry, live PnL, liquidation price + distance meter,
-// swipe → Close with a visible Close button (ui/SwipeRow fallback). Close = reduce-only for the whole size (planClose),
+// funding accrued, swipe → Close with a visible Close button (ui/SwipeRow fallback). An open Earn pair is grouped by its
+// record ("Earn · basis"); without one, a Meridian + Perpl pair of equal, opposite MON size is shown as one basis trade
+// (fallback). Close = reduce-only for the whole size (planClose),
 // confirmed with hold-or-tap on a summary sheet, then the receipt. Numbers: Meridian AccountView (contract's own PnL /
 // liq), Perpl getPositionV2 via core perplPositionRisk (Perpl's own rule).
 import { router } from "expo-router";
@@ -9,7 +11,7 @@ import { useMeridian, usePerpl } from "../../../live/hooks";
 import type { MeridianMarketState } from "../../../live/meridianMarket";
 import type { PerplMarketState } from "../../../live/perplMarket";
 import { Store, useStore } from "../../../live/store";
-import { Card, dpOfTick, haptic, Meter, Num, Sheet, space, SwipeRow, Text, type SheetRef } from "../../../ui";
+import { Button, Card, haptic, Meter, Num, Sheet, space, SwipeRow, Text, type SheetRef } from "../../../ui";
 import { plainTradeError } from "../exec/errors";
 import { priceText, sizeText } from "../ticket/quote";
 import { ConfirmBar } from "../ConfirmBar";
@@ -17,42 +19,9 @@ import { useTrade } from "../TradeProvider";
 import { useStartOrder } from "../useStartOrder";
 import type { AccountsState } from "../data/accounts";
 import { planClose } from "./close";
+import { groupOf, positionViews, type EarnPair, type PositionView } from "./views";
 
-export type PositionView = {
-  venue: "meridian" | "perpl";
-  label: string;
-  sizeWad: bigint;
-  entryWad: bigint;
-  markWad: bigint | undefined;
-  pnlWad: bigint;
-  liqWad: bigint | undefined;
-  /** adverse distance to liq, bps of the mark (floored) */
-  distanceBps: bigint | undefined;
-  priceDp: number;
-  stepWad: bigint;
-};
-
-/** distance from the mark to the liq price in the adverse direction, bps, floored; 0 at or past it */
-export function liqDistance(sizeWad: bigint, markWad: bigint | undefined, liqWad: bigint | undefined): bigint | undefined {
-  if (markWad === undefined || markWad <= 0n || liqWad === undefined || liqWad <= 0n) return undefined;
-  const d = sizeWad > 0n ? markWad - liqWad : liqWad - markWad;
-  return d <= 0n ? 0n : (d * 10_000n) / markWad;
-}
-
-export function positionViews(acc: AccountsState | undefined, m: MeridianMarketState | undefined, p: PerplMarketState | undefined): PositionView[] {
-  const out: PositionView[] = [];
-  const ma = acc?.meridian;
-  if (ma && ma.sizeWad !== 0n && m?.lotSizeWad) {
-    const liq = ma.liqWad > 0n ? ma.liqWad : undefined;
-    out.push({ venue: "meridian", label: "Meridian", sizeWad: ma.sizeWad, entryWad: ma.entryWad, markWad: m.markWad, pnlWad: ma.upnlWad - ma.pendingFundingWad, liqWad: liq, distanceBps: liqDistance(ma.sizeWad, m.markWad, liq), priceDp: dpOfTick(m.tickSizeWad), stepWad: m.lotSizeWad });
-  }
-  const pp = acc?.perpl?.position;
-  if (pp && p) {
-    const signed = pp.side === "Long" ? pp.sizeWad : -pp.sizeWad;
-    out.push({ venue: "perpl", label: "Perpl", sizeWad: signed, entryWad: pp.entryWad, markWad: pp.markWad, pnlWad: pp.unrealizedPnlWad, liqWad: pp.liqPriceWad > 0n ? pp.liqPriceWad : undefined, distanceBps: pp.liqDistanceBps, priceDp: p.priceDecimals, stepWad: 10n ** BigInt(18 - p.sizeDecimals) });
-  }
-  return out;
-}
+export { groupOf, isBasisPair, liqDistance, positionViews, type EarnPair, type PositionView } from "./views";
 
 const selAcc = (s: AccountsState) => s;
 const selM = (s: MeridianMarketState | undefined) => s;
@@ -85,6 +54,12 @@ function Card1({ v, onClose }: { v: PositionView; onClose: () => void }) {
           </Text>
           <Num value={v.pnlWad} kind="usd" signed label="Unrealized PnL in AUSD" testID={`position-${v.venue}-pnl`} />
         </View>
+        <View style={s.row}>
+          <Text variant="caption" tone="muted">
+            Funding
+          </Text>
+          <Num value={v.fundingWad} kind="usd" signed variant="caption" label="Funding on this position in AUSD" testID={`position-${v.venue}-funding`} />
+        </View>
         <Text variant="caption" tone="muted" testID={`position-${v.venue}-liq`}>
           Liq {priceText(v.liqWad, v.priceDp)}
           {v.distanceBps !== undefined ? ` · ${(Number(v.distanceBps) / 100).toFixed(1)}% away` : ""}
@@ -95,7 +70,8 @@ function Card1({ v, onClose }: { v: PositionView; onClose: () => void }) {
   );
 }
 
-export const PositionCards = memo(function PositionCards() {
+/** `earnPair`: the open Earn pair from its record (earn/EarnProvider useEarnPair); the cards are grouped by it. */
+export const PositionCards = memo(function PositionCards({ earnPair }: { earnPair?: EarnPair | undefined }) {
   const { accounts } = useTrade();
   const acc = useStore(accounts?.store ?? NO_ACC, selAcc);
   const m = useMeridian(selM);
@@ -105,6 +81,8 @@ export const PositionCards = memo(function PositionCards() {
   const [closing, setClosing] = useState<{ v: PositionView; error?: string; busy?: boolean } | undefined>();
   const views = positionViews(acc, m, p);
   if (views.length === 0) return null;
+  const group = groupOf(views, earnPair);
+  const pairStep = views.find((v) => v.venue === "perpl")?.stepWad ?? 1n;
 
   const plan = closing
     ? planClose({ venue: closing.v.venue, sizeWad: closing.v.sizeWad, bestBidWad: closing.v.venue === "perpl" ? p?.bestBidWad : m?.bestBidWad, bestAskWad: closing.v.venue === "perpl" ? p?.bestAskWad : m?.bestAskWad, priceStepWad: closing.v.venue === "perpl" ? 10n ** BigInt(18 - (p?.priceDecimals ?? 18)) : (m?.tickSizeWad ?? 1n) })
@@ -134,9 +112,25 @@ export const PositionCards = memo(function PositionCards() {
 
   return (
     <Card style={s.card}>
-      <Text variant="caption" tone="muted" style={s.title}>
-        Your positions
-      </Text>
+      <View style={[s.row, s.title]}>
+        <Text variant="caption" tone="muted">
+          Your positions
+        </Text>
+        {views.length > 1 ? <Button title="Close all" variant="link" onPress={() => router.push("/close-all")} accessibilityHint="One confirm closes every position; a hedged pair closes Meridian first, then Perpl" testID="btn-close-all" /> : null}
+      </View>
+      {group === "earn" ? (
+        <Text variant="caption" style={s.title} testID="position-earn">
+          Earn · basis · {sizeText(earnPair!.sizeWad, pairStep)} MON each side · the two legs hedge each other’s price; the funding gap is the return
+        </Text>
+      ) : group === "earn-stale" ? (
+        <Text variant="caption" tone="warn" style={s.title} testID="position-earn-stale">
+          Earn · your Earn position is {sizeText(earnPair!.sizeWad, pairStep)} MON each side, but the venues no longer hold all of it. Close it on Earn.
+        </Text>
+      ) : group === "basis" ? (
+        <Text variant="caption" style={s.title} testID="position-basis">
+          Basis trade · the two legs hedge each other’s price; the funding gap is the return
+        </Text>
+      ) : null}
       {views.map((v) => (
         <Card1
           key={v.venue}

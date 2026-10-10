@@ -1,7 +1,7 @@
 // Runtime validation of Perpl payloads: anything off-schema throws PerplSchemaError (never a silently wrong rate).
 // Ported from meridian-k3/mfi/src/perpl/validate.ts (perpl-hedge @ 116e26d; main @ 0ba1664 minus fees) + parseL2Book.
 import { PerplSchemaError } from "./errors";
-import type { BlockTimestamp, Context, FundingEvent, FundingSeries, L2Book, L2Level, Market, MarketState, MarketStateUpdate, PerplFees } from "./types";
+import type { BlockTimestamp, Context, FundingEvent, FundingSeries, L2Book, L2Level, Market, MarketState, MarketStateUpdate, PerplFees, PerplTrade, TradeSeries } from "./types";
 
 type Obj = Record<string, unknown>;
 
@@ -143,4 +143,21 @@ export function parseL2Book(v: unknown, path = "book"): L2Book {
     bid: arr(o, "bid", path).map((l, i) => level(l, `${path}.bid[${i}]`)),
     ask: arr(o, "ask", path).map((l, i) => level(l, `${path}.ask[${i}]`)),
   };
+}
+
+/** websocket.md "Trade Messages" (mt 17 snapshot / 18 update): `d[]` of { at, p, s, sd: 1 | 2 }. */
+export function parseTrades(v: unknown, path = "trades"): TradeSeries {
+  const o = obj(v, path);
+  const mt = int(o, "mt", path);
+  if (mt !== 17 && mt !== 18) throw new PerplSchemaError(`${path}.mt`, "expected 17 (snapshot) or 18 (update)");
+  const d = arr(o, "d", path).map((x, i): PerplTrade => {
+    const q = `${path}.d[${i}]`;
+    const t = obj(x, q);
+    const sd = int(t, "sd", q);
+    if (sd !== 1 && sd !== 2) throw new PerplSchemaError(`${q}.sd`, "expected 1 (buy) or 2 (sell)");
+    const at = t.at === undefined ? {} : blockTs(t.at, `${q}.at`);
+    const ao = t.at as Obj | undefined;
+    return { at: typeof ao?.txid === "string" ? { ...at, txid: ao.txid } : at, p: int(t, "p", q, { min: 0 }), s: int(t, "s", q, { min: 0 }), sd };
+  });
+  return { mt, ...(o.sid !== undefined ? { sid: int(o, "sid", path) } : {}), d };
 }

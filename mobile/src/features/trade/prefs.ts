@@ -40,3 +40,38 @@ export function useTradeView(kv: KV): [TradeView, (v: TradeView) => void] {
     },
   ];
 }
+
+// ── other remembered Pro choices (same rules: non-secret, unreadable ⇒ the default) ──
+
+export const CHART_MODE_KEY = "meridian.pref.chartMode";
+export const PRO_TAB_KEY = "meridian.pref.proTab";
+export type ChartMode = "line" | "candles";
+export type ProTab = "books" | "trades";
+
+export async function loadPref<T extends string>(kv: KV, key: string, allowed: readonly T[], fallback: T): Promise<T> {
+  try {
+    const v = await kv.get(key);
+    return v !== null && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** [value, set] for a remembered choice among `allowed`; `fallback` until it loads; set() persists. */
+export function usePref<T extends string>(kv: KV, key: string, allowed: readonly T[], fallback: T): [T, (v: T) => void] {
+  const [v, setV] = useState<T>(fallback);
+  useEffect(() => {
+    let live = true;
+    void loadPref(kv, key, allowed, fallback).then((x) => live && setV(x));
+    return () => {
+      live = false;
+    };
+  }, [kv, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return [
+    v,
+    (x) => {
+      setV(x);
+      void kv.set(key, x).catch(() => undefined);
+    },
+  ];
+}

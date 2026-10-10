@@ -19,7 +19,7 @@ import { PerplVenue } from "./venue";
 const PerplContext = createContext<PerplVenue | undefined>(undefined);
 
 /** Perpl's exchange + ERC-20 errors, for plain-English reverts in sendTx */
-const PERPL_TX_ABI = [...perplExchangeAbi, ...erc20Abi] as unknown as Abi;
+export const PERPL_TX_ABI = [...perplExchangeAbi, ...erc20Abi] as unknown as Abi;
 
 export const perplTokenStore = new PerplTokenStore(secureKv);
 

@@ -7,7 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const out = mkdtempSync(join(tmpdir(), "meridian-release-"));
-const FORBIDDEN = ["meridian-fake-webauthn-client", "devFakeWebAuthnClient", "createFakeWebAuthnClient"];
+// fake passkey client (N3) + the Earn dev flag that forces the Meridian leg to fail (N6)
+const FORBIDDEN = ["meridian-fake-webauthn-client", "devFakeWebAuthnClient", "createFakeWebAuthnClient", "meridian-dev-force-meridian-fail"];
 try {
   execFileSync("npx", ["expo", "export", "--platform", "android", "--output-dir", out, "--no-bytecode"], {
     stdio: "inherit",

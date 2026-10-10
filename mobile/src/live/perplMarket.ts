@@ -8,6 +8,7 @@ import {
   createPerplClient,
   httpTransport,
   perplRateToAprWad,
+  lnsToWad,
   pnsToWad,
   type PerplClient,
   type SocketEvent,
@@ -25,6 +26,9 @@ export const PERPL_STALE_MS = 5_000;
 /** REST backfill: a bit more than the window so the realized average has its first point. */
 const BACKFILL_MS = 9.5 * 3600 * 1000;
 const NO_LEVELS: readonly BookLevel[] = [];
+
+/** One public trade, WAD (Pro → Trades): `side` = the taker's side. */
+export type TradeRow = { venue: "perpl" | "meridian"; side: "buy" | "sell"; priceWad: bigint; sizeWad: bigint; block: number | undefined; tMs: number | undefined; txHash: string | undefined };
 
 export type PerplMarketState = {
   marketId: number;
@@ -52,6 +56,8 @@ export type PerplMarketState = {
   /** that rate annualized, WAD */
   aprNowWad: bigint | undefined;
   realized: Realized | undefined;
+  /** recent public trades (trades@<id>), newest first */
+  trades: readonly TradeRow[];
   /** Perpl's head block from heartbeats */
   headBlock: number | undefined;
   lastFrameMs: number | undefined;
@@ -80,13 +86,14 @@ export class PerplMarket {
   private seeded = false;
   private restMark: bigint | undefined;
   private restAtMs: number | undefined;
+  private tradesAtMs: number | undefined;
 
   constructor(private readonly d: PerplMarketDeps) {
     const id = d.deployment.monMarketId;
     const meta = d.deployment.markets[id];
     if (!meta) throw new Error(`perpl.json: market ${id} missing`);
     this.meta = meta;
-    this.store = new Store<PerplMarketState>({ marketId: id, priceDecimals: meta.priceDecimals, connected: false, markWad: undefined, lastWad: undefined, bestBidWad: undefined, bestAskWad: undefined, bookKnown: false, bids: NO_LEVELS, asks: NO_LEVELS, sizeDecimals: meta.sizeDecimals, takerMicros: undefined, takerTiers: undefined, countdown: undefined, rateMicros: undefined, aprNowWad: undefined, realized: undefined, headBlock: undefined, lastFrameMs: undefined, stale: false, lastError: undefined });
+    this.store = new Store<PerplMarketState>({ marketId: id, priceDecimals: meta.priceDecimals, connected: false, markWad: undefined, lastWad: undefined, bestBidWad: undefined, bestAskWad: undefined, bookKnown: false, bids: NO_LEVELS, asks: NO_LEVELS, sizeDecimals: meta.sizeDecimals, takerMicros: undefined, takerTiers: undefined, trades: [], countdown: undefined, rateMicros: undefined, aprNowWad: undefined, realized: undefined, headBlock: undefined, lastFrameMs: undefined, stale: false, lastError: undefined });
     this.feed = new MarketDataFeed(id, 16);
     this.client = d.client ?? createPerplClient({ transport: httpTransport(d.deployment.apiUrl, d.fetch), ...(d.clock ? { clock: d.clock } : {}) });
     this.socket = new MarketDataSocket({
@@ -94,6 +101,7 @@ export class PerplMarket {
       chainId: d.deployment.chainId,
       feed: this.feed,
       factory: d.wsFactory,
+      trades: true,
       ...(d.clock ? { clock: d.clock } : {}),
       onFunding: () => this.sample(),
       onEvent: (e) => this.onSocketEvent(e),
@@ -154,7 +162,14 @@ export class PerplMarket {
     const newest = Math.max(f.lastFrameMs ?? -Infinity, this.restAtMs ?? -Infinity);
     const stale = Number.isFinite(newest) && now - newest > PERPL_STALE_MS;
     const prev = this.store.get();
+    // trades: re-mapped only when a trades frame arrived (keeps the array identity otherwise)
+    let trades = prev.trades;
+    if (f.lastTradesMs !== this.tradesAtMs) {
+      this.tradesAtMs = f.lastTradesMs;
+      trades = f.trades.map((t) => ({ venue: "perpl", side: t.sd === 1 ? "buy" : "sell", priceWad: pnsToWad(t.p, pd), sizeWad: lnsToWad(t.s, sd), block: t.at.b, tMs: t.at.t, txHash: t.at.txid }));
+    }
     this.store.update({
+      trades,
       markWad: wsMark ?? this.restMark,
       lastWad: wsLast ?? prev.lastWad,
       bestBidWad: bids?.[0]?.priceWad,

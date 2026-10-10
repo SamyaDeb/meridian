@@ -29,6 +29,10 @@ export type ExecutorDeps = {
   sleep: (ms: number) => Promise<void>;
   /** accounts / Perpl state to re-read after a fill */
   afterTrade: () => void;
+  /** another executor owns the venues (Close all, Earn: exec/orderLock.ts): why, in plain words */
+  blocked?: () => string | undefined;
+  /** every terminal receipt (Activity keeps them) */
+  onReceipt?: (r: Receipt) => void;
   now?: () => number;
 };
 
@@ -45,6 +49,8 @@ export class TradeExecutor {
   /** A ticket the user held to confirm. Resolves with the receipt (also published to receiptStore). */
   async start(order: Omit<TradeOrder, "id">, meta: Omit<TradeMeta, "createdAtMs" | "sentAtBlock">): Promise<Receipt | undefined> {
     if (this.running) throw new Error("Another order is still going through");
+    const why = this.d.blocked?.();
+    if (why) throw new Error(why);
     const now = (this.d.now ?? Date.now)();
     const head = this.d.head();
     const rec = newTradeRecord({ ...order, id: `t${now}` }, { ...meta, createdAtMs: now, ...(head !== undefined ? { sentAtBlock: head } : {}) });
@@ -60,6 +66,8 @@ export class TradeExecutor {
       await this.d.store.clear();
       return undefined;
     }
+    // another executor is running: the record stays for the next resume (one order at a time)
+    if (this.running || this.d.blocked?.()) return undefined;
     return this.run(rec, true);
   }
 
@@ -106,6 +114,7 @@ export class TradeExecutor {
       await this.d.store.clear();
       this.store.set({ phase: receipt.ok ? "done" : "failed", venue: out.meta.venue, error: receipt.error, receipt });
       receiptStore.set(receipt);
+      this.d.onReceipt?.(receipt);
       this.d.afterTrade();
       return receipt;
     } catch (e) {

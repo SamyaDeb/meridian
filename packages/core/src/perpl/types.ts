@@ -112,6 +112,16 @@ export type BatchStatus = { mt?: number; cid?: number; status: { code: number; e
 /** Block/timestamp; `t` in ms. */
 export type BlockTimestamp = { b?: number; t?: number };
 
+/** types.md "BlockTxLogTimestamp" (the fields this code reads; tx index / log index omitted). */
+export type BlockTxLogTimestamp = BlockTimestamp & { txid?: string };
+
+/** types.md "TradeSide" / websocket.md "Trade Messages": 1 = buy (taker bought), 2 = sell. */
+export type TradeSide = 1 | 2;
+
+/** One public trade (websocket.md mt 17 snapshot / mt 18 update `d[]`, types.md "Trade"): price and size scaled. */
+export type PerplTrade = { at: BlockTxLogTimestamp; p: number; s: number; sd: TradeSide };
+export type TradeSeries = { mt: 17 | 18; sid?: number; d: PerplTrade[] };
+
 /** types.md "FundingEvent". `rate` in micros (10^-6) of notional per funding interval; positive ⇒ longs pay (MFI.md §2). */
 export type FundingEvent = { at: BlockTimestamp; feb: number; rate: number; idx: number; ppl: number; sum: number; div: number };
 
