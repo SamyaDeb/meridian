@@ -3,6 +3,9 @@
 // each executor registers how to tell it's running and how to resume, and asks the lock before it starts. Earn sits
 // below TradeProvider, so it registers through the kit (no new context, no import from trade into earn's provider).
 // Resume after an unlock or relaunch runs in a fixed order, one at a time, awaited: single trade, Close all, Earn.
+// N8: the remote kill switch sits next to `blocked()`: `opensBlocked(kind)` is the one question every OPEN asks (Trade
+// ticket non-reduce-only, Earn open, Lock-on, Perpl setup). Closes, Close all, the leftover close and resume never ask it.
+import type { OpenKind } from "../../flags/model";
 
 export type OrderKind = "single" | "closeAll" | "earn";
 export const ORDER_KINDS: readonly OrderKind[] = ["single", "closeAll", "earn"];
@@ -19,6 +22,17 @@ export type OrderParty = { busy: () => boolean; resume?: () => Promise<unknown> 
 export class OrderLock {
   private parties: Partial<Record<OrderKind, OrderParty>> = {};
   private queue: Promise<void> = Promise.resolve();
+  private opensGate: ((kind: OpenKind) => string | undefined) | undefined;
+
+  /** The flags policy (features/flags): set by TradeProvider from FlagsProvider. Unset ⇒ opens allowed. */
+  setOpensGate(gate: ((kind: OpenKind) => string | undefined) | undefined): void {
+    this.opensGate = gate;
+  }
+
+  /** Why an open of `kind` is refused right now (kill switch / forced update), or undefined. Never asked by a close. */
+  opensBlocked(kind: OpenKind): string | undefined {
+    return this.opensGate?.(kind);
+  }
 
   /** Register (or replace) an executor; the returned function unregisters it if it's still the one registered. */
   register(kind: OrderKind, party: OrderParty): () => void {

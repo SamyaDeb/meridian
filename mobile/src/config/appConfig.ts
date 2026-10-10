@@ -38,6 +38,8 @@ export type AppConfig = {
   indexerUrl: string | undefined;
   /** the web terminal ("Open full terminal"); undefined when this env's web app isn't known */
   webUrl: string | undefined;
+  /** where a forced update sends people (the APK install link); undefined ⇒ "Ask the Meridian team for the new version" */
+  installUrl: string | undefined;
 };
 
 const IDENTITY: Record<AppEnv, { chainId: 143 | 10143; rpId: string; androidPackage: string }> = {
@@ -52,6 +54,13 @@ const IDENTITY: Record<AppEnv, { chainId: 143 | 10143; rpId: string; androidPack
  * here on mainnet day (N9); until then the button is hidden on production builds.
  */
 const WEB: Record<AppEnv, string | undefined> = { development: "https://meridian-testnet.vercel.app", staging: "https://meridian-testnet.vercel.app", production: undefined };
+
+/**
+ * APK install link per env (the forced-update screen's button). > VERIFY: the EAS internal-distribution links are made at
+ * N8 (owner, `eas build -p android --profile preview|production`); set them here then. Until then the screen asks people
+ * to contact the team.
+ */
+const INSTALL: Record<AppEnv, string | undefined> = { development: undefined, staging: undefined, production: undefined };
 
 const CHAINS: Record<143 | 10143, Chain> = { 143: monad, 10143: monadTestnet };
 
@@ -117,5 +126,6 @@ export function buildAppConfig(i: AppConfigInput): AppConfig {
     notLiveReason: reasons.length ? reasons.join(" · ") : undefined,
     indexerUrl,
     webUrl: WEB[env],
+    installUrl: INSTALL[env],
   };
 }

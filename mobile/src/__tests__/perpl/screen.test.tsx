@@ -6,6 +6,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import type { Address } from "viem";
 import { AuthProvider } from "../../auth/AuthProvider";
 import type { AuthController } from "../../auth/controller";
+import { FlagsProvider } from "../../features/flags/FlagsProvider";
+import type { FlagsClient } from "../../features/flags/client";
 import { LiveProvider } from "../../live/LiveProvider";
 import { ToastProvider } from "../../ui";
 import { PerplProvider } from "../../venues/perpl/PerplProvider";
@@ -14,6 +16,7 @@ import { TradingSocketManager } from "../../venues/perpl/tradingSocket";
 import { PerplVenue } from "../../venues/perpl/venue";
 import { makeAuth, memoryKv } from "../auth/authFixtures";
 import { fakeLive } from "../fakeLive";
+import { fakeFlags } from "../flags/flagsFixtures";
 import { deployment, FakeChain, FakePerpl } from "./perplFixtures";
 
 jest.mock("expo-router", () => ({ router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), canGoBack: () => true }, Redirect: () => null }));
@@ -55,17 +58,18 @@ async function setup(profileKnown: boolean) {
   return { auth, venue, chain, perpl };
 }
 
-function wrap(auth: AuthController, venue: PerplVenue, children: ReactNode) {
+function wrap(auth: AuthController, venue: PerplVenue, children: ReactNode, flags?: FlagsClient) {
   const { live } = fakeLive();
+  const app = (
+    <AuthProvider controller={auth}>
+      <PerplProvider venue={venue}>
+        <ToastProvider>{children}</ToastProvider>
+      </PerplProvider>
+    </AuthProvider>
+  );
   return (
     <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-      <LiveProvider live={live}>
-        <AuthProvider controller={auth}>
-          <PerplProvider venue={venue}>
-            <ToastProvider>{children}</ToastProvider>
-          </PerplProvider>
-        </AuthProvider>
-      </LiveProvider>
+      <LiveProvider live={live}>{flags ? <FlagsProvider client={flags}>{app}</FlagsProvider> : app}</LiveProvider>
     </SafeAreaProvider>
   );
 }
@@ -136,6 +140,20 @@ it("a deposit below the minimum shows the plain error and sends nothing", async 
   expect(h.chain.txs).toHaveLength(0);
   expect(screen.getByTestId("deposit-input").props.value).toBe("50"); // the error keeps what was typed
   expect(screen.getByTestId("deposit-allow")).toHaveTextContent("Allow Perpl to use exactly 50 AUSD");
+});
+
+it("kill switch: Perpl setup is refused with the reason while perpl (or writes) is off; back on ⇒ the checks return", async () => {
+  const h = await setup(true);
+  await act(async () => void (await h.venue.refresh()));
+  const f = fakeFlags({ flags: { perpl: false } });
+  await render(wrap(h.auth, h.venue, <PerplOnboardingScreen />, f.client));
+  await act(async () => void (await new Promise((r) => setTimeout(r, 10))));
+  expect(screen.getByTestId("perpl-flags")).toHaveTextContent("Perpl is paused for now. You can still close positions.");
+  expect(screen.queryByTestId("btn-enroll")).toBeNull();
+  f.set({});
+  await act(async () => f.client.refresh());
+  expect(screen.queryByTestId("perpl-flags")).toBeNull();
+  expect(screen.getByTestId("btn-enroll")).toBeTruthy();
 });
 
 it("memoryKv is the only store touched (no SecureStore in this test)", () => {

@@ -10,6 +10,8 @@ import { AuthProvider, useAuthStatus } from "../auth/AuthProvider";
 import { ActivityProvider } from "../features/activity/ActivityProvider";
 import { AlertsProvider } from "../features/alerts/AlertsProvider";
 import { EarnProvider } from "../features/earn/EarnProvider";
+import { FlagsProvider } from "../features/flags/FlagsProvider";
+import { UpdateGate } from "../features/flags/UpdateGate";
 import { TradeProvider } from "../features/trade/TradeProvider";
 import { WalletFeedProvider } from "../features/wallet/WalletFeedProvider";
 import { LiveProvider } from "../live/LiveProvider";
@@ -49,29 +51,34 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider value={theme}>
           <LiveProvider>
-            <AuthProvider>
-              <PerplProvider>
-                <ToastProvider>
-                  <WalletFeedProvider>
-                    {/* sheets render through a portal at BottomSheetModalProvider: every context a sheet's content uses
-                        (toast, wallet feed, activity, trade, earn) must sit ABOVE it */}
-                    <ActivityProvider>
-                      <TradeProvider>
-                        <EarnProvider>
-                          <AlertsProvider>
-                            <BottomSheetModalProvider>
-                              <StatusBar style="light" />
-                              <RootStack />
-                            </BottomSheetModalProvider>
-                          </AlertsProvider>
-                        </EarnProvider>
-                      </TradeProvider>
-                    </ActivityProvider>
-                  </WalletFeedProvider>
-                  <OfflineBanner />
-                </ToastProvider>
-              </PerplProvider>
-            </AuthProvider>
+            {/* remote flags (kill switches, forced update): read before unlock, so an old build shows the update screen */}
+            <FlagsProvider>
+              <AuthProvider>
+                <PerplProvider>
+                  <ToastProvider>
+                    <WalletFeedProvider>
+                      {/* sheets render through a portal at BottomSheetModalProvider: every context a sheet's content uses
+                          (toast, wallet feed, activity, trade, earn) must sit ABOVE it */}
+                      <ActivityProvider>
+                        <TradeProvider>
+                          <EarnProvider>
+                            <AlertsProvider>
+                              <BottomSheetModalProvider>
+                                <StatusBar style="light" />
+                                <UpdateGate>
+                                  <RootStack />
+                                </UpdateGate>
+                              </BottomSheetModalProvider>
+                            </AlertsProvider>
+                          </EarnProvider>
+                        </TradeProvider>
+                      </ActivityProvider>
+                    </WalletFeedProvider>
+                    <OfflineBanner />
+                  </ToastProvider>
+                </PerplProvider>
+              </AuthProvider>
+            </FlagsProvider>
           </LiveProvider>
         </ThemeProvider>
       </SafeAreaProvider>

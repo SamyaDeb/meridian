@@ -15,7 +15,12 @@ import { createRef, type ReactNode } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "../../auth/AuthProvider";
 import type { AuthController } from "../../auth/controller";
+import { FlagsProvider } from "../../features/flags/FlagsProvider";
+import type { FlagsClient } from "../../features/flags/client";
+import { opensBlocked } from "../../features/flags/model";
 import { AccountsReader } from "../../features/trade/data/accounts";
+import { OrderLock } from "../../features/trade/exec/orderLock";
+import { useStartOrder, type StartOrder } from "../../features/trade/useStartOrder";
 import { TradeExecutor } from "../../features/trade/exec/executor";
 import { receiptStore } from "../../features/trade/exec/receipt";
 import { recordStore } from "../../features/trade/exec/record";
@@ -29,6 +34,7 @@ import { ToastProvider } from "../../ui";
 import { WalletFeedStore } from "../../wallet/feed";
 import { makeAuth } from "../auth/authFixtures";
 import { fakeLive } from "../fakeLive";
+import { fakeFlags } from "../flags/flagsFixtures";
 
 const WAD = 10n ** 18n;
 const mockRouter = (jest.requireMock("expo-router") as { router: Record<"push", jest.Mock> }).router;
@@ -88,18 +94,19 @@ async function setup(o: { fail?: string } = {}) {
   return { auth, live: f.live, kit, feed, sent, map };
 }
 
-function wrap(s: Awaited<ReturnType<typeof setup>>, children: ReactNode) {
+function wrap(s: Awaited<ReturnType<typeof setup>>, children: ReactNode, flags?: FlagsClient) {
+  const app = (
+    <AuthProvider controller={s.auth as AuthController}>
+      <ToastProvider>
+        <WalletFeedProvider feed={s.feed} read={false}>
+          <TradeProvider kit={s.kit}>{children}</TradeProvider>
+        </WalletFeedProvider>
+      </ToastProvider>
+    </AuthProvider>
+  );
   return (
     <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-      <LiveProvider live={s.live}>
-        <AuthProvider controller={s.auth as AuthController}>
-          <ToastProvider>
-            <WalletFeedProvider feed={s.feed} read={false}>
-              <TradeProvider kit={s.kit}>{children}</TradeProvider>
-            </WalletFeedProvider>
-          </ToastProvider>
-        </AuthProvider>
-      </LiveProvider>
+      <LiveProvider live={s.live}>{flags ? <FlagsProvider client={flags}>{app}</FlagsProvider> : app}</LiveProvider>
     </SafeAreaProvider>
   );
 }
@@ -151,6 +158,84 @@ it("a failed fill: error haptic + the specific reason, the amount stays", async 
   expect(await screen.findByTestId("ticket-error")).toHaveTextContent(/price moved past your worst price/);
   expect(screen.getByTestId("ticket-amount")).toHaveTextContent("5");
   expect(mockRouter.push).not.toHaveBeenCalledWith("/receipt");
+});
+
+describe("remote kill switch (N8 flags)", () => {
+  it("writes off: the ticket says why, confirm stays off, nothing is sent; back on ⇒ it opens", async () => {
+    const s = await setup();
+    const f = fakeFlags({ flags: { writes: false, message: "Upgrading the keeper. You can still close positions." } });
+    const ref = createRef<TicketRef>();
+    await render(wrap(s, <TicketSheet ref={ref} />, f.client));
+    await wait(10);
+    await act(async () => ref.current!.open("short"));
+    await type(["5"]);
+    await wait(200);
+    expect(screen.getByTestId("ticket-summary")).toBeTruthy(); // the quote still shows
+    expect(screen.getByTestId("ticket-flags")).toHaveTextContent("Upgrading the keeper. You can still close positions.");
+    expect(screen.getByTestId("ticket-confirm-tap")).toBeDisabled();
+    await fireEvent.press(screen.getByTestId("ticket-confirm-tap"));
+    await wait(20);
+    expect(s.sent).toEqual([]);
+    f.set({});
+    await act(async () => f.client.refresh());
+    expect(screen.queryByTestId("ticket-flags")).toBeNull();
+    await fireEvent.press(screen.getByTestId("ticket-confirm-tap"));
+    await wait(20);
+    expect(s.sent).toHaveLength(1);
+  });
+
+  it("perpl off blocks Perpl opens only: the Meridian ticket still opens", async () => {
+    const s = await setup();
+    const f = fakeFlags({ flags: { perpl: false } });
+    const ref = createRef<TicketRef>();
+    await render(wrap(s, <TicketSheet ref={ref} />, f.client));
+    await wait(10);
+    await act(async () => ref.current!.open("short"));
+    await type(["5"]);
+    await wait(200);
+    expect(screen.queryByTestId("ticket-flags")).toBeNull();
+    expect(screen.getByTestId("ticket-confirm-tap")).not.toBeDisabled();
+  });
+
+  it("production with unknown flags: opens allowed, the small status line shows", async () => {
+    const s = await setup();
+    const f = fakeFlags({ env: "production", webUrl: undefined });
+    const ref = createRef<TicketRef>();
+    await render(wrap(s, <TicketSheet ref={ref} />, f.client));
+    await wait(10);
+    await act(async () => ref.current!.open("short"));
+    await type(["5"]);
+    await wait(200);
+    expect(screen.getByTestId("ticket-flags-status")).toHaveTextContent("Can't check service status");
+    expect(screen.getByTestId("ticket-confirm-tap")).not.toBeDisabled();
+  });
+
+  it("useStartOrder (every order's path): an open is refused, a reduce-only close always goes through", async () => {
+    const s = await setup();
+    const f = fakeFlags({ flags: { writes: false } });
+    await f.client.refresh();
+    const lock = new OrderLock();
+    lock.setOpensGate((k) => opensBlocked(k, f.client.store.get())); // what TradeProvider does
+    s.kit.orderLock = lock;
+    let start!: (o: StartOrder) => Promise<unknown>;
+    function Grab() {
+      start = useStartOrder();
+      return null;
+    }
+    await render(wrap(s, <Grab />, f.client));
+    const order: StartOrder = { venue: "meridian", side: "buy", sizeWad: 100n * WAD, reduceOnly: false, limitPriceWad: 25589n * tick, summary: "x", leverage100: 100 };
+    await expect(start(order)).rejects.toThrow("Trading is paused for maintenance. You can still close positions.");
+    expect(s.sent).toEqual([]);
+    // a close (single close, Close all's singles, the Earn leftover close all pass reduceOnly: true)
+    await act(async () => void (await start({ ...order, reduceOnly: true })));
+    expect(s.sent).toHaveLength(1);
+    // a forced update refuses opens the same way and still lets closes through
+    f.set({ minAppVersion: "9.0.0" });
+    await f.client.refresh();
+    await expect(start(order)).rejects.toThrow(/Update Meridian/);
+    await act(async () => void (await start({ ...order, reduceOnly: true })));
+    expect(s.sent).toHaveLength(2);
+  });
 });
 
 it("nothing entered ⇒ 'Enter an amount' and confirm disabled; an empty book never shows fake levels", async () => {

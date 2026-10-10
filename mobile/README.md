@@ -186,3 +186,36 @@ of 2 × the binding venue) → "≈ $Y / day"; legs in plain words; "No edge rig
   timeline without the live one-tap close. The executor logs it when the run reaches a terminal phase, before the run
   record is cleared (a resume after a kill logs it again under the same id: still one row). The row opens
   `earn-receipt` with that timeline; the feed refreshes after an Earn run, as after a trade.
+
+## Flags, kill switch and forced update (N8)
+`features/flags/` reads `${webUrl}/api/flags` (the web route `app/src/app/api/flags/route.ts`, env-backed `FLAGS_*`;
+`webUrl` is the `WEB` map in `src/config/appConfig.ts`) on start, on every foreground and every 60 s while the app is
+active (never in the background). The last good value sits in the app's KV (`meridian.flags.v1.<env>`, non-secret) with
+its read time. Shape: `{ v: 1, writes, perpl, earn, lock, minAppVersion, message? }`.
+
+**Fail-safe policy** (`model.ts resolveFlags`; > VERIFY with the owner):
+| flags read now | last good value | result |
+|---|---|---|
+| yes | — | use them |
+| no (offline, error, bad body, or no web URL for this env — production until N9) | < 24 h old | use the stored value |
+| no | none / ≥ 24 h old | allow everything; **production** also shows a small "Can't check service status" line next to the open buttons |
+
+Meridian is a demo on its own contracts, not a custodian: the contracts are the real guard, and an unreachable flags
+endpoint must not stop trading.
+
+**What each flag stops** (`opensBlocked(kind)`, asked through `OrderLock.opensBlocked` / `useOpenBlocked`, the only gate):
+- `writes: false` — every open: the Trade ticket, Earn open, Lock-on, Perpl setup. The line is the flag's `message`, or
+  "Trading is paused for maintenance. You can still close positions."
+- `perpl: false` — Perpl opens, Perpl setup, and Earn (it opens a Perpl leg). Meridian trades still open.
+- `earn: false` — Earn open (the button is replaced by the message). `lock: false` — the Lock toggle is off with the reason;
+  Earn still opens at the floating rate.
+- **Never gated:** reduce-only orders (a position's Close, Close all and its singles, the Earn leftover close), the Earn
+  pair's Close, Close all, and resume after a kill (`useStartOrder` asks the gate only when `reduceOnly` is false).
+
+**Forced update:** if `expo-constants` `expoConfig.version` (app.config.ts `version`) is below `minAppVersion` (plain
+x.y.z compare; an unreadable version never locks anyone out), `UpdateGate` covers the app with "Update Meridian". Its
+button opens `installUrl` from config (> VERIFY: set at N8 to the EAS APK link; until then it says "Ask the Meridian team
+for the new version"). "Close my positions" always stays: it opens the app in close-only mode (Unlock → Home positions +
+Close all) with a "closing only" banner; every open refuses with "Update Meridian to open new trades…". The app stays
+mounted under the screen, so persisted runs and resume are untouched. Turning flags off needs no rebuild: set the env on
+Vercel and redeploy (edge cache 30 s, app poll 60 s).

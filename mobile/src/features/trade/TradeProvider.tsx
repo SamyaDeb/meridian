@@ -16,6 +16,8 @@ import { useLive } from "../../live/LiveProvider";
 import { Store } from "../../live/store";
 import { usePerpl as usePerplVenue } from "../../venues/perpl/PerplProvider";
 import { useActivity } from "../activity/ActivityProvider";
+import { useFlagsStore } from "../flags/FlagsProvider";
+import { opensBlocked } from "../flags/model";
 import { rnFetch, sleep } from "../../venues/perpl/runtime";
 import { walletClientFor } from "../../wallet/client";
 import { ChartFeed } from "./chart/feed";
@@ -46,6 +48,9 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
   const [focus] = useState(() => new Store(0));
   // one order at a time across the Trade executor, Close all and Earn (EarnProvider registers through the kit)
   const [orderLock] = useState(() => new OrderLock());
+  // the remote kill switch / forced update (FlagsProvider), asked by every open and never by a close
+  const flags = useFlagsStore();
+  orderLock.setOpensGate((kind) => opensBlocked(kind, flags.get()));
 
   const chart = useMemo(() => {
     if (injected) return injected.chart;

@@ -22,6 +22,11 @@ export function getAppConfig(): AppConfig {
   return cached;
 }
 
+/** This build's version (app.config.ts `version`, via expo-constants); undefined when Constants has no config. */
+export function appVersion(): string | undefined {
+  return Constants.expoConfig?.version;
+}
+
 /** Build profile + version for Settings. */
 export function buildInfo(): { version: string; env: string } {
   return { version: Constants.expoConfig?.version ?? "—", env: getAppConfig().env };
