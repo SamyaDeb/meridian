@@ -52,7 +52,7 @@ describe("schema validation", () => {
   it("parses the documented shapes and ignores unknown keys", () => {
     const c = parseContext(fx("context"));
     expect(c.markets.map((m) => m.symbol)).toEqual(["BTC", "MON"]);
-    expect(c.markets[1]?.config).toEqual({ is_open: true, price_decimals: 7, size_decimals: 2 });
+    expect(c.markets[1]?.config).toEqual({ is_open: true, price_decimals: 7, size_decimals: 2, fees: { makerMicros: 50, takerMicros: 88 } });
     expect(parseMarketStateUpdate(fx("ticker-9")).d["9"]?.oi).toBe(4_000_000_000);
     expect(parseFundingSeries(fx("funding-9")).d).toHaveLength(4);
   });

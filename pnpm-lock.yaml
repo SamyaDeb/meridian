@@ -239,6 +239,12 @@ importers:
       '@meridian/bot-rpc':
         specifier: workspace:*
         version: link:../keepers/rpc
+      '@meridian/mfi':
+        specifier: workspace:*
+        version: link:../mfi
+      '@noble/ed25519':
+        specifier: ^3.2.0
+        version: 3.2.0
       viem:
         specifier: ^2.57.0
         version: 2.57.0(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(zod@4.6.5)

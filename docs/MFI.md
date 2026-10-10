@@ -29,6 +29,8 @@ Perpl facts used here, from those docs:
 - `MarketState { at, orl, mrk, lst, mid, bid, ask, prv, dv, dva, oi, tvl }`; prices/sizes are scaled integers (`price_decimals`, `size_decimals` from the market config).
 - Ticker returns `503` while state is not available yet; REST limits are unpublished: treat `429` as the signal and back off exponentially.
 
+**Live source (K3, 7 Oct 2026):** Perpl is read from the public market-data WebSocket (`/ws/v1/market-data`, streams `heartbeat@`, `market-config@`, `market-state@`, `funding@<chain_id>`, one `mt: 5` frame; `mfi/src/perpl/ws.ts`). A funding event (`mt: 10`, new `feb` or its final republish) triggers an MFI cycle at once, so the index moves within one message of Perpl publishing a rate. REST stays for `/v1/pub/context`, the funding backfill on start and the fallback when the feed is silent > `PERPL_WS_MAX_SILENCE_MS` (10 s): the §5 staleness rules apply to both sources. Reconnects use Perpl's documented schedule (1→60 s, ±25% jitter; 1001 immediately; 1013 after a 30 s pause); no application pings (websocket.md "Keep-Alive": market data needs none, and they spend the 10 requests/min budget); a heartbeat sequence gap or 15 s of silence reconnects. Frames are routed by `mt`: on testnet the `mt: 6` reply's `sid` for `funding@` was market-state's (3000) while funding arrived on 4000.
+
 **Resolved from real recordings (5 Oct 2026, `mfi/fixtures/recorded/{testnet,mainnet}/`, replay test `mfi/test/recorded.test.ts`):**
 - (a) ✅ `FundingEvent.rate` is micros (10⁻⁶) of notional **per funding interval**: on all 66 recorded events (33 testnet, 33 mainnet) `ppl = trunc(rate · idx / 10^(6 − funding_sum_scaling_exp))` and the cumulative `sum` moves by exactly `ppl`. `units.ts` already assumed this; no change. Recorded rates stay within ±40 micros per interval (≈ ±48.9% APR at 2580 s).
 - (b) ⚠ Consistent with "positive ⇒ longs pay": on mainnet the mark (32316) was below the oracle (32405) while recent rates were ≤ 0. One snapshot, so supportive, not proof. > VERIFY against Perpl's docs or a recorded long/short settlement.
@@ -133,6 +135,17 @@ All amounts are **decimal strings** of integers (WAD or token units), never floa
   "meridianAprWad": "109499999992992000", "perplAprWad": "105120000000000000", "venuesIncluded": ["meridian","perpl"], "stale": false } ] }
 ```
 One point per cycle (60 s), oldest first; `perplAprWad: null` when Perpl wasn't included. Bounded by `limit` (default 500).
+
+### `GET /v1/mfi/spread?from=<ms>&to=<ms>&limit=<n≤1000>` (K3)
+```json
+{ "version": "mfi-v0",
+  "current": { "spread": { "aprWad": "2297052696894051349", "meridianAprWad": "2663750371312656000", "perplAprWad": "366697674418604651" },
+               "fees": { "meridian": { "takerWad": "500000000000000", "makerWad": "-100000000000000" },
+                         "perpl": { "takerWad": "345000000000000", "makerWad": "45000000000000", "takerMicros": 345, "makerMicros": 45 } },
+               "stale": false, "updatedAt": 1791387319083, "updatedBlock": "69007268" },
+  "points": [ { "updatedBlock": "69007125", "updatedAt": 1791387276076, "spreadAprWad": "2297052696894051349", "meridianAprWad": "…", "perplAprWad": "…" } ] }
+```
+(Real values, testnet, 7 Oct 2026.) `spread.aprWad = APR_meridian − APR_perpl`: a difference of two neutral-rounded annualized WAD rates, so exact. `spread` is `null` unless **both** venues are included in the cycle (never computed against a stale or missing rate). Fees are fractions of notional in WAD: Perpl's `MarketConfig.maker_fee`/`taker_fee` (micros, README "Fees & fee tiers": base tier) × 1e12, Meridian's `RiskParams.takerFee`/`makerFee`. `points` are derived from the stored history (cycles with both venues), so history recorded before this route existed serves too. `/v1/mfi` also carries `spread` and `fees`, and each Perpl venue entry says its `source`: `ws` or `rest`.
 
 ### `GET /healthz`
 `{ "ok": true, "lastCycleMs": …, "venues": { "meridian": "ok", "perpl": "unavailable" } }`
