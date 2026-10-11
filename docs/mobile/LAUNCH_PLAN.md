@@ -152,7 +152,7 @@ tag vX.Y.Z ─► Vercel promote to production · Railway production deploy · E
 
 | Phase | What | When | Notes |
 |---|---|---|---|
-| W1 | **Mera on the web** next to Privy (same rpId as production native → same passkey + same address on web and phone) | Fri 9 | Reuses `packages/core` key derivation; the earlier web M1 design (custom wagmi connector, mutual exclusion with Privy, passkey wallets unsponsored). Strong demo moment: "log in on your laptop with your phone's passkey" |
+| W1 | **Mera on the web** next to Privy (same rpId as production native → same passkey + same address on web and phone) | Fri 9 → **done 11 Oct** (`w1-web-mera`) | Reuses `packages/core` key derivation; the earlier web M1 design (custom wagmi connector, mutual exclusion with Privy, passkey wallets unsponsored). Strong demo moment: "log in on your laptop with your phone's passkey". Built: `app/src/lib/mera/*` + `PasskeyControls`; env `NEXT_PUBLIC_MERA_RP_ID` (= the host). Proven in Chromium's virtual authenticator (PRF): create / reload + unlock / phrase / lock, 4 txs signed on anvil, and inside a Privy build. **Open:** real-device run (iPhone Safari 18.4+, Android Chrome, Mac Chrome + Google Password Manager) and the phone ⇄ web same-address check on staging |
 | W2 | **Earn-spread + dual-book quote on the web** (reuses `packages/core` routing/basis/exec) | Sat 10 | Optional; cut if behind. Keeps web ↔ mobile parity for judges on laptops |
 | W3 | Web production hardening | Sat 10 | `/api/flags`, `/.well-known/*`, CSP, geo-block, health aggregation, staging/prod env split |
 
