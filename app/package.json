@@ -14,6 +14,8 @@
     "contrast": "vitest run src/lib/contrast.test.ts"
   },
   "dependencies": {
+    "@category-labs/mera": "0.2.0",
+    "@meridian/core": "workspace:*",
     "@meridian/risk": "workspace:*",
     "@privy-io/react-auth": "3.47.0",
     "@privy-io/wagmi": "4.0.18",
