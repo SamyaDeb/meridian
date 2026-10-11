@@ -41,6 +41,8 @@ export const walletKindOf = (walletClientType: string | undefined): WalletKind |
 export function describeSignError(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
   if (/reject|denied|cancel/i.test(m)) return "Signature cancelled";
+  // a wallet that pays its own gas (external, passkey) with no MON: viem's InsufficientFundsError text
+  if (/insufficient funds/i.test(m)) return "Not enough MON for gas: add MON to this wallet and retry";
   if ((e as { code?: string })?.code === "wrong-chain") return "Wrong network: switch to Monad and retry";
   if ((e as { code?: string })?.code === "deadline-expired") return "Permit expired: try again";
   return m.split("\n")[0] ?? m;

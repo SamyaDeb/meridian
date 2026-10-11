@@ -7,19 +7,40 @@ import { ConnectButton } from "@/components/Wallet";
 import { readChain } from "@/lib/wagmi";
 import { shortAddress } from "@/lib/format";
 import { privyEnabled } from "@/lib/privy";
+import { meraEnabled } from "@/lib/mera/config";
+import { PASSKEY_CONNECTOR_TYPE } from "@/lib/mera/connector";
 
 const PrivyAccountActions = privyEnabled ? dynamic(() => import("@/components/PrivyControls").then((m) => m.PrivyAccountActions)) : null;
+const passkey = meraEnabled
+  ? {
+      Actions: dynamic(() => import("@/components/PasskeyControls").then((m) => m.PasskeyAccountActions)),
+      Lifecycle: dynamic(() => import("@/components/PasskeyControls").then((m) => m.PasskeyLifecycle)),
+      PhraseDialog: dynamic(() => import("@/components/PasskeyControls").then((m) => m.RecoveryPhraseDialog)),
+    }
+  : null;
 
 export const item = "flex min-h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-card-2 pointer-coarse:min-h-11";
 
-/** Address pill → copy, explorer (viem's chain record; none ⇒ no link), then export wallet (embedded, Privy) + log out, or
- *  disconnect without Privy. Not connected ⇒ connect / log in button. */
+/** Address pill → copy, explorer (viem's chain record; none ⇒ no link), then export wallet (embedded, Privy) + log out,
+ *  the passkey wallet's phrase / lock / forget (W1), or disconnect without Privy. Not connected ⇒ connect / log in. */
 export function AccountMenu() {
-  const { isConnected, address } = useAccount();
+  const [phrase, setPhrase] = useState<string>();
+  return (
+    <>
+      {passkey && <passkey.Lifecycle />}
+      <AccountPill onPhrase={setPhrase} />
+      {passkey && <passkey.PhraseDialog phrase={phrase} onClose={() => setPhrase(undefined)} />}
+    </>
+  );
+}
+
+function AccountPill({ onPhrase }: { onPhrase: (phrase: string) => void }) {
+  const { isConnected, address, connector } = useAccount();
   const { disconnect } = useDisconnect();
   const [copied, setCopied] = useState(false);
   if (!isConnected || !address) return <ConnectButton />;
   const explorer = readChain().chain.blockExplorers?.default.url;
+  const isPasskey = connector?.type === PASSKEY_CONNECTOR_TYPE;
   return (
     <Popover
       label="Account"
@@ -34,6 +55,7 @@ export function AccountMenu() {
       {(close) => (
         <div className="space-y-1">
           <p className="num break-all px-3 py-2 text-[11px] text-muted">{address}</p>
+          {isPasskey && <p className="px-3 pb-1 text-[11px] text-muted">Passkey wallet · pays its own gas in MON</p>}
           <button
             type="button"
             className={item}
@@ -52,7 +74,9 @@ export function AccountMenu() {
               View on explorer ↗
             </a>
           )}
-          {PrivyAccountActions ? (
+          {isPasskey && passkey ? (
+            <passkey.Actions onDone={close} onPhrase={onPhrase} />
+          ) : PrivyAccountActions ? (
             <PrivyAccountActions onDone={close} />
           ) : (
             <button

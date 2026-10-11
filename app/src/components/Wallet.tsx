@@ -8,6 +8,7 @@ import { pushNotification } from "@/lib/notify";
 import dynamic from "next/dynamic";
 import { describeSignError } from "@/lib/login";
 import { privyEnabled } from "@/lib/privy";
+import { meraEnabled } from "@/lib/mera/config";
 import { isSponsored } from "@/lib/sponsor";
 import { withSponsoredSend } from "@/lib/tx";
 import { READ_CHAIN_ID } from "@/lib/wagmi";
@@ -17,11 +18,20 @@ export const cta = "inline-flex h-9 items-center whitespace-nowrap rounded-full 
 
 // Privy SDK only in builds with NEXT_PUBLIC_PRIVY_APP_ID (decision D6): a separate chunk, never fetched otherwise.
 const PrivyConnect = privyEnabled ? dynamic(() => import("./PrivyControls").then((m) => m.PrivyConnect)) : null;
+// Mera passkey wallet (W1) only in builds with NEXT_PUBLIC_MERA_RP_ID: its own chunk, like Privy.
+const PasskeyConnect = meraEnabled ? dynamic(() => import("./PasskeyControls").then((m) => m.PasskeyConnect)) : null;
 
 /** Connect: Privy's login modal (email, passkey, Google, external wallet) when NEXT_PUBLIC_PRIVY_APP_ID is set (K1.1),
- *  else the injected wallet or, on anvil, the dev account connector (decision D6). */
+ *  else the injected wallet or, on anvil, the dev account connector (decision D6); plus the Mera passkey wallet (W1). */
 export function ConnectButton() {
-  return PrivyConnect ? <PrivyConnect /> : <InjectedConnect />;
+  const main = PrivyConnect ? <PrivyConnect /> : <InjectedConnect />;
+  if (!PasskeyConnect) return main;
+  return (
+    <div className="flex items-center gap-2">
+      <PasskeyConnect />
+      {main}
+    </div>
+  );
 }
 
 type ConnectorLike = { uid: string; id: string; name: string; type: string };

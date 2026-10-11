@@ -7,6 +7,7 @@ import { useAccount, useDisconnect } from "wagmi";
 import { useExportWallet, useLogin, usePrivy, useSendTransaction, useWallets } from "@privy-io/react-auth";
 import { deriveLoginState, walletKindOf } from "@/lib/login";
 import { privyEnabled } from "@/lib/privy";
+import { PASSKEY_CONNECTOR_TYPE } from "@/lib/mera/connector";
 import { shortAddress } from "@/lib/format";
 import type { SponsoredSend } from "@/lib/tx";
 import { SessionContext, useSession } from "./Session";
@@ -16,12 +17,13 @@ import { item } from "./nav/AccountMenu";
 /** Provides the Session (wallet kind, sponsored sender, login) to everything below PrivyProvider + Privy's WagmiProvider. */
 export function PrivySponsorBridge({ children }: { children: ReactNode }) {
   const { wallets } = useWallets();
-  const { address } = useAccount();
+  const { address, connector } = useAccount();
+  const { authenticated, logout } = usePrivy();
   const { sendTransaction } = useSendTransaction();
   const [loginError, setLoginError] = useState<string>();
   const { login } = useLogin({ onError: (e) => setLoginError(String(e)), onComplete: () => setLoginError(undefined) });
   const active = address ? wallets.find((w) => w.address.toLowerCase() === address.toLowerCase()) : undefined;
-  const walletKind = walletKindOf(active?.walletClientType);
+  const walletKind = connector?.type === PASSKEY_CONNECTOR_TYPE ? "passkey" : walletKindOf(active?.walletClientType);
   // App-initiated writes the user already tapped through a labelled button with a preview: Privy's own confirm screen
   // would only repeat it, so wallet UIs are off for sponsored sends (uiOptions.showWalletUIs, SendTransactionModalUIOptions).
   const sponsoredSend = useCallback<SponsoredSend>(
@@ -35,8 +37,8 @@ export function PrivySponsorBridge({ children }: { children: ReactNode }) {
     [sendTransaction],
   );
   const value = useMemo(
-    () => ({ privy: true, walletKind, sponsoredSend, login: () => login(), loginError }),
-    [walletKind, sponsoredSend, login, loginError],
+    () => ({ privy: true, walletKind, sponsoredSend, login: () => login(), loginError, privyAuthenticated: authenticated, logoutPrivy: logout }),
+    [walletKind, sponsoredSend, login, loginError, authenticated, logout],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
