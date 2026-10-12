@@ -1,0 +1,60 @@
+html,
+body {
+  margin: 0;
+  background: #000;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #836ef9;
+}
+
+@keyframes floatY {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Hover states — !important because the base colors are inline styles. */
+.hover-light:hover {
+  background: #e6e6e6 !important;
+}
+.hover-primary:hover {
+  background: #8f7cfa !important;
+}
+.hover-dark:hover {
+  background: #210f3c !important;
+  color: #fff !important;
+}
+.hover-accent:hover {
+  background: #836ef9 !important;
+}
+
+/* Hidden until LandingAnimations reveals them, so the server-rendered HTML
+   doesn't flash fully visible before hydration. */
+[data-intro="pending"] :is([data-w], [data-card], [data-fade], [data-phone]),
+[data-type] ~ [data-tp],
+[data-up],
+[data-rise] {
+  opacity: 0;
+}
+
+/* Phone and small tablet: the text links wrap into a column and push the wallet button off screen;
+   the logo, Connect Wallet and Launch App still lead into the app. */
+@media (max-width: 860px) {
+  .landing-nav {
+    display: none !important;
+  }
+}

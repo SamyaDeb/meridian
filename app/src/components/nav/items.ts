@@ -1,7 +1,7 @@
-/** Global navigation (FRONTEND_TRADE_PLAN §5). Order is the product story: trade → hold → earn → fix → the rate itself. */
+/** Global navigation. Order is the product story: trade → hold → earn → fix → the rate itself. */
 export const NAV_ITEMS = [
   { href: "/trade", label: "Trade" },
-  { href: "/positions", label: "Positions" },
+  { href: "/positions", label: "Portfolio" },
   { href: "/earn", label: "Earn" },
   { href: "/fix", label: "Fix" },
   { href: "/rates", label: "Rates & Risk" },

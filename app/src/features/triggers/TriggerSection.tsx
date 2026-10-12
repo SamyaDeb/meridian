@@ -69,22 +69,22 @@ export function TriggerSection({ account, market }: { account: AccountSummary | 
         {client.mode === "mock" && <Chip tone="warn">mock: nothing sent</Chip>}
       </div>
       <div className="flex gap-1.5">
-        <input aria-label="Trigger price" inputMode="decimal" value={val} onChange={(e) => setVal(e.target.value)} className="num h-9 min-w-0 flex-1 rounded-control bg-card-2 px-3 text-sm pointer-coarse:h-11" />
-        <select aria-label="Trigger unit" value={unit} onChange={(e) => (setUnit(e.target.value as "%" | "AUSD"), setVal(e.target.value === "AUSD" && trigger ? formatPriceWad(trigger).replace(/,/g, "") : "5"))} className="h-9 rounded-control bg-card-2 px-2 text-xs pointer-coarse:h-11">
+        <input aria-label="Trigger price" inputMode="decimal" value={val} onChange={(e) => setVal(e.target.value)} className="num h-9 min-w-0 flex-1 rounded-control border border-line bg-card-2 px-3 text-sm pointer-coarse:h-11" />
+        <select aria-label="Trigger unit" value={unit} onChange={(e) => (setUnit(e.target.value as "%" | "AUSD"), setVal(e.target.value === "AUSD" && trigger ? formatPriceWad(trigger).replace(/,/g, "") : "5"))} className="h-9 rounded-control border border-line bg-card-2 px-2 text-xs pointer-coarse:h-11">
           <option value="%">% from entry</option>
           <option value="AUSD">AUSD</option>
         </select>
       </div>
       <div className="grid grid-cols-3 gap-1" role="group" aria-label="Share of position">
         {[25n, 50n, 100n].map((x) => (
-          <button key={x.toString()} type="button" aria-pressed={pct === x} onClick={() => setPct(x)} className={`h-7 rounded-full text-[11px] pointer-coarse:h-11 ${pct === x ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted"}`}>
+          <button key={x.toString()} type="button" aria-pressed={pct === x} onClick={() => setPct(x)} className={`h-7 rounded-control text-[11px] pointer-coarse:h-11 ${pct === x ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted"}`}>
             {x.toString()}% of position
           </button>
         ))}
       </div>
       <label className="flex items-center justify-between text-[11px] text-muted">
         Expires after
-        <select aria-label="Trigger expiry" value={exp} onChange={(e) => setExp(e.target.value as typeof exp)} className="h-7 rounded-full bg-card-2 px-2 text-[11px] pointer-coarse:h-11">
+        <select aria-label="Trigger expiry" value={exp} onChange={(e) => setExp(e.target.value as typeof exp)} className="h-7 rounded-control border border-line bg-card-2 px-2 text-[11px] pointer-coarse:h-11">
           {EXPIRIES.map((e) => (
             <option key={e.id} value={e.id}>
               {e.label}

@@ -1,7 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import { useMarket } from "@/data/hooks";
-import { Card } from "@/components/ds";
+import { PageHeader, StatCard } from "@/components/ds";
 import { formatAprWad, formatSignedAprWad } from "@/lib/format";
 import { MfiCard } from "@/features/rates/MfiCard";
 import { CrossVenueCard } from "@/features/rates/CrossVenueCard";
@@ -12,22 +12,16 @@ import { PerplMonitorCard } from "@/features/rates/PerplMonitorCard";
 import { AlertsCard, CrashReplayCard, MeridianRiskCards } from "@/features/rates/MeridianRiskCards";
 
 function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub?: string }) {
-  return (
-    <Card as="div" className="p-3! sm:p-4!">
-      <div className="text-xs text-muted">{label}</div>
-      <div className="num mt-1 text-lg font-semibold">{children}</div>
-      {sub && <div className="mt-0.5 text-[11px] text-muted">{sub}</div>}
-    </Card>
-  );
+  return <StatCard label={label} value={children} sub={sub && <span className="text-muted">{sub}</span>} />;
 }
 
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section aria-labelledby={id} className="space-y-2">
-      <h2 id={id} className="px-1 pt-2 text-sm font-semibold text-muted">
+      <h2 id={id} className="px-1 pt-3 text-[15px] text-text">
         {title}
       </h2>
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-2 lg:grid-cols-2">{children}</div>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-2">{children}</div>
     </section>
   );
 }
@@ -42,18 +36,18 @@ export default function RatesPage() {
   const { data: m } = useMarket();
   const pm = usePerpMarket();
   return (
-    <div className="space-y-2">
-      <header className="px-1 pt-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold">Rates &amp; Risk</h1>
-          <MarketSwitcher />
-        </div>
-        <p className="text-xs text-muted">
-          Funding on Meridian and Perpl side by side, how close any Perpl position is to liquidation, and Meridian&apos;s own {pm.symbol} risk.{!pm.primary && " The Meridian Funding Index and the cross-venue chart below are MON-PERP only."}
-        </p>
-      </header>
+    <div className="space-y-3">
+      <PageHeader
+        title="Rates & Risk"
+        description={
+          <>
+            Funding on Meridian and Perpl side by side, how close any Perpl position is to liquidation, and Meridian&apos;s own {pm.symbol} risk.{!pm.primary && " The Meridian Funding Index and the cross-venue chart below are MON-PERP only."}
+          </>
+        }
+        actions={<MarketSwitcher />}
+      />
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Meridian funding now (APR)" sub="per block">
           {m ? formatSignedAprWad(m.lastRateAprWad, 3) : "—"}
         </Kpi>

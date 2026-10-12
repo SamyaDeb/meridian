@@ -64,7 +64,7 @@ export function DataTable<T>({
     >
       <div style={{ minWidth }}>
         <div role="rowgroup" className="sticky top-0 z-10 bg-card">
-          <div role="row" aria-rowindex={1} className="grid items-center gap-2 border-b border-border px-2 py-1.5 text-[11px] text-muted" style={{ gridTemplateColumns: template }}>
+          <div role="row" aria-rowindex={1} className="grid items-center gap-3 border-b border-border px-2 py-2 text-xs text-muted" style={{ gridTemplateColumns: template }}>
             {columns.map((c) => (
               <div role="columnheader" key={c.key} className={`flex truncate ${align(c)}`}>
                 {c.header}
@@ -78,7 +78,7 @@ export function DataTable<T>({
               role="row"
               key={rowKey(r)}
               aria-rowindex={win.start + i + 2}
-              className="grid items-center gap-2 rounded-control px-2 text-xs hover:bg-card-2"
+              className="grid items-center gap-3 px-2 text-[13px] hover:bg-card-2/70"
               style={{ gridTemplateColumns: template, height: rowHeight }}
             >
               {columns.map((c) => (

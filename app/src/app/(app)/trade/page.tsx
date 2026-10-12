@@ -17,6 +17,8 @@ export default function TradePage() {
   const vars = { "--book-w": `${layout.bookW}px`, "--pos-h": `${layout.posH}px` } as CSSProperties;
   return (
     <div className="terminal" data-testid="terminal" style={vars}>
+      {/* Hyperliquid: the gutters between terminal panels are darker than the panels (covers the page backdrop) */}
+      <div className="fixed inset-0 -z-[1] hidden bg-bg-deep xl:block" aria-hidden />
       <TradeHotkeys />
       <div data-area="strip">
         <MarketStrip />

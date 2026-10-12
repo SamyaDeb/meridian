@@ -3,10 +3,10 @@
 import { useSyncExternalStore } from "react";
 
 export type Layout = { bookW: number; posH: number };
-export const LAYOUT_BOUNDS = { bookW: [220, 480], posH: [150, 420] } as const;
-// chart-forward defaults (5 Oct redesign): book 280, positions 200; the chart takes the rest
-export const DEFAULT_LAYOUT: Layout = { bookW: 280, posH: 200 };
-const KEY = "meridian.layout.v2"; // v2: new defaults; sizes saved under v1 (taller positions) are not reused
+export const LAYOUT_BOUNDS = { bookW: [220, 480], posH: [200, 900] } as const;
+// Hyperliquid proportions (12 Oct): book 270; the positions row below the first screen is 460 tall (page scrolls)
+export const DEFAULT_LAYOUT: Layout = { bookW: 270, posH: 460 };
+const KEY = "meridian.layout.v3"; // v3: Hyperliquid defaults; sizes saved under v2 are not reused
 
 export const clampLayout = (l: Partial<Layout>): Layout => ({
   bookW: Math.round(Math.min(LAYOUT_BOUNDS.bookW[1], Math.max(LAYOUT_BOUNDS.bookW[0], Number.isFinite(l.bookW) ? l.bookW! : DEFAULT_LAYOUT.bookW))),

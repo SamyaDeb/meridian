@@ -29,7 +29,7 @@ function useUnits() {
 
 type Tab = "positions" | "orders" | "triggers" | "trades" | "history" | "funding" | "liquidations";
 const CLOSE_SLIPPAGE_BPS = 100n; // 1 % bound on market closes
-const inputCls = "num h-9 w-full rounded-control bg-card-2 px-2 text-xs pointer-coarse:h-11";
+const inputCls = "num h-9 w-full rounded-control border border-line bg-card-2 px-2 text-xs pointer-coarse:h-11";
 
 const flagText = (f: number) => {
   const d = decodeFlags(f);
@@ -110,7 +110,7 @@ export function PositionsCard() {
       align: "right",
       width: "88px",
       cell: (p) => (
-        <Popover fixed label="Close position" triggerClassName="h-7 rounded-full bg-card-2 px-3 text-[11px] hover:bg-border pointer-coarse:h-11" trigger="Close">
+        <Popover fixed label="Close position" triggerClassName="h-7 rounded-control border border-line bg-card-2 px-3 text-[11px] hover:bg-border pointer-coarse:h-11" trigger="Close">
           {(close) => <ClosePanel p={p} ready={ready} onMarket={(pct) => (close(), closeMarket(p, pct))} onLimit={(px) => (close(), closeLimit(p, px))} />}
         </Popover>
       ),
@@ -129,10 +129,10 @@ export function PositionsCard() {
       width: "132px",
       cell: (o) => (
         <span className="flex gap-1">
-          <Popover fixed label={`Edit order ${o.id}`} triggerClassName="h-7 rounded-full bg-card-2 px-3 text-[11px] hover:bg-border pointer-coarse:h-11" trigger="Edit">
+          <Popover fixed label={`Edit order ${o.id}`} triggerClassName="h-7 rounded-control border border-line bg-card-2 px-3 text-[11px] hover:bg-border pointer-coarse:h-11" trigger="Edit">
             {(close) => <EditPanel o={o} ready={ready} onSave={(px, lots) => (close(), replace(o, px, lots))} />}
           </Popover>
-          <button type="button" disabled={!ready} onClick={() => cancel(o)} className="h-7 rounded-full bg-short/15 px-3 text-[11px] text-short disabled:opacity-40 pointer-coarse:h-11">
+          <button type="button" disabled={!ready} onClick={() => cancel(o)} className="h-7 rounded-control border border-short/45 px-3 text-[11px] text-short hover:bg-short/10 disabled:opacity-40 pointer-coarse:h-11">
             Cancel
           </button>
         </span>

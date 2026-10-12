@@ -17,19 +17,22 @@ type CardProps = {
   "aria-label"?: string;
 };
 
-/** Every panel is a separate rounded card (FRONTEND_TRADE_PLAN §3). */
+/** A panel: darker than the page, hairline border, 8 px corners (Hyperliquid). */
 export function Card({ title, right, header, children, className = "", bodyClassName = "", variant = "card", scroll = false, as = "section", ...rest }: CardProps) {
   const Tag = as;
+  // a padding-less card (className "p-0!") puts its tab header flush with the edges
+  const flush = className.includes("p-0!");
   const shell =
     variant === "card"
       ? "rounded-card border border-border bg-card card-elev p-4"
-      : "rounded-inner bg-card-2 p-3";
+      : "rounded-inner border border-border bg-card-2/60 p-3";
   const hasHeader = header !== undefined || title !== undefined || right !== undefined;
   return (
     <Tag className={`${shell} ${scroll ? "flex min-h-0 flex-col" : ""} ${className}`} aria-label={rest["aria-label"]}>
       {hasHeader && (
-        <div className="mb-3 flex min-h-8 items-center justify-between gap-2">
-          {header ?? <h2 className="truncate text-sm font-medium text-muted">{title}</h2>}
+        // a tab header (Hyperliquid) runs edge to edge on a hairline; a plain title is a simple row
+        <div className={header !== undefined ? `${flush ? "" : "-mx-4 -mt-4 mb-3 px-4"} flex min-h-10 items-end justify-between gap-2 border-b border-border` : "mb-3 flex min-h-8 items-center justify-between gap-2"}>
+          {header ?? <h2 className="truncate text-[15px] text-text">{title}</h2>}
           {right}
         </div>
       )}

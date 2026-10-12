@@ -44,7 +44,7 @@ test("desktop terminal write paths on anvil", async ({ page }) => {
   }
 
   // deposit from the ticket (DeployLocal may already have funded the dev account; this adds 200)
-  await page.locator('[aria-label="Order ticket"]').getByRole("button", { name: "Deposit", exact: true }).click();
+  await page.locator('[aria-label="Account summary"]').getByRole("button", { name: "Deposit", exact: true }).click();
   const funds = page.getByRole("dialog", { name: "Deposit AUSD" });
   await funds.getByLabel("Deposit amount").fill("200");
   await funds.getByRole("button", { name: "Deposit AUSD" }).click();

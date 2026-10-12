@@ -20,7 +20,7 @@ test("login → deposit → open → ticker → position", async ({ page }) => {
   await expect.poll(async () => blockLabel.textContent(), { timeout: 15_000 }).not.toBe(b1);
 
   // F2: deposit lives in a dialog opened from the ticket's Deposit button
-  await page.locator('[aria-label="Order ticket"]').getByRole("button", { name: "Deposit", exact: true }).click();
+  await page.locator('[aria-label="Account summary"]').getByRole("button", { name: "Deposit", exact: true }).click();
   const funds = page.getByRole("dialog", { name: "Deposit AUSD" });
   await funds.getByLabel("Deposit amount").fill("100");
   await funds.getByRole("button", { name: "Deposit AUSD" }).click();
@@ -38,7 +38,7 @@ test("login → deposit → open → ticker → position", async ({ page }) => {
   await expect(page.getByTestId("tx-status")).toContainText("✓", { timeout: 30_000 });
   await page.screenshot({ path: `${SHOTS}/trade.png`, fullPage: true });
 
-  await page.locator("nav.fixed").getByRole("link", { name: "Positions" }).click(); // phone bottom tabs
+  await page.locator("nav.fixed").getByRole("link", { name: "Portfolio" }).click(); // phone bottom tabs
   await expect(page).toHaveURL(/\/positions$/);
   // F5.1: the Positions page reuses the terminal's positions card (Liq., Funding columns; Close menu)
   await expect(page.getByText("▲ Long").first()).toBeVisible({ timeout: 15_000 });

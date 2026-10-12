@@ -7,7 +7,6 @@ import { formatAusdWad, formatBaseWad, formatFixed, formatPriceWad } from "@/lib
 import { WAD } from "@/lib/units";
 import { usePerpMarket } from "@/data/market";
 import { setDraft } from "./draft";
-import { FundingCard } from "./FundingCard";
 import { depthPaths } from "@/lib/depth";
 import { PERPL_ENABLED } from "@/features/chart/datafeed/perpl";
 import { PerplBook } from "./PerplBook";
@@ -35,9 +34,9 @@ function Level({ r, side, unit }: { r: LadderRow; side: "bid" | "ask"; unit: Uni
         onClick={() => setDraft({ kind: "limit", limitPx: fp(r.priceWad).replace(/,/g, "") })}
         title={`Sweep to here: ${fb(r.cumSizeWad)} ${pm.base} at avg ${fp(r.avgPriceWad)}. Click to use this price.`}
         aria-label={`${side === "bid" ? "Bid" : "Ask"} ${fp(r.priceWad)}, ${sizeText(r, unit, pm.sizeDp)} ${unit === "BASE" ? pm.base : unit}. Use as limit price.`}
-        className="num relative grid h-6 w-full grid-cols-3 items-center rounded-[6px] px-2 text-[11px] hover:bg-card-2 pointer-coarse:h-11"
+        className="num relative grid h-[25px] w-full grid-cols-3 items-center px-3 text-xs hover:bg-card-2 pointer-coarse:h-11"
       >
-        <span className={`absolute inset-y-0 right-0 rounded-[6px] ${side === "bid" ? "bg-long/12" : "bg-short/12"}`} style={{ width: `${r.depthBps / 100}%` }} aria-hidden />
+        <span className={`absolute inset-y-0 left-0 ${side === "bid" ? "bg-long/15" : "bg-short/15"}`} style={{ width: `${r.depthBps / 100}%` }} aria-hidden />
         <span className={`relative text-left ${side === "bid" ? "text-long" : "text-short"}`}>{fp(r.priceWad)}</span>
         <span className="relative text-right">{sizeText(r, unit, pm.sizeDp)}</span>
         <span className="relative text-right text-muted">{cumText(r, unit, pm.sizeDp)}</span>
@@ -59,10 +58,10 @@ function Book() {
     const scale = totalSize(bids) > totalSize(asks) ? totalSize(bids) : totalSize(asks);
     return { bids: ladder(bids, scale), asks: ladder(asks, scale), spread: spread(data.bids[0]?.priceWad, data.asks[0]?.priceWad) };
   }, [data, group, pm.tickSizeWad]);
-  const ctl = "h-7 rounded-full bg-card-2 px-2 text-[11px] text-muted pointer-coarse:h-11";
+  const ctl = "h-7 rounded-control bg-transparent pr-1 text-xs text-text hover:bg-card-2 pointer-coarse:h-11";
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+      <div className="flex items-center justify-between gap-1 px-2 py-1">
         <select aria-label="Price grouping" value={group.toString()} onChange={(e) => setGroup(BigInt(e.target.value))} className={ctl}>
           {GROUPINGS.map((g) => (
             <option key={g.toString()} value={g.toString()}>
@@ -80,7 +79,7 @@ function Book() {
           <option value="asks">Asks</option>
         </select>
       </div>
-      <div className="grid grid-cols-3 px-2 pb-1 text-[10px] text-muted">
+      <div className="grid grid-cols-3 px-3 pb-1 text-xs text-muted">
         <span>Price</span>
         <span className="text-right">Size ({unit === "BASE" ? pm.base : unit})</span>
         <span className="text-right">Total</span>
@@ -100,9 +99,10 @@ function Book() {
               ))}
             </ul>
           )}
-          <div className="num my-1 flex items-center justify-between rounded-control bg-card-2 px-2 py-1 text-[11px]" data-testid="spread">
-            <span className="text-muted">Spread</span>
-            <span>{book.spread ? `${fp(book.spread.absWad)} · ${formatFixed(book.spread.bps * 10n ** 16n, 18, 2)}%` : "—"}</span>
+          <div className="num flex h-[25px] items-center justify-center gap-6 bg-card-2 px-3 text-xs" data-testid="spread">
+            <span>Spread</span>
+            <span>{book.spread ? fp(book.spread.absWad) : "—"}</span>
+            <span>{book.spread ? `${formatFixed(book.spread.bps * 10n ** 16n, 18, 3)}%` : "—"}</span>
           </div>
           {view !== "asks" && (
             <ul aria-label="Bids">
@@ -125,7 +125,7 @@ function Trades() {
   if (data.length === 0) return <EmptyState title="No trades yet" body="Trades in the recent window appear here." />;
   return (
     <div className="min-h-0 flex-1 overflow-auto">
-      <div className="grid grid-cols-4 px-2 pb-1 text-[10px] text-muted">
+      <div className="grid grid-cols-4 px-3 py-1 text-xs text-muted">
         <span>Price</span>
         <span className="text-right">Size ({pm.base})</span>
         <span className="text-right">Time</span>
@@ -133,7 +133,7 @@ function Trades() {
       </div>
       <ul aria-label="Recent trades">
         {data.map((t) => (
-          <li key={t.id} className="num grid h-6 grid-cols-4 items-center px-2 text-[11px]">
+          <li key={t.id} className="num grid h-[25px] grid-cols-4 items-center px-3 text-xs">
             <span className={t.takerIsBid ? "text-long" : "text-short"}>
               {t.takerIsBid ? "▲" : "▼"} {fp(t.priceWad)}
             </span>
@@ -147,32 +147,23 @@ function Trades() {
   );
 }
 
-type Tab = "book" | "trades" | "depth" | "funding" | "perpl";
-/** Tabs of the book card: Meridian's own four, then the read-only outside venue (Perpl) only with its flag, never first. */
+/** Order book / trades card (FRONTEND_TRADE_PLAN §6.2). Click a level to load it as the ticket's limit price. */
+type Tab = "book" | "trades" | "depth" | "perpl";
+/** Tabs of the book card (Hyperliquid: Order Book · Trades), then depth, then the read-only outside venue (Perpl) only
+ *  with its flag, never first. Funding lives on the chart panel's "Chart | Funding" tabs. */
 export const bookTabs = (perplEnabled = PERPL_ENABLED): { id: Tab; label: string }[] => [
-  { id: "book", label: "Book" },
+  { id: "book", label: "Order Book" },
   { id: "trades", label: "Trades" },
   { id: "depth", label: "Depth" },
-  { id: "funding", label: "Funding" },
   ...(perplEnabled ? [{ id: "perpl" as const, label: "Perpl" }] : []),
 ];
 
-/** Order book / trades card (FRONTEND_TRADE_PLAN §6.2). Click a level to load it as the ticket's limit price. */
 export function OrderBookCard() {
   const [tab, setTab] = useState<Tab>("book");
   return (
-    <Card className="h-full" scroll bodyClassName="flex flex-col" header={<PillTabs size="sm" ariaLabel="Book view" value={tab} onChange={setTab} tabs={bookTabs()} className={PERPL_ENABLED ? "flex-wrap gap-0.5 rounded-[14px] [&>button]:px-2" : ""} />}>
-      {tab === "book" ? <Book /> : tab === "trades" ? <Trades /> : tab === "depth" ? <Depth /> : tab === "perpl" ? <PerplBook /> : <FundingCardBody />}
+    <Card className="h-full p-0!" scroll bodyClassName="flex flex-col" header={<PillTabs fill ariaLabel="Book view" value={tab} onChange={setTab} tabs={bookTabs()} />}>
+      {tab === "book" ? <Book /> : tab === "trades" ? <Trades /> : tab === "perpl" ? <div className="min-h-0 flex-1 overflow-auto p-3"><PerplBook /></div> : <div className="flex min-h-0 flex-1 flex-col p-3"><Depth /></div>}
     </Card>
-  );
-}
-
-/** The Meridian funding card inside the book column (FRONTEND_TRADE_PLAN §6.6, chart-side tab). */
-function FundingCardBody() {
-  return (
-    <div className="-mx-4 -mb-4 min-h-0 flex-1 overflow-auto [&>section]:border-0 [&>section]:bg-transparent [&>section]:shadow-none">
-      <FundingCard />
-    </div>
   );
 }
 

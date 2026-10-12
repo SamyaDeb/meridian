@@ -14,7 +14,7 @@ import { withSponsoredSend } from "@/lib/tx";
 import { READ_CHAIN_ID } from "@/lib/wagmi";
 import { useSession } from "./Session";
 
-export const cta = "inline-flex h-9 items-center whitespace-nowrap rounded-full px-4 text-xs font-semibold pointer-coarse:h-11";
+export const cta = "inline-flex h-9 items-center whitespace-nowrap rounded-control px-5 text-sm font-medium pointer-coarse:h-11";
 
 // Privy SDK only in builds with NEXT_PUBLIC_PRIVY_APP_ID (decision D6): a separate chunk, never fetched otherwise.
 const PrivyConnect = privyEnabled ? dynamic(() => import("./PrivyControls").then((m) => m.PrivyConnect)) : null;

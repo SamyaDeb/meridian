@@ -1,5 +1,5 @@
-// F2 gate: the trade terminal fits 1440×900 without page scroll, every panel is its own rounded card, and the
-// phone layout keeps one column without horizontal scroll.
+// Trade terminal gate: Hyperliquid's layout on desktop (chart, book and order form on the first screen, positions
+// below), and the phone layout keeps one column without horizontal scroll.
 //   next dev -p 3120 ; APP_URL=http://localhost:3120 npx playwright test e2e/terminal.spec.ts
 import { expect, test } from "@playwright/test";
 
@@ -7,26 +7,38 @@ for (const vp of [
   { width: 1440, height: 900 },
   { width: 1280, height: 800 },
 ]) {
-  test(`no page scroll at ${vp.width}×${vp.height}`, async ({ page }) => {
+  test(`Hyperliquid layout at ${vp.width}×${vp.height}: first screen = chart, book, order form; positions peek in`, async ({ page }) => {
     await page.setViewportSize(vp);
     await page.goto("/trade");
     await expect(page.getByTestId("terminal")).toBeVisible();
     await page.waitForTimeout(1500);
-    const { sh, ch, sw, cw } = await page.evaluate(() => ({
-      sh: document.documentElement.scrollHeight,
-      ch: document.documentElement.clientHeight,
-      sw: document.documentElement.scrollWidth,
-      cw: document.documentElement.clientWidth,
-    }));
+    const { sw, cw } = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
     expect(sw).toBeLessThanOrEqual(cw);
-    expect(sh).toBeLessThanOrEqual(ch);
-    // every grid area holds a rounded card that does not touch the viewport edge
-    for (const area of ["strip", "chart", "book", "ticket", "pos", "account"]) {
-      const box = await page.locator(`[data-area="${area}"]`).boundingBox();
-      expect(box, area).not.toBeNull();
-      expect(box!.x, area).toBeGreaterThanOrEqual(8);
-      expect(box!.x + box!.width, area).toBeLessThanOrEqual(vp.width - 8);
-    }
+    const box = async (area: string) => {
+      const b = await page.locator(`[data-area="${area}"]`).boundingBox();
+      expect(b, area).not.toBeNull();
+      expect(b!.x, area).toBeGreaterThanOrEqual(4);
+      expect(b!.x + b!.width, area).toBeLessThanOrEqual(vp.width - 4);
+      return b!;
+    };
+    const strip = await box("strip");
+    const chart = await box("chart");
+    const book = await box("book");
+    const ticket = await box("ticket");
+    const pos = await box("pos");
+    const account = await box("account");
+    // market bar over the chart only; the book starts at the top beside it; the order form beside the book
+    expect(Math.abs(strip.x - chart.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(book.y - strip.y)).toBeLessThanOrEqual(1);
+    expect(book.x).toBeGreaterThan(chart.x + chart.width);
+    expect(ticket.x).toBeGreaterThan(book.x + book.width);
+    // book, chart and order form end together, inside the first screen; positions start below and peek in
+    expect(Math.abs(book.y + book.height - (chart.y + chart.height))).toBeLessThanOrEqual(1);
+    expect(chart.y + chart.height).toBeLessThan(vp.height);
+    expect(pos.y).toBeLessThan(vp.height - 32);
+    // positions span chart + book; the account panel sits under the order form
+    expect(pos.x + pos.width).toBeGreaterThanOrEqual(book.x + book.width - 1);
+    expect(Math.abs(account.x - ticket.x)).toBeLessThanOrEqual(1);
     await expect(page.getByRole("link", { name: "Terms & risks" }).first()).toBeVisible();
   });
 }
@@ -75,7 +87,7 @@ test("positions card: every tab renders an honest state (no crash, no fake rows)
 test("funding tab: the Meridian funding card with links to Earn and Fix", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/trade");
-  await page.getByRole("tablist", { name: "Book view" }).getByRole("tab", { name: "Funding" }).click();
+  await page.getByRole("tablist", { name: "Chart view" }).getByRole("tab", { name: "Funding" }).click();
   await expect(page.getByTestId("funding-card-apr")).toHaveText(/[+-]?\d+\.\d{3}%|—/, { timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Earn the rate →" })).toHaveAttribute("href", "/earn");
   await expect(page.getByRole("link", { name: "Fix the rate →" })).toHaveAttribute("href", "/fix");
@@ -101,8 +113,8 @@ test("resizable panels: keyboard and drag change the book width / bottom row, sa
   const now = (await page.locator('[data-area="book"]').boundingBox())!.width;
   await page.reload();
   await expect.poll(async () => (await page.locator('[data-area="book"]').boundingBox())!.width).toBeCloseTo(now, 0);
-  // still no page scroll
-  expect(await page.evaluate(() => document.documentElement.scrollHeight - document.documentElement.clientHeight)).toBeLessThanOrEqual(0);
+  // the page scrolls vertically (Hyperliquid), never sideways
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   await page.keyboard.press("Control+k");
   await page.keyboard.type("reset terminal");
   await page.keyboard.press("Enter");

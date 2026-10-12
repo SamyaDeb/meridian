@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useAccount, useChainId } from "wagmi";
 import { useAccountAddress, useAccountView, useDepth, useMarket, useRiskParams } from "@/data/hooks";
-import { Button, Card, Chip, Notice, PillTabs, Tooltip } from "@/components/ds";
+import { Button, Card, Notice, PillTabs, Popover, Tooltip } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
 import { useWriteGate } from "@/components/WriteGate";
 import { useStartLogin } from "@/components/Session";
@@ -41,18 +41,24 @@ const SLIPPAGES = [10n, 50n, 100n, 200n] as const; // bps
 function Toggle({ label, checked, onChange, disabled, hint }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; hint: string }) {
   return (
     <Tooltip content={hint}>
-      <label className={`inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full px-2 text-[11px] pointer-coarse:min-h-11 ${disabled ? "opacity-40" : ""} ${checked ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted"}`}>
-        <input type="checkbox" className="h-3.5 w-3.5 accent-[var(--brand)]" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <label className={`inline-flex min-h-7 cursor-pointer items-center gap-2.5 text-[13px] pointer-coarse:min-h-11 ${disabled ? "opacity-40" : ""}`}>
+        <input type="checkbox" className="h-3.5 w-3.5 rounded-[3px] accent-[var(--brand)]" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
         {label}
       </label>
     </Tooltip>
   );
 }
 
-function Line({ label, children, tone }: { label: ReactNode; children: ReactNode; tone?: string }) {
+function Line({ label, children, tone, tip }: { label: ReactNode; children: ReactNode; tone?: string; tip?: string }) {
   return (
-    <div className="flex items-center justify-between py-0.5 text-xs">
-      <span className="text-muted">{label}</span>
+    <div className="flex items-center justify-between py-[3px] text-[13px]">
+      {tip ? (
+        <Tooltip content={tip}>
+          <span className="dotted text-muted">{label}</span>
+        </Tooltip>
+      ) : (
+        <span className="text-muted">{label}</span>
+      )}
       <span className={`num ${tone ?? ""}`}>{children}</span>
     </div>
   );
@@ -88,6 +94,7 @@ export function OrderTicket() {
   const [reduceOnly, setReduceOnly] = useState(false);
   const [slip, setSlip] = useState<bigint>(50n);
   const [allowPartial, setAllowPartial] = useState(false);
+  const [pctUi, setPctUi] = useState(0);
   const startLogin = useStartLogin();
   const gate = useWriteGate();
   const [tosTicked, setTosTicked] = useState(false);
@@ -217,41 +224,76 @@ export function OrderTicket() {
   };
 
   const setPct = (pct: bigint) => {
+    setPctUi(Number(pct));
     if (pct === 0n || free === undefined || refPx === 0n) return setSizeIn("");
     const l = reduceOnly ? (((account?.size ?? 0n) < 0n ? -(account?.size ?? 0n) : (account?.size ?? 0n)) / LOT) * pct / 100n : lotsForPercent(free, BigInt(levUsed), imr, refPx, pct, LOT);
     const base = l * LOT;
     setSizeIn(unit === "MON" ? formatFixed(base, 18, pm.sizeDp).replace(/,/g, "") : formatFixed((base * refPx) / WAD, 18, 2).replace(/,/g, ""));
   };
 
+  const pctOfWad = (w: bigint) => `${formatFixed(w * 100n, 18, 4)}%`;
+  const posSize = account?.size ?? 0n;
+  const ctlBtn = "inline-flex h-8 items-center justify-center rounded-control bg-card-2 text-[13px] hover:bg-border pointer-coarse:h-11";
+
   return (
-    <Card className="flex h-full min-h-0 flex-col" aria-label="Order ticket" bodyClassName="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="-mx-1 min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-1 pb-1">
-      <div className="grid grid-cols-2 gap-1 rounded-full bg-card-2 p-1" role="radiogroup" aria-label="Side">
-        {(["long", "short"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            role="radio"
-            aria-checked={side === s}
-            onClick={() => setDraft({ side: s })}
-            className={`h-9 rounded-full text-sm font-semibold capitalize pointer-coarse:h-11 ${side === s ? (s === "long" ? "bg-long text-on-brand" : "bg-short text-on-brand") : "text-muted"}`}
+    <Card className="flex h-full min-h-0 flex-col" aria-label="Order ticket" bodyClassName="flex min-h-0 flex-1 flex-col">
+      <div className="-mx-1 flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-1">
+        {/* Hyperliquid order: margin mode · leverage · account, then order-type tabs, then the Buy / Sell toggle */}
+        <div className="grid grid-cols-3 gap-2">
+          <span className={ctlBtn} title="Cross margin: one AUSD account backs your position and orders (the only mode).">
+            Cross
+          </span>
+          <Popover
+            label="Leverage"
+            align="end"
+            triggerClassName={`${ctlBtn} num w-full`}
+            trigger={`${levUsed}x`}
           >
-            {s === "long" ? "▲ Long" : "▼ Short"}
-          </button>
-        ))}
-      </div>
+            <div className="w-56 space-y-2 p-2">
+              <label htmlFor="lev" className="flex justify-between text-xs text-muted" title="Sizes the % slider. Margin is cross: the contract checks your position and orders together.">
+                Leverage <span className="num text-text">{levUsed}x of {maxLev}x max</span>
+              </label>
+              <input id="lev" type="range" min={1} max={maxLev} step={1} value={levUsed} onChange={(e) => setLev(Number(e.target.value))} className="w-full" />
+            </div>
+          </Popover>
+          <span className={ctlBtn} title="Collateral and settlement currency.">
+            AUSD
+          </span>
+        </div>
 
-      <div className="flex items-center justify-between gap-2">
-        <PillTabs size="sm" ariaLabel="Order type" value={kind} onChange={(k) => setDraft({ kind: k })} tabs={[{ id: "market", label: "Market" }, { id: "limit", label: "Limit" }]} />
-        <Chip>cross · {formatFixed(BigInt(levUsed) * WAD, 18, 0)}x</Chip>
-      </div>
+        <div className="-mx-4 mt-2 border-b border-border px-4">
+          <PillTabs fill size="sm" ariaLabel="Order type" value={kind} onChange={(k) => setDraft({ kind: k })} tabs={[{ id: "market", label: "Market" }, { id: "limit", label: "Limit" }]} />
+        </div>
 
-      {kind === "limit" && (
-        <div>
-          <label htmlFor="limit-px" className="text-xs text-muted">
-            Limit price (AUSD)
-          </label>
-          <div className="mt-1 flex gap-1.5">
+        <div className="mt-3 grid grid-cols-2 rounded-control bg-card-2 p-0.5" role="radiogroup" aria-label="Side">
+          {(["long", "short"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              role="radio"
+              aria-checked={side === s}
+              onClick={() => setDraft({ side: s })}
+              className={`h-8 rounded-[5px] text-[13px] transition-colors pointer-coarse:h-11 ${side === s ? (s === "long" ? "bg-long text-on-brand" : "bg-short text-on-brand") : "text-text hover:text-text/80"}`}
+            >
+              {s === "long" ? "Buy / Long" : "Sell / Short"}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 space-y-0.5">
+          <Line label="Available to Trade">
+            <Private kind="balance">{free !== undefined ? formatAusdWad(free) : "0.00"}</Private> AUSD
+          </Line>
+          <Line label="Current Position">
+            <span className={posSize > 0n ? "text-long" : posSize < 0n ? "text-short" : ""}>{formatBaseWad(posSize, pm.sizeDp)} {pm.base}</span>
+          </Line>
+        </div>
+
+        {kind === "limit" && (
+          <div className="mt-2 flex h-10 items-center gap-2 rounded-control border border-line bg-card-2 pl-3 pr-1 focus-within:border-brand-soft pointer-coarse:h-11">
+            <label htmlFor="limit-px" className="shrink-0 text-[13px] text-muted">
+              Price (AUSD)
+            </label>
             <input
               id="limit-px"
               aria-label="Limit price"
@@ -259,146 +301,162 @@ export function OrderTicket() {
               placeholder="0.000000"
               value={limitPx}
               onChange={(e) => setDraft({ limitPx: e.target.value })}
-              className="num h-10 min-w-0 flex-1 rounded-control bg-card-2 px-3 text-sm pointer-coarse:h-11"
+              className="num h-full min-w-0 flex-1 bg-transparent text-right text-[13px] outline-none"
             />
-            <Button size="sm" className="h-10" disabled={bestBid === undefined || bestAsk === undefined} onClick={() => bestBid !== undefined && bestAsk !== undefined && setDraft({ limitPx: fp((bestBid + bestAsk) / 2n).replace(/,/g, "") })}>
+            <button
+              type="button"
+              className="h-7 shrink-0 rounded-control px-2 text-xs text-brand-soft hover:bg-border disabled:opacity-40"
+              disabled={bestBid === undefined || bestAsk === undefined}
+              onClick={() => bestBid !== undefined && bestAsk !== undefined && setDraft({ limitPx: fp((bestBid + bestAsk) / 2n).replace(/,/g, "") })}
+            >
               Mid
-            </Button>
-            <Button size="sm" className="h-10" disabled={(isBid ? bestBid : bestAsk) === undefined} onClick={() => setDraft({ limitPx: fp((isBid ? bestBid : bestAsk)!).replace(/,/g, "") })}>
-              {isBid ? "Bid" : "Ask"}
-            </Button>
+            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      <div>
-        <label htmlFor="size-in" className="text-xs text-muted">
-          Size
-          <span className="num float-right">{lots > 0n ? `${formatBaseWad(lots * LOT, pm.sizeDp)} ${pm.base} · ${lots} lots` : `lot ${formatBaseWad(LOT, pm.sizeDp)} ${pm.base}`}</span>
-        </label>
-        <div className="mt-1 flex gap-1.5">
-          <input id="size-in" aria-label="Size" inputMode="decimal" placeholder="0" value={sizeIn} onChange={(e) => setSizeIn(e.target.value)} className="num h-10 min-w-0 flex-1 rounded-control bg-card-2 px-3 text-sm pointer-coarse:h-11" />
-          <select aria-label="Size unit" value={unit} onChange={(e) => (setUnit(e.target.value as "MON" | "AUSD"), setSizeIn(""))} className="h-10 rounded-control bg-card-2 px-2 text-xs pointer-coarse:h-11">
+        <div className="mt-2 flex h-10 items-center gap-2 rounded-control border border-line bg-card-2 pl-3 pr-1 focus-within:border-brand-soft pointer-coarse:h-11">
+          <label htmlFor="size-in" className="shrink-0 text-[13px] text-muted">
+            Size
+          </label>
+          <input
+            id="size-in"
+            aria-label="Size"
+            inputMode="decimal"
+            placeholder=""
+            value={sizeIn}
+            onChange={(e) => (setSizeIn(e.target.value), setPctUi(0))}
+            className="num h-full min-w-0 flex-1 bg-transparent text-right text-[13px] outline-none"
+          />
+          <select aria-label="Size unit" value={unit} onChange={(e) => (setUnit(e.target.value as "MON" | "AUSD"), setSizeIn(""), setPctUi(0))} className="h-8 shrink-0 bg-transparent pr-1 text-[13px] outline-none">
             <option value="MON">{pm.base}</option>
             <option value="AUSD">AUSD</option>
           </select>
         </div>
-        <div className="mt-2 grid grid-cols-5 gap-1" role="group" aria-label="Percent of available">
-          {PCTS.map((p) => (
-            <button key={p.toString()} type="button" disabled={free === undefined && p > 0n} onClick={() => setPct(p)} className="h-7 rounded-full bg-card-2 text-[11px] text-muted hover:text-text disabled:opacity-40 pointer-coarse:h-11">
-              {p.toString()}%
-            </button>
-          ))}
-        </div>
-      </div>
+        <p className="num mt-1 text-right text-[11px] text-muted">{lots > 0n ? `${formatBaseWad(lots * LOT, pm.sizeDp)} ${pm.base} · ${lots} lots` : `lot ${formatBaseWad(LOT, pm.sizeDp)} ${pm.base}`}</p>
 
-      <div>
-        <label htmlFor="lev" className="text-xs text-muted" title="Sizes the % buttons. Margin is cross: the contract checks your position and orders together.">
-          Leverage <span className="num float-right text-text">{levUsed}x of {maxLev}x max</span>
-        </label>
-        <input id="lev" type="range" min={1} max={maxLev} step={1} value={levUsed} onChange={(e) => setLev(Number(e.target.value))} list="lev-marks" className="mt-1 w-full" />
-        <datalist id="lev-marks">
-          {Array.from({ length: maxLev }, (_, i) => (
-            <option key={i} value={i + 1} />
-          ))}
-        </datalist>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {kind === "limit" && (
-          <>
-            <Toggle label="Post-only" checked={postOnly} disabled={ioc} onChange={setPostOnly} hint="Rests on the book or is rejected; never takes liquidity (flag 1)." />
-            <Toggle label="IOC" checked={ioc} disabled={postOnly} onChange={setIoc} hint="Immediate or cancel: fills what it can now, the rest is cancelled (flag 2)." />
-          </>
-        )}
-        <Toggle label="Reduce-only" checked={reduceOnly} onChange={setReduceOnly} hint="Can only shrink your position; size is clamped to it (flag 4)." />
-        {kind === "market" && <Toggle label="Allow partial" checked={allowPartial} onChange={setAllowPartial} hint="Off: the order reverts unless it fills completely inside the slippage bound." />}
-      </div>
-
-      {kind === "market" && (
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <span className="whitespace-nowrap text-muted">Slippage</span>
-          <div className="flex gap-1" role="radiogroup" aria-label="Max slippage">
-            {SLIPPAGES.map((s) => (
-              <button key={s.toString()} type="button" role="radio" aria-checked={slip === s} onClick={() => setSlip(s)} className={`num h-7 rounded-full px-2 text-[11px] pointer-coarse:h-11 pointer-coarse:min-w-11 ${slip === s ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted"}`}>
-                {formatFixed(s * 10n ** 16n, 18, 1)}%
-              </button>
-            ))}
+        {/* % of available: a slider with snap points (Hyperliquid) and the number beside it */}
+        <div className="mt-1 flex items-center gap-3">
+          <div className="relative flex-1">
+            <input
+              type="range"
+              aria-label="Percent of available"
+              min={0}
+              max={100}
+              step={1}
+              value={pctUi}
+              disabled={free === undefined}
+              onChange={(e) => setPct(BigInt(e.target.value))}
+              className="w-full disabled:opacity-40"
+            />
+            <div className="pointer-events-none absolute inset-x-1.5 top-1/2 flex -translate-y-1/2 justify-between" aria-hidden>
+              {PCTS.map((p) => (
+                <span key={p.toString()} className={`h-1.5 w-1.5 rounded-full ${Number(p) <= pctUi ? "bg-brand-soft" : "bg-line"}`} />
+              ))}
+            </div>
+          </div>
+          <div className="flex h-9 w-[72px] items-center rounded-control border border-line bg-card-2 px-2 text-[13px]">
+            <input
+              aria-label="Percent"
+              inputMode="numeric"
+              value={pctUi}
+              onChange={(e) => {
+                const v = Math.max(0, Math.min(100, Math.floor(Number(e.target.value) || 0)));
+                setPct(BigInt(v));
+              }}
+              className="num w-full min-w-0 bg-transparent text-right outline-none"
+            />
+            <span className="ml-1 text-muted">%</span>
           </div>
         </div>
-      )}
+
+        <div className="mt-2 flex flex-col">
+          <Toggle label="Reduce Only" checked={reduceOnly} onChange={setReduceOnly} hint="Can only shrink your position; size is clamped to it (flag 4)." />
+          {kind === "limit" && (
+            <>
+              <Toggle label="Post Only" checked={postOnly} disabled={ioc} onChange={setPostOnly} hint="Rests on the book or is rejected; never takes liquidity (flag 1)." />
+              <Toggle label="Immediate or Cancel" checked={ioc} disabled={postOnly} onChange={setIoc} hint="Fills what it can now, the rest is cancelled (flag 2)." />
+            </>
+          )}
+          {kind === "market" && <Toggle label="Allow Partial Fill" checked={allowPartial} onChange={setAllowPartial} hint="Off: the order reverts unless it fills completely inside the slippage bound." />}
+        </div>
 
         {pm.primary && <TriggerSection account={account} market={m} />}
-      </div>
-      <div className="shrink-0 space-y-2">
-      <div className="rounded-inner bg-card-2 px-3 py-2" data-testid="ticket-preview">
-        <Line label="Notional">{preview ? `${formatAusdWad(preview.notionalWad)} AUSD` : "—"}</Line>
-        <Line label="Margin required">{preview ? `${formatAusdWad(preview.marginWad)} AUSD` : "—"}</Line>
-        <Line label={kind === "limit" && postOnly ? "Maker fee" : "Taker fee"}>{preview ? `${formatAusdWad(preview.feeWad < 0n ? -preview.feeWad : preview.feeWad)} AUSD${preview.feeWad < 0n ? " rebate" : ""}` : "—"}</Line>
-        {kind === "market" && (
-          <Line label="Est. price · impact">{fill && fill.filledLots > 0n ? `${fp(fill.avgPriceWad)} · ${impactBps !== undefined ? formatFixed(impactBps * 10n ** 16n, 18, 2) : "—"}%` : "—"}</Line>
+
+        {/* pushes the button and the order details to the bottom of the column (level with the chart's bottom edge) */}
+        <div className="min-h-4 flex-1" />
+
+        {onboarding && (needsTos || tosTicked) && (
+          <label className="mb-1 flex min-h-11 items-center gap-3 text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={tosTicked}
+              onChange={(e) => {
+                setTosTicked(e.target.checked);
+                if (e.target.checked) gate.accept();
+              }}
+              className="h-4 w-4 shrink-0 accent-[var(--brand)]"
+            />
+            <span>
+              I have read and accept the{" "}
+              <Link href="/terms" target="_blank" className="text-brand-soft underline">
+                terms and risks
+              </Link>
+            </span>
+          </label>
         )}
-        <Line label="Est. liq. price" tone="text-warn">
-          <Private kind="liq">{preview?.liqPriceWad ? fp(preview.liqPriceWad) : "—"}</Private>
-        </Line>
-        <Line label="Funding per block" tone={preview ? (preview.fundingPerBlockWad > 0n ? "text-short" : preview.fundingPerBlockWad < 0n ? "text-long" : "") : ""}>
-          {preview ? `${preview.fundingPerBlockWad > 0n ? "you pay " : preview.fundingPerBlockWad < 0n ? "you earn " : ""}${formatFixed(preview.fundingPerBlockWad < 0n ? -preview.fundingPerBlockWad : preview.fundingPerBlockWad, 18, 8)} AUSD` : "—"}
-        </Line>
-        {!risk && <p className="pt-1 text-[10px] text-warn">Risk params not read yet: margin uses the launch defaults (5x cap).</p>}
-      </div>
+        <Button
+          variant={!isConnected || onboarding ? "brand" : isBid ? "long" : "short"}
+          block
+          className="h-10! min-h-10! text-[13px]!"
+          disabled={(!isConnected && !startLogin) || tx.busy || onboard.busy || needsTos || (onboarding && !onboard.ready) || (isConnected && !noDeposit && problem !== undefined)}
+          loading={tx.busy || onboard.busy}
+          onClick={submit}
+          data-testid="place-order"
+        >
+          {cta}
+        </Button>
 
-      {onboarding && (needsTos || tosTicked) && (
-        <label className="flex min-h-11 items-center gap-3 text-xs text-muted">
-          <input
-            type="checkbox"
-            checked={tosTicked}
-            onChange={(e) => {
-              setTosTicked(e.target.checked);
-              if (e.target.checked) gate.accept();
-            }}
-            className="h-5 w-5 shrink-0 accent-[var(--accent)]"
-          />
-          <span>
-            I have read and accept the{" "}
-            <Link href="/terms" target="_blank" className="text-accent underline">
-              terms and risks
-            </Link>
-          </span>
-        </label>
-      )}
-      <Button
-        variant={!isConnected || onboarding ? "brand" : isBid ? "long" : "short"}
-        size="lg"
-        block
-        disabled={(!isConnected && !startLogin) || tx.busy || onboard.busy || needsTos || (onboarding && !onboard.ready) || (isConnected && !noDeposit && problem !== undefined)}
-        loading={tx.busy || onboard.busy}
-        onClick={submit}
-        data-testid="place-order"
-      >
-        {cta}
-      </Button>
-
-      {isConnected && (
-        <div className="grid grid-cols-2 gap-2">
-          <Button size="sm" onClick={() => setFunds("deposit")}>
-            Deposit
-          </Button>
-          <Button size="sm" disabled={!free} onClick={() => setFunds("withdraw")}>
-            Withdraw
-          </Button>
+        <div className="mt-3 border-t border-border pt-2" data-testid="ticket-preview">
+          <Line label="Liquidation Price" tone="text-warn">
+            <Private kind="liq">{preview?.liqPriceWad ? fp(preview.liqPriceWad) : "N/A"}</Private>
+          </Line>
+          <Line label="Order Value">{preview ? `${formatAusdWad(preview.notionalWad)} AUSD` : "N/A"}</Line>
+          <Line label="Margin Required">{preview ? `${formatAusdWad(preview.marginWad)} AUSD` : "N/A"}</Line>
+          {kind === "market" && (
+            <Line label="Slippage" tip="Estimated price impact against the book / the most the order may move the price before it reverts. Click Max to change it.">
+              <span className="text-brand-soft">
+                Est: {impactBps !== undefined ? formatFixed(impactBps * 10n ** 16n, 18, 2) : "0"}% / Max:{" "}
+                <button
+                  type="button"
+                  aria-label="Max slippage"
+                  className="underline decoration-dotted underline-offset-2 hover:text-text"
+                  onClick={() => setSlip(SLIPPAGES[(SLIPPAGES.indexOf(slip as (typeof SLIPPAGES)[number]) + 1) % SLIPPAGES.length]!)}
+                >
+                  {formatFixed(slip * 10n ** 16n, 18, 2)}%
+                </button>
+              </span>
+            </Line>
+          )}
+          <Line label="Fees" tip="Taker / maker fee rate, from the onchain risk parameters. A negative maker fee is a rebate.">
+            {risk ? `${pctOfWad(risk.takerFee)} / ${pctOfWad(risk.makerFee)}` : "—"}
+          </Line>
+          <Line label="Funding per Block" tip="Meridian settles funding every block (~300 ms)." tone={preview ? (preview.fundingPerBlockWad > 0n ? "text-short" : preview.fundingPerBlockWad < 0n ? "text-long" : "") : ""}>
+            {preview ? `${preview.fundingPerBlockWad > 0n ? "-" : preview.fundingPerBlockWad < 0n ? "+" : ""}${formatFixed(preview.fundingPerBlockWad < 0n ? -preview.fundingPerBlockWad : preview.fundingPerBlockWad, 18, 8)}` : "N/A"}
+          </Line>
+          {!risk && <p className="pt-1 text-[10px] text-warn">Risk params not read yet: margin uses the launch defaults (5x cap).</p>}
         </div>
-      )}
-      {/* the layout footer is hidden on the full-height terminal: the Terms link stays reachable here */}
-      <Link href="/terms" className="hidden min-h-6 items-center justify-center text-[11px] text-muted underline xl:flex">
-        Terms &amp; risks
-      </Link>
-      {tx.status && (
-        <Notice tone={tx.status.includes("failed") ? "danger" : "info"}>
-          <span className="num break-all" data-testid="tx-status">
-            {tx.status}
-          </span>
-        </Notice>
-      )}
+
+        {/* the layout footer is hidden on the full-height terminal: the Terms link stays reachable here */}
+        <Link href="/terms" className="mt-1 hidden min-h-6 items-center justify-end text-[11px] text-muted underline xl:flex">
+          Terms &amp; risks
+        </Link>
+        {tx.status && (
+          <Notice tone={tx.status.includes("failed") ? "danger" : "info"} className="mt-2">
+            <span className="num break-all" data-testid="tx-status">
+              {tx.status}
+            </span>
+          </Notice>
+        )}
       </div>
       <OnboardSheet o={onboard} />
       <FundsDialog mode={funds ?? "deposit"} open={funds !== null} onClose={() => setFunds(null)} freeCollateralWad={free} />

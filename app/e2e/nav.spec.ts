@@ -3,15 +3,15 @@
 // Works on the mock layer and on chain mode (testnet RPC): "reads stop" = every non-app request is aborted.
 import { expect, test } from "@playwright/test";
 
-const PAGES = [["Trade", "trade"], ["Positions", "positions"], ["Earn", "earn"], ["Fix", "fix"], ["Rates & Risk", "rates"], ["Stats", "stats"]] as const;
+const PAGES = [["Trade", "/trade"], ["Portfolio", "/positions"], ["Earn", "/earn"], ["Fix", "/fix"], ["Rates & Risk", "/rates"], ["Stats", "/stats"]] as const;
 
-test("desktop: pill nav highlights the active route", async ({ page }) => {
+test("desktop: text nav highlights the active route", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/trade");
   const nav = page.getByRole("navigation", { name: "Main" }).first();
   for (const [label, path] of PAGES) {
     await nav.getByRole("link", { name: label, exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/${path}$`));
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
     await expect(nav.getByRole("link", { name: label, exact: true })).toHaveAttribute("aria-current", "page");
     await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
   }

@@ -2,7 +2,7 @@
 import { INDEXER_URL, useIndexerStats, useMarket, useMetrics, useProtocolStats } from "@/data/hooks";
 import { useDataSource } from "@/data/context";
 import type { ReactNode } from "react";
-import { Card, Notice, Skeleton } from "@/components/ds";
+import { Card, Notice, PageHeader, Skeleton, StatCard } from "@/components/ds";
 import { formatAprWad, formatAusdToken, formatAusdWad, formatBaseWad } from "@/lib/format";
 import { mmShareBps } from "@/data/indexer/stats";
 import { MarketsTable } from "@/features/market/MarketsTable";
@@ -10,17 +10,11 @@ import { MarketsTable } from "@/features/market/MarketsTable";
 const pct = (bps: number) => `${(bps / 100).toFixed(1)}%`;
 const apr = (v: bigint | undefined) => (v === undefined ? "—" : formatAprWad(v));
 
-/** One KPI = one rounded card (FRONTEND_TRADE_PLAN §7 Stats). */
+/** One KPI = one stat card (Hyperliquid's big-number panel). */
 function Kpi({ label, value, sub }: { label: ReactNode; value: ReactNode; sub?: ReactNode }) {
-  return (
-    <Card as="div" className="p-3! sm:p-4!">
-      <div className="text-xs text-muted">{label}</div>
-      <div className="num mt-1 truncate text-lg font-semibold sm:text-xl">{value}</div>
-      {sub && <div className="mt-0.5 text-[11px] text-muted">{sub}</div>}
-    </Card>
-  );
+  return <StatCard label={label} value={value} sub={sub && <span className="text-muted">{sub}</span>} />;
 }
-const GRID = "grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4";
+const GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4";
 
 /** Metrics from the indexer only (PRD §6, DEMO_SCRIPT 2:50): product markets, MM share disclosed, block heights. */
 function IndexerMetrics() {
@@ -50,7 +44,7 @@ function IndexerMetrics() {
           </>
         )}
       </div>
-      <p className="num mt-2 px-1 text-[11px] text-muted" data-testid="stats-blocks">
+      <p className="num mt-3 px-1 text-xs text-muted" data-testid="stats-blocks">
         Indexer · product markets only (test markets excluded) · stats at block #{s.statsBlock.toString()}
         {s.funding && ` · ${s.funding.symbol} funding at block #${s.funding.block.toString()}`}
       </p>
@@ -113,11 +107,8 @@ function MockMetrics() {
 export default function StatsPage() {
   const ds = useDataSource();
   return (
-    <div className="space-y-2">
-      <header className="px-1 pt-1">
-        <h1 className="text-xl font-semibold">Stats</h1>
-        <p className="text-xs text-muted">Product markets only. Our market maker&apos;s share of volume is disclosed.</p>
-      </header>
+    <div className="space-y-3">
+      <PageHeader title="Stats" description="Protocol metrics from the Meridian indexer, product markets only. Our market maker's share of volume is disclosed." />
       {INDEXER_URL ? (
         <>
           <IndexerMetrics />
@@ -132,7 +123,7 @@ export default function StatsPage() {
       )}
       <MarketsTable title="Markets (live, per block)" />
       <Card title="Why Monad">
-        <p className="text-sm text-muted">
+        <p className="text-sm leading-relaxed text-muted">
           Funding settles every block (~300 ms) instead of every 8 hours. Benchmarks and the √τ margin chart are linked from the write-up.
         </p>
       </Card>

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { contrastRatio, parseHex, relativeLuminance, rootTokens } from "./contrast";
 
-const css = readFileSync(fileURLToPath(new URL("../app/globals.css", import.meta.url)), "utf8");
+const css = readFileSync(fileURLToPath(new URL("../app/(app)/globals.css", import.meta.url)), "utf8");
 const tokens = rootTokens(css);
 const t = (k: string): string => {
   const v = tokens[k];

@@ -15,7 +15,7 @@ export function Tooltip({ content, children, side = "top", className = "" }: { c
       <span
         role="tooltip"
         id={id}
-        className={`pointer-events-none absolute left-1/2 z-40 hidden w-max max-w-64 -translate-x-1/2 rounded-control border border-border bg-card-2 px-2.5 py-1.5 text-[11px] text-text group-focus-within/tt:block group-hover/tt:block ${side === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}
+        className={`pointer-events-none absolute left-1/2 z-40 hidden w-max max-w-64 -translate-x-1/2 rounded-control border border-line bg-card-2 px-2.5 py-1.5 text-xs leading-relaxed text-text shadow-lg group-focus-within/tt:block group-hover/tt:block ${side === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}
       >
         {content}
       </span>
