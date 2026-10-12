@@ -5,6 +5,12 @@ export const DEPLOYMENTS: Readonly<Record<number, DeploymentWiring>> = {
   10143: { ClearingHouse: "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA", OrderBook: "0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207", FundingSwapMarket: "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33", SwapOrderBook: "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db", MeridianVault: "0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6", InsuranceFund: "0xCcd97285dD2fca8D028D880Ed754039118437b48" },
   31337: { ClearingHouse: "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9", OrderBook: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707", MeridianVault: "0x610178dA211FEF7D417bC0e6FeD39F05609AD788", InsuranceFund: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9" },
 };
+export type SwapMarketWiring = { readonly symbol: string; readonly fundingSource: "meridian" | "perpl"; readonly swapMarket: string; readonly swapOrderBook: string; readonly source: string | undefined };
+export const SWAP_MARKETS: Readonly<Record<number, readonly SwapMarketWiring[]>> = {
+  10143: [{ symbol: "MON-FUNDING", fundingSource: "meridian", swapMarket: "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33", swapOrderBook: "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db", source: "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA" }, { symbol: "MON-FUNDING-PERPL", fundingSource: "perpl", swapMarket: "0x4e5A8b88e8F09FDf2DC178B4641a25676d181bde", swapOrderBook: "0x5D4f03B6Afa525ed580C75878A2F51A35c202334", source: "0xC008aF47fCC651889a1d66f0734da941A55224cC" }],
+};
+/** vitest only (config.test.yaml, chain 31337): the test swap markets behind TEST_FILL / TEST_PERPL_SWAP. */
+export const SWAP_MARKETS_TEST: readonly SwapMarketWiring[] = [{ symbol: "MON-FUNDING", fundingSource: "meridian", swapMarket: "0x00000000000000000000000000000000000000F2", swapOrderBook: "0x00000000000000000000000000000000000000f3", source: undefined }, { symbol: "MON-FUNDING-PERPL", fundingSource: "perpl", swapMarket: "0x00000000000000000000000000000000000000f7", swapOrderBook: "0x00000000000000000000000000000000000000f8", source: "0x00000000000000000000000000000000000000f9" }];
 /** Labelled TEST markets (deployments demoMarket): the crash/liquidation demo market, never the product. */
 export const TEST_MARKETS: Readonly<Record<number, readonly string[]>> = {
   10143: ["0xb2d4dacc56da8efa248abcccb196f73c69abdc01"],

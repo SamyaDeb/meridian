@@ -94,3 +94,19 @@ export const fundingSwapWatchAbi = parseAbi([
 export const aggregatorAbi = parseAbi([
   "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
 ]);
+
+// PS (CR-017): PerplFundingSource (contracts/src/oracle/PerplFundingSource.sol, abis/PerplFundingSource.json) and the
+// one Perpl Exchange view the poke duty reads (abis/IPerplExchange.json, copied from indexer/abis/PerplExchange.json).
+export const perplFundingSourceAbi = parseAbi([
+  "function poke() returns (bool advanced)",
+  "function latestObservation() view returns (int256 cumFunding, int256 cumIndexTime, uint64 blockNumber)",
+  "function exchange() view returns (address)",
+  "function perpId() view returns (uint256)",
+  "function lastPokeBlock() view returns (uint64)",
+  "event Poked(int256 cumFunding, uint256 cumIndexTime, uint64 fundingEventBlock, uint256 priceWad, int256 rate)",
+  "error StalePerplPrice(uint256 oracleTimestampSec)",
+  "error PerplScaleChanged()",
+]);
+export const perplExchangeAbi = parseAbi([
+  "function getFundingSumAtBlock(uint256 perpId, uint256 blockNumber) view returns (int48 fundingSumPNS, uint256 fundingEventBlock)",
+]);

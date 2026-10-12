@@ -132,7 +132,8 @@ describe("renderConfig", () => {
     for (const k of ["ClearingHouse", "OrderBook", "OracleAdapter", "MeridianVault", "FundingSwapMarket", "SwapOrderBook"]) {
       // the P4 relaunch ships no vault (vault v2 joins in P6): gen-config emits no address for an absent key
       if (dep.contracts[k] === undefined) continue;
-      expect(y, k).toContain(`address: "${dep.contracts[k]}"`);
+      // CR-017: FundingSwapMarket / SwapOrderBook carry one address per swap market (list form)
+      expect(y, k).toContain(`"${dep.contracts[k]}"`);
     }
     expect(y).not.toContain('address: "undefined"');
     // The MM, demo MM and the house taker flow are operators: never external users (chart-liquidity prompt, task 2).

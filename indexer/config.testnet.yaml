@@ -66,6 +66,10 @@ contracts:
       - event: RedeemFulfilled
       - event: RedeemClaimed
       - event: EmergencyUnwind
+  - name: PerplFundingSource
+    abi_file_path: ../abis/IPerplFundingSource.json
+    events:
+      - event: Poked
   - name: OracleAdapter
     abi_file_path: ../abis/IOracleAdapter.json
     events:
@@ -125,11 +129,17 @@ chains:
       - name: OrderBook
         address: "0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207"
       - name: SwapOrderBook
-        address: "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db"
+        address:
+          - "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db"
+          - "0x5D4f03B6Afa525ed580C75878A2F51A35c202334"
       - name: FundingSwapMarket
-        address: "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33"
+        address:
+          - "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33"
+          - "0x4e5A8b88e8F09FDf2DC178B4641a25676d181bde"
       - name: MeridianVault
         address: "0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6"
+      - name: PerplFundingSource
+        address: "0xC008aF47fCC651889a1d66f0734da941A55224cC"
       - name: OracleAdapter
         address: "0xC77882E7024D8B71F414eDc1a8708b939920A9E2"
       - name: InsuranceFund

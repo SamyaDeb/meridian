@@ -355,6 +355,20 @@ Vault use (should-tier): the vault (receiving floating ≈ 18%) shorts 1M MON of
 ### 6.7 Implied APR display
 The book price is the APR itself (p − 1), simple (non-compounded) APR. UI shows "Fixed 12.00% until <date>".
 
+### 6.8 Swaps on an external venue's funding: Perpl *(added 12 Oct 2026, CR-017, docs/PERPL_SWAPS.md)*
+A `FundingSwapMarket` (§6.1–§6.7, unchanged) can take any funding source that answers its seven views. `PerplFundingSource` maps one Perpl perpetual onto F and G. Perpl funds in one lump per interval (8,571 blocks / 2,580 s), so F and G both move **only at a poke that sees a new Perpl funding event** (feb):
+```
+F      = fundingSumPNS · 10^(18 − priceDecimals − fundingSumScalingExp)        // exact; rises when longs pay (verified, PERPL_SWAPS §Units)
+ΔG     = ⌊ I · (feb_new − feb_old) · intervalSec / intervalBlocks ⌋             // 0 (truncates; G ≥ 0), I = Perpl oracle price at the poke (WAD)
+rate   = fundingRatePct100k · 1e13 / intervalSec                                // per-second WAD, 0
+rateCap = ⌈ absFundingClampPctPer100K · 1e13 · (1 + 5%) / intervalSec ⌉           // ↑ (a margin bound; 5% = funding-price vs oracle buffer)
+avgRate(window) = clamp(ΔF · 1e18 / ΔG, −rateCap, +rateCap)                     // 0; §1.8 with observations at Perpl's feb
+```
+- Accrual (§6.2) is unchanged: `net = ⌊(q·ΔF·YEAR − K·ΔG)/(1e18·YEAR)⌋`. Over one Perpl interval a swap long's floating leg equals minus what a Perpl long of the same size is credited (`Δsum` exactly), and its fixed leg is `K·I·2,580 s/YEAR`.
+- **Both legs step together.** A fixed leg accruing per block while floating arrives in lumps would let a trader hold the swap only across the lump. With G stepping at the same poke, being in for an interval costs exactly that interval's fixed leg, and being in for none costs nothing.
+- Missed events: one poke steps F to the latest sum and G across the whole Δfeb, in O(1). A stale or zero Perpl price (> 120 s) reverts the poke; F and G pause together (§1.6) and the next good poke catches up both. A change of Perpl's decimals or scaling exponent reverts the poke (`PerplScaleChanged`).
+- Margin (§6.4) uses `cap_apr = rateCap · YEAR`: Perpl's ±10 per 100k per interval is ±122% APR (128% with the buffer), against 1,752% on MON-PERP.
+
 ## 7. Invariants (WS-08 implements; each WS supplies handlers)
 | ID | Invariant |
 |---|---|

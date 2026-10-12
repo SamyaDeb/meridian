@@ -266,6 +266,21 @@ cd mm-bot && MARKET=eth FLOW_PK=… pnpm flow     # optional taker flow (chart l
 - Stop with SIGINT (MM cancels its orders). The vault, swaps, MFI and triggers are MON-PERP only.
 - Evidence script (trade → funding → labelled crash → liquidation → restore): `bench/eth_perp_evidence.sh <logfile>` (`ENV_FILE`, `RPC=` an anvil fork first).
 
+## 7g. Perpl funding swap market: poke keeper (PS, CR-017; design in `docs/PERPL_SWAPS.md`)
+The second swap market `MON-FUNDING-PERPL` (`swapMarkets[0]` in `deployments/10143.json`) settles on Perpl's MON funding through `PerplFundingSource` `0xC008…24cC`. It accrues **only when someone pokes** after each Perpl funding event (every 8,571 blocks ≈ 43 min). A separate small process does that, so the main keeper's MON-PERP duties are not duplicated:
+```bash
+cd keepers/ts-fallback && CHAIN_ID=10143 RPC_URL=$MONAD_TESTNET_RPC_URL KEEPER_PK=… SWAP_MARKET=perpl HEALTH_PORT=8790 pnpm perpl-swap
+curl -s localhost:8790 | jq '{block, perplFeb, sourceFeb, sourceLagBlocks, pokes, pokeFailures, lastPokeTx, balanceMon}'
+```
+- **Duties:** `poke()` when Perpl's `fundingEventBlock` passes the source's snapshot (one tx per event; a reverted poke, e.g. `StalePerplPrice`, retries after `POKE_RETRY_BLOCKS` = 30); `settleMaturity()` once at maturity; liquidations on this market only with `SWAP_LIQUIDATE=1`, and then the keeper must hold collateral in this swap market because it takes the position (off by default).
+- **Gas:** limit = estimate × 1.2. Testnet 12 Oct: poke estimate 131,925 (limit 158,310) ≈ 0.017 MON at 110 gwei; one per 43 min ⇒ **≈ 0.024 MON/h** for pokes. Reads are free. Any key works (permissionless); use a key the owner names, never the MM's.
+- **Health:** `sourceLagBlocks` > 0 for more than a few blocks after a Perpl event means the poke is failing (see `lastError`). `VerifyDeployment` fails "source ≤ 2 Perpl intervals behind" after ≈ 86 min without a poke.
+- **If nobody pokes**, accrual pauses (not lost: the next poke steps F and G across the whole gap). The mark, margins and realized APR stay at the last poke.
+- **Swap MM on this book** (`mm-bot`, `MARKET=swap SWAP_MARKET=perpl`): it quotes `0x5D4f…2334` around **that market's own `realizedApr(8 h)`**, which is Perpl's realized funding from the adapter's snapshots. Until 8 h of snapshots exist it uses Perpl's current rate. The index is the source's Perpl oracle price at the last poke, and a zero index stops quoting. Perpl's next rate is public ≈ 23 s before it applies: keep `REQUOTE_BPS` small enough that the ladder moves when the rate changes, and widen it if fills cluster just before Perpl events. Owner action: key, MON and margin, then measure MON/h over 10 min before a long run and write it here.
+  ```bash
+  cd mm-bot && MARKET=swap SWAP_MARKET=perpl MM_PK=… KILL_FILE=/tmp/KILL-perpl-swap HEALTH_PORT=8791 LEVELS=1 pnpm start
+  ```
+
 ## 7e. CRE backstop keeper (K4, PHASES 43; details in `keepers/cre/README.md`)
 Three Chainlink CRE workflows report to `MeridianKeeperReceiver` `0x7c44…8932` (W1 liquidation guardian, W2 funding poke + vault rebalance, W3 MFI publisher → `MeridianMfiFeed` `0x651B…50Fa`). On 10143 they run as `cre workflow simulate --broadcast` on one machine through the simulation forwarder `0xB9F7…D192`, not on a DON (no Early Access). The TS keeper stays primary.
 1. **Start** (from `keepers/cre`, `.env` with `CRE_ETH_PRIVATE_KEY` = CRE wallet `0xb624…088c`, its own key, never a bot key): `cre whoami`; `cast balance 0xb624c6144aA825f22452B3cEFC3728F38b0c088c`; then per run `cre workflow simulate <upkeep|mfi-publisher|liquidation-guardian> --target staging-settings --trigger-index <n> --non-interactive --broadcast` (W1 log trigger: `--trigger-index 0 --listen` runs once per oracle `PriceUpdated` until Ctrl-C). Save the output under `evidence/`.

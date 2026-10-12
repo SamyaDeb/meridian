@@ -46,6 +46,10 @@ export const CONTRACTS = [
       "RedeemRequested", "RedeemCancelled", "RedeemFulfilled", "RedeemClaimed", "EmergencyUnwind",
     ],
   },
+  // CR-017: the adapter a second FundingSwapMarket settles on (Perpl's funding). FundingSwapMarket / SwapOrderBook get
+  // one address per swap market (contracts.* + every deployed `swapMarkets[]` entry), so each market's entities stay
+  // keyed by its own address.
+  { name: "PerplFundingSource", abi: "IPerplFundingSource", events: ["Poked"] },
   { name: "OracleAdapter", abi: "IOracleAdapter", events: ["PriceUpdated", "DeviationGuardTripped", "OracleParamsUpdated"] },
   { name: "InsuranceFund", abi: "IInsuranceFund", events: ["Funded", "BadDebtCovered", "MarketAuthorized"] },
   { name: "MarketFactory", abi: "IMarketFactory", events: ["MarketRegistered", "MarketStatusChanged"] },
@@ -164,12 +168,22 @@ export function renderConfig(chainId, deployment, perpl, extraChains = [], perpl
   }
   L.push("    contracts:");
   let n = 0;
+  const swaps = swapMarketsOf(deployment, chainId);
+  const extra = {
+    FundingSwapMarket: swaps.map((x) => x.FundingSwapMarket),
+    SwapOrderBook: swaps.map((x) => x.SwapOrderBook),
+    PerplFundingSource: swaps.filter((x) => x.fundingSource === "perpl").map((x) => x.PerplFundingSource),
+  };
   for (const c of CONTRACTS) {
-    const a = addrs[c.name];
-    if (!a) continue;
-    if (!ADDRESS_RE.test(a)) throw new Error(`deployments/${chainId}.json: bad address for ${c.name}: ${a}`);
+    const list = [addrs[c.name], ...(extra[c.name] ?? [])].filter(Boolean);
+    if (list.length === 0) continue;
+    for (const a of list) if (!ADDRESS_RE.test(a)) throw new Error(`deployments/${chainId}.json: bad address for ${c.name}: ${a}`);
     L.push(`      - name: ${c.name}`);
-    L.push(`        address: "${a}"`);
+    if (list.length === 1) L.push(`        address: "${list[0]}"`);
+    else {
+      L.push("        address:");
+      for (const a of list) L.push(`          - "${a}"`);
+    }
     n++;
   }
   if (n === 0) throw new Error(`deployments/${chainId}.json has no indexable contracts`);
@@ -192,6 +206,22 @@ export function renderConfig(chainId, deployment, perpl, extraChains = [], perpl
     L.push(`        address: "${a}"`);
   }
   return L.join("\n") + "\n";
+}
+
+/**
+ * Pure: the record's deployed `swapMarkets[]` (AddSwapMarket.s.sol, CR-017). An entry without `deployed: true` is a hard
+ * error (a dry-run record is never indexed); bad addresses too (never guess).
+ */
+export function swapMarketsOf(deployment, chainId) {
+  const list = deployment.swapMarkets ?? [];
+  if (!Array.isArray(list)) throw new Error(`deployments/${chainId}.json: swapMarkets must be an array`);
+  return list.map((x, i) => {
+    if (x?.deployed !== true) throw new Error(`deployments/${chainId}.json: swapMarkets[${i}] (${x?.symbol}) is not deployed: true`);
+    for (const k of ["FundingSwapMarket", "SwapOrderBook"].concat(x.fundingSource === "perpl" ? ["PerplFundingSource"] : [])) {
+      if (typeof x[k] !== "string" || !ADDRESS_RE.test(x[k])) throw new Error(`deployments/${chainId}.json: swapMarkets[${i}].${k}: bad address`);
+    }
+    return x;
+  });
 }
 
 function perplAddress(perpl, chainId) {
@@ -263,6 +293,29 @@ export function renderDeploymentsTs(deployments) {
     L.push(`  ${Number(d.chainId)}: { ${entries.join(", ")} },`);
   }
   L.push("};");
+  // CR-017: every swap market of a chain with its book and funding source ("meridian" = contracts.*, the perp CH);
+  // addresses as the record writes them (checksummed, like Envio's srcAddress).
+  L.push("export type SwapMarketWiring = { readonly symbol: string; readonly fundingSource: \"meridian\" | \"perpl\"; readonly swapMarket: string; readonly swapOrderBook: string; readonly source: string | undefined };");
+  L.push("export const SWAP_MARKETS: Readonly<Record<number, readonly SwapMarketWiring[]>> = {");
+  for (const d of [...deployments].sort((a, b) => Number(a.chainId) - Number(b.chainId))) {
+    const rows = [];
+    const c = d.contracts ?? {};
+    if (c.FundingSwapMarket && c.SwapOrderBook) {
+      rows.push(`{ symbol: "MON-FUNDING", fundingSource: "meridian", swapMarket: "${c.FundingSwapMarket}", swapOrderBook: "${c.SwapOrderBook}", source: ${c.ClearingHouse ? `"${c.ClearingHouse}"` : "undefined"} }`);
+    }
+    for (const x of swapMarketsOf(d, d.chainId)) {
+      rows.push(`{ symbol: ${JSON.stringify(x.symbol)}, fundingSource: "${x.fundingSource === "perpl" ? "perpl" : "meridian"}", swapMarket: "${x.FundingSwapMarket}", swapOrderBook: "${x.SwapOrderBook}", source: ${x.PerplFundingSource ? `"${x.PerplFundingSource}"` : "undefined"} }`);
+    }
+    if (rows.length) L.push(`  ${Number(d.chainId)}: [${rows.join(", ")}],`);
+  }
+  L.push("};");
+  // vitest (config.test.yaml, chain 31337): the TEST_FILL swap market + TEST_PERPL_SWAP, used only when the local
+  // record lists no swap market (same pattern as PERPL_TEST).
+  L.push("/** vitest only (config.test.yaml, chain 31337): the test swap markets behind TEST_FILL / TEST_PERPL_SWAP. */");
+  L.push(
+    `export const SWAP_MARKETS_TEST: readonly SwapMarketWiring[] = [{ symbol: "MON-FUNDING", fundingSource: "meridian", swapMarket: "${TEST_FILL.FundingSwapMarket}", swapOrderBook: "${TEST_FILL.SwapOrderBook}", source: undefined }, ` +
+      `{ symbol: "${TEST_PERPL_SWAP.symbol}", fundingSource: "perpl", swapMarket: "${TEST_PERPL_SWAP.FundingSwapMarket}", swapOrderBook: "${TEST_PERPL_SWAP.SwapOrderBook}", source: "${TEST_PERPL_SWAP.PerplFundingSource}" }];`,
+  );
   L.push("/** Labelled TEST markets (deployments demoMarket): the crash/liquidation demo market, never the product. */");
   L.push("export const TEST_MARKETS: Readonly<Record<number, readonly string[]>> = {");
   for (const d of [...deployments].sort((a, b) => Number(a.chainId) - Number(b.chainId))) {
@@ -321,6 +374,15 @@ export const TEST_FILL = {
   MeridianKeeperReceiver: "0x00000000000000000000000000000000000000F4",
   MeridianMfiFeed: "0x00000000000000000000000000000000000000F6",
 };
+/** Test-only Perpl-funding swap market (config.test.yaml only; CR-017). */
+export const TEST_PERPL_SWAP = {
+  symbol: "MON-FUNDING-PERPL",
+  fundingSource: "perpl",
+  PerplFundingSource: "0x00000000000000000000000000000000000000f9",
+  FundingSwapMarket: "0x00000000000000000000000000000000000000f7",
+  SwapOrderBook: "0x00000000000000000000000000000000000000f8",
+  deployed: true,
+};
 /** Test-only Perpl exchange on 31337 (config.test.yaml); its market metadata is PERPL_TEST in src/perpl.gen.ts. */
 export const TEST_PERPL_EXCHANGE = "0x00000000000000000000000000000000000000f5";
 
@@ -337,6 +399,7 @@ function main() {
     // Vitest config: local 31337 deployment + TEST_FILL for missing keys (simulate() only routes configured addresses).
     const d = JSON.parse(readFileSync(resolve(REPO_DIR, "deployments/31337.json"), "utf8"));
     d.contracts = { ...TEST_FILL, ...d.contracts };
+    d.swapMarkets = [TEST_PERPL_SWAP];
     d.startBlock = 0; // synthetic test blocks start low; the live deployment's startBlock must not filter them
     const perpl = { chains: { 31337: { exchange: TEST_PERPL_EXCHANGE } } };
     writeFileSync(

@@ -491,7 +491,9 @@ type SwapStats {
   id: ID!
   markAprWad: BigInt! # last traded APR (the contract's markApr median also uses book mid + realized 8 h)
   lastTradeBlock: BigInt!
-  realizedApr8hWad: BigInt # mirrored from the underlying perp Market when a swap event fires
+  realizedApr8hWad: BigInt # Meridian-funding market: mirrored from the underlying perp Market when a swap event fires; Perpl-funding market: undefined (see PerplFundingSourceState)
+  fundingSource: String # "meridian" (the perp ClearingHouse) or "perpl" (PerplFundingSource, CR-017)
+  source: String # the funding source address (ClearingHouse or PerplFundingSource)
   openInterestWad: BigInt! # Σ positive q (= Σ |negative q|)
   volumeWad: BigInt!
   tradeCount: Int!
@@ -501,6 +503,38 @@ type SwapStats {
   cumIndexTimeAtMaturity: BigInt
   maturityBlock: BigInt
   params: Json
+}
+
+# CR-017: one per PerplFundingSource.Poked (a Perpl funding event snapshotted for a swap market). F/G as the adapter
+# stores them (MATH_SPEC §6.8); intervalAprWad = ΔF·1e18/ΔG·YEAR against the previous snapshot (0, display only).
+type PerplFundingSnapshot @index(fields: ["source", ["block", "DESC"]]) {
+  id: ID!
+  source: String!
+  swapMarket: String
+  cumFunding: BigInt!
+  cumIndexTime: BigInt!
+  fundingEventBlock: BigInt!
+  priceWad: BigInt!
+  rateWad: BigInt! # Perpl's current rate, per-second WAD
+  intervalAprWad: BigInt # realized APR since the previous snapshot; undefined for the first
+  block: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+# CR-017: latest state of a PerplFundingSource (id = source address).
+type PerplFundingSourceState {
+  id: ID!
+  swapMarket: String
+  cumFunding: BigInt!
+  cumIndexTime: BigInt!
+  fundingEventBlock: BigInt!
+  priceWad: BigInt!
+  rateWad: BigInt!
+  lastIntervalAprWad: BigInt
+  pokes: Int!
+  lastPokeBlock: BigInt!
+  lastPokeTx: String!
 }
 
 # Mirror of MATH_SPEC §6.2 state (id = "<swapMarket>-<account>"). q = 0 with K ≠ 0 is a locked spread.

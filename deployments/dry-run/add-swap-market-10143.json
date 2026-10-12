@@ -1,0 +1,94 @@
+{
+  "chainId": 10143,
+  "contracts": {
+    "AUSD": "0x9739682300022676FF867Ad289d20A8fC08566A1",
+    "ClearingHouse": "0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA",
+    "FundingSwapMarket": "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33",
+    "InsuranceFund": "0xCcd97285dD2fca8D028D880Ed754039118437b48",
+    "MarketFactory": "0xEB3f3956AC3c13BC9b61a383590F5eEb4Ff6e541",
+    "OracleAdapter": "0xC77882E7024D8B71F414eDc1a8708b939920A9E2",
+    "OrderBook": "0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207",
+    "SwapOrderBook": "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db",
+    "WMON": "0xFb8bf4c1CC7a94c73D209a149eA2AbEa852BC541",
+    "MeridianVault": "0xe8b38d1115F51Fb036a566C290b6b7d8Ae5692E6",
+    "KuruHedger": "0xdB9Bc1996dE5A338c7F2B7b7f5f56B9047567191",
+    "MeridianKeeperReceiver": "0x7c44C263225706fE28809BaE9fCC13460A908932",
+    "MeridianMfiFeed": "0x651Bd154810B6FE9b725F1a17cdA24C4E72550Fa"
+  },
+  "demoMarket": {
+    "ClearingHouse": "0xB2D4DacC56DA8EFA248abcccB196f73c69ABdC01",
+    "OracleAdapter": "0x93fb8b96418Ed3A9d5ef57c01C7f125bDfE29826",
+    "OrderBook": "0xa3fA19A27bcEB3B466Adf9420c62Bd39782a2f1d",
+    "_label": "TEST MARKET: keeper-fed oracle, used only for the crash/liquidation demo",
+    "oracleKind": "keeper-fed",
+    "symbol": "MON-PERP-DEMO",
+    "testMarket": true
+  },
+  "deployed": true,
+  "mockContracts": [
+    "AUSD",
+    "KuruHedger"
+  ],
+  "mocks": false,
+  "oracleKind": "keeper-fed",
+  "owner": "0xEF4E34a3754c878BE0191B103691FD088e3F3b91",
+  "startBlock": 68739694,
+  "symbol": "MON-PERP",
+  "_operators": "mmAccounts = perp MM, demo MM, house taker flow (mm-bot pnpm flow); keeperAccounts = main + demo keeper. Excluded from ProtocolStats.externalUsers (indexer gen-config); K7: ETH-PERP keeper (also the oracle feeder) and MM. testAccounts = scripted test traders (ETH-PERP evidence victim), also excluded from externalUsers.",
+  "keeperAccounts": [
+    "0x0D3B07775a452155D8F1B243154b38f12FDD0fA9",
+    "0x8520FfB82e2c46EB1c7fA4e257A78d09f3708552",
+    "0x5D4FB8B84839e0e8445154c8C6a5ec3B285146E2"
+  ],
+  "mmAccounts": [
+    "0x814DB3f310CCB192acaab4a6908A0Cf33323b981",
+    "0xB1a78a9cB3FE3aB4f0c49ad0dBC080EF18305bd1",
+    "0x6E02939822507a5f3e0Ad90CE7cd68dC5d49303A",
+    "0xC474e242787Ab52AadacA669eD67589ebeA04766"
+  ],
+  "vaultStartBlock": 68775102,
+  "vaultVersion": "2 (CR-014: async withdrawals, interfaces-v1.7)",
+  "vaultMockSpotToken": "0xeCaEAE023ddFC44Fa2c77B8Fd290907a76689fa0",
+  "vaultSourceCommit": "b38c6ba (ws-00r-testnet-vault, stacked on ws-04c-vault-v2 4ecf7c7; not on main yet: rebase --onto origin/main ws-04c-vault-v2 ws-00r-testnet-vault after P3-P5 merge)",
+  "creForwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192",
+  "creForwarderMode": "sim",
+  "receiverStartBlock": 69056122,
+  "markets": [
+    {
+      "ClearingHouse": "0xaf250943E173454C2fCD22b4Ba0DF8A0b6E1ccb4",
+      "OracleAdapter": "0x8DFE2185B14b648B4E5d940F025c47AEDEC170Db",
+      "OrderBook": "0x77675B68d15A112c9CfC617bCf38aAFA8643BDDe",
+      "_label": "TESTNET MARKET: keeper-fed oracle (Pyth via Hermes, pushed by the keeper)",
+      "baseAsset": "0x0000000000000000000000000000000000000000",
+      "feedSymbol": "ETH/USD",
+      "keeper": "0x5D4FB8B84839e0e8445154c8C6a5ec3B285146E2",
+      "lotSizeWad": "1000000000000000",
+      "oracleKind": "keeper-fed",
+      "pythFeedId": "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+      "startBlock": 69227046,
+      "symbol": "ETH-PERP",
+      "tickSizeWad": "100000000000000000"
+    }
+  ],
+  "testAccounts": [
+    "0xe7D75c6751e3Da7323fa7702DA273408ba7cdB08"
+  ],
+  "_label": "SIMULATION (forge script without --broadcast): addresses are not deployed",
+  "swapMarkets": [
+    {
+      "FundingSwapMarket": "0x4e5A8b88e8F09FDf2DC178B4641a25676d181bde",
+      "PerplFundingSource": "0xC008aF47fCC651889a1d66f0734da941A55224cC",
+      "SwapOrderBook": "0x5D4f03B6Afa525ed580C75878A2F51A35c202334",
+      "_label": "TESTNET SWAP MARKET: settles on Perpl's MON-perp funding (PerplFundingSource)",
+      "deployed": false,
+      "fundingSource": "perpl",
+      "lotSizeWad": "1000000000000000000000",
+      "maturity": 1794413572,
+      "perplExchange": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "perplPerpId": 64,
+      "startBlock": 70442101,
+      "symbol": "MON-FUNDING-PERPL",
+      "tickSizeWad": "100000000000000"
+    }
+  ]
+}

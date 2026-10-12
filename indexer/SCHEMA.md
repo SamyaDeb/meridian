@@ -34,7 +34,9 @@ Engine: Envio HyperIndex 3.12.1 (Hasura GraphQL). Networks: 31337 (local anvil v
 | `VaultUser` | `<vault>-<user>` | `shares`, `depositedToken`, `withdrawnToken` | Earn (my position) |
 | `VaultRebalance`, `HedgeTrade` | `<block>-<logIndex>` | reason, deltas, Kuru fills | Earn activity |
 | `VaultRedeemRequest` (CR-014) | `<vault>-<requestId>` | `owner`, `receiver`, `shares`, `status` (Pending / Claimable / Claimed / Cancelled), `assets` + `unwindCost` (set at fulfilment), `requestedBlock`, `fulfilledBlock`, `claimedBlock` | Earn: my pending withdrawals, Claim button |
-| `SwapStats` | swap market address | `markAprWad` (last traded), `realizedApr8hWad`, `openInterestWad`, `volumeWad`, `matured`, `cumFundingAtMaturity` | Fix |
+| `SwapStats` | swap market address | `markAprWad` (last traded), `realizedApr8hWad` (Meridian-funding market only), `fundingSource` ("meridian" / "perpl"), `source`, `openInterestWad`, `volumeWad`, `matured`, `cumFundingAtMaturity` | Fix |
+| `PerplFundingSnapshot` | event id | one per `PerplFundingSource.Poked` (CR-017): `cumFunding`, `cumIndexTime`, `fundingEventBlock`, `priceWad`, `rateWad`, `intervalAprWad` (ΔF·1e18/ΔG·YEAR vs the previous snapshot), `swapMarket` | Fix (Perpl source) |
+| `PerplFundingSourceState` | source address | latest snapshot + `pokes`, `lastPokeBlock`, `lastPokeTx`, `lastIntervalAprWad` | Fix (Perpl source) |
 | `SwapPosition` | `<swapMarket>-<account>` | `size` (q), `fixedAprNotional` (K), `avgFixedAprWad`, **`lockedSpread`**, `netAccrued`, `floatingReceived`, `fixedPaid`, `collateralWad` | Fix (my swap) |
 | `SwapTrade` | `<block>-<logIndex>` | `sizeDelta`, `newSize`, `aprWad`, `fee`, `isMaker` | Fix history |
 | `OraclePrice`, `OracleGuardTrip` | `<block>-<logIndex>` | index price pushes, deviation trips | Stats / ops |
@@ -279,6 +281,7 @@ Not indexed yet: Kuru OrderBook trade events (WS-06 "Consumes"; > VERIFY ABI at 
 
 ## Known approximations (tell WS-07)
 - `AccountMarket.collateralWad` doesn't credit a liquidator's `keeperReward`: whether it's paid into CH collateral or as tokens isn't specified (> VERIFY with WS-02).
+- Two swap markets on 10143 (CR-017): `FundingSwapMarket` and `SwapOrderBook` are each indexed at both addresses; every swap entity is keyed by its market address (`SwapStats.id`, `SwapPosition.id = <market>-<account>`, `Trade.swapMarket`), and a swap book resolves to its market through `SWAP_MARKETS` (deployments.gen.ts), never the first market's address. The Perpl-funding market's realized APR is not mirrored from the Meridian perp: read `PerplFundingSourceState` / `PerplFundingSnapshot` or the contract's `realizedApr`. Extra event load is small: one `Poked` per 43 min plus that market's own trading.
 - `SwapStats.markAprWad` is the last traded APR. The contract's `markApr` is a median with book mid and realized 8 h (MATH_SPEC §6.3), so read `markApr()` for margin-grade values.
 - `SwapTrade` is one row per `SwapPositionChanged` (maker and taker legs), so there are 2 per book fill; the book's `Trade` rows have `kind: "Swap"`.
 - The local mock deployment (31337) has no MarketFactory / FundingSwapMarket / SwapOrderBook / KeeperReceiver yet. Those contracts get indexed once they're in `deployments/<chainId>.json`: rerun `pnpm gen-config <chainId>`.

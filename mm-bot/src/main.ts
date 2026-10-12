@@ -24,8 +24,8 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RateWindow, createCountingFetch, newRpcStats } from "@meridian/bot-rpc";
-import { clearingHouseAbi, fundingSwapAbi, oracleAdapterAbi, orderBookAbi } from "./abi.js";
-import { type PerpMarket, type PerpRecord, resolvePerpMarket } from "./market.js";
+import { clearingHouseAbi, fundingSwapAbi, oracleAdapterAbi, orderBookAbi, perplFundingSourceAbi } from "./abi.js";
+import { type PerpMarket, type PerpRecord, type SwapMarketEntry, resolvePerpMarket, resolveSwapBook } from "./market.js";
 import { DEFAULTS, buildLadder, inventoryRatio, quoteBps, sigmaForQuoting } from "./as.js";
 import { type AnchorSource, aprSigma, aprWadToBps, blocksFor, buildAprLadder, chooseAnchor, movedAprBps } from "./aprbook.js";
 import { type Resting, idsToRefresh, needsRequote, planRequote, shouldTick, touchedId } from "./plan.js";
@@ -82,6 +82,7 @@ const TOUCH_ALLOWANCE_GAS = BigInt(env("TOUCH_ALLOWANCE_GAS") ?? (ESTIMATE_BLOCK
 interface Deployments extends PerpRecord {
   chainId: number;
   contracts: PerpMarket & { FundingSwapMarket?: Address; SwapOrderBook?: Address };
+  swapMarkets?: SwapMarketEntry[];
 }
 const dep = JSON.parse(readFileSync(DEPLOYMENTS, "utf8")) as Deployments;
 if (dep.chainId !== CHAIN_ID) throw new Error(`deployments chainId ${dep.chainId} != CHAIN_ID ${CHAIN_ID}`);
@@ -98,14 +99,19 @@ const market = resolvePerpMarket(dep, MARKET, DEPLOYMENTS);
 const PERPL = perplHedgeFromEnv(process.env); // undefined unless PERPL_HEDGE=1 (hard-fails off testnet)
 if (PERPL && (IS_SWAP || MARKET !== "main")) throw new Error("PERPL_HEDGE=1 is only for the main MON-PERP market (MARKET=main)");
 let hedger: PerplHedger | undefined;
-const SWAP: Address | undefined = IS_SWAP ? dep.contracts.FundingSwapMarket : undefined;
-if (IS_SWAP && (SWAP === undefined || dep.contracts.SwapOrderBook === undefined)) throw new Error(`${DEPLOYMENTS}: no FundingSwapMarket/SwapOrderBook`);
+// SWAP_MARKET (MARKET=swap only): unset = the Meridian-funding swap book; "perpl" = the book settling on Perpl's funding
+// (swapMarkets[], CR-017). Its anchor is that market's own realizedApr(8 h) = Perpl's realized funding from the
+// PerplFundingSource snapshots; fallback Perpl's current rate; index = the source's Perpl oracle price at the last poke.
+const swapBook = IS_SWAP ? resolveSwapBook(dep, env("SWAP_MARKET"), DEPLOYMENTS) : undefined;
+if (!IS_SWAP && env("SWAP_MARKET") !== undefined) throw new Error("SWAP_MARKET is only for MARKET=swap");
+const SWAP: Address | undefined = swapBook?.swapMarket;
+const PERPL_SRC: Address | undefined = swapBook?.perplSource;
 const TOUCH_EVENTS = orderBookAbi.filter(
   (x): x is Extract<(typeof orderBookAbi)[number], { type: "event"; name: "Trade" | "OrderEvicted" | "MakerFillSkipped" }> =>
     x.type === "event" && (x.name === "Trade" || x.name === "OrderEvicted" || x.name === "MakerFillSkipped"),
 );
 const CH: Address = market.clearingHouse;
-const OB: Address = IS_SWAP ? (dep.contracts.SwapOrderBook as Address) : market.orderBook;
+const OB: Address = swapBook?.orderBook ?? market.orderBook;
 const ORACLE: Address = market.oracle;
 
 const chain = defineChain({
@@ -283,7 +289,10 @@ let lastAnchorSource: AnchorSource | null = null;
  */
 async function readQuoteState(block: bigint): Promise<QuoteState> {
   const nowSec = Math.floor(Date.now() / 1000);
-  const oracleRead = pub.readContract({ address: ORACLE, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" });
+  const oracleRead: Promise<readonly [boolean, bigint, bigint]> =
+    PERPL_SRC === undefined
+      ? pub.readContract({ address: ORACLE, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" })
+      : pub.readContract({ address: PERPL_SRC, abi: perplFundingSourceAbi, functionName: "indexPrice" }).then((p) => [p !== 0n, p, 0n] as const);
   if (!IS_SWAP) {
     const [[ok, index], acct] = await Promise.all([
       oracleRead,
@@ -307,7 +316,9 @@ async function readQuoteState(block: bigint): Promise<QuoteState> {
     pub.readContract({ address: SWAP!, abi: fundingSwapAbi, functionName: "isMatured" }),
     // reverts ObservationTooOld until the perp has 8 h of checkpoints ⇒ null ⇒ perp-rate anchor
     pub.readContract({ address: SWAP!, abi: fundingSwapAbi, functionName: "realizedApr", args: [REALIZED_BLOCKS] }).catch(() => null),
-    pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "previewFundingState" }),
+    PERPL_SRC === undefined
+      ? pub.readContract({ address: CH, abi: clearingHouseAbi, functionName: "previewFundingState" })
+      : pub.readContract({ address: PERPL_SRC, abi: perplFundingSourceAbi, functionName: "fundingState" }),
     scanTouched(block),
   ]);
   if (!ok || index === 0n) return { kind: "stale" };

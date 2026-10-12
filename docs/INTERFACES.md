@@ -1,6 +1,6 @@
 # INTERFACES — frozen cross-workstream contracts
 
-**Frozen: `interfaces-v1.8` (8 Oct 2026, CR-001..007, CR-014, CR-016).** The `.sol` files in `contracts/src/interfaces/` are the source of truth. The second half of this document is generated verbatim from them (`python3 tools/gen_interfaces_md.py`; CI runs `--check`). To change anything, file an entry in `docs/CHANGE_REQUESTS.md`.
+**Frozen: `interfaces-v1.9` (12 Oct 2026, CR-001..007, CR-014, CR-016, CR-017).** The `.sol` files in `contracts/src/interfaces/` are the source of truth. The second half of this document is generated verbatim from them (`python3 tools/gen_interfaces_md.py`; CI runs `--check`). To change anything, file an entry in `docs/CHANGE_REQUESTS.md`.
 
 ## 1. Who implements / who calls
 
@@ -19,7 +19,8 @@
 | `IKuruHedger` | KuruHedger (WS-04, B) | vault | `MockKuruHedger` |
 | `IMeridianKeeperReceiver` | MeridianKeeperReceiver (K4, `automation/`) | CRE KeystoneForwarder (simulation: MockKeystoneForwarder) | — |
 | `IMeridianMfiFeed` (CR-016) | MeridianMfiFeed (K4, `oracle/`), written by the receiver's action 6 | any contract (`latest()`), app | — |
-| `external/*` | Kuru / Pyth / Chainlink | adapters | `MockKuruHedger`, `MockAggregatorV3` |
+| `IPerplFundingSource` (CR-017, + IFundingRateOracle) | PerplFundingSource (WS-05, `oracle/`) | a second FundingSwapMarket (as its `perpClearingHouse`), keeper (`poke`), indexer, app | `MockPerplExchange` (scripts Perpl) |
+| `external/*` | Kuru / Pyth / Chainlink / Perpl (`IPerplExchange`, CR-017) | adapters | `MockKuruHedger`, `MockAggregatorV3`, `MockPerplExchange` |
 | `deferred/*` (PT/YT) | not built in the hackathon | — | — |
 
 ## 2. Cross-module rules (normative)
@@ -1086,6 +1087,83 @@ interface IKuruRouter {
 }
 ```
 
+### `contracts/src/interfaces/external/IPerplExchange.sol`
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+/// @title IPerplExchange — the subset of Perpl's Exchange that PerplFundingSource reads (external, CR-017)
+/// @notice Copied from the vendored ABI `indexer/abis/PerplExchange.json` (dex-sdk dbb37c5, contract 1.7.5): only the
+///         two views and the one event the adapter relies on. Testnet exchange (ERC-1967 proxy)
+///         0x1964c32f0be608e7d29302aff5e61268e72080cc (`deployments/perpl.json`).
+///         Units (docs/PERPL_SWAPS.md §Units, verified 12 Oct 2026 on 10143 perp 64):
+///         - `fundingSumPNS` is a per-1-lot cumulative funding sum in price units ×10^fundingSumScalingExp; it RISES
+///           when longs pay. F_wad = fundingSumPNS · 10^(18 − priceDecimals − fundingSumScalingExp).
+///         - `fundingEventBlock` (feb) is the block a funding event applies from; the sum for feb is written ~78 blocks
+///           earlier but `getFundingSumAtBlock(perp, b)` only returns it for b ≥ feb.
+///         - `fundingRatePct100k`, `absFundingClampPctPer100K`: fraction of notional per funding interval ×1e5.
+///         - `oraclePNS` / `markPNS`: price ×10^priceDecimals; `oracleTimestampSec`: unix seconds.
+interface IPerplExchange {
+    struct PerpetualInfoV2 {
+        string name;
+        string symbol;
+        uint256 priceDecimals;
+        uint256 lotDecimals;
+        bytes32 linkFeedId;
+        uint256 priceTolPer100K;
+        uint256 marginTol;
+        uint256 marginTolDecimals;
+        uint256 refPriceMaxAgeSec;
+        uint256 positionBalanceCNS;
+        uint256 insuranceBalanceCNS;
+        uint256 markPNS;
+        uint256 markTimestamp;
+        uint256 lastPNS;
+        uint256 lastTimestamp;
+        uint256 oraclePNS;
+        uint256 oracleTimestampSec;
+        uint256 longOpenInterestLNS;
+        uint256 shortOpenInterestLNS;
+        uint256 fundingStartBlock;
+        int16 fundingRatePct100k;
+        uint256 absFundingClampPctPer100K;
+        uint8 status;
+        uint256 basePricePNS;
+        uint256 maxBidPriceONS;
+        uint256 minBidPriceONS;
+        uint256 maxAskPriceONS;
+        uint256 minAskPriceONS;
+        uint256 numOrders;
+        bool ignOracle;
+        uint256 fundingSumScalingExp;
+    }
+
+    event FundingEventCompleted(
+        uint256 perpId,
+        uint256 fundingEventBlock,
+        int256 specifiedRatePct100k,
+        int256 actualRatePct100k,
+        uint256 fundingPricePNS,
+        int48 fundingPaymentPNS,
+        int48 fundingSumPNS,
+        bool allowOverwrite
+    );
+
+    /// @notice Cumulative funding sum of the latest funding event at or before `blockNumber`, and that event's block.
+    function getFundingSumAtBlock(uint256 perpId, uint256 blockNumber)
+        external
+        view
+        returns (int48 fundingSumPNS, uint256 fundingEventBlock);
+
+    /// @notice Funding interval in blocks (8,571 on 10143 and 143). `pure` in Perpl's ABI; declared `view` here so a
+    ///         mock can script it (same selector, called with STATICCALL either way).
+    function getFundingInterval() external view returns (uint256 fundingInterval);
+
+    function getPerpetualInfoV2(uint256 perpId) external view returns (PerpetualInfoV2 memory perpetualInfo);
+}
+```
+
 ### `contracts/src/interfaces/external/IPythMinimal.sol`
 
 ```solidity
@@ -1164,5 +1242,76 @@ interface IMeridianMfiFeed {
         );
 
     function receiver() external view returns (address);
+}
+```
+
+### `contracts/src/interfaces/IPerplFundingSource.sol`
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import {IFundingRateOracle} from "./IFundingRateOracle.sol";
+import {FundingParams, FundingState} from "./MeridianTypes.sol";
+
+/// @title IPerplFundingSource — Perpl's per-interval funding as a Meridian funding source (CR-017, interfaces-v1.9)
+/// @notice A `FundingSwapMarket` reads its floating leg through seven views on the address it was deployed with
+///         (`latestObservation`, `observe`, `averageFundingRate`, `averageFundingApr`, `indexPrice`,
+///         `fundingParams().rateCap`, `fundingState().rate`). This adapter answers them from snapshots of one Perpl
+///         perpetual, so a second swap market can settle on Perpl's funding without any change to the swap market.
+///         - `poke()` (permissionless) snapshots Perpl's cumulative funding sum when a new funding event has applied:
+///           F = fundingSumPNS · 10^(18 − priceDecimals − fundingSumScalingExp) (quote WAD per 1 base, rises when
+///           longs pay, same convention as the ClearingHouse), and G += I · Δfeb · intervalSec / intervalBlocks with
+///           I = Perpl's oracle price at the poke. F and G step together, once per Perpl funding event.
+///         - Every view answers from storage only (no call into Perpl); nothing is extrapolated.
+///         - Checkpoints: one ring entry per poke that advances, RING_SIZE entries, observation block = the Perpl
+///           funding event block (feb). MATH_SPEC §6.8.
+interface IPerplFundingSource is IFundingRateOracle {
+    /// @notice A new Perpl funding event was snapshotted.
+    /// @param cumFunding F after the poke (quote WAD per 1 base)
+    /// @param cumIndexTime G after the poke (quote WAD · seconds per 1 base)
+    /// @param fundingEventBlock Perpl's funding event block the snapshot is as of
+    /// @param priceWad I used for this step of G (Perpl oracle price, WAD)
+    /// @param rate Perpl's current funding rate as a per-second WAD rate
+    event Poked(int256 cumFunding, uint256 cumIndexTime, uint64 fundingEventBlock, uint256 priceWad, int256 rate);
+
+    /// @notice Perpl's oracle price is older than MAX_PRICE_AGE (or zero): nothing is written, F and G pause together.
+    error StalePerplPrice(uint256 oracleTimestampSec);
+    /// @notice Perpl changed the market's priceDecimals or fundingSumScalingExp since deploy: the sum's unit moved.
+    error PerplScaleChanged();
+    /// @notice Constructor bounds: zero exchange, decimals + scaling exponent > 18, zero interval.
+    error InvalidParams();
+
+    /// @notice Snapshot Perpl's funding if a new funding event has applied since the last snapshot. Permissionless.
+    /// @return advanced true if a new observation was written (false = no new funding event, nothing changed)
+    function poke() external returns (bool advanced);
+
+    /// @notice Perpl Exchange (proxy) this adapter reads.
+    function exchange() external view returns (address);
+    /// @notice Perpl perpetual id (testnet MON = 64).
+    function perpId() external view returns (uint256);
+    /// @notice Perpl funding interval in blocks (read at deploy).
+    function fundingIntervalBlocks() external view returns (uint256);
+    /// @notice Perpl funding interval in seconds (deploy parameter, `deployments/perpl.json`).
+    function fundingIntervalSec() external view returns (uint256);
+    /// @notice F_wad = fundingSumPNS · sumScale.
+    function sumScale() external view returns (uint256);
+    /// @notice Block of the last poke that wrote an observation.
+    function lastPokeBlock() external view returns (uint64);
+    /// @notice Raw ring entry `slot` (for indexers and invariant handlers).
+    function checkpointAt(uint256 slot)
+        external
+        view
+        returns (int256 cumFunding, int256 cumIndexTime, uint64 blockNumber);
+    /// @notice Index of the newest ring entry.
+    function checkpointIndex() external view returns (uint256);
+
+    /// @notice Perpl oracle price at the last poke (WAD). Same selector as IClearingHouse.indexPrice.
+    function indexPrice() external view returns (uint256 priceWad);
+    /// @notice Same ABI as IClearingHouse.fundingParams. Only `rateCap` is meaningful (Perpl's clamp per second WAD,
+    ///         with a price-basis buffer); `blockTimeMs` = intervalSec·1000/intervalBlocks; every other field is 0.
+    function fundingParams() external view returns (FundingParams memory);
+    /// @notice Same ABI as IClearingHouse.fundingState: (F, G, 0, Perpl's rate per second WAD, feb).
+    function fundingState() external view returns (FundingState memory);
 }
 ```

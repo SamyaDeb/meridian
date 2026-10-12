@@ -66,6 +66,10 @@ contracts:
       - event: RedeemFulfilled
       - event: RedeemClaimed
       - event: EmergencyUnwind
+  - name: PerplFundingSource
+    abi_file_path: ../abis/IPerplFundingSource.json
+    events:
+      - event: Poked
   - name: OracleAdapter
     abi_file_path: ../abis/IOracleAdapter.json
     events:
