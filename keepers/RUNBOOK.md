@@ -276,7 +276,10 @@ curl -s localhost:8790 | jq '{block, perplFeb, sourceFeb, sourceLagBlocks, pokes
 - **Gas:** limit = estimate × 1.2. Testnet 12 Oct: poke estimate 131,925 (limit 158,310) ≈ 0.017 MON at 110 gwei; one per 43 min ⇒ **≈ 0.024 MON/h** for pokes. Reads are free. Any key works (permissionless); use a key the owner names, never the MM's.
 - **Health:** `sourceLagBlocks` > 0 for more than a few blocks after a Perpl event means the poke is failing (see `lastError`). `VerifyDeployment` fails "source ≤ 2 Perpl intervals behind" after ≈ 86 min without a poke.
 - **If nobody pokes**, accrual pauses (not lost: the next poke steps F and G across the whole gap). The mark, margins and realized APR stay at the last poke.
-- **Swap MM on this book:** owner action (keys, MON, margin). The fair fixed APR must come from Perpl's realized funding (MFI), not Meridian's. Not running yet.
+- **Swap MM on this book** (`mm-bot`, `MARKET=swap SWAP_MARKET=perpl`): it quotes `0x5D4f…2334` around **that market's own `realizedApr(8 h)`**, which is Perpl's realized funding from the adapter's snapshots. Until 8 h of snapshots exist it uses Perpl's current rate. The index is the source's Perpl oracle price at the last poke, and a zero index stops quoting. Perpl's next rate is public ≈ 23 s before it applies: keep `REQUOTE_BPS` small enough that the ladder moves when the rate changes, and widen it if fills cluster just before Perpl events. Owner action: key, MON and margin, then measure MON/h over 10 min before a long run and write it here.
+  ```bash
+  cd mm-bot && MARKET=swap SWAP_MARKET=perpl MM_PK=… KILL_FILE=/tmp/KILL-perpl-swap HEALTH_PORT=8791 LEVELS=1 pnpm start
+  ```
 
 ## 7e. CRE backstop keeper (K4, PHASES 43; details in `keepers/cre/README.md`)
 Three Chainlink CRE workflows report to `MeridianKeeperReceiver` `0x7c44…8932` (W1 liquidation guardian, W2 funding poke + vault rebalance, W3 MFI publisher → `MeridianMfiFeed` `0x651B…50Fa`). On 10143 they run as `cre workflow simulate --broadcast` on one machine through the simulation forwarder `0xB9F7…D192`, not on a DON (no Early Access). The TS keeper stays primary.

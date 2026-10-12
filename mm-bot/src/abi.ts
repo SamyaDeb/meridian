@@ -41,3 +41,10 @@ export const fundingSwapAbi = parseAbi([
   "function swapParams() view returns (SwapParams)",
   "function isMatured() view returns (bool)",
 ]);
+
+// PerplFundingSource (CR-017, abis/PerplFundingSource.json): the Perpl swap book's index and Perpl's current rate.
+export const perplFundingSourceAbi = parseAbi([
+  "struct FundingState { int256 cumFunding; int256 cumIndexTime; int256 emaPremium; int256 rate; uint64 lastUpdateBlock; }",
+  "function indexPrice() view returns (uint256 priceWad)",
+  "function fundingState() view returns (FundingState)",
+]);

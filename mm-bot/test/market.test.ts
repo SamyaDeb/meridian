@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { type PerpRecord, resolvePerpMarket } from "../src/market.js";
+import { type PerpRecord, resolvePerpMarket, resolveSwapBook } from "../src/market.js";
 
 const a = (n: number) => `0x${n.toString(16).padStart(40, "0")}` as const;
 const rec: PerpRecord = {
@@ -35,5 +35,36 @@ describe("resolvePerpMarket", () => {
     const eth = resolvePerpMarket(live, "eth");
     expect(eth.symbol).toBe("ETH-PERP");
     expect(eth.orderBook).not.toBe(resolvePerpMarket(live, "main").orderBook);
+  });
+});
+
+describe("resolveSwapBook (CR-017 swapMarkets)", () => {
+  const contracts = { FundingSwapMarket: "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33", SwapOrderBook: "0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db" } as const;
+  const perpl = {
+    symbol: "MON-FUNDING-PERPL",
+    fundingSource: "perpl",
+    PerplFundingSource: "0xC008aF47fCC651889a1d66f0734da941A55224cC",
+    FundingSwapMarket: "0x4e5A8b88e8F09FDf2DC178B4641a25676d181bde",
+    SwapOrderBook: "0x5D4f03B6Afa525ed580C75878A2F51A35c202334",
+    deployed: true,
+  } as const;
+  it("unset ⇒ the Meridian-funding book, no Perpl source", () => {
+    const b = resolveSwapBook({ contracts, swapMarkets: [perpl] }, undefined);
+    expect(b.swapMarket).toBe(contracts.FundingSwapMarket);
+    expect(b.orderBook).toBe(contracts.SwapOrderBook);
+    expect(b.perplSource).toBeUndefined();
+  });
+  it("'perpl' or the symbol ⇒ the swapMarkets entry and its source", () => {
+    for (const key of ["perpl", "mon-funding-perpl"]) {
+      const b = resolveSwapBook({ contracts, swapMarkets: [perpl] }, key);
+      expect(b.swapMarket).toBe(perpl.FundingSwapMarket);
+      expect(b.orderBook).toBe(perpl.SwapOrderBook);
+      expect(b.perplSource).toBe(perpl.PerplFundingSource);
+    }
+  });
+  it("refuses an undeployed entry, an unknown key, and a record without the main swap book", () => {
+    expect(() => resolveSwapBook({ contracts, swapMarkets: [{ ...perpl, deployed: false }] }, "perpl")).toThrow(/not deployed/);
+    expect(() => resolveSwapBook({ contracts, swapMarkets: [perpl] }, "eth")).toThrow(/not in deployments/);
+    expect(() => resolveSwapBook({ contracts: {} }, undefined)).toThrow(/no FundingSwapMarket/);
   });
 });

@@ -54,3 +54,43 @@ export function resolvePerpMarket(rec: PerpRecord, key: string, path = "deployme
   }
   return { symbol, clearingHouse: m.ClearingHouse, orderBook: m.OrderBook, oracle: m.OracleAdapter };
 }
+
+/** One entry of the record's `swapMarkets` list (AddSwapMarket.s.sol, CR-017): a swap book on an external venue's funding. */
+export interface SwapMarketEntry {
+  symbol: string;
+  fundingSource: string;
+  PerplFundingSource: Address;
+  FundingSwapMarket: Address;
+  SwapOrderBook: Address;
+  deployed: boolean;
+}
+
+export interface ResolvedSwapBook {
+  symbol: string;
+  swapMarket: Address;
+  orderBook: Address;
+  /** The swap market's funding source when it is not the main ClearingHouse (Perpl: PerplFundingSource). */
+  perplSource: Address | undefined;
+}
+
+/**
+ * MARKET=swap book: SWAP_MARKET unset ⇒ the main market's `contracts.FundingSwapMarket` (Meridian funding); "perpl" or a
+ * `swapMarkets[]` symbol ⇒ that entry, refused unless `deployed: true`. Pure.
+ */
+export function resolveSwapBook(
+  rec: { contracts: { FundingSwapMarket?: Address; SwapOrderBook?: Address }; swapMarkets?: SwapMarketEntry[] },
+  key: string | undefined,
+  path = "deployments",
+): ResolvedSwapBook {
+  if (key === undefined) {
+    const { FundingSwapMarket: fs, SwapOrderBook: ob } = rec.contracts;
+    if (fs === undefined || ob === undefined) throw new Error(`${path}: no FundingSwapMarket/SwapOrderBook`);
+    return { symbol: "MON-FUNDING", swapMarket: fs, orderBook: ob, perplSource: undefined };
+  }
+  const k = key.toUpperCase();
+  const all = rec.swapMarkets ?? [];
+  const e = all.find((x) => x.symbol.toUpperCase() === k) ?? (k === "PERPL" ? all.find((x) => x.fundingSource === "perpl") : undefined);
+  if (e === undefined) throw new Error(`SWAP_MARKET=${key}: not in ${path} swapMarkets (${all.map((x) => x.symbol).join(", ") || "none"})`);
+  if (e.deployed !== true) throw new Error(`${path}: swap market ${e.symbol} is not deployed`);
+  return { symbol: e.symbol, swapMarket: e.FundingSwapMarket, orderBook: e.SwapOrderBook, perplSource: e.fundingSource === "perpl" ? e.PerplFundingSource : undefined };
+}
