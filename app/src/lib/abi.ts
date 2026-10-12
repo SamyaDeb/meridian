@@ -24,6 +24,13 @@ export const clearingHouseAbi = parseAbi([
   "event FundingSettled(address indexed account, int256 payment, int256 cumFunding)",
 ]);
 
+/** IOracleAdapter: `ok = false` ⇔ the index is stale (older than maxStaleness) or invalid; the ClearingHouse then
+ *  refuses new risk (OracleStale), so the app reads it to pause the ticket instead of sending a doomed tx. */
+export const oracleAdapterAbi = parseAbi([
+  "function tryGetIndexPrice() view returns (bool ok, uint256 priceWad, uint256 updatedAt)",
+  "function maxStaleness() view returns (uint256 sec)",
+]);
+
 export const orderBookAbi = parseAbi([
   "struct OrderView { address maker; bool isBid; uint32 tick; uint64 remainingLots; uint64 placedBlock; }",
   "function placeLimitOrder(bool isBid, uint32 tick, uint64 lots, uint8 flags) returns (uint64 orderId, uint64 filledLots)",

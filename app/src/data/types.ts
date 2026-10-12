@@ -19,6 +19,11 @@ export interface Market {
   oracle?: Address;
   active: boolean;
   paused: boolean;
+  /** Oracle index older than its maxStaleness (or invalid): the market refuses new risk until the keeper pushes a
+   *  price (ClearingHouse OracleStale). Chain source only; undefined = not read. */
+  oracleStale?: boolean;
+  /** unix seconds of the oracle's last index update (chain source) */
+  oracleUpdatedAt?: bigint;
   lastFundingBlock: bigint;
   lastRate: bigint;
   lastRateAprWad: bigint;

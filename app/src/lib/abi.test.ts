@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { type Abi, type AbiEvent, type AbiFunction, toEventSelector, toFunctionSelector } from "viem";
-import { clearingHouseAbi, mockTokenAbi, orderBookAbi, swapAbi, vaultAbi } from "./abi";
+import { clearingHouseAbi, mockTokenAbi, oracleAdapterAbi, orderBookAbi, swapAbi, vaultAbi } from "./abi";
 
 const selectors = (abi: Abi): Set<string> => {
   const out = new Set<string>();
@@ -20,6 +20,7 @@ describe("app ABI fragments match the committed ABIs", () => {
     ["MeridianVault", vaultAbi],
     ["FundingSwapMarket", swapAbi],
     ["MockERC20", mockTokenAbi],
+    ["IOracleAdapter", oracleAdapterAbi],
   ] as const)("%s", (name, frag) => {
     const committed = selectors(load(name));
     for (const s of selectors(frag as Abi)) expect(committed.has(s), `${name} ${s}`).toBe(true);

@@ -1,7 +1,7 @@
 // Chain data source: contract views + recent logs (anvil / testnet without an indexer). Perp always; vault and funding
 // swaps when their addresses are in the deployment (else that part stays on the mock); protocol stats stay mock.
 import type { PublicClient } from "viem";
-import { clearingHouseAbi, orderBookAbi, perplFundingSourceAbi, swapAbi, vaultAbi } from "@/lib/abi";
+import { clearingHouseAbi, oracleAdapterAbi, orderBookAbi, perplFundingSourceAbi, swapAbi, vaultAbi } from "@/lib/abi";
 import { snapshotsFromLogs, swapPositionFromViews } from "@/lib/earnfix";
 import { rateToAprWad, vaultApyWad } from "@/lib/math";
 import { SECONDS_PER_YEAR } from "@/lib/units";
@@ -49,6 +49,9 @@ export interface ChainSource extends MeridianDataSource {
   fundingSettlements(account: Address): Promise<{ fromBlock: bigint; items: FundingSettlement[] }>;
 }
 
+/** Shortest share-price window the vault APY is annualized from: a deposit or withdrawal writes a NavSnapshot, and a
+ *  few blocks of drift (the 5 bps withdrawal fee alone moves a small vault's price ~0.1%) would read as a 6-figure APY. */
+export const MIN_APY_WINDOW_SEC = 3_600n;
 const LOG_LOOKBACK = 2_000n; // default blocks scanned for trades / ticks / orders (anvil or a paid RPC)
 
 /** Pure: [from, to] split into inclusive ranges of at most `span` blocks (RPC eth_getLogs caps). */
@@ -97,7 +100,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
   }
 
   async function market(): Promise<Market> {
-    const [fs, mark, index, [longOI, shortOI], paused, fp, head] = await Promise.all([
+    const [fs, mark, index, [longOI, shortOI], paused, fp, head, oracle] = await Promise.all([
       client.readContract({ ...ch, functionName: "previewFundingState" }),
       client.readContract({ ...ch, functionName: "markPrice" }),
       client.readContract({ ...ch, functionName: "indexPrice" }),
@@ -105,6 +108,8 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
       client.readContract({ ...ch, functionName: "paused" }),
       client.readContract({ ...ch, functionName: "fundingParams" }),
       client.getBlockNumber(),
+      // same staleness rule the ClearingHouse applies (MATH_SPEC §1.6); a failed read leaves it unknown, never "stale"
+      a.oracle ? client.readContract({ address: a.oracle, abi: oracleAdapterAbi, functionName: "tryGetIndexPrice" }).catch(() => undefined) : undefined,
     ]);
     // realized APR windows = the contract's own averageFundingApr (undefined until the window has history)
     const aprs = await Promise.all(
@@ -123,6 +128,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
       ...(a.oracle ? { oracle: a.oracle } : {}),
       active: true,
       paused,
+      ...(oracle ? { oracleStale: !oracle[0], oracleUpdatedAt: oracle[2] } : {}),
       lastFundingBlock: head, // previewFundingState is "as of now"
       lastRate: fs.rate,
       lastRateAprWad: rateToAprWad(fs.rate),
@@ -327,7 +333,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     // APY from the share price: the oldest snapshot in the lookback → the live price now (per-block funding shows)
     const oldest = snaps[snaps.length - 1];
     const dt = oldest ? ts(head) - oldest.timestamp : 0n;
-    const apy = oldest && dt > 0n ? vaultApyWad(oldest.sharePriceWad, price, dt) : undefined;
+    const apy = oldest && dt >= MIN_APY_WINDOW_SEC ? vaultApyWad(oldest.sharePriceWad, price, dt) : undefined;
     const last = rebal[rebal.length - 1];
     const REASONS = ["None", "Deploy", "DeltaDrift", "MarginLow", "ExitHedge", "EnterHedge", "Withdraw", "SkewCap"] as const;
     return {

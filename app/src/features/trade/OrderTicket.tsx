@@ -152,30 +152,36 @@ export function OrderTicket() {
             feeRateWad: kind === "limit" && postOnly ? (risk?.makerFee ?? 0n) : (risk?.takerFee ?? 0n),
           })
         : undefined;
-  const impactBps = fill && fill.filledLots > 0n && mark > 0n ? (((fill.avgPriceWad > mark ? fill.avgPriceWad - mark : mark - fill.avgPriceWad) * 10_000n) / mark) : undefined;
+  const bpsFrom = (ref: bigint) => (fill && fill.filledLots > 0n && ref > 0n ? ((fill.avgPriceWad > ref ? fill.avgPriceWad - ref : ref - fill.avgPriceWad) * 10_000n) / ref : undefined);
+  // Est is measured from the same reference the Max bound uses (the best opposite price), so the two compare; a fill
+  // far from mark (thin or one-sided book) is flagged separately rather than read as slippage that would revert.
+  const impactBps = bpsFrom(refPx);
+  const offMarkBps = bpsFrom(mark);
 
   // validation: the first problem blocks the CTA and is shown as its label
   const problem: string | undefined = !isConnected
     ? undefined
     : m?.paused
       ? "Market paused"
-      : typed === undefined || typed === 0n
-        ? "Enter a size"
-        : reduceOnly && lots === 0n
-          ? "Reduce-only: no position to reduce on this side"
-          : lots === 0n
-            ? `Minimum size is ${formatBaseWad(LOT, pm.sizeDp)} ${pm.base}`
-            : kind === "limit" && limitTick === undefined
-              ? "Enter a limit price"
-              : kind === "limit" && postOnly && postOnlyWouldCross(isBid, tickToPrice(limitTick!, TICK), bestBid, bestAsk)
-                ? "Post-only would cross the book"
-                : kind === "market" && (isBid ? bestAsk : bestBid) === undefined
-                  ? "No liquidity on that side"
-                  : kind === "market" && !allowPartial && fill && fill.filledLots < lots
-                    ? "Not enough depth inside your slippage"
-                    : !reduceOnly && free !== undefined && imForLots(lots, LOT, execPx, imr) > free
-                      ? "Not enough free collateral"
-                      : undefined;
+      : m?.oracleStale && !reduceOnly
+        ? "Oracle stale: new orders paused"
+        : typed === undefined || typed === 0n
+          ? "Enter a size"
+          : reduceOnly && lots === 0n
+            ? "Reduce-only: no position to reduce on this side"
+            : lots === 0n
+              ? `Minimum size is ${formatBaseWad(LOT, pm.sizeDp)} ${pm.base}`
+              : kind === "limit" && limitTick === undefined
+                ? "Enter a limit price"
+                : kind === "limit" && postOnly && postOnlyWouldCross(isBid, tickToPrice(limitTick!, TICK), bestBid, bestAsk)
+                  ? "Post-only would cross the book"
+                  : kind === "market" && (isBid ? bestAsk : bestBid) === undefined
+                    ? "No liquidity on that side"
+                    : kind === "market" && !allowPartial && fill && fill.filledLots < lots
+                      ? "Not enough depth inside your slippage"
+                      : !reduceOnly && free !== undefined && imForLots(lots, LOT, execPx, imr) > free
+                        ? "Not enough free collateral"
+                        : undefined;
   const noDeposit = isConnected && account === undefined;
   const sideLabel = isBid ? "long" : "short";
   // K1.4: on testnet / anvil a wallet with no deposit gets the one-tap faucet + deposit, then a prefilled ≈ $50 order
@@ -423,7 +429,7 @@ export function OrderTicket() {
           <Line label="Order Value">{preview ? `${formatAusdWad(preview.notionalWad)} AUSD` : "N/A"}</Line>
           <Line label="Margin Required">{preview ? `${formatAusdWad(preview.marginWad)} AUSD` : "N/A"}</Line>
           {kind === "market" && (
-            <Line label="Slippage" tip="Estimated price impact against the book / the most the order may move the price before it reverts. Click Max to change it.">
+            <Line label="Slippage" tip="Estimated price impact from the best price on the book / the most the order may move past it before it reverts. Click Max to change it.">
               <span className="text-brand-soft">
                 Est: {impactBps !== undefined ? formatFixed(impactBps * 10n ** 16n, 18, 2) : "0"}% / Max:{" "}
                 <button
@@ -436,6 +442,11 @@ export function OrderTicket() {
                 </button>
               </span>
             </Line>
+          )}
+          {kind === "market" && offMarkBps !== undefined && offMarkBps > slip && (
+            <p className="pb-1 text-[11px] text-warn" data-testid="off-mark-warning">
+              Fills {formatFixed(offMarkBps * 10n ** 16n, 18, 2)}% {fill && fill.avgPriceWad > mark ? "above" : "below"} mark: the book is thin on this side.
+            </p>
           )}
           <Line label="Fees" tip="Taker / maker fee rate, from the onchain risk parameters. A negative maker fee is a rebate.">
             {risk ? `${pctOfWad(risk.takerFee)} / ${pctOfWad(risk.makerFee)}` : "—"}
