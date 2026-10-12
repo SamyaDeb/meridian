@@ -124,4 +124,16 @@ Long = ETH_VICTIM test account `0xe7D7…dB08` (taker), short = demo-MM operator
 | `settle(long)` | `0x86d50061a93ad3af901d57ee0e582dae2e0438e8c874fcb7d950a11f61773a7d` | 70,445,120 |
 | `settle(short)` | `0xb6fa8a915683d75141df4b8bdaef1b98043ba978972bbf12b83884bf43c657e4` | 70,445,133 |
 
-Checked by hand (`smoke-settle.sh`). The source went from (F −214,250,000,000,000, G 0, feb 70,436,478) to (F unchanged, G 65,557,800,000,000,000,000, feb 70,445,049): Perpl's rate for that interval was **0**, so ΔF = 0, and ΔG = I · 2,580 s with I = 0.02541. Expected net = ⌊(q·ΔF·YEAR − K·ΔG)/(1e18·YEAR)⌋ = long −2,078,824,200,913,243 wei, short +2,078,824,200,913,242 wei. Observed: exactly the same, dust 1 wei. In AUSD, the long paid 0.002079 of fixed (10% APR on $254 for 43 min) and the short received it. The floating leg of this event was zero; a second settle across a nonzero-rate event is in PROOF.md once it lands.
+Checked by hand (`smoke-settle.sh`). The source went from (F −214,250,000,000,000, G 0, feb 70,436,478) to (F unchanged, G 65,557,800,000,000,000,000, feb 70,445,049): Perpl's rate for that interval was **0**, so ΔF = 0, and ΔG = I · 2,580 s with I = 0.02541. Expected net = ⌊(q·ΔF·YEAR − K·ΔG)/(1e18·YEAR)⌋ = long −2,078,824,200,913,243 wei, short +2,078,824,200,913,242 wei. Observed: exactly the same, dust 1 wei. In AUSD, the long paid 0.002079 of fixed (10% APR on $254 for 43 min) and the short received it. The floating leg of this event was zero, so the same positions were settled again across the next event:
+
+| Step | Tx | Block |
+|---|---|---|
+| Perpl event feb 70,453,620 (rate −1 per 100k) applies; `poke()` | `0x8a7e13a9a38185ea420ff93a1feb6e72bf0575276b06dfcb44c3cc9e2b51f844` | 70,453,694 |
+| `settle(long)` | `0xa797b7061c5bd12eacd563585b8a7f7b65b777004c801d2d407365513bdfa3d1` | 70,453,709 |
+| `settle(short)` | `0xd2e6390e70f834201cc1482b803f7456d3e607189d0248406ce649000659206a` | 70,453,715 |
+
+ΔF = −250,000,000,000 (Perpl longs receive), ΔG = 64,577,400,000,000,000,000 (I = 0.02503 × 2,580 s). Floating (long) = q·ΔF = −0.0025 AUSD, fixed (long) = K·ΔG/YEAR = 0.002047736 AUSD. Expected net long −4,547,735,920,852,360 wei, short +4,547,735,920,852,359 wei; observed exactly the same, dust 1 wei (`docs/outputs/ps_perpl_swap_smoke_settle2_10143.log`). The swap long paid what a 10,000 MON Perpl long received (0.0025 AUSD) plus its 10% fixed leg: Perpl long + swap long = the fixed leg.
+
+## Operations (testnet, from 12 Oct 2026 ~17:10 UTC)
+- Keeper `pnpm perpl-swap` with the deployer key `0xEF4E…3b91`: pokes after each Perpl event, `/health` reports the lag.
+- Swap MM `MARKET=swap SWAP_MARKET=perpl` with the demo-MM operator `0xB1a7…5bd1` (2 MON funded from the deployer, tx `0x9b6a0a864e23875e902dc456cca03f765ad92bf6fe5282f20e22582b4bb163cf`): 1 level × 1 lot, requote 1,000 APR bps, tick every 33 blocks. First quote at block 70,453,928, anchored to Perpl's current rate (−12.22% APR, no 8 h of snapshots yet): bid −12.25% / ask −12.20%. MON/h measured in `keepers/RUNBOOK.md` §7g.
