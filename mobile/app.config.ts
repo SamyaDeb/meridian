@@ -10,6 +10,13 @@ const raw = process.env.APP_ENV ?? "development";
 if (!(ENVS as readonly string[]).includes(raw)) throw new Error(`APP_ENV must be one of ${ENVS.join(", ")}; got "${raw}"`);
 const appEnv = raw as AppEnv;
 
+// Only development falls back to the public RPC (src/config/appConfig.ts); a staging/production build without
+// EXPO_PUBLIC_MONAD_RPC_URL has no chain reads at all (L2 preview 2242d587: balances never loaded). Fail the EAS build
+// instead of shipping that. EAS_BUILD is set on EAS builders only, so local tooling and tests are unaffected.
+if (process.env.EAS_BUILD === "true" && appEnv !== "development" && !process.env.EXPO_PUBLIC_MONAD_RPC_URL?.trim()) {
+  throw new Error(`EXPO_PUBLIC_MONAD_RPC_URL is not set for the ${appEnv} build: add it to the EAS environment (eas env:create)`);
+}
+
 // MOBILE_PLAN §5 (N0, 8 Oct): two Android packages, both in assetlinks. Staging installs next to production. The dev
 // client reuses the staging package (testnet, staging rpId) so N3 passkeys work in it without a third assetlinks entry;
 // a dev build and a preview build therefore replace each other on one phone.
