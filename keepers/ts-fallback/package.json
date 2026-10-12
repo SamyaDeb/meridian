@@ -16,7 +16,8 @@
     "flow-quote": "tsx scripts/flow-quote.ts",
     "fork-pyth-relay": "tsx scripts/fork-pyth-relay.ts",
     "page-receiver": "tsx scripts/page-receiver.ts",
-    "tx-cost": "tsx scripts/tx-cost.ts"
+    "tx-cost": "tsx scripts/tx-cost.ts",
+    "perpl-swap": "tsx src/perpl-swap.ts"
   },
   "dependencies": {
     "@meridian/abis": "workspace:*",
