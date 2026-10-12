@@ -181,6 +181,17 @@ Expected rounding difference: Perpl's CLI prints 6 decimals of the same exact va
 
 Tests (8 Oct, branch `rates-risk`): `pnpm -C risk test` 27, `pnpm -C keepers/alerts test` 8, `pnpm -C app test` 501 (5 opt-in live recorders skipped), `pnpm -C indexer test` 119, e2e `rates-risk.spec.ts` 8/8.
 
+## 15. Funding swaps on Perpl's funding rate (PS, testnet)
+| Claim | Evidence |
+|---|---|
+| A second swap market settles on **Perpl's** MON funding, with `FundingSwapMarket` unchanged | `PerplFundingSource` `0xC008aF47fCC651889a1d66f0734da941A55224cC` → `FundingSwapMarket` `MON-FUNDING-PERPL` `0x4e5A8b88e8F09FDf2DC178B4641a25676d181bde` → book `0x5D4f03B6Afa525ed580C75878A2F51A35c202334`, deployed on 10143 at block 70,443,746 (txs in `docs/PERPL_SWAPS.md`, broadcast `contracts/broadcast/AddSwapMarket.s.sol/10143/run-latest.json`); `VerifyDeployment` 15/15 for it |
+| Perpl's units and sign verified, not assumed | 24 consecutive live funding events: `Δsum = payment` 24/24, payment = `trunc0(rate·price·10³/1e5)` 24/24; sum falls ⇒ 30/30 real perp-64 positions moved `premiumPnlCNS` by `−side·lots·ΔF` (longs receive). `docs/PERPL_SWAPS.md` §Units, `docs/outputs/ps_phase0_perpl_units_10143.json` |
+| A swap held across a real Perpl funding event settles exactly | testnet: long and short 10,000 MON at 10% opened at 70,444,097, Perpl event feb 70,445,049, `poke` `0x3d150585…6eb31d4`, `settle` ×2 (`0x86d50061…f61773a7d`, `0xb6fa8a91…bf43c657e4`): long −2,078,824,200,913,243 wei, short +2,078,824,200,913,242 wei = the hand formula exactly, dust 1 wei. That event's Perpl rate was 0 (fixed leg only); the fork test covers a nonzero event: rate −1 at feb 70,427,907, each side within 1 wei of `q·ΔF − K·ΔG/YEAR`, and Perpl long + swap long = the fixed leg |
+| Tested | unit 34, fuzz 4 × 1,000, invariant 3 (Σq = ΣK = 0, solvent, G monotone, F = Perpl sum × 1e10), fork 3 (real exchange, pinned blocks), keeper 11; full `forge test` 615 passed / 0 failed |
+| Cheaper than settling on the Meridian perp | `settle` 89,714 gas vs 131,308 on the live Meridian swap market (same block, fork, isolated); `poke` 125,735 once per 43-min Perpl interval |
+
+**Trusts Perpl:** its admin can overwrite a funding sum, and the exchange is an upgradeable proxy. Perpl's next rate is public about 23 s before it applies. If nobody pokes, accrual pauses (it is caught up at the next poke). Details in `docs/PERPL_SWAPS.md` §Risks.
+
 **Security reviews:** two internal cross-reviews (`docs/outputs/security/review-A.md`, `review-B.md`) plus the 6 Oct audit hardening; status per finding in `docs/outputs/security/STATUS.md`.
 
 **Not claimed (no evidence yet):** mainnet deployment, external users, fees, volume; B4 on testnet itself (B4 ran on an anvil fork of 10143, §K7) and any parallel-execution speedup, the ETH-PERP keeper and MM running unattended (not funded), B5 funding granularity from the indexer, B9 vault economics; CRE workflows executed by a DON (only `cre workflow simulate --broadcast` through the simulation forwarder, §13); the funding-swap demo on testnet (no swap market maker funded); liquidation ≤ 3 blocks on testnet.
