@@ -22,8 +22,8 @@ test("production settings are present (booleans only)", async ({ request }) => {
 const SCREENS: { path: string; ready: (p: Page) => Locator }[] = [
   { path: "/trade", ready: (p) => p.locator('[aria-label="Order ticket"]').first() },
   { path: "/rates", ready: (p) => p.getByRole("heading", { level: 1, name: /Rates/ }) },
-  { path: "/earn", ready: (p) => p.getByRole("heading", { level: 1, name: "Earn the basis" }) },
-  { path: "/fix", ready: (p) => p.getByRole("heading", { level: 1, name: "Fix your funding" }) },
+  { path: "/earn", ready: (p) => p.getByRole("heading", { level: 1, name: "Earn", exact: true }) },
+  { path: "/fix", ready: (p) => p.getByRole("heading", { level: 1, name: "Fix", exact: true }) },
   { path: "/stats", ready: (p) => p.getByRole("heading", { level: 1, name: "Stats" }) },
 ];
 

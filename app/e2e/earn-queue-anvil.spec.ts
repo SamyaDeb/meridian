@@ -68,7 +68,7 @@ test("deposit → withdraw beyond idle = request → keeper fulfils → claim; r
   await page.goto("/trade");
   await page.getByRole("button", { name: "Dev account" }).click();
   await page.goto("/earn");
-  await expect(page.getByRole("heading", { name: "Earn the basis" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Earn", exact: true })).toBeVisible();
   if (await page.getByRole("button", { name: "Dev account" }).isVisible().catch(() => false)) await page.getByRole("button", { name: "Dev account" }).click();
 
   // 1. deposit 100 AUSD (idle); the vault then "deploys" all but 1 AUSD

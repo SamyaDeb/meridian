@@ -212,6 +212,17 @@ input[type="range"] {
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
   }
+  /* the order form never sizes the rows it spans: Market → Limit adds a field, and without this the market bar
+     stretched and the chart moved down. It fills market bar + chart exactly and scrolls inside if it's taller. */
+  .terminal > [data-area="ticket"] {
+    position: relative;
+  }
+  .terminal > [data-area="ticket"] > .rounded-card {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
   .terminal > [data-area="account"] {
     margin-top: -4px;
   }
