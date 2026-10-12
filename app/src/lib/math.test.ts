@@ -18,7 +18,7 @@ import {
   tokenToWad,
   wadToToken,
 } from "./math";
-import { gasLimitFromEstimate } from "./gas";
+import { TOUCH_ALLOWANCE_GAS, gasLimitFromEstimate, touchAllowance } from "./gas";
 import { SECONDS_PER_YEAR, WAD } from "./units";
 
 const f = (x: bigint) => Number(x) / 1e18; // display-only conversion for tolerance checks
@@ -149,5 +149,10 @@ describe("AUSD boundary and gas", () => {
   it("gas limit = estimate × 1.2, rounded up", () => {
     expect(gasLimitFromEstimate(100_000n)).toBe(120_000n);
     expect(gasLimitFromEstimate(7n)).toBe(9n);
+    // first-funding-touch allowance: live chains only, never on a token approval
+    expect(touchAllowance(10143, 31337, "placeMarketOrder")).toBe(TOUCH_ALLOWANCE_GAS);
+    expect(touchAllowance(143, 31337, "deposit")).toBe(70_000n);
+    expect(touchAllowance(31337, 31337, "placeMarketOrder")).toBe(0n);
+    expect(touchAllowance(10143, 31337, "approve")).toBe(0n);
   });
 });
