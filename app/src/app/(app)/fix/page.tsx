@@ -15,6 +15,7 @@ import { formatAprWad, formatAusdWad, formatBaseWad, formatDuration, formatFixed
 const fmtAccrual = (wad: bigint): string => `${wad < 0n ? "−" : wad > 0n ? "+" : ""}${formatFixed(wad < 0n ? -wad : wad, 18, 8)}`;
 import { swapPositionValueWad } from "@/lib/math";
 import { sendTx, swapDeposit, swapWithdraw } from "@/lib/tx";
+import { READ_CHAIN_ID } from "@/lib/wagmi";
 
 const SWAP_TICK = 10n ** 14n; // 1 bp APR (WS-05 deploy wiring)
 const SWAP_LOT_MON = 1_000n; // 1 lot = 1,000 MON notional
@@ -23,7 +24,8 @@ const SLIPPAGE_TICKS = 20; // market orders take up to 20 bps APR beyond the bes
 
 /** Best bid/ask ticks of the swap book (contract view getDepth). */
 function useSwapBook(orderBook: `0x${string}` | undefined) {
-  const pub = usePublicClient();
+  // the read chain, not the wallet's: the book must show before login (a logged-out wallet reports another chain)
+  const pub = usePublicClient({ chainId: READ_CHAIN_ID });
   return useQuery({
     queryKey: ["swapBook", orderBook],
     enabled: Boolean(pub && orderBook),
@@ -44,7 +46,7 @@ export default function FixPage() {
   const { data: swap } = useSwap(me);
   const tx = useTx();
   const swapMarket = contractAddress(chainId, "FundingSwapMarket");
-  const swapBook = contractAddress(chainId, "SwapOrderBook");
+  const swapBook = contractAddress(READ_CHAIN_ID, "SwapOrderBook");
   const ausd = contractAddress(chainId, "AUSD");
   const { data: book } = useSwapBook(swapBook);
   const [lots, setLots] = useState("2");
@@ -160,8 +162,8 @@ export default function FixPage() {
                   <thead>
                     <tr>
                       <th className={th}>Market</th>
-                      <th className={th}>Best Bid (pay fixed)</th>
-                      <th className={th}>Best Ask (receive fixed)</th>
+                      <th className={th}>Best Bid (receive fixed)</th>
+                      <th className={th}>Best Ask (pay fixed)</th>
                       <th className={th}>Mark</th>
                       <th className={th}>Open Interest</th>
                       <th className={th}>Maturity</th>

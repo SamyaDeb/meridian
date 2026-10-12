@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import testnet from "../../../deployments/10143.json";
 import type { Deployment } from "./deployments";
-import { decimalsFor, mockMarkets, perpMarkets, pickMarket } from "./markets";
+import { decimalsFor, mockMarkets, perpMarkets, pickMarket, visibleMarkets } from "./markets";
 
 describe("perpMarkets (K7)", () => {
   const ms = perpMarkets(testnet as unknown as Deployment);
@@ -34,6 +34,12 @@ describe("perpMarkets (K7)", () => {
     expect(decimalsFor(10n ** 12n)).toBe(6);
     expect(decimalsFor(25n * 10n ** 16n)).toBe(2);
     expect(decimalsFor(0n)).toBe(0);
+  });
+  it("visibleMarkets hides listed non-primary markets and never the primary one", () => {
+    expect(visibleMarkets(ms, undefined).map((m) => m.key)).toEqual(ms.map((m) => m.key));
+    expect(visibleMarkets(ms, " ETH ").map((m) => m.key)).toEqual(["main"]);
+    expect(visibleMarkets(ms, "main,eth").map((m) => m.key)).toEqual(["main"]);
+    expect(visibleMarkets(ms, "sol").length).toBe(ms.length);
   });
   it("pickMarket falls back to the primary market", () => {
     expect(pickMarket(ms, "eth")?.symbol).toBe("ETH-PERP");
