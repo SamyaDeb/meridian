@@ -209,7 +209,7 @@ async function onTrade(event: TradeEv, context: Ctx, kind: BookKind) {
     );
   } else {
     const st = await getSwapStats(context, market);
-    const perp = underlyingPerpMarket(context);
+    const perp = underlyingPerpMarket(context, market); // undefined for a Perpl-funding market (CR-017)
     const pm = perp ? await context.Market.get(perp) : undefined;
     context.SwapStats.set({
       ...st,

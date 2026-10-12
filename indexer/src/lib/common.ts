@@ -10,7 +10,7 @@ import type {
   Vault,
   VaultUser,
 } from "envio";
-import { DEPLOYMENTS, MM_ACCOUNTS, OPERATOR_ACCOUNTS, TEST_MARKETS } from "../deployments.gen.js";
+import { DEPLOYMENTS, MM_ACCOUNTS, OPERATOR_ACCOUNTS, SWAP_MARKETS, SWAP_MARKETS_TEST, type SwapMarketWiring, TEST_MARKETS } from "../deployments.gen.js";
 import { DEFAULT_BLOCK_TIME_MS } from "./math.js";
 
 export type Ctx = EvmOnEventContext;
@@ -262,6 +262,8 @@ export async function getSwapStats(context: Ctx, swapMarket: string): Promise<Sw
     markAprWad: 0n,
     lastTradeBlock: 0n,
     realizedApr8hWad: undefined,
+    fundingSource: swapWiring(context, swapMarket)?.fundingSource,
+    source: swapWiring(context, swapMarket)?.source,
     openInterestWad: 0n,
     volumeWad: 0n,
     tradeCount: 0,
@@ -333,17 +335,45 @@ export async function getVaultUser(context: Ctx, vault: string, user: string, bl
   return { id, vault, user, shares: 0n, depositedToken: 0n, withdrawnToken: 0n, updatedBlock: block };
 }
 
-/** The perp market (ClearingHouse) a book trades for, or the swap market for the swap book. */
+/** CR-017: the static wiring of a swap market or a swap book (compared case-insensitively), or undefined. */
+export function swapWiring(context: Ctx, addr: string): SwapMarketWiring | undefined {
+  const a = addr.toLowerCase();
+  return swapMarketsOf(context.chain.id).find((w) => w.swapMarket.toLowerCase() === a || w.swapOrderBook.toLowerCase() === a);
+}
+
+/** True if `addr` is one of the chain's swap markets (any funding source). */
+export const isSwapMarket = (context: Ctx, addr: string): boolean =>
+  swapMarketsOf(context.chain.id).some((w) => w.swapMarket.toLowerCase() === addr.toLowerCase());
+
+/** The chain's swap markets; on 31337 without any, the vitest wiring (SWAP_MARKETS_TEST). */
+export const swapMarketsOf = (chainId: number): readonly SwapMarketWiring[] =>
+  SWAP_MARKETS[chainId] ?? (chainId === 31337 ? SWAP_MARKETS_TEST : []);
+
+/**
+ * The perp market (ClearingHouse) a book trades for, or the swap market for a swap book. Swap books resolve through
+ * SWAP_MARKETS first (checksummed, as Envio reports srcAddress), so a second swap market (CR-017) never falls back
+ * to the first one's address.
+ */
 export async function resolveBookMarket(context: Ctx, book: string, kind: BookKind): Promise<string> {
   const ref = await context.BookRef.get(book);
   if (ref) return ref.market;
+  if (kind === "Swap") {
+    const w = swapWiring(context, book);
+    if (w) return w.swapMarket;
+  }
   const d = DEPLOYMENTS[context.chain.id];
   const m = kind === "Perp" ? d?.ClearingHouse : d?.FundingSwapMarket;
   return m ?? book;
 }
 
-/** The perp market whose funding underlies the swaps (single launch market). */
-export const underlyingPerpMarket = (context: Ctx): string | undefined => DEPLOYMENTS[context.chain.id]?.ClearingHouse;
+/**
+ * The perp market whose funding underlies a swap market: the chain's ClearingHouse for the Meridian-funding market;
+ * undefined for a market on another venue's funding (Perpl), whose realized APR is not Meridian's.
+ */
+export const underlyingPerpMarket = (context: Ctx, swapMarket?: string): string | undefined => {
+  if (swapMarket !== undefined && swapWiring(context, swapMarket)?.fundingSource === "perpl") return undefined;
+  return DEPLOYMENTS[context.chain.id]?.ClearingHouse;
+};
 
 export async function logAdmin(
   context: Ctx,

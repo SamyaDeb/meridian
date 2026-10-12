@@ -1,7 +1,6 @@
 // IOracleAdapter, IInsuranceFund, IMarketFactory, IMeridianKeeperReceiver, IMeridianMfiFeed events.
 import { indexer } from "envio";
-import { FIELDS, evId, blockOf, tsOf, getMarket, updateProtocol, logAdmin, isTestMarket, getInsuranceFund } from "../lib/common.js";
-import { DEPLOYMENTS } from "../deployments.gen.js";
+import { FIELDS, evId, blockOf, tsOf, getMarket, updateProtocol, logAdmin, isTestMarket, getInsuranceFund, isSwapMarket } from "../lib/common.js";
 import { AUSD_TO_WAD } from "../lib/math.js";
 
 // ─── Oracle adapter ────────────────────────────────────────────────────────────
@@ -77,13 +76,13 @@ indexer.onEvent({ contract: "InsuranceFund", event: "BadDebtCovered", fields: FI
     block: blockOf(event),
     timestamp: tsOf(event),
   });
-  const swap = DEPLOYMENTS[context.chain.id]?.FundingSwapMarket;
+
   context.InsuranceFundEvent.set({
     id: `${evId(event)}-0`,
     fund: event.srcAddress,
     flow: "CoveredByInsurance",
     direction: "Out",
-    kind: swap !== undefined && p.market.toLowerCase() === swap.toLowerCase() ? "Swap" : "Perp",
+    kind: isSwapMarket(context, p.market) ? "Swap" : "Perp", // CR-017: any swap market, not only the first
     market: p.market,
     account: undefined, // the market's Liquidated log later in the same tx names the account
     from: undefined,
