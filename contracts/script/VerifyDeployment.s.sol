@@ -18,6 +18,8 @@ import {MeridianVault} from "../src/vault/MeridianVault.sol";
 import {KuruHedger} from "../src/vault/KuruHedger.sol";
 import {ClearingHouse} from "../src/clearing/ClearingHouse.sol";
 import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
+import {PerplFundingSource} from "../src/oracle/PerplFundingSource.sol";
+import {IPerplExchange} from "../src/interfaces/external/IPerplExchange.sol";
 import {PythChainlinkOracleAdapter} from "../src/oracle/PythChainlinkOracleAdapter.sol";
 import {TestnetKeeperOracle} from "../src/oracle/TestnetKeeperOracle.sol";
 import {MeridianKeeperReceiver} from "../src/automation/MeridianKeeperReceiver.sol";
@@ -132,6 +134,7 @@ contract VerifyDeployment is DeployBase {
         _demo();
         _receiver();
         _markets();
+        _swapMarkets();
         _hardening(); // last; every simulated change is reverted to a state snapshot
 
         console2.log("checks passed / failed", passes, failures);
@@ -384,6 +387,76 @@ contract VerifyDeployment is DeployBase {
     }
 
     // ═══ Added markets (K7, AddMarket.s.sol, PHASES 44) ═══════════════════════════════════════════════════════
+
+    /// @dev PS (CR-017): each `swapMarkets[i]` of the record (bounded by AddSwapMarket.MAX_SWAP_MARKETS = 8): a
+    ///      FundingSwapMarket whose funding source is a PerplFundingSource reading the exchange and perp recorded in
+    ///      deployments/perpl.json; code, owner, swap↔OB, IF authorisation, not paused, tick/lot and SwapParams equal
+    ///      the config, maturity in the future, `deployed: true`, and a non-empty source (feb, price) whose last
+    ///      snapshot is at most 2 Perpl intervals behind Perpl (else the keeper's poke duty is not running).
+    function _swapMarkets() internal {
+        string memory perpl = vm.readFile(string.concat(vm.projectRoot(), "/../deployments/perpl.json"));
+        string memory c = string.concat(".chains.", vm.toString(block.chainid));
+        for (uint256 i; i < 8; ++i) {
+            string memory p = string.concat(".swapMarkets[", vm.toString(i), "].");
+            if (!vm.keyExistsJson(dep, string.concat(p, "symbol"))) {
+                if (i == 0) console2.log("SKIP swapMarkets checks: no swapMarkets in the record");
+                return;
+            }
+            string memory sym = dep.readString(string.concat(p, "symbol"));
+            FundingSwapMarket fs = FundingSwapMarket(dep.readAddress(string.concat(p, "FundingSwapMarket")));
+            address sob = dep.readAddress(string.concat(p, "SwapOrderBook"));
+            PerplFundingSource src = PerplFundingSource(dep.readAddress(string.concat(p, "PerplFundingSource")));
+            _check(dep.readBool(string.concat(p, "deployed")), string.concat(sym, ": deployed: true"));
+            _check(
+                address(fs).code.length > 0 && sob.code.length > 0 && address(src).code.length > 0,
+                string.concat(sym, ": code")
+            );
+            _check(fs.owner() == x.owner, string.concat(sym, ": FundingSwapMarket owner"));
+            _check(fs.perpClearingHouse() == address(src), string.concat(sym, ": swap reads the PerplFundingSource"));
+            _check(
+                fs.orderBook() == sob && IOrderBook(sob).clearingHouse() == address(fs),
+                string.concat(sym, ": swap <-> OB")
+            );
+            _check(
+                fs.collateralToken() == dep.readAddress(".contracts.AUSD"),
+                string.concat(sym, ": collateral = record AUSD")
+            );
+            _check(
+                fs.insuranceFund() == x.fund && IInsuranceFund(x.fund).isAuthorized(address(fs)),
+                string.concat(sym, ": IF authorised")
+            );
+            _check(!fs.paused(), string.concat(sym, ": not paused"));
+            _check(
+                IOrderBook(sob).tickSize() == _u(".params.swap.tickSizeWad")
+                    && IOrderBook(sob).lotSize() == _u(".params.swap.lotSizeWad"),
+                string.concat(sym, ": tick/lot = config")
+            );
+            _check(
+                keccak256(abi.encode(fs.swapParams())) == keccak256(abi.encode(_swapParams())),
+                string.concat(sym, ": SwapParams == config")
+            );
+            _check(
+                fs.maturity() == dep.readUint(string.concat(p, "maturity")) && fs.maturity() > block.timestamp,
+                string.concat(sym, ": maturity recorded, in the future")
+            );
+            _check(
+                src.exchange() == perpl.readAddress(string.concat(c, ".exchange")),
+                string.concat(sym, ": source exchange = perpl.json")
+            );
+            _check(
+                src.perpId() == dep.readUint(string.concat(p, "perplPerpId"))
+                    && src.perpId() == perpl.readUint(string.concat(c, ".monMarketId")),
+                string.concat(sym, ": source perp = perpl.json MON")
+            );
+            (,, uint64 feb) = src.latestObservation();
+            _check(feb != 0 && src.indexPrice() != 0, string.concat(sym, ": source has a snapshot"));
+            (, uint256 perplFeb) = IPerplExchange(src.exchange()).getFundingSumAtBlock(src.perpId(), block.number);
+            _check(
+                perplFeb <= feb + 2 * src.fundingIntervalBlocks(),
+                string.concat(sym, ": source <= 2 Perpl intervals behind (keeper poking)")
+            );
+        }
+    }
 
     /// @dev Each `markets[i]` of the record (bounded by AddMarket.MAX_MARKETS = 8) against the config entry with the
     ///      same symbol under `markets`: code, owner, CH↔OB, IF authorisation, factory registry, not paused, tick/lot,
