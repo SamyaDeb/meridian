@@ -18,7 +18,7 @@ for (const { w, h } of WIDTHS) {
     await page.goto("/trade");
     await page.waitForLoadState("load");
     // the chart keeps its view per market address: choose the source only once the market has loaded
-    await expect(page.getByRole("region", { name: "Market" })).toContainText(/Index\s*0\.\d+/, { timeout: 30_000 });
+    await expect(page.getByRole("region", { name: "Market" })).toContainText(/(Index|Oracle)\s*0\.\d+/, { timeout: 30_000 });
 
     // chart: pick the Perpl source from the price-source menu
     await page.getByRole("button", { name: "Price source" }).click();
@@ -44,7 +44,7 @@ for (const { w, h } of WIDTHS) {
     await page.screenshot({ path: `${SHOTS}/trade-${w}.png`, fullPage: true, animations: "disabled" });
 
     // switching back to Meridian's own book and source removes the outside labels
-    await page.getByRole("tab", { name: "Book", exact: true }).click();
+    await page.getByRole("tab", { name: "Order Book", exact: true }).click();
     await expect(page.getByTestId("perpl-book-label")).toHaveCount(0);
     await page.getByRole("button", { name: "Price source" }).click();
     await page.getByRole("menuitemradio", { name: /^Last/ }).click();
@@ -60,7 +60,7 @@ test("an empty Meridian chart offers Perpl in one click, and an early choice sur
   test.skip(!offered, "Meridian's chart has data, or the flag is off");
   await show.click();
   await expect(page.getByTestId("ohlc-legend")).toContainText("Perpl MON-PERP · Monad mainnet", { timeout: 20_000 });
-  await expect(page.getByRole("region", { name: "Market" })).toContainText(/Index\s*0\.\d+/, { timeout: 30_000 });
+  await expect(page.getByRole("region", { name: "Market" })).toContainText(/(Index|Oracle)\s*0\.\d+/, { timeout: 30_000 });
   await page.waitForTimeout(2_000); // after the market's address arrived, the source is still Perpl
   await expect(page.getByTestId("reference-label")).toHaveText("Perpl MON-PERP · Monad mainnet · reference, not Meridian trades");
   await page.screenshot({ path: `${SHOTS}/one-click-1440.png`, animations: "disabled" });
