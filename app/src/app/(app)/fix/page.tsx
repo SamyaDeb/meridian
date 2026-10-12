@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useChainId, usePublicClient } from "wagmi";
 import { useAccountAddress, useMarket, useSwap } from "@/data/hooks";
@@ -57,7 +57,8 @@ function Fix() {
   const params = useSearchParams();
   const router = useRouter();
   const source: FixSource = parseFixSource(params.toString());
-  const pickSource = (s: FixSource) => router.replace(s === "perpl" ? "?source=perpl" : "?", { scroll: false });
+  const pathname = usePathname();
+  const pickSource = (s: FixSource) => router.replace(s === "perpl" ? `${pathname}?source=perpl` : pathname, { scroll: false });
   const perplRef = swapMarketFor(READ_CHAIN_ID, "perpl");
   const copy = fixSourceCopy(source);
   const { data: swap } = useSwap(me, source);
