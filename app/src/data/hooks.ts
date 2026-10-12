@@ -1,7 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
-import { useDataSource } from "./context";
+import { useDataSource, useSwapSource } from "./context";
 import type { Address, Market } from "./types";
 import type { FundingSettlement } from "./chain/source";
 import type { FundingWindow } from "./indexer/funding";
@@ -263,11 +263,13 @@ export function useVaultRedeems(account: Address, vault: Address | undefined) {
   };
 }
 
-export function useSwap(account: Address) {
-  const ds = useDataSource();
+/** Swap market state for `account`. `swap` = "meridian" (default) or "perpl" (CR-017; off when this build has no source). */
+export function useSwap(account: Address, swap: "meridian" | "perpl" = "meridian") {
+  const ds = useSwapSource(swap);
   return useQuery({
-    queryKey: ["swap", ds.kind, ds.marketKey, account],
-    queryFn: async () => ({ stats: await ds.swapStats(), info: await ds.swapInfo(), positions: await ds.swapPositions(account) }),
+    queryKey: ["swap", swap, ds?.kind, ds?.marketKey, account],
+    enabled: ds !== undefined,
+    queryFn: async () => ({ stats: await ds!.swapStats(), info: await ds!.swapInfo(), positions: await ds!.swapPositions(account) }),
     refetchInterval: 1_000, // accrual ticks per block on the Fix screen
   });
 }

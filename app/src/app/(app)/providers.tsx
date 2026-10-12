@@ -5,12 +5,12 @@ import dynamic from "next/dynamic";
 import { WagmiProvider } from "wagmi";
 import { privyEnabled } from "@/lib/privy";
 import { wagmiConfig } from "@/lib/wagmi";
-import { DataSourceProvider } from "@/data/context";
+import { DataSourceProvider, SwapSourcesProvider } from "@/data/context";
 import { createMockSource } from "@/data/mock/source";
 import { createChainSource } from "@/data/chain/source";
 import { type PublicClient, createPublicClient, http } from "viem";
 import { READ_CHAIN_ID, readChain } from "@/lib/wagmi";
-import { contractAddress, deploymentFor } from "@/config/deployments";
+import { contractAddress, deploymentFor, swapMarketFor } from "@/config/deployments";
 import { type PerpMarket, mockMarkets, perpMarkets, visibleMarkets } from "@/config/markets";
 import { MarketProvider, MarketSourcesProvider, usePerpMarket } from "@/data/market";
 import { withPerpMarket } from "@/data/composite";
@@ -25,7 +25,7 @@ const PrivyProviders = privyEnabled ? dynamic(() => import("./PrivyProviders")) 
 /** NEXT_PUBLIC_DATA_SOURCE=chain reads the perp markets from deployments/<NEXT_PUBLIC_CHAIN_ID>.json (default 31337 =
  *  anvil); default = mock layer. NEXT_PUBLIC_LOG_SPAN / NEXT_PUBLIC_LOG_LOOKBACK fit the RPC's eth_getLogs cap on testnet.
  *  K7: one source per switchable market (config/markets.ts); vault / swaps / stats always from the primary one. */
-function makeSources(): { markets: PerpMarket[]; sources: Map<string, MeridianDataSource> } {
+function makeSources(): { markets: PerpMarket[]; sources: Map<string, MeridianDataSource>; swapSources: Map<string, MeridianDataSource> } {
   const mockSource = createMockSource();
   const chainMode = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
   const live = chainMode ? visibleMarkets(perpMarkets(deploymentFor(READ_CHAIN_ID)), process.env.NEXT_PUBLIC_HIDE_MARKETS) : [];
@@ -48,6 +48,7 @@ function makeSources(): { markets: PerpMarket[]; sources: Map<string, MeridianDa
         ["main", withPerpMarket(mockSource, mockSource, "main")],
         [eth.key, withPerpMarket(mockSource, ethMock, eth.key)],
       ]),
+      swapSources: new Map(), // the Perpl-funding swap market is chain-only (no mock data for it)
     };
   }
   const { chain, rpcUrl } = readChain();
@@ -81,7 +82,31 @@ function makeSources(): { markets: PerpMarket[]; sources: Map<string, MeridianDa
   const primary = build(live[0]!);
   const sources = new Map<string, MeridianDataSource>();
   for (const m of live) sources.set(m.key, withPerpMarket(primary, m.primary ? primary : build(m), m.key));
-  return { markets: live, sources };
+  // CR-017: the swap market settling on Perpl's funding gets its own source (same perp, its swap market, book, source)
+  const swapSources = new Map<string, MeridianDataSource>();
+  const perpl = swapMarketFor(READ_CHAIN_ID, "perpl");
+  const main = live.find((m) => m.primary) ?? live[0]!;
+  if (perpl?.fundingSource) {
+    swapSources.set(
+      "perpl",
+      createChainSource(
+        client as PublicClient,
+        {
+          chainId: READ_CHAIN_ID,
+          symbol: main.symbol,
+          clearingHouse: main.clearingHouse,
+          orderBook: main.orderBook,
+          swapMarket: perpl.swapMarket,
+          swapOrderBook: perpl.swapOrderBook,
+          swapPerplSource: perpl.fundingSource,
+          ...(span ? { logSpan: BigInt(span) } : {}),
+          ...(lookback ? { logLookback: BigInt(lookback) } : {}),
+        },
+        mockSource,
+      ),
+    );
+  }
+  return { markets: live, sources, swapSources };
 }
 
 /** Hands the selected market's source to the data hooks. */
@@ -93,12 +118,14 @@ function SelectedSource({ sources, children }: { sources: Map<string, MeridianDa
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { staleTime: 250 } } }));
-  const [{ markets, sources }] = useState(makeSources);
+  const [{ markets, sources, swapSources }] = useState(makeSources);
   const tree = (
     <MarketProvider markets={markets}>
       <MarketSourcesProvider value={sources}>
         <SelectedSource sources={sources}>
-          <WriteGateProvider>{children}</WriteGateProvider>
+          <SwapSourcesProvider value={swapSources}>
+            <WriteGateProvider>{children}</WriteGateProvider>
+          </SwapSourcesProvider>
         </SelectedSource>
       </MarketSourcesProvider>
     </MarketProvider>

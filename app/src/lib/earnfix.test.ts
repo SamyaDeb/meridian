@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   closeOrder,
+  fixSourceCopy,
+  parseFixSource,
   lotsFor,
   marketLimitTick,
   snapshotsFromLogs,
@@ -106,5 +108,25 @@ describe("vaultRoutePending: idle launch read from the chain (PHASES 17)", () =>
   it("a hedging-capable vault with no flag is not pending; unknown params (indexer/mock) fall back to the flag", () => {
     expect(vaultRoutePending(undefined, 800000000000000000n)).toBe(false);
     expect(vaultRoutePending(undefined, undefined)).toBe(false);
+  });
+});
+
+describe("Fix funding source (CR-017)", () => {
+  it("?source=perpl selects Perpl; anything else is Meridian", () => {
+    expect(parseFixSource("?source=perpl")).toBe("perpl");
+    expect(parseFixSource("?source=PERPL")).toBe("meridian");
+    expect(parseFixSource("")).toBe("meridian");
+    expect(parseFixSource("?x=1&source=perpl")).toBe("perpl");
+  });
+  it("Perpl copy states the cadence, the network and the trust in Perpl; Meridian copy has neither", () => {
+    const p = fixSourceCopy("perpl");
+    expect(p.settles).toBe("Settles on Perpl's onchain funding, once per Perpl funding interval (~43 min). Testnet.");
+    expect(p.risk).toMatch(/overwrite a funding sum/);
+    expect(p.risk).toMatch(/If nobody pokes, accrual pauses/);
+    expect(p.market).toContain("Perpl");
+    const m = fixSourceCopy("meridian");
+    expect(m.settles).toBeUndefined();
+    expect(m.risk).toBeUndefined();
+    expect(m.market).not.toContain("Perpl");
   });
 });

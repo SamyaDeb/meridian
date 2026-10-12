@@ -9,6 +9,7 @@ import { MarketsTable } from "@/features/market/MarketsTable";
 import { MarketSwitcher } from "@/components/market/MarketSwitcher";
 import { usePerpMarket } from "@/data/market";
 import { PerplMonitorCard } from "@/features/rates/PerplMonitorCard";
+import { PerplSwapCard } from "@/features/rates/PerplSwapCard";
 import { AlertsCard, CrashReplayCard, MeridianRiskCards } from "@/features/rates/MeridianRiskCards";
 
 function Kpi({ label, children, sub }: { label: string; children: ReactNode; sub?: string }) {
@@ -69,6 +70,10 @@ export default function RatesPage() {
         <div className="lg:col-span-2">
           <MfiCard />
         </div>
+      </Section>
+
+      <Section id="rates-perpl-swap" title="Fix Perpl funding">
+        <PerplSwapCard />
       </Section>
 
       <Section id="rates-perpl" title="Perpl position risk">

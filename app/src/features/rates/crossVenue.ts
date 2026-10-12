@@ -70,3 +70,18 @@ export function withMfi(points: MfiPoint[], mfi: readonly MfiPoint[]): MfiPoint[
     return { ...p, mfi: v };
   });
 }
+
+/**
+ * CR-017: the Perpl-funding swap market's fixed APR against Perpl's floating APR. `spreadNowWad` = fixed − floating
+ * now (what paying fixed costs over receiving floating at today's rate); `spread8hWad` against the realized 8 h. Pure.
+ */
+export function perplFixedVsFloating(
+  fixedAprWad: bigint | undefined,
+  floatingNowAprWad: bigint | undefined,
+  realized8hAprWad: bigint | undefined,
+): { spreadNowWad: bigint | undefined; spread8hWad: bigint | undefined } {
+  return {
+    spreadNowWad: fixedAprWad !== undefined && floatingNowAprWad !== undefined ? fixedAprWad - floatingNowAprWad : undefined,
+    spread8hWad: fixedAprWad !== undefined && realized8hAprWad !== undefined ? fixedAprWad - realized8hAprWad : undefined,
+  };
+}
