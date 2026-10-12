@@ -77,6 +77,13 @@ export function MarketStrip() {
           {/* K7: MON-PERP / ETH-PERP (hidden when the deployment has one market) */}
           {markets.length > 1 && <MarketSwitcher />}
           {m?.testMarket && <Chip tone="warn">test market</Chip>}
+          {m?.oracleStale && (
+            <Tooltip content="The oracle price is older than its staleness limit, so the market takes no new risk (new orders revert) until the keeper pushes a fresh price. Reduce-only orders and deposits still work." side="bottom">
+              <span data-testid="oracle-stale-chip">
+                <Chip tone="warn">oracle stale</Chip>
+              </span>
+            </Tooltip>
+          )}
           {!pm.primary && pm.keeperFed && (
             <Tooltip content="Testnet market: the oracle is pushed by our keeper from Pyth (Hermes). Funding every block, its own book and margin; vault, swaps and the MFI stay on MON-PERP." side="bottom">
               <span data-testid="keeper-fed-chip">

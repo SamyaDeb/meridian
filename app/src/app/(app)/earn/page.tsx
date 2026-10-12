@@ -200,7 +200,7 @@ export default function EarnPage() {
               ) : apy === undefined ? (
                 // hedged (or rebalancing) but no share-price window yet in the lookback: earning, APY not measurable yet
                 <p className="text-sm text-long" data-testid="earning-no-apy">
-                  Earning funding every block. The APY shows once the share-price history covers a window.
+                  Earning funding every block. The APY shows once the share-price history covers at least an hour.
                 </p>
               ) : null}
             </div>
