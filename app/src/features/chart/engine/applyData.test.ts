@@ -41,11 +41,10 @@ describe("applyData", () => {
   });
 });
 
-describe("initialRange", () => {
-  it("fits short histories and frames the newest INITIAL_BARS bars of long ones", async () => {
-    const { INITIAL_BARS, initialRange } = await import("./LightweightEngine");
-    expect(initialRange(0)).toBeNull();
-    expect(initialRange(INITIAL_BARS)).toBeNull();
-    expect(initialRange(1_000)).toEqual({ from: 1_000 - INITIAL_BARS, to: 1_002 });
+describe("default view", () => {
+  it("opens at a fixed candle width with the newest bar inset from the right (never fit-to-width)", async () => {
+    const { BAR_SPACING, RIGHT_OFFSET_BARS } = await import("./LightweightEngine");
+    expect(BAR_SPACING).toBe(6);
+    expect(RIGHT_OFFSET_BARS).toBe(10);
   });
 });

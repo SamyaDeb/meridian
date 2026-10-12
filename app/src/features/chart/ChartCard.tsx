@@ -225,7 +225,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
     const r = pendingRange.current;
     if (!r || !coords || bars.length === 0) return;
     pendingRange.current = null;
-    const id = setTimeout(() => (r.from !== undefined && r.to !== undefined ? coords.setVisibleSeconds(r.from, r.to) : setResetKey((k) => k + 1)), 60);
+    const id = setTimeout(() => (r.from !== undefined && r.to !== undefined ? coords.setVisibleSeconds(r.from, r.to) : coords.fitAll()), 60);
     return () => clearTimeout(id);
   }, [coords, bars.length, tf]);
   const pickRange = (id: RangeId) => {
