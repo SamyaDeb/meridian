@@ -73,7 +73,8 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
   const outside = venue === "perpl" && PERPL_ENABLED;
   const key = outside ? PERPL_VIEW_KEY : market;
   const storedView = useChartView(key);
-  const view = outside ? { ...storedView, source: "perpl" as const } : !refOk && storedView.source === "reference" ? { ...storedView, source: "last" as const } : storedView;
+  // Perpl only in its own venue (a source saved before Perpl moved to the market dropdown falls back to Last)
+  const view = outside ? { ...storedView, source: "perpl" as const } : (!refOk && storedView.source === "reference") || storedView.source === "perpl" ? { ...storedView, source: "last" as const } : storedView;
   const tf = view.timeframe;
   const sec = TIMEFRAME_SEC[tf];
   const offset = ALIGN_OFFSET_SEC[tf] ?? 0;
@@ -264,7 +265,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
     if (q.isPending) return { title: "Loading", body: "" };
     return { title: view.source === "last" ? "No trades yet" : "No history yet", body: view.source === "last" ? "Candles appear with the first trade." : "Points appear as the indexer records them." };
   })();
-  // an empty Meridian chart offers the labelled Perpl reference as an explicit click (never a silent switch)
+  // an empty Meridian chart offers Perpl's view-only market as an explicit click (never a silent switch)
   const offerPerpl = notice !== undefined && PERPL_ENABLED && !isOutside(view.source) && notice.title !== "Loading";
 
   return (
@@ -364,13 +365,10 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
                     <button
                       type="button"
                       data-testid="show-perpl"
-                      onClick={() => {
-                        setView(market, { source: "perpl" });
-                        setResetKey((k) => k + 1);
-                      }}
+                      onClick={() => setVenue("perpl")}
                       className="pointer-events-auto rounded-control border border-border bg-card px-2.5 py-1 text-[12px] font-medium text-text hover:bg-card-2 pointer-coarse:min-h-11"
                     >
-                      Show {PERPL_VENUE} (reference)
+                      View {PERPL_VENUE} (view only)
                     </button>
                   ) : undefined
                 }

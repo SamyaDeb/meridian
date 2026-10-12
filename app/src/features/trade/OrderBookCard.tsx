@@ -8,7 +8,6 @@ import { WAD } from "@/lib/units";
 import { usePerpMarket } from "@/data/market";
 import { setDraft } from "./draft";
 import { depthPaths } from "@/lib/depth";
-import { PERPL_ENABLED } from "@/features/chart/datafeed/perpl";
 import { PerplBook } from "./PerplBook";
 import { useVenue } from "./venue";
 
@@ -149,14 +148,13 @@ function Trades() {
 }
 
 /** Order book / trades card (FRONTEND_TRADE_PLAN §6.2). Click a level to load it as the ticket's limit price. */
-type Tab = "book" | "trades" | "depth" | "perpl";
-/** Tabs of the book card (Hyperliquid: Order Book · Trades), then depth, then the read-only outside venue (Perpl) only
- *  with its flag, never first. Funding lives on the chart panel's "Chart | Funding" tabs. */
-export const bookTabs = (perplEnabled = PERPL_ENABLED): { id: Tab; label: string }[] => [
+type Tab = "book" | "trades" | "depth";
+/** Tabs of the book card (Hyperliquid: Order Book · Trades), then depth. Funding lives on the chart panel's "Chart |
+ *  Funding" tabs; Perpl's book is its own view-only market in the strip's dropdown (features/trade/venue.ts). */
+export const bookTabs = (): { id: Tab; label: string }[] => [
   { id: "book", label: "Order Book" },
   { id: "trades", label: "Trades" },
   { id: "depth", label: "Depth" },
-  ...(perplEnabled ? [{ id: "perpl" as const, label: "Perpl" }] : []),
 ];
 
 export function OrderBookCard() {
@@ -172,7 +170,7 @@ export function OrderBookCard() {
     );
   return (
     <Card className="h-full p-0!" scroll bodyClassName="flex flex-col" header={<PillTabs fill ariaLabel="Book view" value={tab} onChange={setTab} tabs={bookTabs()} />}>
-      {tab === "book" ? <Book /> : tab === "trades" ? <Trades /> : tab === "perpl" ? <div className="min-h-0 flex-1 overflow-auto p-3"><PerplBook /></div> : <div className="flex min-h-0 flex-1 flex-col p-3"><Depth /></div>}
+      {tab === "book" ? <Book /> : tab === "trades" ? <Trades /> : <div className="flex min-h-0 flex-1 flex-col p-3"><Depth /></div>}
     </Card>
   );
 }
