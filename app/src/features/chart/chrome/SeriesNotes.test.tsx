@@ -25,10 +25,8 @@ describe("SeriesNotes: every substituted series is labelled", () => {
 
 describe("toolbar sources", () => {
   it("flags off hide the outside sources; flags on list them after Meridian's own, never first", () => {
-    expect(sourceOptions(false, false)).toEqual(["last", "mark", "index"]);
-    expect(sourceOptions(true, false)).toEqual(["last", "mark", "index", "reference"]);
-    expect(sourceOptions(false, true)).toEqual(["last", "mark", "index", "perpl"]);
-    expect(sourceOptions(true, true)).toEqual(["last", "mark", "index", "reference", "perpl"]);
+    expect(sourceOptions(false)).toEqual(["last", "mark", "index"]);
+    expect(sourceOptions(true)).toEqual(["last", "mark", "index", "reference"]);
     expect(SOURCE_LABEL.reference.label).toBe("MON/USD ref (Monad DEX)");
     expect(SOURCE_LABEL.perpl.label).toBe("Perpl MON-PERP (ref)");
     expect(SOURCE_LABEL.perpl.hint).toContain("Not Meridian trades");
