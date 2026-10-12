@@ -47,9 +47,8 @@ export function NavBar() {
             </nav>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="hidden md:inline-flex">
-              <NetworkChip />
-            </span>
+            {/* always visible, phones included: it carries the "mock data" and "not deployed yet" states */}
+            <NetworkChip />
             <span className="hidden sm:inline-flex">
               <BlockCounter />
             </span>

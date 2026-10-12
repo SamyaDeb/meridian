@@ -119,7 +119,7 @@ export default function EarnPage() {
           value={<span data-testid="my-vault-value">{myValueWad !== undefined ? `$${formatAusdWad(myValueWad)}` : "$0.00"}</span>}
           sub={<span className="text-muted">Deposited {u ? formatAusdToken(u.depositedToken) : "0.00"} AUSD</span>}
         />
-        <StatCard label="Vault TVL" value={v ? `$${formatAusdToken(v.navToken)}` : <Skeleton className="h-9 w-32" />} sub={<span className="text-muted">Funding earned {v ? formatAusdWad(v.fundingAccruedWad) : "—"} AUSD</span>} />
+        <StatCard label="Vault TVL" value={v ? `$${formatAusdToken(v.navToken)}` : <Skeleton className="h-9 w-32" />} sub={<span className="text-muted">Funding earned {v && !v.historyPending ? formatAusdWad(v.fundingAccruedWad) : "…"} AUSD</span>} />
       </div>
 
       {tx.status && (
@@ -174,7 +174,7 @@ export default function EarnPage() {
                       <td className={`${td} text-long`}>{apy !== undefined && status !== "waiting" && status !== "waiting-route" ? formatAprWad(apy) : "N/A"}</td>
                       <td className={td}>{v ? <span data-testid="share-price">{formatFixed(v.sharePriceWad, 18, 12)}</span> : "—"}</td>
                       <td className={td}>{myValueWad !== undefined ? `${formatAusdWad(myValueWad)} AUSD` : "0.00 AUSD"}</td>
-                      <td className={td}>{v ? `${formatAusdWad(v.fundingAccruedWad)} AUSD` : "—"}</td>
+                      <td className={td}>{v && !v.historyPending ? `${formatAusdWad(v.fundingAccruedWad)} AUSD` : "…"}</td>
                       <td className={td}>{v ? `${formatAusdToken(v.navToken)} AUSD` : "—"}</td>
                       <td className={`${td} space-x-4 whitespace-nowrap`}>
                         <button type="button" className="text-brand-soft hover:underline disabled:text-brand-soft/35 disabled:no-underline" disabled={!isConnected || !vault} onClick={() => setDialog("deposit")}>
@@ -239,7 +239,7 @@ export default function EarnPage() {
                 {v?.spotBaseWad !== undefined && <Row label="Spot MON / perp short" value={`${formatBaseWad(v.spotBaseWad, 0)} / ${formatBaseWad(-(v.perpSizeWad ?? 0n), 0)}`} />}
                 {v?.shortCapacityWad !== undefined && <Row label="Short capacity (skew)" value={`${formatBaseWad(v.shortCapacityWad, 0)} MON`} />}
                 {v?.idleToken !== undefined && <Row label="Idle AUSD" value={formatAusdToken(v.idleToken)} />}
-                <Row label="Funding earned" value={v ? `${formatAusdWad(v.fundingAccruedWad)} AUSD` : "—"} />
+                <Row label="Funding earned" value={v && !v.historyPending ? `${formatAusdWad(v.fundingAccruedWad)} AUSD` : "…"} />
               </div>
               <p className="mt-3 text-xs text-muted">The vault holds spot MON and a short MON-PERP, and only takes the short when other traders are net long (it never creates short skew).</p>
             </div>
