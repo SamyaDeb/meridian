@@ -54,6 +54,35 @@ describe("Meridian deployment readers (deployments/<chainId>.json)", () => {
   });
 });
 
+describe("swap markets (CR-017 swapMarkets[])", () => {
+  const base = repoJson<Record<string, unknown>>("deployments/10143.json");
+  it("10143: the Meridian-funding market first, then the Perpl-funding market from swapMarkets[]", () => {
+    const d = readMeridianDeployment(base, 10143);
+    expect(d.swapMarkets.map((m) => [m.symbol, m.fundingSource])).toEqual([
+      ["MON-FUNDING", "meridian"],
+      ["MON-FUNDING-PERPL", "perpl"],
+    ]);
+    expect(d.swapMarkets[0]).toMatchObject({ swapMarket: "0xACFc9b2aEfD546AEd1FB21B2D82C5433c1d3Fe33", source: d.contracts.ClearingHouse });
+    expect(d.swapMarkets[1]).toMatchObject({
+      swapMarket: "0x4e5A8b88e8F09FDf2DC178B4641a25676d181bde",
+      swapOrderBook: "0x5D4f03B6Afa525ed580C75878A2F51A35c202334",
+      source: "0xC008aF47fCC651889a1d66f0734da941A55224cC",
+      perplPerpId: 64,
+      maturity: 1_794_414_069,
+      startBlock: 70_443_746n,
+    });
+  });
+  it("refuses an entry without deployed: true, an unknown source and a bad address", () => {
+    const e = (base.swapMarkets as Record<string, unknown>[])[0]!;
+    expect(() => readMeridianDeployment({ ...base, swapMarkets: [{ ...e, deployed: false }] }, 10143)).toThrow(/not deployed/);
+    expect(() => readMeridianDeployment({ ...base, swapMarkets: [{ ...e, fundingSource: "hl" }] }, 10143)).toThrow(/unknown fundingSource/);
+    expect(() => readMeridianDeployment({ ...base, swapMarkets: [{ ...e, SwapOrderBook: "0x12" }] }, 10143)).toThrow(/SwapOrderBook: expected an address/);
+  });
+  it("31337 without swap markets reads an empty list", () => {
+    expect(readMeridianDeployment(repoJson("deployments/31337.json"), 31337).swapMarkets).toEqual([]);
+  });
+});
+
 describe("Perpl deployment reader (deployments/perpl.json)", () => {
   const perpl = repoJson("deployments/perpl.json");
   it("mainnet 143 and testnet 10143 as recorded; MON market + funding interval from the file", () => {

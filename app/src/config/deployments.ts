@@ -51,6 +51,62 @@ export interface Deployment {
   mmAccounts?: Address[];
   /** our keepers (main + demo) */
   keeperAccounts?: Address[];
+  /** CR-017: swap markets added by AddSwapMarket.s.sol (Perpl funding on 10143), see swapMarketsFor */
+  swapMarkets?: SwapMarketRecord[];
+}
+
+/** One `swapMarkets[]` entry of a deployments file (AddSwapMarket.s.sol `_newEntry`). */
+export interface SwapMarketRecord {
+  symbol: string;
+  fundingSource: string;
+  perplPerpId?: number;
+  perplExchange?: Address;
+  PerplFundingSource?: Address;
+  FundingSwapMarket: Address;
+  SwapOrderBook: Address;
+  maturity?: number;
+  startBlock?: number;
+  deployed?: boolean;
+}
+
+/** Where a swap market's floating leg comes from. */
+export type SwapSource = "meridian" | "perpl";
+
+/** A tradable swap market: its book, and the funding source the swap reads (ClearingHouse or PerplFundingSource). */
+export interface SwapMarketRef {
+  source: SwapSource;
+  symbol: string;
+  swapMarket: Address;
+  swapOrderBook: Address;
+  fundingSource: Address | undefined;
+  perplPerpId: number | undefined;
+}
+
+/**
+ * Swap markets of a deployment, Meridian funding (contracts.*) first. A `swapMarkets[]` entry is served only with
+ * `deployed: true` and a known funding source ("perpl"); anything else is left out (never a dry-run address). Pure.
+ */
+export function swapMarketsOf(d: Deployment | undefined): SwapMarketRef[] {
+  if (!d) return [];
+  const out: SwapMarketRef[] = [];
+  const c = d.contracts;
+  if (c.FundingSwapMarket && c.SwapOrderBook) {
+    out.push({ source: "meridian", symbol: "MON-FUNDING", swapMarket: c.FundingSwapMarket, swapOrderBook: c.SwapOrderBook, fundingSource: c.ClearingHouse, perplPerpId: undefined });
+  }
+  for (const e of d.swapMarkets ?? []) {
+    if (e.deployed !== true || e.fundingSource !== "perpl" || !e.PerplFundingSource) continue;
+    out.push({ source: "perpl", symbol: e.symbol, swapMarket: e.FundingSwapMarket, swapOrderBook: e.SwapOrderBook, fundingSource: e.PerplFundingSource, perplPerpId: e.perplPerpId });
+  }
+  return out;
+}
+
+export function swapMarketsFor(chainId: number): SwapMarketRef[] {
+  return swapMarketsOf(DEPLOYMENTS[chainId]);
+}
+
+/** The swap market for `source` on `chainId` (undefined when that chain has none). */
+export function swapMarketFor(chainId: number, source: SwapSource): SwapMarketRef | undefined {
+  return swapMarketsFor(chainId).find((m) => m.source === source);
 }
 
 /** A deployment file is usable once it is not a placeholder and has the perp core. Pure. */

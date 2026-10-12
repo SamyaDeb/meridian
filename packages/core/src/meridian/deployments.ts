@@ -24,6 +24,23 @@ export type MeridianDeployment = {
   mockContracts: string[];
   startBlock: bigint | undefined;
   symbol: string | undefined;
+  /** CR-017: every funding-swap market of the chain, the Meridian-funding one (contracts.*) first */
+  swapMarkets: SwapMarket[];
+};
+
+/** A funding-swap market and where its floating leg comes from (CR-017, AddSwapMarket.s.sol `swapMarkets[]`). */
+export type SwapMarket = {
+  symbol: string;
+  fundingSource: "meridian" | "perpl";
+  swapMarket: Address;
+  swapOrderBook: Address;
+  /** the funding source the swap reads: the perp ClearingHouse, or the PerplFundingSource */
+  source: Address;
+  /** Perpl perp id (fundingSource "perpl") */
+  perplPerpId: number | undefined;
+  /** unix seconds (recorded entries; undefined for contracts.*, read `maturity()` onchain) */
+  maturity: number | undefined;
+  startBlock: bigint | undefined;
 };
 
 export type DeploymentRead<T> = { status: "deployed"; deployment: T } | { status: "not-deployed"; reason: string };
@@ -51,12 +68,45 @@ export function tryReadMeridianDeployment(json: unknown, chainId: number): Deplo
   const where = `deployments/${chainId}.json contracts`;
   const contracts = Object.fromEntries(REQUIRED.map((k) => [k, addr(c, k, where)])) as MeridianContracts;
   for (const k of OPTIONAL) if (c[k] !== undefined) (contracts as Record<string, Address>)[k] = addr(c, k, where);
+  const swapMarkets = readSwapMarkets(json, contracts, chainId);
   const mocks = Array.isArray(json.mockContracts) ? json.mockContracts.filter((x): x is string => typeof x === "string") : [];
   const sb = json.startBlock;
   return {
     status: "deployed",
-    deployment: { chainId, contracts, mockContracts: mocks, startBlock: typeof sb === "number" && Number.isSafeInteger(sb) ? BigInt(sb) : undefined, symbol: typeof json.symbol === "string" ? json.symbol : undefined },
+    deployment: { chainId, contracts, swapMarkets, mockContracts: mocks, startBlock: typeof sb === "number" && Number.isSafeInteger(sb) ? BigInt(sb) : undefined, symbol: typeof json.symbol === "string" ? json.symbol : undefined },
   };
+}
+
+/**
+ * The chain's swap markets: contracts.FundingSwapMarket (Meridian funding) when present, then each `swapMarkets[]` entry.
+ * An entry without `deployed: true` is refused (a dry-run record is never served); bad addresses throw.
+ */
+function readSwapMarkets(json: Obj, contracts: MeridianContracts, chainId: number): SwapMarket[] {
+  const out: SwapMarket[] = [];
+  if (contracts.FundingSwapMarket && contracts.SwapOrderBook) {
+    out.push({ symbol: "MON-FUNDING", fundingSource: "meridian", swapMarket: contracts.FundingSwapMarket, swapOrderBook: contracts.SwapOrderBook, source: contracts.ClearingHouse, perplPerpId: undefined, maturity: undefined, startBlock: undefined });
+  }
+  const list = json.swapMarkets;
+  if (list === undefined) return out;
+  if (!Array.isArray(list)) throw new Error(`deployments/${chainId}.json: swapMarkets must be an array`);
+  list.forEach((e, i) => {
+    const where = `deployments/${chainId}.json swapMarkets[${i}]`;
+    if (!isObj(e)) throw new Error(`${where}: expected an object`);
+    if (e.deployed !== true) throw new Error(`${where}: not deployed (deployed: ${String(e.deployed)})`);
+    const perpl = e.fundingSource === "perpl";
+    if (!perpl) throw new Error(`${where}: unknown fundingSource ${String(e.fundingSource)}`);
+    out.push({
+      symbol: typeof e.symbol === "string" ? e.symbol : `swap-${i}`,
+      fundingSource: "perpl",
+      swapMarket: addr(e, "FundingSwapMarket", where),
+      swapOrderBook: addr(e, "SwapOrderBook", where),
+      source: addr(e, "PerplFundingSource", where),
+      perplPerpId: intIn(e.perplPerpId, 0, 2 ** 31, `${where}.perplPerpId`),
+      maturity: typeof e.maturity === "number" ? e.maturity : undefined,
+      startBlock: typeof e.startBlock === "number" && Number.isSafeInteger(e.startBlock) ? BigInt(e.startBlock) : undefined,
+    });
+  });
+  return out;
 }
 
 /** Throwing variant: the app calls this only on a chain it is configured to trade on. */
