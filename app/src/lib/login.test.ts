@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deriveLoginState, describeSignError, walletKindOf } from "./login";
+import { ContractFunctionExecutionError, ContractFunctionRevertedError, parseAbi, toFunctionSelector, type Hex } from "viem";
+import { deriveLoginState, describeSignError, REVERT_TEXT, walletKindOf } from "./login";
 
 const on = { privyEnabled: true, ready: true, authenticated: false, walletAddress: undefined, error: undefined };
 
@@ -45,6 +46,16 @@ describe("describeSignError", () => {
   it("a refused sponsorship reads as the free-gas message", async () => {
     const { SponsorError, SPONSOR_UNAVAILABLE } = await import("./sponsor");
     expect(describeSignError(new SponsorError(new Error("quota")))).toBe(SPONSOR_UNAVAILABLE);
+  });
+  it("names the contract's revert reason instead of the bare first line", () => {
+    const abi = parseAbi(["function placeLimitOrder(bool,uint32,uint64,uint8)", "error OracleStale()", "error Weird()"]);
+    const revert = (data: Hex) =>
+      new ContractFunctionExecutionError(new ContractFunctionRevertedError({ abi, data, functionName: "placeLimitOrder" }), { abi, functionName: "placeLimitOrder", args: [true, 1, 1n, 0] });
+    expect(describeSignError(revert(toFunctionSelector("OracleStale()")))).toBe(REVERT_TEXT.OracleStale);
+    expect(describeSignError(revert(toFunctionSelector("Weird()")))).toBe("Reverted: Weird");
+  });
+  it("a reverted cancelOrder is not a cancelled signature", () => {
+    expect(describeSignError(new Error('The contract function "cancelOrder" reverted.'))).not.toBe("Signature cancelled");
   });
   it("falls back to the first line", () => {
     expect(describeSignError(new Error("first\nsecond"))).toBe("first");
