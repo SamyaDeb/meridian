@@ -10,6 +10,7 @@ import { setDraft } from "./draft";
 import { depthPaths } from "@/lib/depth";
 import { PERPL_ENABLED } from "@/features/chart/datafeed/perpl";
 import { PerplBook } from "./PerplBook";
+import { useVenue } from "./venue";
 
 const LEVELS = 12; // per side on screen (§6.2)
 // fetched so coarser groupings still fill rows; getDepth reverts BatchTooLarge above MeridianConstants.MAX_BATCH (32)
@@ -160,6 +161,15 @@ export const bookTabs = (perplEnabled = PERPL_ENABLED): { id: Tab; label: string
 
 export function OrderBookCard() {
   const [tab, setTab] = useState<Tab>("book");
+  // Perpl venue (market dropdown): Perpl's book is the whole card, still labelled read-only
+  if (useVenue() === "perpl")
+    return (
+      <Card className="h-full p-0!" scroll bodyClassName="flex flex-col" header={<PillTabs fill ariaLabel="Book view" value="perpl" onChange={() => {}} tabs={[{ id: "perpl", label: "Order Book" }]} />}>
+        <div className="min-h-0 flex-1 overflow-auto p-3">
+          <PerplBook />
+        </div>
+      </Card>
+    );
   return (
     <Card className="h-full p-0!" scroll bodyClassName="flex flex-col" header={<PillTabs fill ariaLabel="Book view" value={tab} onChange={setTab} tabs={bookTabs()} />}>
       {tab === "book" ? <Book /> : tab === "trades" ? <Trades /> : tab === "perpl" ? <div className="min-h-0 flex-1 overflow-auto p-3"><PerplBook /></div> : <div className="flex min-h-0 flex-1 flex-col p-3"><Depth /></div>}

@@ -9,6 +9,7 @@ import Image from "next/image";
 import { aggregate, applyTrade, pointsToBars, toBar } from "./datafeed/candles";
 import { recordSample, sessionSamples } from "./datafeed/session";
 import { usePerpMarket } from "@/data/market";
+import { setVenue, type Venue } from "@/features/trade/venue";
 import { REFERENCE_ENABLED, UPSTREAM_OF, geckoToBars } from "./datafeed/reference";
 import { PERPL_ENABLED, PERPL_RES_OF, PERPL_VENUE, perplToBars, type PerplCandlesPayload } from "./datafeed/perpl";
 import { SeriesNotes } from "./chrome/SeriesNotes";
@@ -31,6 +32,7 @@ const LIMIT: Record<Timeframe, number> = { "1m": 500, "3m": 1_000, "5m": 1_500, 
 const MARK_ROWS = 2_000; // FundingTick is one row per block: the most recent 2,000 blocks (~10 min at 300 ms)
 const INDEX_ROWS = 2_000; // OraclePrice is one row per oracle update
 const PLACEHOLDER_MARKET = "MON-PERP"; // view key until the market's address has loaded (adoptView carries choices over)
+const PERPL_VIEW_KEY = "perpl:MON"; // the Perpl venue keeps its own timeframe, indicators and drawings
 const SOURCE_NAME: Record<PriceSource, string> = { last: "Last", mark: "Mark", index: "Index", reference: "Reference", perpl: "Reference" };
 /** Venue named in the legend for each source (outside venues by name, never "Meridian"). */
 const VENUE: Record<PriceSource, string> = { last: "Meridian", mark: "Meridian", index: "Meridian", reference: "Uniswap v4 · GeckoTerminal", perpl: PERPL_VENUE };
@@ -49,6 +51,8 @@ export type ChartCardProps = {
   panes?: PaneSpec[];
   onPriceClick?: (priceWad: bigint) => void;
   toolbarExtra?: ReactNode;
+  /** "perpl": draw only Perpl's MON perp (an outside venue, view only): no Meridian lines, panes or click-to-limit */
+  venue?: Venue;
 };
 
 type Hover = { time: number; open: number; high: number; low: number; close: number } | null;
@@ -59,15 +63,17 @@ type Hover = { time: number; open: number; high: number; low: number; close: num
  * index / position / order / trigger lines, per-block funding and premium panes, indicators, drawings, click-to-limit.
  * Never backfilled: "history starts at …".
  */
-export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceClick }: ChartCardProps) {
+export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceClick, venue = "meridian" }: ChartCardProps) {
   const { data: m } = useMarket();
   const pm = usePerpMarket();
   const market = m?.clearingHouse ?? pm.clearingHouse ?? PLACEHOLDER_MARKET;
   useEffect(() => adoptView(PLACEHOLDER_MARKET, market), [market]);
   // the DEX reference is MON/USD: offered on MON-PERP only (K7)
   const refOk = REFERENCE_ENABLED && pm.primary;
-  const storedView = useChartView(market);
-  const view = !refOk && storedView.source === "reference" ? { ...storedView, source: "last" as const } : storedView;
+  const outside = venue === "perpl" && PERPL_ENABLED;
+  const key = outside ? PERPL_VIEW_KEY : market;
+  const storedView = useChartView(key);
+  const view = outside ? { ...storedView, source: "perpl" as const } : !refOk && storedView.source === "reference" ? { ...storedView, source: "last" as const } : storedView;
   const tf = view.timeframe;
   const sec = TIMEFRAME_SEC[tf];
   const offset = ALIGN_OFFSET_SEC[tf] ?? 0;
@@ -125,7 +131,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
   const [range, setRange] = useState<RangeId | null>(null);
   const pendingRange = useRef<{ from?: number; to?: number } | null>(null);
   const shell = useRef<HTMLElement>(null);
-  const draw = useDrawings(market);
+  const draw = useDrawings(key);
 
   const { full: fs, toggle: toggleFullscreen } = useFullscreen(shell);
 
@@ -172,7 +178,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
   const firstReal = bars.find((b) => !b.gapFill);
   const ind = buildIndicators(bars, view.indicators);
 
-  const lines: PriceLineSpec[] = [
+  const lines: PriceLineSpec[] = outside ? [] : [
     ...(view.markLine && m ? [{ id: "mark", priceWad: m.lastMarkPrice, tone: "brand" as const, title: "Mark", dashed: true }] : []),
     ...(view.indexLine && m ? [{ id: "index", priceWad: m.lastIndexPrice, tone: "muted" as const, title: "Index", dashed: true }] : []),
     ...priceLines,
@@ -180,7 +186,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
   // oracle band: the realized 1h / 8h / 24h APR from the funding-rate oracle, drawn as guides on the funding pane
   const band = [m?.realizedApr1hWad, m?.realizedApr8hWad, m?.realizedApr24hWad].filter((x): x is bigint => x !== undefined).map((x) => wadToNum(x * 100n));
   const fundingPanes: PaneSpec[] =
-    view.fundingPane && ticks && ticks.length > 0
+    !outside && view.fundingPane && ticks && ticks.length > 0
       ? [
           {
             id: "funding",
@@ -226,7 +232,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
     const w = rangeWindow(id, Math.floor(now / 1_000)); // now = the wall clock ticking for the UTC label
     setRange(id);
     pendingRange.current = { from: w.from, to: w.to };
-    setView(market, { timeframe: w.timeframe });
+    setView(key, { timeframe: w.timeframe });
     setResetKey((k) => k + 1);
   };
   const saveImage = () => {
@@ -235,7 +241,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
       const url = coords.screenshot().toDataURL("image/png");
       const a = document.createElement("a");
       a.href = url;
-      a.download = `meridian-${(m?.symbol ?? pm.symbol).toLowerCase()}-${tf}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
+      a.download = `${outside ? "perpl-mon-perp" : `meridian-${(m?.symbol ?? pm.symbol).toLowerCase()}`}-${tf}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
       a.click();
     } catch {
       /* canvas export blocked: nothing to save */
@@ -249,7 +255,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
       return reference.isPending ? { title: "Loading", body: "" } : { title: "No reference data", body: "GeckoTerminal returned no MON/USDC candles for this pool." };
     }
     if (view.source === "perpl") {
-      if (perpl.isError) return { title: "Perpl unavailable", body: `${perpl.error.message}. Our mark and index lines still show.` };
+      if (perpl.isError) return { title: "Perpl unavailable", body: outside ? `${perpl.error.message}. Retrying.` : `${perpl.error.message}. Our mark and index lines still show.` };
       return perpl.isPending ? { title: "Loading", body: "" } : { title: "No Perpl data", body: "Perpl returned no MON candles for this window." };
     }
     if (sessionMode) return { title: "Recording", body: "Prices read from the chain every block are drawn from the moment this page opened." };
@@ -271,7 +277,11 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
         view={view}
         fullscreen={fs}
         onChange={(patch) => {
-          setView(market, patch);
+          // in the Perpl venue, picking one of Meridian's own sources goes back to Meridian's market
+          if (outside && patch.source && patch.source !== "perpl") {
+            setVenue("meridian");
+            setView(market, { source: patch.source });
+          } else setView(key, patch);
           if (patch.timeframe) setRange(null);
           if (patch.timeframe || patch.source) setResetKey((k) => k + 1);
         }}
@@ -293,7 +303,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
             panes={[...fundingPanes, ...ind.panes, ...panes]}
             resetKey={resetKey}
             pricePrecision={pm.priceDp}
-            onPriceClick={draw.tool || draw.erase ? undefined : onPriceClick}
+            onPriceClick={draw.tool || draw.erase || outside ? undefined : onPriceClick}
             onCoords={setCoords}
             onCrosshair={setHover}
           />
@@ -303,8 +313,8 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
           {legend && (
             <div className="pointer-events-none absolute left-2 top-1.5 z-10 space-y-0.5 text-[12.5px]" data-testid="ohlc-legend">
               <div className="flex flex-wrap items-center gap-x-1.5">
-                <Image src="/meridian-logo.png" alt="" width={16} height={16} className="rounded-full bg-brand p-[2px]" />
-                <span className="text-text">{m?.symbol ?? pm.symbol}</span>
+                {!outside && <Image src="/meridian-logo.png" alt="" width={16} height={16} className="rounded-full bg-brand p-[2px]" />}
+                <span className="text-text">{outside ? "MON-PERP" : (m?.symbol ?? pm.symbol)}</span>
                 <span className="text-muted">·</span>
                 <span className="num text-text">{tf}</span>
                 <span className="text-muted">·</span>
@@ -377,15 +387,15 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
         note={historyNote({ source: view.source, session: sessionMode, firstSec: firstReal?.time, markRows: view.source === "mark" ? marks.data?.length : undefined })}
         chips={
           <>
-            {view.fundingPane && ticks && ticks.length === 0 && <Chip>funding: no update in the log window</Chip>}
-            {ticks && ticks.some((t) => t.timestamp === 0n) && <Chip>times ≈ from block height</Chip>}
+            {!outside && view.fundingPane && ticks && ticks.length === 0 && <Chip>funding: no update in the log window</Chip>}
+            {!outside && ticks && ticks.some((t) => t.timestamp === 0n) && <Chip>times ≈ from block height</Chip>}
           </>
         }
         nowMs={now}
         view={view}
-        onToggle={(k) => setView(market, { [k]: !view[k] })}
+        onToggle={(k) => setView(key, { [k]: !view[k] })}
         onReset={() => {
-          setView(market, { ...DEFAULT_VIEW, indicators: view.indicators });
+          setView(key, { ...DEFAULT_VIEW, indicators: view.indicators });
           setRange(null);
           setResetKey((k) => k + 1);
         }}

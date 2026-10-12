@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useAccount, useChainId } from "wagmi";
 import { useAccountAddress, useAccountView, useDepth, useMarket, useRiskParams } from "@/data/hooks";
-import { Button, Card, Notice, PillTabs, Popover, Tooltip } from "@/components/ds";
+import { Button, Card, Chip, Notice, PillTabs, Popover, Tooltip } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
 import { useWriteGate } from "@/components/WriteGate";
 import { useStartLogin } from "@/components/Session";
@@ -32,6 +32,8 @@ import {
 import { BLOCK_TIME_MS, DEFAULT_IMR_WAD, DEFAULT_MMR_WAD, WAD } from "@/lib/units";
 import { usePerpMarket } from "@/data/market";
 import { setDraft, useDraft } from "./draft";
+import { setVenue, useVenue } from "./venue";
+import { PERPL_APP_URL, PERPL_VENUE } from "@/features/chart/datafeed/perpl";
 import { FundsDialog } from "./FundsDialog";
 import { TriggerSection } from "@/features/triggers/TriggerSection";
 
@@ -70,6 +72,30 @@ function Line({ label, children, tone, tip }: { label: ReactNode; children: Reac
  * live preview. Every write goes through useTx (ToS gate, geoblock, estimate × 1.2 gas).
  */
 export function OrderTicket() {
+  return useVenue() === "perpl" ? <PerplViewOnly /> : <MeridianTicket />;
+}
+
+/** The ticket's place while the terminal shows Perpl (market dropdown): view only, nothing is routed to Perpl from here. */
+function PerplViewOnly() {
+  return (
+    <Card className="h-full">
+      <div data-testid="perpl-view-only" className="flex h-full flex-col gap-3 text-[13px]">
+        <Chip tone="warn">{PERPL_VENUE} · view only</Chip>
+        <p className="text-muted">
+          You are watching Perpl&apos;s live MON perp chart and book on Monad mainnet, another venue. Meridian doesn&apos;t place orders on Perpl from this page.
+        </p>
+        <a href={PERPL_APP_URL} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center justify-center rounded-control border border-border text-text hover:bg-card-2">
+          Open Perpl ↗
+        </a>
+        <button type="button" onClick={() => setVenue("meridian")} className="h-10 rounded-control bg-brand font-semibold text-white hover:opacity-90" data-testid="back-to-meridian">
+          Trade MON-PERP on Meridian
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function MeridianTicket() {
   const { data: m } = useMarket();
   const { data: book } = useDepth(32);
   const { data: risk } = useRiskParams();

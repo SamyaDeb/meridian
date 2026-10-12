@@ -65,3 +65,31 @@ test("an empty Meridian chart offers Perpl in one click, and an early choice sur
   await expect(page.getByTestId("reference-label")).toHaveText("Perpl MON-PERP · Monad mainnet · reference, not Meridian trades");
   await page.screenshot({ path: `${SHOTS}/one-click-1440.png`, animations: "disabled" });
 });
+
+test("market dropdown opens Perpl as a view-only venue and goes back to Meridian", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/trade");
+  await expect(page.getByRole("region", { name: "Market" })).toContainText(/(Index|Oracle)\s*0\.\d+/, { timeout: 30_000 });
+  await page.getByRole("button", { name: "Market" }).click();
+  const perpl = page.getByTestId("menu-market-perpl");
+  test.skip((await perpl.count()) === 0, "NEXT_PUBLIC_PERPL_REFERENCE is off");
+  await perpl.click();
+  expect(new URL(page.url()).searchParams.get("venue")).toBe("perpl");
+  // strip, chart, book and ticket all say it's Perpl, view only
+  await expect(page.getByTestId("perpl-venue-chip")).toContainText("view only");
+  await expect(page.getByTestId("perpl-strip")).toContainText(/Last\s*0\.\d+/, { timeout: 20_000 });
+  await expect(page.getByTestId("reference-label")).toHaveText("Perpl MON-PERP · Monad mainnet · reference, not Meridian trades");
+  await expect(page.getByTestId("perpl-book-label")).toBeVisible();
+  await expect(page.getByTestId("perpl-view-only")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Buy \/ Long/ })).toHaveCount(0);
+  // the market bar keeps its height (a deep Perpl book scrolls inside its card)
+  expect((await page.locator('[data-area="strip"]').boundingBox())!.height).toBeLessThan(90);
+  await page.screenshot({ path: `${SHOTS}/perpl-venue-1440.png`, animations: "disabled" });
+
+  // a deep link opens it directly; "Trade MON-PERP on Meridian" goes back
+  await page.goto("/trade?venue=perpl");
+  await expect(page.getByTestId("perpl-view-only")).toBeVisible();
+  await page.getByTestId("back-to-meridian").click();
+  await expect(page.getByTestId("mark-price")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("venue")).toBeNull();
+});

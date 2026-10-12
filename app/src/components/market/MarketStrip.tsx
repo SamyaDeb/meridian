@@ -8,8 +8,10 @@ import { stats24h } from "@/lib/market24h";
 import { WAD } from "@/lib/units";
 import { signGlyph } from "@/components/ds/logic";
 import { useNow } from "@/lib/useNow";
-import { usePerpMarket, usePerpMarkets } from "@/data/market";
-import { MarketSwitcher } from "./MarketSwitcher";
+import { usePerpMarket } from "@/data/market";
+import { useVenue } from "@/features/trade/venue";
+import { MarketMenu } from "./MarketMenu";
+import { PerplStrip } from "./PerplStrip";
 
 /** Long label on wide strips, short one on narrow strips (container width), so the stats stay on one line. */
 const L = (long: string, short: string) => (
@@ -42,10 +44,13 @@ const pct = (wad: bigint) => `${signGlyph(wad)}${formatFixed((wad < 0n ? -wad : 
  * open interest, funding APR per block with the next funding block, realized 1h / 8h / 24h APR chips, TEST badge.
  */
 export function MarketStrip() {
+  return useVenue() === "perpl" ? <PerplStrip /> : <MeridianStrip />;
+}
+
+function MeridianStrip() {
   const { data: m } = useMarket();
   const { data: risk } = useRiskParams();
   const pm = usePerpMarket();
-  const { markets } = usePerpMarkets();
   const price = (v: bigint) => formatPriceWad(v, pm.tickSizeWad);
   const size = (v: bigint) => formatBaseWad(v, pm.sizeDp);
   const { data: c1h, isError: candlesError, fetchStatus } = useIndexerCandles("Candle1h", 30);
@@ -70,12 +75,9 @@ export function MarketStrip() {
         {/* market: logo, name, max leverage (Hyperliquid's "MON-USDC  5x") */}
         <div className="flex shrink-0 items-center gap-2.5">
           <Image src="/meridian-logo.png" alt="" width={22} height={22} />
-          <span className="whitespace-nowrap text-xl tracking-tight" data-testid="market-symbol">
-            {m?.symbol ?? pm.symbol}
-          </span>
+          {/* market dropdown: Meridian's markets (K7) and, behind its flag, Perpl's MON perp (view only) */}
+          <MarketMenu symbol={m?.symbol ?? pm.symbol} />
           <span className="num rounded-[4px] bg-brand-tint px-1.5 py-0.5 text-xs text-brand-soft">{maxLev.toString()}x</span>
-          {/* K7: MON-PERP / ETH-PERP (hidden when the deployment has one market) */}
-          {markets.length > 1 && <MarketSwitcher />}
           {m?.testMarket && <Chip tone="warn">test market</Chip>}
           {!pm.primary && pm.keeperFed && (
             <Tooltip content="Testnet market: the oracle is pushed by our keeper from Pyth (Hermes). Funding every block, its own book and margin; vault, swaps and the MFI stay on MON-PERP." side="bottom">

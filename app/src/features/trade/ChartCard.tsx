@@ -10,6 +10,7 @@ import { accountLines, triggerLines } from "./chartLines";
 import { useTriggers } from "@/features/triggers/useTriggers";
 import { usePrefs } from "@/lib/prefs";
 import { FundingCard } from "./FundingCard";
+import { useVenue } from "./venue";
 import { usePerpMarket } from "@/data/market";
 
 /**
@@ -24,18 +25,23 @@ export function ChartCard() {
   const { triggers } = useTriggers();
   const pm = usePerpMarket(); // K7: triggers exist on MON-PERP only
   const trig = pm.primary ? triggerLines(triggers) : [];
-  const [tab, setTab] = useState<"chart" | "funding">("chart");
+  const [picked, setTab] = useState<"chart" | "funding">("chart");
+  // Perpl venue: its chart only (the Funding tab is Meridian's funding)
+  const venue = useVenue();
+  const tab = venue === "perpl" ? "chart" : picked;
   return (
     <div className="flex h-full flex-col gap-2 lg:gap-0" data-testid="chart-card">
       {/* phones: the per-block funding ticker stays the first thing under the strip (desktop shows it in the strip) */}
-      <div className="lg:hidden" data-testid="funding-ticker">
-        <FundingTicker />
-      </div>
+      {venue !== "perpl" && (
+        <div className="lg:hidden" data-testid="funding-ticker">
+          <FundingTicker />
+        </div>
+      )}
       <div className="hidden rounded-t-[6px] border-b border-border bg-card px-3 lg:block">
-        <PillTabs size="sm" ariaLabel="Chart view" value={tab} onChange={setTab} tabs={[{ id: "chart", label: "Chart" }, { id: "funding", label: "Funding" }]} />
+        <PillTabs size="sm" ariaLabel="Chart view" value={tab} onChange={setTab} tabs={venue === "perpl" ? [{ id: "chart", label: "Chart" }] : [{ id: "chart", label: "Chart" }, { id: "funding", label: "Funding" }]} />
       </div>
       <div className={`min-h-0 flex-1 flex-col ${tab === "chart" ? "flex" : "hidden"}`}>
-        <PriceChart priceLines={[...accountLines(a, orders, pm.lotSizeWad, pm.sizeDp).filter((l) => !(prefs.hideLiq && l.id === "liq")), ...trig]} onPriceClick={(px) => setDraft({ kind: "limit", limitPx: formatPriceWad(px, pm.tickSizeWad).replace(/,/g, "") })} />
+        <PriceChart venue={venue} priceLines={[...accountLines(a, orders, pm.lotSizeWad, pm.sizeDp).filter((l) => !(prefs.hideLiq && l.id === "liq")), ...trig]} onPriceClick={(px) => setDraft({ kind: "limit", limitPx: formatPriceWad(px, pm.tickSizeWad).replace(/,/g, "") })} />
       </div>
       {tab === "funding" && (
         <div className="min-h-0 flex-1 overflow-auto rounded-b-[6px] bg-card [&>section]:border-0 [&>section]:bg-transparent">

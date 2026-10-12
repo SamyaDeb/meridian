@@ -223,6 +223,11 @@ input[type="range"] {
     overflow-y: auto;
     scrollbar-width: none;
   }
+  /* same for the book: a deep book (Perpl's, from the market dropdown) scrolls inside instead of stretching the bar */
+  .terminal > [data-area="book"] > .rounded-card {
+    position: absolute;
+    inset: 0;
+  }
   .terminal > [data-area="account"] {
     margin-top: -4px;
   }
