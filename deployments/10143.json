@@ -72,5 +72,22 @@
   ],
   "testAccounts": [
     "0xe7D75c6751e3Da7323fa7702DA273408ba7cdB08"
+  ],
+  "swapMarkets": [
+    {
+      "FundingSwapMarket": "0x4e5A8b88e8F09FDf2DC178B4641a25676d181bde",
+      "PerplFundingSource": "0xC008aF47fCC651889a1d66f0734da941A55224cC",
+      "SwapOrderBook": "0x5D4f03B6Afa525ed580C75878A2F51A35c202334",
+      "_label": "TESTNET SWAP MARKET: settles on Perpl's MON-perp funding (PerplFundingSource)",
+      "deployed": true,
+      "fundingSource": "perpl",
+      "lotSizeWad": "1000000000000000000000",
+      "maturity": 1794414069,
+      "perplExchange": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "perplPerpId": 64,
+      "startBlock": 70443746,
+      "symbol": "MON-FUNDING-PERPL",
+      "tickSizeWad": "100000000000000"
+    }
   ]
 }
