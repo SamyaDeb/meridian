@@ -5,7 +5,8 @@ import { nextTabIndex } from "./logic";
 export type PillTab<T extends string> = { id: T; label: ReactNode; count?: number; disabled?: boolean };
 
 /**
- * Pill tab list (WAI-ARIA tabs: roving tabindex, arrows / Home / End). Active tab = brand pill.
+ * Tab list (WAI-ARIA tabs: roving tabindex, arrows / Home / End). Hyperliquid style: plain labels on a hairline, the
+ * active tab in full text colour with a light-accent underline. (Name kept from the pill era so call sites don't change.)
  * Pass `panelIdPrefix` when the tabs control panels (each panel gets id `${prefix}-${tab.id}`).
  */
 export function PillTabs<T extends string>({
@@ -16,6 +17,7 @@ export function PillTabs<T extends string>({
   size = "md",
   className = "",
   panelIdPrefix,
+  fill = false,
 }: {
   tabs: readonly PillTab<T>[];
   value: T;
@@ -24,6 +26,8 @@ export function PillTabs<T extends string>({
   size?: "sm" | "md";
   className?: string;
   panelIdPrefix?: string;
+  /** Tabs share the full width equally, label centred under a full-width underline (Hyperliquid's book / ticket tabs). */
+  fill?: boolean;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const uid = useId();
@@ -38,9 +42,9 @@ export function PillTabs<T extends string>({
     onChange(t.id);
     refs.current[i]?.focus();
   };
-  const h = size === "sm" ? "h-7 px-3 text-xs pointer-coarse:min-h-11 pointer-coarse:min-w-11 justify-center" : "min-h-9 px-3.5 text-sm pointer-coarse:min-h-11 pointer-coarse:min-w-11 justify-center";
+  const h = size === "sm" ? "h-8 text-xs pointer-coarse:min-h-11 pointer-coarse:min-w-11 justify-center" : "h-10 text-sm pointer-coarse:min-h-11 pointer-coarse:min-w-11 justify-center";
   return (
-    <div role="tablist" aria-label={ariaLabel} onKeyDown={onKey} className={`inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-card-2 p-1 ${className}`}>
+    <div role="tablist" aria-label={ariaLabel} onKeyDown={onKey} className={`${fill ? "flex w-full" : `inline-flex max-w-full ${size === "sm" ? "gap-4" : "gap-5"}`} items-end overflow-x-auto ${className}`}>
       {tabs.map((t, i) => {
         const active = t.id === value;
         return (
@@ -57,11 +61,11 @@ export function PillTabs<T extends string>({
             tabIndex={active ? 0 : -1}
             disabled={t.disabled}
             onClick={() => onChange(t.id)}
-            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full font-medium transition-colors disabled:opacity-40 ${h} ${active ? "bg-brand text-on-brand" : "text-muted hover:text-text"}`}
+            className={`-mb-px inline-flex ${fill ? "min-w-0 flex-1" : "shrink-0"} items-center gap-1.5 whitespace-nowrap border-b-2 px-0.5 transition-colors disabled:opacity-40 ${h} ${active ? "border-brand-soft text-text" : "border-transparent text-muted hover:text-text"}`}
           >
             {t.label}
             {t.count !== undefined && (
-              <span className={`num rounded-full px-1.5 text-[10px] ${active ? "bg-on-brand/15" : "bg-card"}`}>{t.count}</span>
+              <span className={`num rounded-control px-1 text-[10px] ${active ? "bg-brand-tint text-brand-soft" : "bg-card-2 text-muted"}`}>{t.count}</span>
             )}
           </button>
         );

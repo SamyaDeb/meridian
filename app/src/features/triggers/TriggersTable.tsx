@@ -34,7 +34,7 @@ export function TriggersTable() {
               return r;
             })
           }
-          className="h-7 rounded-full bg-short/15 px-3 text-[11px] text-short disabled:opacity-40 pointer-coarse:h-11"
+          className="h-7 rounded-control border border-short/45 px-3 text-[11px] text-short hover:bg-short/10 disabled:opacity-40 pointer-coarse:h-11"
         >
           Cancel
         </button>

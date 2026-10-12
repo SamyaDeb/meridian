@@ -50,7 +50,7 @@ describe("Chip", () => {
     expect(html(<Chip tone="brand">Monad</Chip>)).toContain("text-brand-soft");
     expect(html(<Chip tone="long">Long</Chip>)).toContain("text-long");
     expect(html(<Chip tone="warn">stale</Chip>)).toContain("text-warn");
-    expect(html(<Chip>x</Chip>)).toContain("rounded-full");
+    expect(html(<Chip>x</Chip>)).toContain("rounded-control");
   });
   it("pulse dot is decorative", () => {
     const h = html(<Chip dot pulse>live</Chip>);

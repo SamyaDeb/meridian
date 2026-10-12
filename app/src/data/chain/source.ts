@@ -62,6 +62,12 @@ const WINDOWS: Array<[keyof Pick<Market, "realizedApr1hWad" | "realizedApr8hWad"
   ["realizedApr24hWad", 86_400],
 ];
 
+/** How long one vault log scan is reused, and how long a view waits for the first one before painting without it. */
+const VAULT_LOG_TTL_MS = 20_000;
+const VAULT_LOG_WAIT_MS = 1_500;
+/** Log ranges fetched in parallel by `recent` (bounded: the public testnet RPC limits requests per IP). */
+const RECENT_CONCURRENCY = 5;
+
 export function createChainSource(client: PublicClient, a: ChainAddresses, fallback: MeridianDataSource): ChainSource {
   const ch = { address: a.clearingHouse, abi: clearingHouseAbi } as const;
   const ob = { address: a.orderBook, abi: orderBookAbi } as const;
@@ -74,10 +80,17 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
   const lookback = a.logLookback ?? LOG_LOOKBACK;
   const span = a.logSpan ?? lookback + 1n;
   /** Logs of the last `lookback` blocks, fetched in `span`-block chunks (sequential: public RPCs are rate-limited). */
+  // Ranges are fetched a few at a time (same order kept): one after another, a 2,000-block lookback at a 100-block
+  // span is 20 round-trips per scan, and the vault view (four scans) took ~26 s on 10143 before it could paint.
+  // Small enough to stay under the public RPC's per-IP limit; the transport batches what lands in the same tick.
   async function recent<T>(fetch: (fromBlock: bigint, toBlock: bigint) => Promise<T[]>): Promise<T[]> {
     const head = await client.getBlockNumber();
+    const ranges = [...blockRanges(head > lookback ? head - lookback : 0n, head, span)];
     const out: T[] = [];
-    for (const [f, t] of blockRanges(head > lookback ? head - lookback : 0n, head, span)) out.push(...(await fetch(f, t)));
+    for (let i = 0; i < ranges.length; i += RECENT_CONCURRENCY) {
+      const chunk = await Promise.all(ranges.slice(i, i + RECENT_CONCURRENCY).map(([f, t]) => fetch(f, t)));
+      for (const c of chunk) out.push(...c);
+    }
     return out;
   }
 
@@ -252,14 +265,47 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     const [head, fp] = await Promise.all([client.getBlock({ blockTag: "latest" }), client.readContract({ ...ch, functionName: "fundingParams" })]);
     return (b) => head.timestamp - ((head.number - b) * fp.blockTimeMs) / 1000n;
   }
+  /**
+   * ONE scan of the lookback window for all of the vault's events, shared by the vault view, the snapshots and the
+   * withdrawal queue, and reused for VAULT_LOG_TTL_MS (stale data is served while a refresh runs). Before, each of
+   * those ran its own scan per event (≈ 140 `eth_getLogs` per Earn page load, and the queue's again every 3 s); the
+   * public testnet RPC answers ≈ 4 per second, so the vault took ≈ 40 s to appear and never caught up.
+   */
+  const scanVault = () => recent((fromBlock, toBlock) => client.getContractEvents({ ...vt!, fromBlock, toBlock, strict: true }));
+  type VaultLog = Awaited<ReturnType<typeof scanVault>>[number];
+  let vaultLogs: { at: number; value?: VaultLog[]; inflight?: Promise<VaultLog[]> } = { at: 0 };
+  function vaultEvents(): Promise<VaultLog[]> {
+    if (!vaultLogs.inflight && (vaultLogs.value === undefined || Date.now() - vaultLogs.at > VAULT_LOG_TTL_MS)) {
+      const run = scanVault().then(
+        (value) => {
+          vaultLogs = { at: Date.now(), value };
+          return value;
+        },
+        (e) => {
+          vaultLogs = { at: vaultLogs.at, ...(vaultLogs.value ? { value: vaultLogs.value } : {}) }; // keep the last good scan
+          throw e;
+        },
+      );
+      run.catch(() => {}); // a background refresh may have no awaiter
+      vaultLogs = { ...vaultLogs, inflight: run };
+    }
+    return vaultLogs.value !== undefined ? Promise.resolve(vaultLogs.value) : vaultLogs.inflight!;
+  }
+  /** The scan if it is already there or arrives within `ms`; else undefined (the caller paints without history). */
+  const vaultEventsSoon = (ms: number): Promise<VaultLog[] | undefined> =>
+    Promise.race([vaultEvents().catch(() => undefined), new Promise<undefined>((r) => setTimeout(() => r(undefined), ms))]);
+  const named = <N extends VaultLog["eventName"]>(logs: readonly VaultLog[], name: N) => logs.filter((l): l is Extract<VaultLog, { eventName: N }> => l.eventName === name);
+
   async function vaultSnapshots(limit: number): Promise<VaultSnapshot[]> {
     if (!vt) return fallback.vaultSnapshots(limit);
-    const [logs, ts] = await Promise.all([recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "NavSnapshot", fromBlock, toBlock, strict: true })), clock()]);
-    return snapshotsFromLogs(vt.address, logs, ts).slice(0, limit);
+    const [logs, ts] = await Promise.all([vaultEvents(), clock()]);
+    return snapshotsFromLogs(vt.address, named(logs, "NavSnapshot"), ts).slice(0, limit);
   }
   async function vault(): Promise<Vault> {
     if (!vt) return fallback.vault();
-    const [nav, supply, price, h, needs, cap, params, snaps, deposits, withdraws, rebal, ts, head] = await Promise.all([
+    // the live numbers (contract views) never wait for the log scan: they paint at once, the history-derived fields
+    // (funding accrued, window APY, last rebalance, window totals) follow when the shared scan is in (historyPending)
+    const [nav, supply, price, h, needs, cap, params, logs, ts, head] = await Promise.all([
       client.readContract({ ...vt, functionName: "totalAssets" }),
       client.readContract({ ...vt, functionName: "totalSupply" }),
       client.readContract({ ...vt, functionName: "sharePrice" }),
@@ -267,13 +313,15 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
       client.readContract({ ...vt, functionName: "needsRebalance" }),
       client.readContract({ ...vt, functionName: "shortCapacity" }),
       client.readContract({ ...vt, functionName: "vaultParams" }),
-      vaultSnapshots(1_000),
-      recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Deposit", fromBlock, toBlock, strict: true })),
-      recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Withdraw", fromBlock, toBlock, strict: true })),
-      recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Rebalanced", fromBlock, toBlock, strict: true })),
+      vaultEventsSoon(VAULT_LOG_WAIT_MS),
       clock(),
       client.getBlockNumber(),
     ]);
+    const all = logs ?? [];
+    const snaps = snapshotsFromLogs(vt.address, named(all, "NavSnapshot"), ts).slice(0, 1_000);
+    const deposits = named(all, "Deposit");
+    const withdraws = named(all, "Withdraw");
+    const rebal = named(all, "Rebalanced");
     // APY from the share price: the oldest snapshot in the lookback → the live price now (per-block funding shows)
     const oldest = snaps[snaps.length - 1];
     const dt = oldest ? ts(head) - oldest.timestamp : 0n;
@@ -301,6 +349,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
       perpSizeWad: h.perpSize,
       netDeltaWad: h.netDelta,
       marginRatioWad: h.marginRatio,
+      ...(logs === undefined ? { historyPending: true } : {}),
     };
   }
   async function vaultUser(account: Address): Promise<VaultUser | undefined> {
@@ -326,7 +375,8 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
   const MAX_REDEEM_IDS = 100;
   async function vaultRedeems(account: Address, knownIds: readonly bigint[]): Promise<VaultRedeemLive> {
     if (!vt) return fallback.vaultRedeems(account, knownIds);
-    const requested = await recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "RedeemRequested", fromBlock, toBlock, strict: true }));
+    // window ids from the shared scan when it is in; until then the caller's known ids (indexer) carry the queue
+    const requested = named((await vaultEventsSoon(VAULT_LOG_WAIT_MS)) ?? [], "RedeemRequested");
     const mineInWindow = requested.filter((l) => l.args.owner.toLowerCase() === account.toLowerCase()).map((l) => l.args.id);
     const windowIds = requested.map((l) => l.args.id);
     const ids = [...new Set([...knownIds, ...mineInWindow, ...windowIds])].sort((a, b) => (a > b ? -1 : a < b ? 1 : 0)).slice(0, MAX_REDEEM_IDS);

@@ -18,7 +18,8 @@ export function Shell({ children, footer }: { children: ReactNode; footer: React
   const wide = isWideRoute(path);
   return (
     <>
-      <div className={`mx-auto w-full ${wide ? "max-w-[398px] lg:max-w-[1680px]" : "max-w-[398px]"}`}>{children}</div>
+      {/* terminal: edge to edge (Hyperliquid); other wide pages: a centred 1600 px column with generous margins */}
+      <div className={`mx-auto w-full ${isTerminalRoute(path) ? "max-w-[398px] lg:max-w-none" : wide ? "max-w-[398px] lg:max-w-[1600px] lg:px-10 lg:pt-8" : "max-w-[398px]"}`}>{children}</div>
       <div className={isTerminalRoute(path) ? "xl:hidden" : undefined}>{footer}</div>
     </>
   );

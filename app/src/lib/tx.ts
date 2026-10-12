@@ -16,7 +16,8 @@ import {
   type WalletClient,
 } from "viem";
 import { clearingHouseAbi, erc20Abi, mockTokenAbi, swapAbi, vaultAbi } from "./abi";
-import { gasLimitFromEstimate } from "./gas";
+import { gasLimitFromEstimate, touchAllowance } from "./gas";
+import { LOCAL_CHAIN_ID } from "./wagmi";
 import { assertPermitUsable, buildPermitTypedData, permitDeadline, splitSignature } from "./permit";
 import { SponsorError, isSponsorRefusal } from "./sponsor";
 
@@ -60,12 +61,13 @@ export async function sendTx<const abi extends Abi, fn extends ContractFunctionN
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r = req as any;
   const est = await pub.estimateContractGas({ ...r, account });
-  const gas = gasLimitFromEstimate(est);
+  const chainId = wallet.chain?.id ?? (await pub.getChainId());
+  // estimate × 1.2, plus the first-funding-touch allowance on live chains (lib/gas.ts)
+  const gas = gasLimitFromEstimate(est) + touchAllowance(chainId, LOCAL_CHAIN_ID, String(r.functionName));
   const sponsored = sponsoredSenders.get(wallet);
   let hash: Hex;
   if (sponsored) {
     const data = encodeFunctionData({ abi: r.abi, functionName: r.functionName, args: r.args });
-    const chainId = wallet.chain?.id ?? (await pub.getChainId());
     try {
       hash = await sponsored({ from: account.address, to: req.address, data, value: 0n, gas, chainId });
     } catch (e) {

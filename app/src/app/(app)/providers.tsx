@@ -11,7 +11,7 @@ import { createChainSource } from "@/data/chain/source";
 import { type PublicClient, createPublicClient, http } from "viem";
 import { READ_CHAIN_ID, readChain } from "@/lib/wagmi";
 import { contractAddress, deploymentFor } from "@/config/deployments";
-import { type PerpMarket, mockMarkets, perpMarkets } from "@/config/markets";
+import { type PerpMarket, mockMarkets, perpMarkets, visibleMarkets } from "@/config/markets";
 import { MarketProvider, MarketSourcesProvider, usePerpMarket } from "@/data/market";
 import { withPerpMarket } from "@/data/composite";
 import { ETH_MOCK_K, createScaledMockSource } from "@/data/mock/scaled";
@@ -28,7 +28,7 @@ const PrivyProviders = privyEnabled ? dynamic(() => import("./PrivyProviders")) 
 function makeSources(): { markets: PerpMarket[]; sources: Map<string, MeridianDataSource> } {
   const mockSource = createMockSource();
   const chainMode = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
-  const live = chainMode ? perpMarkets(deploymentFor(READ_CHAIN_ID)) : [];
+  const live = chainMode ? visibleMarkets(perpMarkets(deploymentFor(READ_CHAIN_ID)), process.env.NEXT_PUBLIC_HIDE_MARKETS) : [];
   if (live.length === 0) {
     const markets = mockMarkets(MOCK);
     const eth = markets[1]!;

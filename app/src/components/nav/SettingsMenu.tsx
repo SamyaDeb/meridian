@@ -17,7 +17,7 @@ export function SettingsMenu() {
   return (
     <Popover
       label="Settings"
-      triggerClassName="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-card-2 hover:text-text pointer-coarse:h-11 pointer-coarse:w-11"
+      triggerClassName="inline-flex h-9 w-9 items-center justify-center rounded-control border border-line text-text hover:border-brand-soft/60 hover:text-brand-soft pointer-coarse:h-11 pointer-coarse:w-11"
       trigger={
         <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />

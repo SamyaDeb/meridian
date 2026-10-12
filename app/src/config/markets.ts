@@ -92,6 +92,16 @@ export function perpMarkets(d: Deployment | undefined): PerpMarket[] {
   return out;
 }
 
+/**
+ * Markets shown in the app: drops the non-primary markets whose key is in `hideCsv` (NEXT_PUBLIC_HIDE_MARKETS, e.g.
+ * "eth" while that market's keeper and market maker aren't running, so nobody lands on a stale oracle and an empty
+ * book). The primary market can't be hidden. Pure.
+ */
+export function visibleMarkets(markets: readonly PerpMarket[], hideCsv: string | undefined): PerpMarket[] {
+  const hidden = new Set((hideCsv ?? "").split(",").map((k) => k.trim().toLowerCase()).filter(Boolean));
+  return markets.filter((m) => m.primary || !hidden.has(m.key));
+}
+
 /** The market for `key`, else the primary one. Pure. */
 export function pickMarket(markets: readonly PerpMarket[], key: string | null | undefined): PerpMarket | undefined {
   return markets.find((m) => m.key === key) ?? markets[0];

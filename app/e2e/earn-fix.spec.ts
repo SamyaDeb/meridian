@@ -40,8 +40,9 @@ test("Earn: deposit → share price keeps moving (per-block funding)", async ({ 
   await page.goto("/earn");
   await login(page);
   await expect(page.getByTestId("vault-status")).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Deposit", exact: true }).first().click();
   await page.getByLabel("Vault deposit amount").fill("50");
-  await page.getByRole("button", { name: "Deposit" }).click();
+  await page.getByRole("button", { name: "Deposit AUSD" }).click();
   await expect(page.getByTestId("tx-status")).toContainText("deposit 50 AUSD ✓", { timeout: 60_000 });
   await expect(page.getByTestId("my-vault-value")).not.toHaveText("—");
   const price = page.getByTestId("share-price");
@@ -55,8 +56,9 @@ test("Fix: margin → pay fixed at the book APR → accrual ticks → close", as
   page.on("pageerror", (e) => console.log(`[pageerror] ${e.message.slice(0, 300)}`));
   await page.goto("/fix");
   await login(page);
+  await page.getByRole("button", { name: "Deposit Margin" }).click();
   await page.getByLabel("Swap collateral amount").fill("100");
-  await page.getByRole("button", { name: "Deposit" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Deposit", exact: true }).click();
   await expect(page.getByTestId("tx-status")).toContainText("deposit 100 AUSD (swap margin) ✓", { timeout: 60_000 });
   await page.getByLabel(/Size/).fill("1");
   await page.getByRole("button", { name: /^Pay fixed/ }).click();

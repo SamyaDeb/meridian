@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 export const TABS = [
   { href: "/trade", label: "Trade", icon: "M3 17l5-5 4 4 8-8M15 8h5v5" },
-  { href: "/positions", label: "Positions", icon: "M4 6h16M4 12h16M4 18h10" },
+  { href: "/positions", label: "Portfolio", icon: "M4 6h16M4 12h16M4 18h10" },
   { href: "/earn", label: "Earn", icon: "M12 3v18M7 8h7a3 3 0 010 6H9a3 3 0 000 6h8" },
   { href: "/fix", label: "Fix", icon: "M12 4a8 8 0 100 16 8 8 0 000-16zM12 8v4l3 2" },
   { href: "/stats", label: "Stats", icon: "M5 20V10M12 20V4M19 20v-7" },

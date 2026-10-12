@@ -10,6 +10,8 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { Toaster } from "@/components/Toaster";
 import { CommandPalette } from "@/components/CommandPalette";
+import { AppBackground } from "@/components/AppBackground";
+import { StatusBar } from "@/components/StatusBar";
 
 // Inter Tight = landing-page parity (UI); Geist Mono = tabular numbers.
 const interTight = Inter_Tight({ variable: "--font-inter-tight", subsets: ["latin", "latin-ext"], weight: ["400", "500", "600", "700"], display: "swap" });
@@ -28,7 +30,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#050507", // = --bg in globals.css (metadata needs a literal)
+  themeColor: "#0d0919", // = --card in globals.css (the navbar colour; metadata needs a literal)
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -37,15 +39,16 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" className={`${interTight.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full bg-bg font-sans text-text">
+      <body className="min-h-full font-sans text-text">
         <Providers>
           {/* 390×844 first; phone column centred on larger screens, desktop container on wide routes (Shell) */}
           <div className="flex min-h-dvh w-full flex-col">
+            <AppBackground />
             <NavBar />
-            <main className="flex-1 px-4 pb-[calc(76px+env(safe-area-inset-bottom))] pt-2 lg:px-2 lg:pb-6">
+            <main className="flex-1 px-4 pb-[calc(76px+env(safe-area-inset-bottom))] pt-2 lg:px-1 lg:pb-9 lg:pt-1">
               <Shell
                 footer={
-                  <footer className="mt-6 flex justify-center gap-4 text-[11px] text-muted">
+                  <footer className="mt-6 flex justify-center gap-4 text-[11px] text-muted lg:hidden">
                     <Link href="/terms" className="inline-flex min-h-11 items-center underline">
                       Terms &amp; risks
                     </Link>
@@ -56,6 +59,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
               </Shell>
             </main>
             <BottomTabs />
+            <StatusBar />
             <Toaster />
             <CommandPalette />
           </div>

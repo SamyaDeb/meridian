@@ -9,55 +9,52 @@ import { BlockCounter } from "./BlockCounter";
 import { NetworkChip, isNotDeployed, networkName } from "./NetworkChip";
 import { NAV_ITEMS, isActive } from "./items";
 import { SettingsMenu } from "./SettingsMenu";
-import { StatusChip } from "./StatusChip";
 
 /**
- * Floating rounded navbar (FRONTEND_TRADE_PLAN §5). Desktop (≥ 1024 px): logo · page pills · block, bell, account.
- * Phones: compact bar; page navigation stays on the existing bottom tabs.
+ * Top bar, Hyperliquid layout: logo and wordmark, plain text links (the current page in the light accent), and on the
+ * right the network chip, block counter, outlined icon buttons and the filled Connect button.
+ * Phones: logo + controls; page navigation stays on the bottom tabs.
  */
 export function NavBar() {
   const path = usePathname() ?? "";
   return (
     <>
-      {/* full-width bar: flush with the top and both edges, square corners, a hairline below */}
-      <header className="sticky top-0 z-30 border-b border-border bg-card/95 pt-[env(safe-area-inset-top)] backdrop-blur">
-        <div className="flex h-14 w-full items-center justify-between gap-2 px-3 lg:px-4">
-          <div className="flex min-w-0 items-center gap-2">
-            <Link href="/trade" className="flex shrink-0 items-center gap-2 rounded-full pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center" aria-label="Meridian home">
-              <Image src="/meridian-logo.png" alt="" width={24} height={24} priority />
+      <header className="sticky top-0 z-30 border-b border-border bg-card pt-[env(safe-area-inset-top)]">
+        <div className="flex h-14 w-full items-center justify-between gap-3 px-3 lg:px-5">
+          <div className="flex min-w-0 items-center gap-8">
+            <Link href="/" className="flex shrink-0 items-center gap-2 rounded-control pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center" aria-label="Meridian home">
+              <Image src="/meridian-logo.png" alt="" width={26} height={26} priority />
               {/* below 420 px the logo carries the brand so the network chip and controls fit */}
-              <span className="text-base font-semibold tracking-tight max-[419px]:sr-only">Meridian</span>
+              <span className="text-[19px] font-medium tracking-tight max-[419px]:sr-only">Meridian</span>
             </Link>
-            <NetworkChip />
+            <nav aria-label="Main" className="hidden lg:block">
+              <ul className="flex items-center gap-7">
+                {NAV_ITEMS.map((t) => {
+                  const active = isActive(path, t.href);
+                  return (
+                    <li key={t.href}>
+                      <Link
+                        href={t.href}
+                        aria-current={active ? "page" : undefined}
+                        className={`inline-flex h-14 items-center text-[15px] transition-colors ${active ? "text-brand-soft" : "text-text hover:text-brand-soft"}`}
+                      >
+                        {t.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
           </div>
-          <nav aria-label="Main" className="hidden lg:block">
-            <ul className="flex items-center gap-1 rounded-full bg-card-2 p-1">
-              {NAV_ITEMS.map((t) => {
-                const active = isActive(path, t.href);
-                return (
-                  <li key={t.href}>
-                    <Link
-                      href={t.href}
-                      aria-current={active ? "page" : undefined}
-                      className={`inline-flex h-8 items-center rounded-full px-4 text-sm font-medium transition-colors ${active ? "bg-brand text-on-brand" : "text-muted hover:text-text"}`}
-                    >
-                      {t.label}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
-          <div className="flex shrink-0 items-center gap-1">
-            <span className="hidden xl:inline-flex">
-              <StatusChip />
-            </span>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* always visible, phones included: it carries the "mock data" and "not deployed yet" states */}
+            <NetworkChip />
             <span className="hidden sm:inline-flex">
               <BlockCounter />
             </span>
-            <SettingsMenu />
-            <Bell />
             <AccountMenu />
+            <Bell />
+            <SettingsMenu />
           </div>
         </div>
       </header>

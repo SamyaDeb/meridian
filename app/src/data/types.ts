@@ -114,6 +114,8 @@ export interface AccountMarket {
 }
 
 export interface Vault {
+  /** true while the chain source's log scan is still running: history-derived fields below are not final yet */
+  historyPending?: boolean;
   id: Address;
   navToken: bigint;
   totalShares: bigint;

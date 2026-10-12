@@ -44,7 +44,7 @@ function AccountPill({ onPhrase }: { onPhrase: (phrase: string) => void }) {
   return (
     <Popover
       label="Account"
-      triggerClassName="num inline-flex h-9 items-center gap-2 rounded-full bg-card-2 px-3 text-xs hover:bg-border pointer-coarse:h-11"
+      triggerClassName="num inline-flex h-9 items-center gap-2 rounded-control border border-line px-3 text-[13px] hover:border-brand-soft/60 pointer-coarse:h-11"
       trigger={
         <>
           <span className="h-2 w-2 rounded-full bg-brand" aria-hidden />

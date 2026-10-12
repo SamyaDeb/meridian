@@ -1,0 +1,248 @@
+@import "tailwindcss";
+
+/* Meridian theme: Hyperliquid's layout language in Monad violet. Dark only.
+   Page = matte, desaturated violet with faint contour lines; panels sit DARKER than the page (as on Hyperliquid); one light accent
+   (brand-soft) for active nav, links and outlined actions; filled brand for the primary action.
+   The ONLY place colours are defined: components use the utilities below (bg-card, text-brand, …), never hex.
+   AA contrast of every text/background pair is asserted by src/lib/contrast.test.ts (`pnpm contrast`). */
+:root {
+  --bg: #16132a;
+  --card: #0f0d19;
+  --card-2: #1b1830;
+  --border: #252138;
+  /* outlines of secondary buttons, inputs and icon buttons: one step brighter than a panel hairline */
+  --line: #37314f;
+  --text: #f2f0fa;
+  --muted: #9b97b0;
+  /* brand = Monad violet: primary CTA, focus ring. brand-soft = the light accent for active nav, links, outlines. */
+  --brand: #836ef9;
+  --brand-hover: #8f7cfa;
+  --brand-soft: #b3a5ff;
+  --brand-tint: #1a1630;
+  /* behind the trade terminal's panels (Hyperliquid: the gaps between panels are darker than the panels) */
+  --bg-deep: #08070f;
+  /* text on a filled brand / long / short / warn surface (white fails AA on all four) */
+  --on-brand: #0b0716;
+  /* direction only */
+  --long: #3ddc97;
+  --short: #ff6b85;
+  --warn: #f5b84a;
+
+  /* legacy names kept so existing screens restyle without edits */
+  --surface: var(--card);
+  --surface-2: var(--card-2);
+  --accent: var(--brand);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-deep: var(--bg-deep);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-tint: var(--brand-tint);
+  --color-on-brand: var(--on-brand);
+  --color-accent: var(--accent);
+  --color-long: var(--long);
+  --color-short: var(--short);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-inter-tight);
+  --font-mono: var(--font-geist-mono);
+  /* radius scale (softened 5 Oct): card 14 · inner panel 10 · control 8 · pill = rounded-full */
+  --radius-card: 14px;
+  --radius-inner: 10px;
+  --radius-control: 8px;
+}
+
+/* the page colour lives on <html>; <body> stays transparent so the fixed .app-bg contour layer shows through */
+html {
+  background: var(--bg);
+}
+html,
+body {
+  color: var(--text);
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* numbers: the UI face with tabular digits (Hyperliquid style), so columns align without a monospace look */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* a label with an explanation on hover/focus: dotted underline, as on Hyperliquid */
+.dotted {
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent);
+  text-underline-offset: 4px;
+  cursor: help;
+}
+
+/* faint violet contour lines behind every app page (components/AppBackground.tsx draws them) */
+.app-bg {
+  /* matte: one flat colour, no gradients or glow (Hyperliquid's backdrop) */
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--bg);
+}
+.app-bg svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes tick-flash {
+  from { color: var(--brand-soft); }
+  to { color: inherit; }
+}
+@keyframes tick-up {
+  from { background: color-mix(in srgb, var(--long) 22%, transparent); }
+  to { background: transparent; }
+}
+@keyframes tick-down {
+  from { background: color-mix(in srgb, var(--short) 22%, transparent); }
+  to { background: transparent; }
+}
+.tick-flash {
+  animation: tick-flash 280ms ease-out;
+}
+.tick-up {
+  animation: tick-up 420ms ease-out;
+}
+.tick-down {
+  animation: tick-down 420ms ease-out;
+}
+
+/* Cards: 1 px hairline plus a faint top inner highlight, no heavy shadow (§3 elevation). */
+.card-elev {
+  /* flat panels: no highlight, no shadow */
+  box-shadow: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+input[type="range"] {
+  accent-color: var(--brand);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tick-flash,
+  .tick-up,
+  .tick-down,
+  .animate-pulse,
+  .animate-ping {
+    animation: none !important;
+  }
+}
+
+/* Pinch-zoom stays enabled (WCAG 1.4.4); 16 px inputs keep iOS Safari from zooming in on focus (touch screens only,
+   so dense desktop controls keep their own size). */
+@media (pointer: coarse) {
+  input:not([type="range"]):not([type="checkbox"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Trade terminal grid. Phones: one column in reading order (strip, chart, ticket, account, book, positions). 1024–1279: chart | ticket, book | ticket, positions | account, page scrolls.
+   ≥ 1280: Hyperliquid's layout (see the 1280 block below). */
+.terminal {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "strip" "chart" "ticket" "account" "book" "pos" "extra";
+}
+.terminal > [data-area="strip"] { grid-area: strip; }
+.terminal > [data-area="chart"] { grid-area: chart; }
+.terminal > [data-area="book"] { grid-area: book; }
+.terminal > [data-area="ticket"] { grid-area: ticket; }
+.terminal > [data-area="account"] { grid-area: account; }
+.terminal > [data-area="pos"] { grid-area: pos; }
+.terminal > [data-area="extra"] { grid-area: extra; }
+@media (min-width: 1024px) {
+  .terminal {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-areas: "strip ticket" "chart ticket" "book account" "pos pos" "extra extra";
+  }
+  .terminal > [data-area="chart"] { min-height: 480px; }
+  /* the chart panel sits under its "Chart | Funding" tab row: square top corners join the two */
+  .terminal > [data-area="chart"] section.rounded-card {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top-color: transparent;
+  }
+}
+@media (min-width: 1280px) {
+  /* Hyperliquid's trade page: 4 px gutters on a darker ground; the market bar over the chart only; the order book
+     from the top to the chart's bottom; the order form beside them (its button level with the chart's bottom edge);
+     positions span chart + book below, with the account panel (deposit / withdraw, summary) under the order form.
+     The first screen shows the chart with the positions header peeking in; the page scrolls to the full table. */
+  .terminal {
+    /* --book-w / --pos-h: resizable, saved per viewer (lib/layout.ts) */
+    grid-template-columns: minmax(0, 1fr) var(--book-w, 270px) 280px;
+    /* chart row: viewport − navbar (57) − status bar (32) − market bar (~62) − gutters − a ~100 px positions peek */
+    grid-template-rows: auto max(520px, calc(100dvh - 265px)) var(--pos-h, 460px);
+    grid-template-areas: "strip book ticket" "chart book ticket" "pos pos account";
+  }
+  .terminal > [data-area] { min-height: 0; }
+  .terminal > [data-area="extra"] { display: none; }
+  /* panels on the terminal: no outline, tighter corners (the darker gutters separate them) */
+  .terminal .rounded-card {
+    border-color: transparent;
+    border-radius: 6px;
+  }
+  /* order form and account panel read as one column panel (Hyperliquid): no gap, joined corners */
+  .terminal > [data-area="ticket"] > .rounded-card {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  /* the order form never sizes the rows it spans: Market → Limit adds a field, and without this the market bar
+     stretched and the chart moved down. It fills market bar + chart exactly and scrolls inside if it's taller. */
+  .terminal > [data-area="ticket"] {
+    position: relative;
+  }
+  .terminal > [data-area="ticket"] > .rounded-card {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .terminal > [data-area="account"] {
+    margin-top: -4px;
+  }
+  .terminal > [data-area="account"] > .rounded-card {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+}
+@media (min-width: 1440px) {
+  .terminal {
+    grid-template-columns: minmax(0, 1fr) var(--book-w, 270px) 290px;
+  }
+}
+
+/* Charts (Rates & risk, MFI line chart; ported from T8). Categorical slots 1–3 of the dataviz reference palette, dark
+   steps, validated with validate_palette.js --mode dark --pairs all (CVD ΔE 9.4, normal 20.9). Contrast against this
+   app's surfaces: --card 5.29 / 4.96 / 5.65, --card-2 4.95 / 4.63 / 5.29 (all ≥ 3:1 for graphics). */
+.viz {
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-grid: #262a38;
+}
