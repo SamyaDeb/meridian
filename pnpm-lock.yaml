@@ -12,6 +12,12 @@ importers:
 
   app:
     dependencies:
+      '@category-labs/mera':
+        specifier: 0.2.0
+        version: 0.2.0(viem@2.57.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.5))
+      '@meridian/core':
+        specifier: workspace:*
+        version: link:../packages/core
       '@meridian/risk':
         specifier: workspace:*
         version: link:../risk
@@ -10036,6 +10042,14 @@ snapshots:
     optionalDependencies:
       react-native-passkey: 3.6.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@5.0.10))(react@19.2.3)
       viem: 2.57.0(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.6.5)
+
+  '@category-labs/mera@0.2.0(viem@2.57.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.5))':
+    dependencies:
+      '@noble/curves': 2.2.0
+      '@noble/hashes': 2.2.0
+      '@scure/base': 2.2.0
+    optionalDependencies:
+      viem: 2.57.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.5)
 
   '@chainlink/cre-sdk-javy-plugin@1.7.0(zod@3.25.76)':
     optionalDependencies:

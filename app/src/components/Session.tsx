@@ -16,9 +16,20 @@ export type Session = {
   /** opens Privy's login modal */
   login: (() => void) | undefined;
   loginError: string | undefined;
+  /** Privy has a logged-in user (a passkey wallet logs them out first: one login at a time) */
+  privyAuthenticated: boolean;
+  logoutPrivy: (() => Promise<void>) | undefined;
 };
 
-const DEFAULT: Session = { privy: false, walletKind: undefined, sponsoredSend: undefined, login: undefined, loginError: undefined };
+const DEFAULT: Session = {
+  privy: false,
+  walletKind: undefined,
+  sponsoredSend: undefined,
+  login: undefined,
+  loginError: undefined,
+  privyAuthenticated: false,
+  logoutPrivy: undefined,
+};
 export const SessionContext = createContext<Session>(DEFAULT);
 export const useSession = (): Session => useContext(SessionContext);
 

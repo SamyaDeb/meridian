@@ -4,7 +4,8 @@
 /** Monad Testnet. Mainnet (143) is never sponsored. */
 export const SPONSORED_CHAIN_ID = 10143;
 
-export type WalletKind = "embedded" | "external";
+/** "passkey" = the Mera wallet (lib/mera): signs locally, pays its own gas, never sponsored. */
+export type WalletKind = "embedded" | "external" | "passkey";
 
 export type SponsorInput = {
   privyEnabled: boolean;
