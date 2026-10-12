@@ -1,7 +1,7 @@
 // Chain data source: contract views + recent logs (anvil / testnet without an indexer). Perp always; vault and funding
 // swaps when their addresses are in the deployment (else that part stays on the mock); protocol stats stay mock.
 import type { PublicClient } from "viem";
-import { clearingHouseAbi, orderBookAbi, swapAbi, vaultAbi } from "@/lib/abi";
+import { clearingHouseAbi, orderBookAbi, perplFundingSourceAbi, swapAbi, vaultAbi } from "@/lib/abi";
 import { snapshotsFromLogs, swapPositionFromViews } from "@/lib/earnfix";
 import { rateToAprWad, vaultApyWad } from "@/lib/math";
 import { SECONDS_PER_YEAR } from "@/lib/units";
@@ -18,6 +18,8 @@ export interface ChainAddresses {
   vault?: Address;
   swapMarket?: Address;
   swapOrderBook?: Address;
+  /** CR-017: the swap market's PerplFundingSource when it settles on Perpl's funding (else the swap reads `clearingHouse`) */
+  swapPerplSource?: Address;
   /** Blocks of history scanned for trades / ticks / orders (default 2,000: anvil or a paid RPC). */
   logLookback?: bigint;
   /** eth_getLogs range cap per request (default = lookback; public Monad RPC 100, Alchemy free tier 10). */
@@ -405,14 +407,23 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
   // ─── funding swaps (FundingSwapMarket + its OrderBook) ───
   const sw = a.swapMarket ? ({ address: a.swapMarket, abi: swapAbi } as const) : undefined;
   const sob = a.swapOrderBook ? ({ address: a.swapOrderBook, abi: orderBookAbi } as const) : undefined;
+  const ps = a.swapPerplSource ? ({ address: a.swapPerplSource, abi: perplFundingSourceAbi } as const) : undefined;
   async function swapInfo(): Promise<SwapMarketInfo> {
     if (!sw) return fallback.swapInfo();
     const m = await client.readContract({ ...sw, functionName: "maturity" });
-    return { id: sw.address, maturityTimestamp: Number(m), ...(sob ? { orderBook: sob.address } : {}) };
+    const info: SwapMarketInfo = { id: sw.address, maturityTimestamp: Number(m), ...(sob ? { orderBook: sob.address } : {}), fundingSource: ps ? "perpl" : "meridian" };
+    if (!ps) return info;
+    const [lastPoke, [, , feb], index] = await Promise.all([
+      client.readContract({ ...ps, functionName: "lastPokeBlock" }),
+      client.readContract({ ...ps, functionName: "latestObservation" }),
+      client.readContract({ ...ps, functionName: "indexPrice" }),
+    ]);
+    return { ...info, lastPokeBlock: lastPoke, fundingEventBlock: feb, indexWad: index };
   }
   async function swapStats(): Promise<SwapStats> {
     if (!sw) return fallback.swapStats();
-    const fp = await client.readContract({ ...ch, functionName: "fundingParams" });
+    // the swap's own funding source: the perp ClearingHouse, or the PerplFundingSource (same fundingParams ABI)
+    const fp = ps ? await client.readContract({ ...ps, functionName: "fundingParams" }) : await client.readContract({ ...ch, functionName: "fundingParams" });
     const blocks8h = (28_800n * 1000n) / fp.blockTimeMs;
     const [mark, realized, [longOI], matured, trades] = await Promise.all([
       client.readContract({ ...sw, functionName: "markApr" }),

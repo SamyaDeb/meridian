@@ -1,14 +1,15 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useChainId, usePublicClient } from "wagmi";
 import { useAccountAddress, useMarket, useSwap } from "@/data/hooks";
 import { Row, toneOf } from "@/components/ui";
-import { Button, Card, Chip, Dialog, EmptyState, Notice, PageHeader, Skeleton, StatCard, Tooltip } from "@/components/ds";
+import { Button, Card, Chip, Dialog, EmptyState, Notice, PageHeader, PillTabs, Skeleton, StatCard, Tooltip } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
-import { contractAddress } from "@/config/deployments";
+import { contractAddress, swapMarketFor } from "@/config/deployments";
 import { orderBookAbi } from "@/lib/abi";
-import { closeOrder, marketLimitTick, swapAprToTick, swapTickToAprWad } from "@/lib/earnfix";
+import { type FixSource, closeOrder, fixSourceCopy, marketLimitTick, parseFixSource, swapAprToTick, swapTickToAprWad } from "@/lib/earnfix";
 import { formatAprWad, formatAusdWad, formatBaseWad, formatDuration, formatFixed, formatSignedAusdWad, parseFixed } from "@/lib/format";
 
 /** Per-block accrual on small notionals is ~1e-8 AUSD: show 8 dp so it visibly ticks. */
@@ -38,15 +39,31 @@ function useSwapBook(orderBook: `0x${string}` | undefined) {
   });
 }
 
+/** useSearchParams needs a Suspense boundary for the static build. */
 export default function FixPage() {
+  return (
+    <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+      <Fix />
+    </Suspense>
+  );
+}
+
+function Fix() {
   const me = useAccountAddress();
   const { isConnected } = useAccount();
   const chainId = useChainId();
   const { data: m } = useMarket();
-  const { data: swap } = useSwap(me);
+  // CR-017: Meridian funding (contracts.*) or Perpl funding (swapMarkets[]); every read and write follows the choice
+  const params = useSearchParams();
+  const router = useRouter();
+  const source: FixSource = parseFixSource(params.toString());
+  const pickSource = (s: FixSource) => router.replace(s === "perpl" ? "?source=perpl" : "?", { scroll: false });
+  const perplRef = swapMarketFor(READ_CHAIN_ID, "perpl");
+  const copy = fixSourceCopy(source);
+  const { data: swap } = useSwap(me, source);
   const tx = useTx();
-  const swapMarket = contractAddress(chainId, "FundingSwapMarket");
-  const swapBook = contractAddress(READ_CHAIN_ID, "SwapOrderBook");
+  const swapMarket = source === "perpl" ? swapMarketFor(chainId, "perpl")?.swapMarket : contractAddress(chainId, "FundingSwapMarket");
+  const swapBook = source === "perpl" ? perplRef?.swapOrderBook : contractAddress(READ_CHAIN_ID, "SwapOrderBook");
   const ausd = contractAddress(chainId, "AUSD");
   const { data: book } = useSwapBook(swapBook);
   const [lots, setLots] = useState("2");
@@ -100,13 +117,16 @@ export default function FixPage() {
   const td = "py-2 pr-4 text-[13px]";
   const input = "num h-10 w-full rounded-control border border-line bg-card-2 px-3 text-sm outline-none focus:border-brand-soft pointer-coarse:h-11";
   const hasPos = Boolean(pos && (pos.size !== 0n || pos.fixedAprNotional !== 0n));
-  const value = hasPos && m && swap && pos ? swapPositionValueWad(pos.size, pos.fixedAprNotional, swap.stats.markAprWad, m.lastIndexPrice, BigInt(tau)) : 0n;
+  // the swap's own index: Perpl's oracle at the last poke for the Perpl market, Meridian's index otherwise
+  const index = swap?.info.indexWad ?? m?.lastIndexPrice;
+  const value = hasPos && index !== undefined && swap && pos ? swapPositionValueWad(pos.size, pos.fixedAprNotional, swap.stats.markAprWad, index, BigInt(tau)) : 0n;
+  const perplMissing = source === "perpl" && (!perplRef || !swap);
 
   return (
     <div className="space-y-3">
       <PageHeader
         title="Fix"
-        description="Funding swaps trade the per-block floating funding rate for a fixed APR until maturity. Pay fixed to turn a long perp's funding into a known cost; receive fixed to lock the carry. Swap margin is separate from the perp account."
+        description={source === "perpl" ? "Funding swaps on Perpl's MON funding: trade the floating rate a Perpl position pays for a fixed APR until maturity. Pay fixed to turn a Perpl long's funding into a known cost; receive fixed to lock the carry. Swap margin is separate per market." : "Funding swaps trade the per-block floating funding rate for a fixed APR until maturity. Pay fixed to turn a long perp's funding into a known cost; receive fixed to lock the carry. Swap margin is separate from the perp account."}
         actions={
           <>
             <Button variant="brand" className="min-w-36" disabled={!isConnected || !swapMarket} onClick={() => setMargin("deposit")}>
@@ -118,6 +138,29 @@ export default function FixPage() {
           </>
         }
       />
+
+      <PillTabs
+        ariaLabel="Funding source"
+        tabs={[
+          { id: "meridian", label: "Meridian funding" },
+          { id: "perpl", label: "Perpl funding" },
+        ]}
+        value={source}
+        onChange={pickSource}
+      />
+      {source === "perpl" && (
+        <Notice tone="info">
+          <span data-testid="perpl-settles">{copy.settles}</span>{" "}
+          {!perplRef ? (
+            <span>No Perpl-funding swap market on this network: it runs on Monad testnet only.</span>
+          ) : swap?.info.lastPokeBlock !== undefined ? (
+            <span className="num" data-testid="perpl-last-poke">
+              Last poke: block {swap.info.lastPokeBlock.toLocaleString("en-US")} (Perpl funding event {swap.info.fundingEventBlock?.toLocaleString("en-US") ?? "—"}).
+            </span>
+          ) : null}
+          <span className="mt-1 block text-xs text-muted">{copy.risk}</span>
+        </Notice>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -132,12 +175,12 @@ export default function FixPage() {
         />
         <StatCard
           label={
-            <Tooltip content="Realized MON-PERP funding over the last 8 hours, read from the funding-rate oracle.">
-              <span className="dotted">Floating Funding 8h</span>
+            <Tooltip content={copy.floatingTip}>
+              <span className="dotted">{copy.floating}</span>
             </Tooltip>
           }
           value={swap?.stats.realizedApr8hWad === undefined ? "--" : formatAprWad(swap.stats.realizedApr8hWad)}
-          sub={<span className="text-muted">from the funding-rate oracle</span>}
+          sub={<span className="text-muted">{source === "perpl" ? "from Perpl's onchain funding" : "from the funding-rate oracle"}</span>}
         />
         <StatCard label="Matures In" value={!swap ? "--" : matured ? "Matured" : formatDuration(tau)} sub={<span className="text-muted">{matured ? "close and withdraw only" : "one maturity, 30 days"}</span>} />
         <StatCard label="Your Swap Margin" value={pos ? `$${formatAusdWad(pos.collateralWad)}` : "$0.00"} sub={<span className="text-muted">AUSD, separate from perps</span>} />
@@ -154,7 +197,9 @@ export default function FixPage() {
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-3">
           <Card title="Swap Market">
-            {!swap || !m ? (
+            {perplMissing ? (
+              <EmptyState compact title="Perpl funding swaps" body="Live on Monad testnet only. Switch to Meridian funding, or open the testnet app." />
+            ) : !swap || !m ? (
               <Skeleton className="h-16 w-full" />
             ) : (
               <div className="overflow-x-auto">
@@ -171,7 +216,7 @@ export default function FixPage() {
                   </thead>
                   <tbody className="num">
                     <tr>
-                      <td className={`${td} font-medium text-brand-soft`}>MON funding · 30d</td>
+                      <td className={`${td} font-medium text-brand-soft`}>{copy.market}</td>
                       <td className={`${td} text-long`}>{bid}</td>
                       <td className={`${td} text-short`}>{ask}</td>
                       <td className={td}>{formatAprWad(swap.stats.markAprWad)}</td>
@@ -256,7 +301,7 @@ export default function FixPage() {
             <Row label="Book (bid / ask)" value={`${bid} / ${ask}`} />
             <Row label="Matures in" value={matured ? "Matured" : formatDuration(tau)} tone={matured ? "warn" : undefined} />
           </div>
-          <p className="mt-2 text-xs text-muted">Pay fixed = receive the floating MON-PERP funding: a long perp&apos;s funding cost becomes fixed.</p>
+          <p className="mt-2 text-xs text-muted">{copy.footnote}</p>
         </Card>
       </div>
 

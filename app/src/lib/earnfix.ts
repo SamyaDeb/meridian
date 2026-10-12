@@ -124,3 +124,31 @@ export function swapPositionFromViews(
     updatedBlock: block,
   };
 }
+
+/** CR-017: Fix-page funding source. `?source=perpl` selects the swap market settling on Perpl's funding. Pure. */
+export type FixSource = "meridian" | "perpl";
+export function parseFixSource(search: string): FixSource {
+  return new URLSearchParams(search).get("source") === "perpl" ? "perpl" : "meridian";
+}
+
+/** What the Fix page says about each source. Every sentence is true of the deployed contracts (docs/PERPL_SWAPS.md). */
+export function fixSourceCopy(source: FixSource): { market: string; floating: string; floatingTip: string; footnote: string; settles: string | undefined; risk: string | undefined } {
+  if (source === "perpl") {
+    return {
+      market: "MON funding · Perpl · 30d",
+      floating: "Perpl Funding 8h",
+      floatingTip: "Realized Perpl MON-perp funding over the last 8 hours, from the snapshots of Perpl's onchain funding sum. Until 8 h of snapshots exist: Perpl's current rate.",
+      footnote: "Pay fixed = receive Perpl's floating MON funding: the funding a long on Perpl pays becomes a known fixed cost.",
+      settles: "Settles on Perpl's onchain funding, once per Perpl funding interval (~43 min). Testnet.",
+      risk: "Trusts Perpl's funding data: Perpl's admin can overwrite a funding sum and its exchange is upgradeable. Perpl's next rate is public about 23 s before it applies. If nobody pokes, accrual pauses until the next poke.",
+    };
+  }
+  return {
+    market: "MON funding · 30d",
+    floating: "Floating Funding 8h",
+    floatingTip: "Realized MON-PERP funding over the last 8 hours, read from the funding-rate oracle.",
+    footnote: "Pay fixed = receive the floating MON-PERP funding: a long perp's funding cost becomes fixed.",
+    settles: undefined,
+    risk: undefined,
+  };
+}

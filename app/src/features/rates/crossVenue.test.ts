@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { meridianWindows, perplRatePoints, perplWindows, spreadHistory, withMfi } from "./crossVenue";
+import { meridianWindows, perplFixedVsFloating, perplRatePoints, perplWindows, spreadHistory, withMfi } from "./crossVenue";
 import type { PerplFunding } from "@/data/indexer/perpl";
 
 const pct = (x: bigint) => x * 10n ** 16n;
@@ -35,5 +35,14 @@ describe("cross-venue model", () => {
     const pts = spreadHistory([{ hour: 0 }, { hour: 3_600 }], 10143, []);
     const out = withMfi(pts, [{ t: 1_000, mfi: 1n, meridian: null, perpl: null, stale: false }, { t: 2_000, mfi: 2n, meridian: null, perpl: null, stale: false }]);
     expect(out.map((p) => p.mfi)).toEqual([2n, null]);
+  });
+});
+
+describe("perplFixedVsFloating (CR-017)", () => {
+  it("fixed − floating, undefined when either side is missing", () => {
+    const pct = (x: bigint) => x * 10n ** 16n;
+    expect(perplFixedVsFloating(pct(10n), -pct(12n), pct(3n))).toEqual({ spreadNowWad: pct(22n), spread8hWad: pct(7n) });
+    expect(perplFixedVsFloating(undefined, pct(1n), pct(1n))).toEqual({ spreadNowWad: undefined, spread8hWad: undefined });
+    expect(perplFixedVsFloating(pct(10n), undefined, undefined)).toEqual({ spreadNowWad: undefined, spread8hWad: undefined });
   });
 });

@@ -137,3 +137,13 @@ export const swapAbi = parseAbi([
   "error Paused()",
   "error ZeroAmount()",
 ]);
+
+// PerplFundingSource (CR-017, abis/PerplFundingSource.json): the Perpl-funding swap market's source. Same fundingParams
+// ABI as the ClearingHouse (only rateCap and blockTimeMs are meaningful).
+export const perplFundingSourceAbi = parseAbi([
+  "struct FundingParams { uint256 alpha; int256 interestRate; uint256 rateCap; uint256 maxRateChangePerBlock; uint256 blockTimeMs; uint256 premiumBandWad; }",
+  "function fundingParams() view returns (FundingParams)",
+  "function lastPokeBlock() view returns (uint64)",
+  "function latestObservation() view returns (int256 cumFunding, int256 cumIndexTime, uint64 blockNumber)",
+  "function indexPrice() view returns (uint256 priceWad)",
+]);

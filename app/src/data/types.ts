@@ -250,6 +250,13 @@ export interface SwapMarketInfo {
   maturityTimestamp: number; // unix seconds
   /** chain source: the swap OrderBook (orders go there) */
   orderBook?: Address;
+  /** CR-017: where the floating leg comes from; undefined = Meridian's perp */
+  fundingSource?: "meridian" | "perpl";
+  /** Perpl-funding market: block of the last PerplFundingSource poke, and the Perpl funding event it snapshotted */
+  lastPokeBlock?: bigint;
+  fundingEventBlock?: bigint;
+  /** Perpl-funding market: the index the swap uses (Perpl's oracle price at the last poke, WAD) */
+  indexWad?: bigint;
 }
 
 /** IClearingHouse.getAccount (AccountView), all quote/base WAD. Live, exact: pending funding at mark included. */
