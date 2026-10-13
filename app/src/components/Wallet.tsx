@@ -6,7 +6,7 @@ import type { PublicClient, WalletClient } from "viem";
 import { useWriteGate } from "./WriteGate";
 import { pushNotification } from "@/lib/notify";
 import dynamic from "next/dynamic";
-import { describeSignError } from "@/lib/login";
+import { NO_MON, describeSignError } from "@/lib/login";
 import { privyEnabled } from "@/lib/privy";
 import { meraEnabled } from "@/lib/mera/config";
 import { isSponsored } from "@/lib/sponsor";
@@ -95,6 +95,17 @@ export function useTx() {
         await switchChainAsync({ chainId: READ_CHAIN_ID });
       } catch {
         return setStatus("Wrong network: switch to Monad and retry");
+      }
+    }
+    // a wallet that pays its own gas with 0 MON: say so before the wallet tries (Monad's RPC answers "Signer had
+    // insufficient balance", which wallets surface as an opaque "invalid parameters" error with the raw tx attached)
+    if (!sponsored && wallet.account) {
+      const mon = await pub.getBalance({ address: wallet.account.address }).catch(() => undefined);
+      if (mon === 0n) {
+        const msg = `${label} needs gas: ${NO_MON}`;
+        setStatus(msg);
+        pushNotification("error", msg);
+        return;
       }
     }
     setBusy(true);
