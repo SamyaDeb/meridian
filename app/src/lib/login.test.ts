@@ -57,6 +57,22 @@ describe("describeSignError", () => {
   it("a reverted cancelOrder is not a cancelled signature", () => {
     expect(describeSignError(new Error('The contract function "cancelOrder" reverted.'))).not.toBe("Signature cancelled");
   });
+  it("a gas shortfall reads as no MON even when the wallet's error is read as a revert", () => {
+    const abi = parseAbi(["function mint(address,uint256)"]);
+    const wrapped = new ContractFunctionExecutionError(
+      new ContractFunctionRevertedError({ abi, functionName: "mint", message: "Signer had insufficient balance" }),
+      { abi, functionName: "mint", args: ["0x0000000000000000000000000000000000000001", 1n] },
+    );
+    expect(describeSignError(wrapped)).toMatch(/Not enough MON for gas/);
+    expect(describeSignError(new Error("insufficient funds for gas * price + value"))).toMatch(/Not enough MON for gas/);
+  });
+  it("a token transfer revert is not mistaken for a gas shortfall", () => {
+    expect(describeSignError(new Error("ERC20: transfer amount exceeds balance"))).not.toMatch(/MON/);
+  });
+  it("clips long RPC dumps (raw tx, RPC URL) to one short line", () => {
+    const long = `Missing or invalid parameters. ${"x".repeat(400)}`;
+    expect(describeSignError(new Error(long)).length).toBeLessThanOrEqual(160);
+  });
   it("falls back to the first line", () => {
     expect(describeSignError(new Error("first\nsecond"))).toBe("first");
   });
