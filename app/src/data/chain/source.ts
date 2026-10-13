@@ -6,6 +6,7 @@ import { snapshotsFromLogs, swapPositionFromViews } from "@/lib/earnfix";
 import { rateToAprWad, vaultApyWad } from "@/lib/math";
 import { SECONDS_PER_YEAR } from "@/lib/units";
 import type { MeridianDataSource } from "../source";
+import { createLogWindow } from "./logWindow";
 import type { AccountMarket, AccountSummary, Address, FundingTick, Market, RedeemChainView, RiskParamsView, SwapMarketInfo, SwapPosition, SwapStats, Trade, Vault, VaultRedeemLive, VaultSnapshot, VaultUser } from "../types";
 
 export interface ChainAddresses {
@@ -54,13 +55,7 @@ export interface ChainSource extends MeridianDataSource {
 export const MIN_APY_WINDOW_SEC = 3_600n;
 const LOG_LOOKBACK = 2_000n; // default blocks scanned for trades / ticks / orders (anvil or a paid RPC)
 
-/** Pure: [from, to] split into inclusive ranges of at most `span` blocks (RPC eth_getLogs caps). */
-export function blockRanges(from: bigint, to: bigint, span: bigint): Array<[bigint, bigint]> {
-  if (span <= 0n) throw new Error("span must be > 0");
-  const out: Array<[bigint, bigint]> = [];
-  for (let s = from; s <= to; s += span) out.push([s, s + span - 1n < to ? s + span - 1n : to]);
-  return out;
-}
+export { blockRanges } from "./ranges";
 const WINDOWS: Array<[keyof Pick<Market, "realizedApr1hWad" | "realizedApr8hWad" | "realizedApr24hWad">, number]> = [
   ["realizedApr1hWad", 3_600],
   ["realizedApr8hWad", 28_800],
@@ -88,16 +83,9 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
   // Ranges are fetched a few at a time (same order kept): one after another, a 2,000-block lookback at a 100-block
   // span is 20 round-trips per scan, and the vault view (four scans) took ~26 s on 10143 before it could paint.
   // Small enough to stay under the public RPC's per-IP limit; the transport batches what lands in the same tick.
-  async function recent<T>(fetch: (fromBlock: bigint, toBlock: bigint) => Promise<T[]>): Promise<T[]> {
-    const head = await client.getBlockNumber();
-    const ranges = [...blockRanges(head > lookback ? head - lookback : 0n, head, span)];
-    const out: T[] = [];
-    for (let i = 0; i < ranges.length; i += RECENT_CONCURRENCY) {
-      const chunk = await Promise.all(ranges.slice(i, i + RECENT_CONCURRENCY).map(([f, t]) => fetch(f, t)));
-      for (const c of chunk) out.push(...c);
-    }
-    return out;
-  }
+  // one window per source: each scan reads the lookback once, then only new blocks (logWindow.ts)
+  const recent = createLogWindow({ head: () => client.getBlockNumber(), lookback, span, concurrency: RECENT_CONCURRENCY });
+
 
   async function market(): Promise<Market> {
     const [fs, mark, index, [longOI, shortOI], paused, fp, head, oracle] = await Promise.all([
@@ -157,7 +145,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
   }
 
   async function fundingTicks(limit: number): Promise<FundingTick[]> {
-    const logs = await recent((fromBlock, toBlock) => client.getContractEvents({ ...ch, eventName: "FundingUpdated", fromBlock, toBlock, strict: true }));
+    const logs = await recent("funding", (fromBlock, toBlock) => client.getContractEvents({ ...ch, eventName: "FundingUpdated", fromBlock, toBlock, strict: true }));
     return logs
       .slice(-limit)
       .reverse()
@@ -178,7 +166,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
   }
 
   async function trades(limit: number): Promise<Trade[]> {
-    const logs = await recent((fromBlock, toBlock) => client.getContractEvents({ ...ob, eventName: "Trade", fromBlock, toBlock, strict: true }));
+    const logs = await recent("trades", (fromBlock, toBlock) => client.getContractEvents({ ...ob, eventName: "Trade", fromBlock, toBlock, strict: true }));
     return logs
       .slice(-limit)
       .reverse()
@@ -216,7 +204,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     const [v, p, settled, head] = await Promise.all([
       client.readContract({ ...ch, functionName: "getAccount", args: [account] }),
       client.readContract({ ...ch, functionName: "getPosition", args: [account] }),
-      recent((fromBlock, toBlock) =>
+      recent(`settled:${account}`, (fromBlock, toBlock) =>
         client.getContractEvents({ ...ch, eventName: "FundingSettled", args: { account }, fromBlock, toBlock, strict: true }),
       ),
       client.getBlockNumber(),
@@ -245,7 +233,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
 
   async function openOrders(account: Address): Promise<OpenOrder[]> {
     const { tick } = await bookUnits();
-    const placed = await recent((fromBlock, toBlock) =>
+    const placed = await recent(`placed:${account}`, (fromBlock, toBlock) =>
       client.getContractEvents({ ...ob, eventName: "OrderPlaced", args: { maker: account }, fromBlock, toBlock, strict: true }),
     );
     const views = await Promise.all(placed.map((l) => client.readContract({ ...ob, functionName: "getOrder", args: [l.args.orderId] })));
@@ -257,7 +245,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
 
   async function fundingSettlements(account: Address) {
     const head = await client.getBlockNumber();
-    const logs = await recent((fromBlock, toBlock) =>
+    const logs = await recent(`settled:${account}`, (fromBlock, toBlock) =>
       client.getContractEvents({ ...ch, eventName: "FundingSettled", args: { account }, fromBlock, toBlock, strict: true }),
     );
     return {
@@ -279,7 +267,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
    * those ran its own scan per event (≈ 140 `eth_getLogs` per Earn page load, and the queue's again every 3 s); the
    * public testnet RPC answers ≈ 4 per second, so the vault took ≈ 40 s to appear and never caught up.
    */
-  const scanVault = () => recent((fromBlock, toBlock) => client.getContractEvents({ ...vt!, fromBlock, toBlock, strict: true }));
+  const scanVault = () => recent("vault", (fromBlock, toBlock) => client.getContractEvents({ ...vt!, fromBlock, toBlock, strict: true }));
   type VaultLog = Awaited<ReturnType<typeof scanVault>>[number];
   let vaultLogs: { at: number; value?: VaultLog[]; inflight?: Promise<VaultLog[]> } = { at: 0 };
   function vaultEvents(): Promise<VaultLog[]> {
@@ -364,8 +352,8 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
     if (!vt) return fallback.vaultUser(account);
     const [shares, dep, wd, head] = await Promise.all([
       client.readContract({ ...vt, functionName: "balanceOf", args: [account] }),
-      recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Deposit", args: { owner: account }, fromBlock, toBlock, strict: true })),
-      recent((fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Withdraw", args: { owner: account }, fromBlock, toBlock, strict: true })),
+      recent(`vault-deposit:${account}`, (fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Deposit", args: { owner: account }, fromBlock, toBlock, strict: true })),
+      recent(`vault-withdraw:${account}`, (fromBlock, toBlock) => client.getContractEvents({ ...vt, eventName: "Withdraw", args: { owner: account }, fromBlock, toBlock, strict: true })),
       client.getBlockNumber(),
     ]);
     return {
@@ -436,7 +424,7 @@ export function createChainSource(client: PublicClient, a: ChainAddresses, fallb
       client.readContract({ ...sw, functionName: "realizedApr", args: [blocks8h] }).catch(() => undefined),
       client.readContract({ ...sw, functionName: "openInterest" }),
       client.readContract({ ...sw, functionName: "isMatured" }),
-      sob ? recent((fromBlock, toBlock) => client.getContractEvents({ ...sob, eventName: "Trade", fromBlock, toBlock, strict: true })) : Promise.resolve([]),
+      sob ? recent("swap-trades", (fromBlock, toBlock) => client.getContractEvents({ ...sob, eventName: "Trade", fromBlock, toBlock, strict: true })) : Promise.resolve([]),
     ]);
     return {
       id: sw.address,
