@@ -211,23 +211,21 @@ function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
   if (firstBars) s.fittedWithBars = true;
   if (p.bars.length === 0) s.fittedWithBars = false;
   if (lastReset.current !== p.resetKey || firstBars) {
-    const r = initialRange(p.bars.length);
-    if (r) chart.timeScale().setVisibleLogicalRange(r);
-    else chart.timeScale().fitContent();
+    // fixed candle width, newest bar a few bars in from the right edge (as Perpl's / TradingView's default view)
+    chart.timeScale().applyOptions({ barSpacing: BAR_SPACING });
+    chart.timeScale().scrollToPosition(RIGHT_OFFSET_BARS, false);
     lastReset.current = p.resetKey;
   }
 }
 
-/** Bars shown when the chart opens or resets; older history stays one zoom-out (or the "All" range) away. */
-export const INITIAL_BARS = 120;
 /**
- * Pure: the logical range that frames the newest INITIAL_BARS bars (plus a little room on the right), or null to fit
- * everything. Fitting a long, sparse history (testnet: a few trades on 30 Sep, then today's run) squeezed the recent
- * candles into a sliver at the right edge behind days of flat gap-fill.
+ * Candle width when the chart opens or resets, at every timeframe and history length: px per bar (Perpl's chart, measured
+ * 13 Oct 2026: ~6 CSS px). Never fit-to-width: a short history drew a few fat candles across the pane, and a long sparse
+ * one squeezed today's candles into a sliver. Older history stays a scroll / zoom-out (or the "All" range) away.
  */
-export function initialRange(bars: number): { from: number; to: number } | null {
-  return bars > INITIAL_BARS ? { from: bars - INITIAL_BARS, to: bars - 1 + 3 } : null;
-}
+export const BAR_SPACING = 6;
+/** Empty bars right of the newest candle on open / reset (room for the live candle and the price label). */
+export const RIGHT_OFFSET_BARS = 10;
 
 /**
  * TradingView Lightweight Charts engine. Data updates are coalesced to one per animation frame (blocks are ~300 ms,
@@ -259,7 +257,7 @@ export function LightweightEngine(props: EngineProps) {
       // Meridian look: dotted grid
       grid: { vertLines: { color: alpha(t.border, 0.9), style: LineStyle.Dotted }, horzLines: { color: alpha(t.border, 0.9), style: LineStyle.Dotted } },
       rightPriceScale: { borderColor: t.border },
-      timeScale: { borderColor: t.border, timeVisible: true, secondsVisible: false },
+      timeScale: { borderColor: t.border, timeVisible: true, secondsVisible: false, barSpacing: BAR_SPACING, rightOffset: RIGHT_OFFSET_BARS },
       crosshair: { vertLine: { color: t.muted, labelBackgroundColor: t.brand }, horzLine: { color: t.muted, labelBackgroundColor: t.brand } },
     });
     st.current = { chart, lines: [], linesSig: "", seen: new Map(), fittedWithBars: false, overlays: new Map(), panes: new Map(), t };
@@ -316,6 +314,7 @@ export function LightweightEngine(props: EngineProps) {
         if (!latest.current.bars.length || to <= from) return;
         chart.timeScale().setVisibleLogicalRange({ from: (from - t0) / step, to: (to - t0) / step });
       },
+      fitAll: () => chart.timeScale().fitContent(),
       zoom: (factor) => {
         const r = chart.timeScale().getVisibleLogicalRange();
         if (!r) return;

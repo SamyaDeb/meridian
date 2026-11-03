@@ -24,6 +24,8 @@ export type ChartCoords = {
   barSec: () => number;
   /** show [from, to] (unix seconds) on the time axis */
   setVisibleSeconds: (from: number, to: number) => void;
+  /** fit the whole history to the width (the "All" range) */
+  fitAll: () => void;
   /** zoom the time axis around its centre (factor < 1 zooms in) */
   zoom: (factor: number) => void;
   /** PNG of the chart (all panes, price and time axes) */
@@ -37,7 +39,7 @@ export type EngineProps = {
   priceLines: readonly PriceLineSpec[];
   overlays: readonly LineOverlay[];
   panes: readonly PaneSpec[];
-  /** bump to fit the time scale to the data (Reset view) */
+  /** bump to return to the default view: fixed candle width, newest bar at the right (Reset view) */
   resetKey: number;
   /** click on the price pane → price at the cursor (WAD); used for click-to-set-limit */
   onPriceClick?: (priceWad: bigint) => void;

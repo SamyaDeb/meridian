@@ -42,9 +42,8 @@ describe("Perpl book tab: labelled, read-only, never Meridian's", () => {
 });
 
 describe("book card tabs", () => {
-  it("the Perpl tab exists only with its flag, and always after Meridian's own tabs", async () => {
+  it("are Meridian's own (Perpl is a market in the strip's dropdown, not a tab)", async () => {
     const { bookTabs } = await import("./OrderBookCard");
-    expect(bookTabs(false).map((t) => t.id)).toEqual(["book", "trades", "depth"]);
-    expect(bookTabs(true).map((t) => t.id)).toEqual(["book", "trades", "depth", "perpl"]);
+    expect(bookTabs().map((t) => t.id)).toEqual(["book", "trades", "depth"]);
   });
 });

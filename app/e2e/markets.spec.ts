@@ -9,6 +9,12 @@ const WIDTHS = [
   { w: 1440, h: 900 },
 ];
 
+/** The trade strip's market dropdown: open it, pick a market. */
+const pickMarket = async (page: Page, key: string) => {
+  await page.getByRole("button", { name: "Market" }).click();
+  await page.getByTestId(`menu-market-${key}`).click();
+};
+
 const noHorizontalScroll = async (page: Page) =>
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 
@@ -16,14 +22,16 @@ for (const { w, h } of WIDTHS) {
   test(`switch to ETH-PERP on /trade at ${w}px`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h });
     await page.goto("/trade");
-    const switcher = page.getByTestId("market-switcher");
+    const switcher = page.getByTestId("market-menu");
     await expect(switcher).toBeVisible();
     await expect(page.getByTestId("market-symbol")).toHaveText("MON-PERP");
     await expect(page.getByTestId("mark-price")).toContainText(/0\.0\d{5}/); // MON tick 1e-6
 
-    await page.getByTestId("market-eth").click();
+    await pickMarket(page, "eth");
     await expect(page.getByTestId("market-symbol")).toHaveText("ETH-PERP");
-    await expect(page.getByTestId("market-eth")).toHaveAttribute("aria-selected", "true");
+    await page.getByRole("button", { name: "Market" }).click();
+    await expect(page.getByTestId("menu-market-eth")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
     expect(new URL(page.url()).searchParams.get("market")).toBe("eth");
     // ETH price at its own tick (0.10): thousands with one decimal
     await expect(page.getByTestId("mark-price")).toContainText(/\d,\d{3}\.\d(?!\d)/);
@@ -41,7 +49,7 @@ for (const { w, h } of WIDTHS) {
     // the choice survives a reload; switching back restores MON-PERP and drops the URL parameter
     await page.reload();
     await expect(page.getByTestId("market-symbol")).toHaveText("ETH-PERP");
-    await page.getByTestId("market-main").click();
+    await pickMarket(page, "main");
     await expect(page.getByTestId("market-symbol")).toHaveText("MON-PERP");
     expect(new URL(page.url()).searchParams.get("market")).toBeNull();
     await expect(page.getByTestId("mark-price")).toContainText(/0\.0\d{5}/);
