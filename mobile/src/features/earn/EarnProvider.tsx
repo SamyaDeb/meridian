@@ -129,9 +129,9 @@ export function EarnProvider({ children, kit: injected }: { children: ReactNode;
           {
             freeMeridian,
             freePerpl,
-            ...(lockWad > 0n && c.FundingSwapMarket ? { depositLock: (account: LocalAccount, amountWad: bigint) => swapDeposit({ pub, wallet: walletClientFor(account, cfg), token: c.AUSD, market: c.FundingSwapMarket!, amountWad }) } : {}),
+            ...(lockWad > 0n && c.FundingSwapMarket ? { depositLock: (account: LocalAccount, amountWad: bigint) => swapDeposit({ pub, wallet: walletClientFor(account, cfg), token: c.collateral, market: c.FundingSwapMarket!, amountWad }) } : {}),
             withFreshSession: (fn) => auth.withFreshSession(fn),
-            depositMeridian: (account, needWad) => ensureMeridianCollateral({ pub, wallet: walletClientFor(account, cfg), token: c.AUSD, clearingHouse: c.ClearingHouse, needWad, freeNow: freeMeridian }),
+            depositMeridian: (account, needWad) => ensureMeridianCollateral({ pub, wallet: walletClientFor(account, cfg), token: c.collateral, clearingHouse: c.ClearingHouse, needWad, freeNow: freeMeridian }),
             depositPerpl: (account, amountCns) => perplTopUp({ pub, send: (req) => sendTx(pub, walletClientFor(account, cfg), req, { abi: PERPL_TX_ABI }), token: pd.collateralToken, exchange: pd.exchange, owner: address, amountCns }),
             perplCollateralDecimals: pd.collateralDecimals,
           },

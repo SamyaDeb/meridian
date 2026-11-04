@@ -1,23 +1,24 @@
 // Meridian collateral for a trade, ported from app/src/lib/tx.ts (approveOrPermit + deposit, main @ 0ba1664) onto the
 // native write path (wallet/sendTx: gas = estimate × 1.2, plain-English reverts). EIP-2612 permit when the token has
-// `nonces` (mainnet AUSD: domain "Agora Dollar" v"1", core meridian/permit), else approve EXACTLY the amount (testnet
-// mock). Signed with a per-transaction session from a fresh passkey prompt (N3: deposits re-prompt).
-import { assertPermitUsable, buildPermitTypedData, clearingHouseAbi, erc20PermitAbi, permitDeadline, splitSignature } from "@meridian/core/meridian";
+// `nonces` and its EIP-5267 domain checks out (core meridian/permit permitDomainFrom), else approve EXACTLY the amount
+// (testnet tUSDC mock). Signed with a per-transaction session from a fresh passkey prompt (N3: deposits re-prompt).
+import { assertPermitUsable, buildPermitTypedData, clearingHouseAbi, erc20PermitAbi, permitDeadline, permitDomainFrom, splitSignature, type PermitDomain } from "@meridian/core/meridian";
 import { divCeil } from "@meridian/core/util";
 import { encodeFunctionData, type Address, type PublicClient } from "viem";
 import { sendTx, type SignerWallet } from "../../../wallet/sendTx";
 
-const TOKEN = 10n ** 12n; // AUSD 6 dp ↔ WAD
+const TOKEN = 10n ** 12n; // USDC 6 dp ↔ WAD
 
-/** WAD owed by the user → whole AUSD token units, rounded up. */
+/** WAD owed by the user → whole USDC token units, rounded up. */
 export const owedToken = (wad: bigint): bigint => divCeil(wad, TOKEN);
 
-export async function supportsPermit(pub: PublicClient, token: Address, owner: Address): Promise<boolean> {
+/** The token's EIP-2612 domain when it has `nonces` and a trustworthy EIP-5267 `eip712Domain()`; else undefined (approve). */
+export async function permitDomain(pub: PublicClient, token: Address, owner: Address, chainId: number): Promise<PermitDomain | undefined> {
   try {
     await pub.readContract({ address: token, abi: erc20PermitAbi, functionName: "nonces", args: [owner] });
-    return true;
+    return permitDomainFrom(await pub.readContract({ address: token, abi: erc20PermitAbi, functionName: "eip712Domain" }), token, chainId);
   } catch {
-    return false;
+    return undefined;
   }
 }
 
@@ -26,12 +27,13 @@ export async function approveOrPermit(pub: PublicClient, wallet: SignerWallet, t
   const owner = wallet.account.address;
   const allowance = await pub.readContract({ address: token, abi: erc20PermitAbi, functionName: "allowance", args: [owner, spender] });
   if (allowance >= amountToken) return;
-  if (await supportsPermit(pub, token, owner)) {
+  const chainId = await pub.getChainId();
+  const domain = await permitDomain(pub, token, owner, chainId);
+  if (domain) {
     const nonce = await pub.readContract({ address: token, abi: erc20PermitAbi, functionName: "nonces", args: [owner] });
     const deadline = permitDeadline(nowMs());
-    const chainId = await pub.getChainId();
     assertPermitUsable({ walletChainId: wallet.chain.id, nodeChainId: chainId, deadline, nowMs: nowMs() });
-    const sig = await wallet.signTypedData({ account: wallet.account, ...buildPermitTypedData({ token, owner, spender, value: amountToken, nonce, deadline, chainId }) });
+    const sig = await wallet.signTypedData({ account: wallet.account, ...buildPermitTypedData({ token, owner, spender, value: amountToken, nonce, deadline, chainId, domain }) });
     const { v, r, s } = splitSignature(sig);
     await sendTx(pub, wallet, { to: token, data: encodeFunctionData({ abi: erc20PermitAbi, functionName: "permit", args: [owner, spender, amountToken, deadline, v, r, s] }) });
   } else {

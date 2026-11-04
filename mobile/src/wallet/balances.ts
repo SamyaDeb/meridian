@@ -1,4 +1,4 @@
-// MON + AUSD balances of one address, re-read on every new block (one read in flight at a time). Token addresses come
+// MON + collateral balances of one address, re-read on every new block (one read in flight at a time). Token addresses come
 // from the deployment readers and decimals from the token itself (never typed in).
 import { erc20Abi, type Address, type PublicClient } from "viem";
 import type { AppConfig } from "../config/appConfig";
@@ -8,16 +8,16 @@ export type TokenSpec = { key: string; label: string; address: Address };
 export type TokenBalance = { label: string; amount: bigint | undefined; decimals: number | undefined };
 export type BalanceState = { mon: bigint | undefined; tokens: TokenBalance[]; block: bigint | undefined; error: string | undefined };
 
-/** Meridian's AUSD; Perpl's collateral too when it is a different token (testnet: two mocks). */
+/** Meridian's collateral (USDC; AUSD on a pre-USDC record); Perpl's collateral (AUSD) too when it is a different token. */
 export function balanceTokens(cfg: Pick<AppConfig, "meridian" | "perpl">): TokenSpec[] {
   const out: TokenSpec[] = [];
   if (cfg.meridian.status === "deployed") {
     const d = cfg.meridian.deployment;
-    out.push({ key: "ausd", label: d.mockContracts.includes("AUSD") ? "Test AUSD (Meridian)" : "AUSD", address: d.contracts.AUSD });
+    out.push({ key: "ausd", label: d.collateralIsMock ? `Test ${d.collateralSymbol} (Meridian)` : `${d.collateralSymbol} (Meridian)`, address: d.contracts.collateral });
   }
   if (cfg.perpl.status === "deployed") {
     const c = cfg.perpl.deployment.collateralToken;
-    if (!out.some((t) => t.address.toLowerCase() === c.toLowerCase())) out.push({ key: "perpl", label: "Test AUSD (Perpl)", address: c });
+    if (!out.some((t) => t.address.toLowerCase() === c.toLowerCase())) out.push({ key: "perpl", label: cfg.perpl.deployment.chainId === 143 ? "AUSD (Perpl)" : "Test AUSD (Perpl)", address: c });
   }
   return out;
 }

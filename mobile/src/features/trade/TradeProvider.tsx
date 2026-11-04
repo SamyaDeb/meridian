@@ -140,7 +140,7 @@ export function TradeProvider({ children, kit: injected }: { children: ReactNode
         legs: leg.legs,
         prepareCollateral: async () => {
           if (need === 0n || (await freeNow()) >= need) return; // nothing to deposit: no passkey prompt
-          await auth.withFreshSession((account) => ensureMeridianCollateral({ pub, wallet: walletClientFor(account, cfg), token: c.AUSD, clearingHouse: c.ClearingHouse, needWad: need, freeNow }));
+          await auth.withFreshSession((account) => ensureMeridianCollateral({ pub, wallet: walletClientFor(account, cfg), token: c.collateral, clearingHouse: c.ClearingHouse, needWad: need, freeNow }));
         },
         facts: async (r) => ({ ...(r.state.leg.ref ? { txHash: r.state.leg.ref as `0x${string}` } : {}), ...(leg.receipt() ? { receiptBlock: leg.receipt()!.blockNumber } : {}) }),
       };
