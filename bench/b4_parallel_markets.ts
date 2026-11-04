@@ -48,7 +48,7 @@ interface Mkt {
 interface Rec {
   chainId: number;
   symbol?: string;
-  contracts: Mkt & { AUSD: Address };
+  contracts: Mkt & { USDC?: Address; AUSD?: Address };
   demoMarket?: Mkt;
   markets?: Mkt[];
 }
@@ -167,8 +167,8 @@ async function setup(m: Mkt, accs: PrivateKeyAccount[]): Promise<void> {
     if (env("FUND") === "1") {
       const have = (await pub.readContract({ address: m.ClearingHouse, abi: chAbi, functionName: "getAccount", args: [acc.address] })).collateral;
       if (have < DEPOSIT * 10n ** 12n) {
-        await sendWait(acc, rec.contracts.AUSD, encodeFunctionData({ abi: erc20, functionName: "mint", args: [acc.address, DEPOSIT] }));
-        await sendWait(acc, rec.contracts.AUSD, encodeFunctionData({ abi: erc20, functionName: "approve", args: [m.ClearingHouse, DEPOSIT] }));
+        await sendWait(acc, (rec.contracts.USDC ?? rec.contracts.AUSD)!, encodeFunctionData({ abi: erc20, functionName: "mint", args: [acc.address, DEPOSIT] }));
+        await sendWait(acc, (rec.contracts.USDC ?? rec.contracts.AUSD)!, encodeFunctionData({ abi: erc20, functionName: "approve", args: [m.ClearingHouse, DEPOSIT] }));
         await sendWait(acc, m.ClearingHouse, encodeFunctionData({ abi: chAbi, functionName: "deposit", args: [DEPOSIT] }));
       }
     }

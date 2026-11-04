@@ -31,7 +31,7 @@ const dep = JSON.parse(readFileSync(process.env.DEPLOYMENTS ?? `${HERE}../deploy
 const markets: Market[] = process.env.MARKETS_FILE
   ? JSON.parse(readFileSync(process.env.MARKETS_FILE, "utf8"))
   : [dep.contracts, ...(dep.demoMarket ? [dep.demoMarket] : [])];
-const AUSD = dep.contracts.AUSD as Address;
+const AUSD = (dep.contracts.USDC ?? dep.contracts.AUSD) as Address; // collateral: USDC since 4 Nov 2026, AUSD on older records
 
 const obAbi = parseAbi([
   "function placeLimitOrder(bool isBid, uint32 tick, uint64 lots, uint8 flags) returns (uint64, uint64)",
