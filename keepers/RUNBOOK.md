@@ -364,11 +364,11 @@ cd keepers/alerts && ALERTS_WATCHLIST=./watchlist.json ALERTS_APP_URL=https://<t
 4. **Resume:** `setPaused(false)` after the cause is fixed and the oracle is fresh; `rm $KILL_FILE`; watch `pnpm watch` for 30 min.
 
 ## 10b. Seeding on 143 (rehearsed on the mainnet fork, 5 Oct)
-Permissionless, after `DeployMeridian` and `VerifyDeployment` pass. Addresses come from `deployments/143.json` (`jq -r .contracts.<Name>`). AUSD has 6 dp (R9), so `1000000000` = 1,000 AUSD. **Approve exact amounts, never `max`, on mainnet.** Each line runs from the key named, in that process's own shell; gas limit = estimate × 1.2 (cast does this with `--gas-limit $(( $(cast estimate …) * 12 / 10 ))`).
+Permissionless, after `DeployMeridian` and `VerifyDeployment` pass. Addresses come from `deployments/143.json` (`jq -r .contracts.<Name>`). The collateral is USDC since 4 Nov 2026 (R10b, 6 dp), so `1000000000` = 1,000 USDC. **Approve exact amounts, never `max`, on mainnet.** Each line runs from the key named, in that process's own shell; gas limit = estimate × 1.2 (cast does this with `--gas-limit $(( $(cast estimate …) * 12 / 10 ))`).
 ```bash
-A=$(jq -r .contracts.AUSD $D); IF=$(jq -r .contracts.InsuranceFund $D); CH=$(jq -r .contracts.ClearingHouse $D)
+A=$(jq -r .contracts.USDC $D); IF=$(jq -r .contracts.InsuranceFund $D); CH=$(jq -r .contracts.ClearingHouse $D)
 SW=$(jq -r .contracts.FundingSwapMarket $D); V=$(jq -r .contracts.MeridianVault $D)      # D=deployments/143.json
-# 1. insurance fund (any funded key; capital plan: 1–2k AUSD)
+# 1. insurance fund (any funded key; capital plan: 1–2k USDC)
 cast send $A "approve(address,uint256)" $IF <amt>;  cast send $IF "fund(uint256)" <amt>
 # 2. keeper: perp collateral (it takes liquidated positions) + swap collateral (§4b)
 cast send $A "approve(address,uint256)" $CH <amt>;  cast send $CH "deposit(uint256)" <amt>          # keeper key
