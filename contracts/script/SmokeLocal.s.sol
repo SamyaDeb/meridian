@@ -42,7 +42,7 @@ contract SmokeLocal is Script {
     function _load() internal {
         require(block.chainid == 31_337, "SmokeLocal: anvil only");
         string memory dep = vm.readFile(string.concat(vm.projectRoot(), "/../deployments/31337.json"));
-        ausd = MockERC20(dep.readAddress(".contracts.AUSD"));
+        ausd = MockERC20(dep.readAddress(".contracts.USDC"));
         oracle = MockOracleAdapter(dep.readAddress(".contracts.OracleAdapter"));
         ch = IClearingHouse(dep.readAddress(".contracts.ClearingHouse"));
         ob = IOrderBook(dep.readAddress(".contracts.OrderBook"));

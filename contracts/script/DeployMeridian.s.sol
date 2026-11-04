@@ -30,7 +30,8 @@ import {FundingSwapMarket} from "../src/swaps/FundingSwapMarket.sol";
 ///        (and any vault/swaps not being redeployed) and add only the requested yield layers; the merged record is
 ///        written to DEPLOYMENTS_OUT (default <chainid>.json). Phase 4 step 7: vault + swaps on the live testnet perp.
 /// @dev Config (`script/config/<chainid>.json`):
-///      - `tokens.AUSD` null ⇒ a 6-dp MockERC20 "tAUSD" (refused on mainnet).
+///      - `tokens.USDC` null ⇒ a 6-dp MockERC20 "tUSDC" (refused on mainnet). The collateral is USDC (6 dp, same
+///        token boundary as AUSD before 4 Nov 2026: COLLATERAL ×1e12 = WAD); it is written as `contracts.USDC`.
 ///      - `oracle.kind`: "pyth" = PythChainlinkOracleAdapter (Chainlink guard off when `chainlink.monUsd` is null);
 ///        "keeper-fed" = TestnetKeeperOracle (TESTNET ONLY, its constructor refuses every chain but 10143/31337).
 ///      - `owner` null + `ownerIsDeployer` true ⇒ testnet owner = deployer. Mainnet requires the Safe (Ownable:
@@ -85,9 +86,9 @@ contract DeployMeridian is DeployBase {
             owner = deployer;
         }
         d.wmon = cfg.readAddress(".tokens.WMON");
-        d.ausd = _optAddress(".tokens.AUSD");
+        d.ausd = _optAddress(".tokens.USDC");
         require(d.wmon != address(0), "VERIFY: tokens.WMON missing in config");
-        require(d.ausd != address(0) || block.chainid != MAINNET, "mainnet needs the real AUSD");
+        require(d.ausd != address(0) || block.chainid != MAINNET, "mainnet needs the real USDC");
 
         uint256 startBlock = block.number;
         string memory reuse = vm.envOr("REUSE_DEPLOYMENT", string(""));
@@ -99,7 +100,7 @@ contract DeployMeridian is DeployBase {
         vm.startBroadcast(pk);
         if (!reusing) {
             if (d.ausd == address(0)) {
-                d.ausd = address(new MockERC20("Test AUSD", "tAUSD", 6));
+                d.ausd = address(new MockERC20("Test USDC", "tUSDC", 6));
                 ausdIsMock = true;
             }
             // 1. InsuranceFund (shared by every market) + registry
@@ -130,7 +131,7 @@ contract DeployMeridian is DeployBase {
         require(j.readUint(".chainId") == block.chainid, "REUSE_DEPLOYMENT: chain id mismatch");
         require(j.readBoolOr(".deployed", false), "REUSE_DEPLOYMENT: not a broadcast deployment");
         require(j.readAddress(".owner") == deployer || block.chainid != MAINNET, "REUSE_DEPLOYMENT: owner must deploy");
-        d.ausd = j.readAddress(".contracts.AUSD");
+        d.ausd = j.readAddress(".contracts.USDC");
         d.wmon = j.readAddress(".contracts.WMON");
         d.insuranceFund = j.readAddress(".contracts.InsuranceFund");
         d.marketFactory = j.readAddress(".contracts.MarketFactory");
@@ -160,7 +161,7 @@ contract DeployMeridian is DeployBase {
         }
         string[] memory mocks = j.readStringArray(".mockContracts");
         for (uint256 i; i < mocks.length; ++i) {
-            if (keccak256(bytes(mocks[i])) == keccak256("AUSD")) ausdIsMock = true;
+            if (keccak256(bytes(mocks[i])) == keccak256("USDC")) ausdIsMock = true;
             if (keccak256(bytes(mocks[i])) == keccak256("KuruHedger") && d.hedger != address(0)) hedgerIsMock = true;
         }
         startBlock = j.readUint(".startBlock");
@@ -309,7 +310,7 @@ contract DeployMeridian is DeployBase {
     function _write(uint256 startBlock) internal {
         string memory c = "contracts";
         // Only deployed contracts are written (the indexer/app treat a present key as "live").
-        _ser(c, "AUSD", d.ausd);
+        _ser(c, "USDC", d.ausd);
         _ser(c, "WMON", d.wmon);
         _ser(c, "InsuranceFund", d.insuranceFund);
         _ser(c, "MarketFactory", d.marketFactory);
@@ -334,7 +335,7 @@ contract DeployMeridian is DeployBase {
             root.serialize("demoMarket", m.serialize("OrderBook", d.demo.orderBook));
         }
         string[] memory mocks = new string[]((ausdIsMock ? 1 : 0) + (hedgerIsMock ? 1 : 0));
-        if (ausdIsMock) mocks[0] = "AUSD";
+        if (ausdIsMock) mocks[0] = "USDC";
         if (hedgerIsMock) mocks[mocks.length - 1] = "KuruHedger";
         root.serialize("mockContracts", mocks);
         root.serialize("chainId", block.chainid);
@@ -355,7 +356,7 @@ contract DeployMeridian is DeployBase {
 
     function _log() internal view {
         console.log("deployer / owner", deployer, owner);
-        console.log("AUSD", d.ausd, ausdIsMock ? "(tAUSD mock)" : "");
+        console.log("USDC", d.ausd, ausdIsMock ? "(tUSDC mock)" : "");
         console.log("InsuranceFund", d.insuranceFund);
         console.log("MarketFactory", d.marketFactory);
         console.log(d.perp.symbol, d.perp.oracleKind);

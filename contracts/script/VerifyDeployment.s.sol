@@ -418,7 +418,7 @@ contract VerifyDeployment is DeployBase {
                 string.concat(sym, ": swap <-> OB")
             );
             _check(
-                fs.collateralToken() == dep.readAddress(".contracts.AUSD"),
+                fs.collateralToken() == dep.readAddress(".contracts.USDC"),
                 string.concat(sym, ": collateral = record AUSD")
             );
             _check(

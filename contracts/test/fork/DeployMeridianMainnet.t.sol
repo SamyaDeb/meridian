@@ -120,9 +120,9 @@ contract DeployMeridianMainnetForkTest is Test {
         );
         _refuses(vm.replace(base, safeLine, '"owner": null,'), false, "VERIFY: owner missing in config");
         _refuses(
-            vm.replace(base, '"AUSD": "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a",', '"AUSD": null,'),
+            vm.replace(base, '"USDC": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",', '"USDC": null,'),
             false,
-            "mainnet needs the real AUSD"
+            "mainnet needs the real USDC"
         );
         _refuses(
             vm.replace(
