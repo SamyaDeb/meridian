@@ -78,7 +78,7 @@ contract DeployVaultV2 is DeployBase {
     }
 
     function _inputs(string memory rec) internal {
-        a.ausd = rec.readAddress(".contracts.AUSD");
+        a.ausd = rec.readAddress(".contracts.USDC");
         a.wmon = rec.readAddress(".contracts.WMON");
         a.ch = rec.readAddress(".contracts.ClearingHouse");
         a.ob = rec.readAddress(".contracts.OrderBook");

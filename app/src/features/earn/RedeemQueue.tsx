@@ -6,6 +6,7 @@ import { Button, Card, Chip, Skeleton } from "@/components/ds";
 import type { Address } from "@/data/types";
 import { formatAusdToken, formatFixed } from "@/lib/format";
 import { estimateRedeemToken, queuePosition, redeemActions, type RedeemRow, type RedeemStatusName } from "@/lib/redeem";
+import { COLLATERAL } from "@/config/collateral";
 
 const LABEL: Record<RedeemStatusName, string> = { requested: "Requested", claimable: "Fulfilled · claim", claimed: "Claimed", cancelled: "Cancelled" };
 const TONE: Record<RedeemStatusName, "warn" | "long" | "neutral"> = { requested: "warn", claimable: "long", claimed: "neutral", cancelled: "neutral" };
@@ -59,7 +60,7 @@ export function RedeemQueue(props: {
                     <>
                       <span>Estimate now</span>
                       <span className="num text-right text-text" data-testid="redeem-estimate">
-                        ≈ {formatAusdToken(est)} AUSD
+                        ≈ {formatAusdToken(est)} {COLLATERAL}
                       </span>
                     </>
                   )}
@@ -67,14 +68,14 @@ export function RedeemQueue(props: {
                     <>
                       <span>{r.status === "claimed" ? "Paid" : "Payout (fixed)"}</span>
                       <span className="num text-right text-text" data-testid="redeem-assets">
-                        {formatAusdToken(r.assets)} AUSD
+                        {formatAusdToken(r.assets)} {COLLATERAL}
                       </span>
                     </>
                   )}
                   {r.unwindCost !== undefined && r.unwindCost > 0n && (
                     <>
                       <span>Unwind cost (yours)</span>
-                      <span className="num text-right text-text">{formatAusdToken(r.unwindCost)} AUSD</span>
+                      <span className="num text-right text-text">{formatAusdToken(r.unwindCost)} {COLLATERAL}</span>
                     </>
                   )}
                 </div>
@@ -90,7 +91,7 @@ export function RedeemQueue(props: {
                     )}
                     {a.claim && (
                       <Button size="sm" variant="brand" disabled={props.busy} onClick={() => props.onClaim(r.id)} data-testid={`claim-${r.id}`}>
-                        Claim {r.assets !== undefined ? `${formatAusdToken(r.assets)} AUSD` : ""}
+                        Claim {r.assets !== undefined ? `${formatAusdToken(r.assets)} ${COLLATERAL}` : ""}
                       </Button>
                     )}
                   </div>

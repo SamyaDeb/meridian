@@ -9,6 +9,7 @@ import {
   perplCandlesUrl,
   perplToBars,
   perplToDepth,
+  collateralDecimals,
   resolvePerplMarket,
   scaledToWad,
   trimBook,
@@ -80,11 +81,14 @@ describe("scaling", () => {
 });
 
 describe("candles", () => {
-  it("trimCandles keeps only OHLC + time and drops malformed rows", () => {
+  it("trimCandles keeps OHLC, time, volume and trade count, and drops malformed rows", () => {
     const rows = trimCandles({ ...CANDLES, d: [...CANDLES.d, { t: 1, o: 0, h: 1, l: 1, c: 1 }, { t: 2, o: 2, h: 1, l: 3, c: 2 }, { t: 3, o: 1.5, h: 2, l: 1, c: 1 }, null] });
     expect(rows).toHaveLength(4);
-    expect(rows[0]).toEqual({ t: 1791351840000, o: 27039, h: 27039, l: 27036, c: 27036 });
-    expect(Object.keys(rows[0]!)).not.toContain("v");
+    expect(rows[0]).toEqual({ t: 1791351840000, o: 27039, h: 27039, l: 27036, c: 27036, v: "2568420", n: 1 });
+  });
+  it("trimCandles: a non-integer volume or count becomes 0", () => {
+    const [r] = trimCandles({ d: [{ t: 1, o: 1, h: 1, l: 1, c: 1, v: "1e9", n: -1 }] });
+    expect(r).toMatchObject({ v: "0", n: 0 });
   });
   it("trimCandles throws on a garbled shape, [] on an empty list", () => {
     expect(() => trimCandles({})).toThrow();
@@ -92,7 +96,7 @@ describe("candles", () => {
     expect(trimCandles({ d: [] })).toEqual([]);
   });
   it("perplToBars: ms → s, WAD prices, zero volume, ascending, 3m aggregated from 1m with gap fill", () => {
-    const payload: PerplCandlesPayload = { market: MON, r: 60, d: trimCandles(CANDLES).reverse() };
+    const payload: PerplCandlesPayload = { market: MON, r: 60, d: trimCandles(CANDLES).reverse() }; // no quoteDecimals
     const bars = perplToBars(payload, "1m");
     expect(bars.map((b) => b.time)).toEqual([1791351840, 1791351900, 1791351960, 1791352020]);
     expect(bars[2]).toMatchObject({ open: 27_063_000_000_000_000n, high: 27_101_000_000_000_000n, low: 27_045_000_000_000_000n, close: 27_045_000_000_000_000n, volumeBaseWad: 0n, volumeQuoteWad: 0n });
@@ -103,6 +107,30 @@ describe("candles", () => {
     expect(three[1]).toMatchObject({ open: 27_036_000_000_000_000n, high: 27_101_000_000_000_000n, low: 27_031_000_000_000_000n, close: 27_075_000_000_000_000n });
     const gappy: PerplCandlesPayload = { market: MON, r: 60, d: [CANDLES.d[0]!, CANDLES.d[3]!] };
     expect(perplToBars(gappy, "1m").filter((b) => b.gapFill)).toHaveLength(2);
+  });
+  it("perplToBars: volume in the collateral token (6 dp) and trade counts; aggregated by sum", () => {
+    const payload: PerplCandlesPayload = { market: { ...MON, quoteDecimals: 6 }, r: 60, d: trimCandles(CANDLES) };
+    const bars = perplToBars(payload, "1m");
+    expect(bars[2]).toMatchObject({ volumeBaseWad: 0n, volumeQuoteWad: 285_816_774_000_000_000_000n, trades: 3 }); // 285.816774
+    const three = perplToBars(payload, "3m");
+    expect(three[1]!.volumeQuoteWad).toBe((2_570_985n + 285_816_774n + 700_941_155n) * 10n ** 12n);
+    expect(three[1]!.trades).toBe(8);
+  });
+  it("perplToBars: a live tail replaces the forming candle and appends new ones", () => {
+    const base: PerplCandlesPayload = { market: MON, r: 60, d: trimCandles(CANDLES) };
+    const tail: PerplCandlesPayload = { market: MON, r: 60, d: [{ ...base.d[3]!, h: 27_200, c: 27_190 }, { t: 1791352080000, o: 27_190, h: 27_190, l: 27_180, c: 27_180, v: "5", n: 1 }] };
+    const bars = perplToBars(base, "1m", tail);
+    expect(bars.map((b) => b.time)).toEqual([1791351840, 1791351900, 1791351960, 1791352020, 1791352080]);
+    expect(bars[3]).toMatchObject({ high: 27_200_000_000_000_000n, close: 27_190_000_000_000_000n });
+    expect(perplToBars(base, "1m", { ...tail, r: 300 })).toHaveLength(4); // another resolution's tail is ignored
+  });
+  it("collateralDecimals: the single instance's collateral token, else undefined", () => {
+    const ctx = { instances: [{ collateral_token_id: 1 }], tokens: [{ id: 1, symbol: "AUSD", decimals: 6 }] };
+    expect(collateralDecimals(ctx)).toBe(6);
+    expect(resolvePerplMarket({ ...CONTEXT, ...ctx })).toEqual({ ...MON, quoteDecimals: 6 });
+    expect(collateralDecimals({ ...ctx, instances: [...ctx.instances, { collateral_token_id: 1 }] })).toBeUndefined();
+    expect(collateralDecimals({ ...ctx, tokens: [{ id: 2, decimals: 6 }] })).toBeUndefined();
+    expect(collateralDecimals(null)).toBeUndefined();
   });
   it("every timeframe maps to a supported resolution that divides it", () => {
     for (const tf of TIMEFRAMES) {

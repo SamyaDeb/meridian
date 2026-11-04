@@ -34,6 +34,7 @@ import { usePerpMarket } from "@/data/market";
 import { setDraft, useDraft } from "./draft";
 import { FundsDialog } from "./FundsDialog";
 import { TriggerSection } from "@/features/triggers/TriggerSection";
+import { COLLATERAL } from "@/config/collateral";
 
 const PCTS = [0n, 25n, 50n, 75n, 100n] as const;
 const SLIPPAGES = [10n, 50n, 100n, 200n] as const; // bps
@@ -211,7 +212,7 @@ export function OrderTicket() {
         ? ONBOARD_CTA
         : "Preparing your wallet…"
       : noDeposit
-        ? "Deposit AUSD to trade"
+        ? `Deposit ${COLLATERAL} to trade`
         : (problem ?? `${kind === "market" ? "Market" : "Limit"} ${sideLabel}`);
 
   const submit = () => {
@@ -246,7 +247,7 @@ export function OrderTicket() {
       <div className="-mx-1 flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-1">
         {/* Hyperliquid order: margin mode · leverage · account, then order-type tabs, then the Buy / Sell toggle */}
         <div className="grid grid-cols-3 gap-2">
-          <span className={ctlBtn} title="Cross margin: one AUSD account backs your position and orders (the only mode).">
+          <span className={ctlBtn} title={`Cross margin: one ${COLLATERAL} account backs your position and orders (the only mode).`}>
             Cross
           </span>
           <Popover
@@ -263,7 +264,7 @@ export function OrderTicket() {
             </div>
           </Popover>
           <span className={ctlBtn} title="Collateral and settlement currency.">
-            AUSD
+            {COLLATERAL}
           </span>
         </div>
 
@@ -288,7 +289,7 @@ export function OrderTicket() {
 
         <div className="mt-3 space-y-0.5">
           <Line label="Available to Trade">
-            <Private kind="balance">{free !== undefined ? formatAusdWad(free) : "0.00"}</Private> AUSD
+            <Private kind="balance">{free !== undefined ? formatAusdWad(free) : "0.00"}</Private> {COLLATERAL}
           </Line>
           <Line label="Current Position">
             <span className={posSize > 0n ? "text-long" : posSize < 0n ? "text-short" : ""}>{formatBaseWad(posSize, pm.sizeDp)} {pm.base}</span>
@@ -298,7 +299,7 @@ export function OrderTicket() {
         {kind === "limit" && (
           <div className="mt-2 flex h-10 items-center gap-2 rounded-control border border-line bg-card-2 pl-3 pr-1 focus-within:border-brand-soft pointer-coarse:h-11">
             <label htmlFor="limit-px" className="shrink-0 text-[13px] text-muted">
-              Price (AUSD)
+              Price ({COLLATERAL})
             </label>
             <input
               id="limit-px"
@@ -335,7 +336,7 @@ export function OrderTicket() {
           />
           <select aria-label="Size unit" value={unit} onChange={(e) => (setUnit(e.target.value as "MON" | "AUSD"), setSizeIn(""), setPctUi(0))} className="h-8 shrink-0 bg-transparent pr-1 text-[13px] outline-none">
             <option value="MON">{pm.base}</option>
-            <option value="AUSD">AUSD</option>
+            <option value="AUSD">{COLLATERAL}</option>
           </select>
         </div>
         <p className="num mt-1 text-right text-[11px] text-muted">{lots > 0n ? `${formatBaseWad(lots * LOT, pm.sizeDp)} ${pm.base} · ${lots} lots` : `lot ${formatBaseWad(LOT, pm.sizeDp)} ${pm.base}`}</p>
@@ -426,8 +427,8 @@ export function OrderTicket() {
           <Line label="Liquidation Price" tone="text-warn">
             <Private kind="liq">{preview?.liqPriceWad ? fp(preview.liqPriceWad) : "N/A"}</Private>
           </Line>
-          <Line label="Order Value">{preview ? `${formatAusdWad(preview.notionalWad)} AUSD` : "N/A"}</Line>
-          <Line label="Margin Required">{preview ? `${formatAusdWad(preview.marginWad)} AUSD` : "N/A"}</Line>
+          <Line label="Order Value">{preview ? `${formatAusdWad(preview.notionalWad)} ${COLLATERAL}` : "N/A"}</Line>
+          <Line label="Margin Required">{preview ? `${formatAusdWad(preview.marginWad)} ${COLLATERAL}` : "N/A"}</Line>
           {kind === "market" && (
             <Line label="Slippage" tip="Estimated price impact from the best price on the book / the most the order may move past it before it reverts. Click Max to change it.">
               <span className="text-brand-soft">

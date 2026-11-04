@@ -10,6 +10,7 @@ import { readChain } from "@/lib/wagmi";
 import { CRASH_RUNS } from "./crashReplay";
 import { latestIfBalance, meridianRisk } from "./meridianRisk";
 import { bpsPct } from "./perplView";
+import { COLLATERAL } from "@/config/collateral";
 
 const FLOW_LABEL = { Funded: "Top-up", PenaltyIn: "Liquidation penalty in", CoveredByInsurance: "Bad debt: insurance fund", CoveredByFees: "Bad debt: protocol fees", Uncovered: "Bad debt: uncovered" } as const;
 
@@ -106,15 +107,15 @@ export function MeridianRiskCards() {
             <dl className="num mb-2 grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
               <div>
                 <dt className="text-xs text-muted">Balance now</dt>
-                <dd>{ifBal !== undefined ? `${formatAusdToken(ifBal)} AUSD` : q.data?.insurance ? `${formatAusdToken(q.data.insurance.fundedToken - q.data.insurance.coveredToken)} AUSD` : "—"}</dd>
+                <dd>{ifBal !== undefined ? `${formatAusdToken(ifBal)} ${COLLATERAL}` : q.data?.insurance ? `${formatAusdToken(q.data.insurance.fundedToken - q.data.insurance.coveredToken)} ${COLLATERAL}` : "—"}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted">Funded (all time)</dt>
-                <dd>{q.data?.insurance ? `${formatAusdToken(q.data.insurance.fundedToken)} AUSD` : "—"}</dd>
+                <dd>{q.data?.insurance ? `${formatAusdToken(q.data.insurance.fundedToken)} ${COLLATERAL}` : "—"}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted">Bad debt covered</dt>
-                <dd>{q.data?.insurance ? `${formatAusdToken(q.data.insurance.coveredToken)} AUSD` : "—"}</dd>
+                <dd>{q.data?.insurance ? `${formatAusdToken(q.data.insurance.coveredToken)} ${COLLATERAL}` : "—"}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted">Waterfall steps</dt>

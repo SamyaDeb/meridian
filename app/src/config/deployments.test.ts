@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import dryRun from "../../../deployments/dry-run/10143.json";
 import testnet from "../../../deployments/10143.json";
-import { type Deployment, DEPLOYMENTS, buildDeployments, isLive, swapMarketFor, swapMarketsFor, swapMarketsOf, withOverride } from "./deployments";
+import { type Deployment, DEPLOYMENTS, buildDeployments, collateralOf, isLive, swapMarketFor, swapMarketsFor, swapMarketsOf, withOverride } from "./deployments";
 
 describe("deployments", () => {
   it("leaves a `deployed: false` placeholder out; 10143 is live since the 30 Sep broadcast", () => {
@@ -61,5 +61,20 @@ describe("swap markets (CR-017)", () => {
     expect(swapMarketsOf({ ...d, swapMarkets: [{ ...e, deployed: undefined }] }).map((x) => x.source)).toEqual(["meridian"]);
     expect(swapMarketsOf({ ...d, swapMarkets: [{ ...e, fundingSource: "hl" }] }).map((x) => x.source)).toEqual(["meridian"]);
     expect(swapMarketsOf(undefined)).toEqual([]);
+  });
+});
+
+describe("collateralOf (USDC since 4 Nov 2026; a pre-USDC record stays AUSD)", () => {
+  const usdc = "0x00000000000000000000000000000000000000c1";
+  const ausd = "0x00000000000000000000000000000000000000a1";
+  it("contracts.USDC wins, and is a mock only when listed", () => {
+    expect(collateralOf({ contracts: { USDC: usdc, AUSD: ausd }, mockContracts: ["USDC"] })).toEqual({ symbol: "USDC", address: usdc, mock: true });
+    expect(collateralOf({ contracts: { USDC: usdc } })).toEqual({ symbol: "USDC", address: usdc, mock: false });
+  });
+  it("an AUSD-only record is labelled AUSD, never USDC", () => {
+    expect(collateralOf({ contracts: { AUSD: ausd }, mockContracts: ["AUSD"] })).toEqual({ symbol: "AUSD", address: ausd, mock: true });
+  });
+  it("no record ⇒ USDC label, no address", () => {
+    expect(collateralOf(undefined)).toEqual({ symbol: "USDC", address: undefined, mock: false });
   });
 });

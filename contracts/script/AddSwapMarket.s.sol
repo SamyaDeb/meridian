@@ -74,7 +74,7 @@ contract AddSwapMarket is DeployBase {
         require(rec.readUint(".chainId") == block.chainid, "record is for another chain");
         _readPerpl(o, vm.readFile(string.concat(root, "perpl.json")));
         _requireNew(rec, a.symbol);
-        o.ausd = rec.readAddress(".contracts.AUSD");
+        o.ausd = rec.readAddress(".contracts.USDC");
         o.fund = rec.readAddress(".contracts.InsuranceFund");
         address deployer = vm.addr(a.pk);
         o.owner = vm.keyExistsJson(rec, ".owner") ? rec.readAddress(".owner") : deployer;

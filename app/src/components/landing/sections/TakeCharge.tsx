@@ -1,5 +1,6 @@
 import TypeLine from "@/components/landing/TypeLine";
 import Link from "next/link";
+import { COLLATERAL } from "@/config/collateral";
 
 export default function TakeCharge() {
   return (
@@ -58,7 +59,7 @@ export default function TakeCharge() {
               <div style={{ flex: "none", width: "52px", height: "52px", borderRadius: "50%", background: "linear-gradient(180deg,#836ef9,#b6acec)", display: "flex", alignItems: "center", justifyContent: "center" }}><svg width="22" height="22" viewBox="0 0 24 24" fill="#0e100f"><path d="M12 3a9 9 0 1 0 9 9h-9z" /><circle cx="15.5" cy="8.5" r="3.5" fill="none" stroke="#0e100f" strokeWidth="1.6" /></svg></div>
               <div>
                 <div style={{ fontSize: "24px", fontWeight: "600", letterSpacing: "-0.025em" }}>Floating Yield</div>
-                <div style={{ fontSize: "17px", lineHeight: "1.55", color: "#3a3a3a", marginTop: "12px" }}>Deposit AUSD into the basis vault. Its share price rises with the funding it earns, accrued every block.</div>
+                <div style={{ fontSize: "17px", lineHeight: "1.55", color: "#3a3a3a", marginTop: "12px" }}>Deposit {COLLATERAL} into the basis vault. Its share price rises with the funding it earns, accrued every block.</div>
               </div>
             </div>
             <div data-rise="1" style={{ position: "relative", display: "flex", gap: "24px", paddingTop: "32px" }}>

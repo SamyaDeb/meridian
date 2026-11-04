@@ -1,5 +1,6 @@
 import Link from "next/link";
 import TypeLine from "@/components/landing/TypeLine";
+import { COLLATERAL } from "@/config/collateral";
 
 export default function Cta() {
   return (
@@ -11,7 +12,7 @@ export default function Cta() {
           <TypeLine text="Trade the Rate." />
           <TypeLine text="Every Block." />
         </h2>
-        <p data-tp="1" style={{ position: "relative", margin: "26px 0 0", fontSize: "clamp(15px,1.2vw,18px)", lineHeight: "1.5", color: "#271247", letterSpacing: "-0.01em" }}>MON-PERP, the basis vault and funding swaps. All in AUSD, on Monad.</p>
+        <p data-tp="1" style={{ position: "relative", margin: "26px 0 0", fontSize: "clamp(15px,1.2vw,18px)", lineHeight: "1.5", color: "#271247", letterSpacing: "-0.01em" }}>MON-PERP, the basis vault and funding swaps. All in {COLLATERAL}, on Monad.</p>
         <Link href="/trade" data-up="1" data-d="900" style={{ position: "relative", marginTop: "44px", background: "#a08ffb", color: "#0e100f", borderRadius: "999px", padding: "20px 44px", fontSize: "17px", fontWeight: "600", letterSpacing: "-0.02em", boxShadow: "0 0 0 4px rgba(255,255,255,.55)" }} className="hover-primary">Launch App</Link>
       </div>
     </section>

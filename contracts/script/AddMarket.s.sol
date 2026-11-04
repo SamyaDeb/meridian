@@ -75,7 +75,7 @@ contract AddMarket is DeployBase {
 
         address factory = rec.readAddress(".contracts.MarketFactory");
         address fund = rec.readAddress(".contracts.InsuranceFund");
-        address ausd = rec.readAddress(".contracts.AUSD");
+        address ausd = rec.readAddress(".contracts.USDC");
         address deployer = vm.addr(a.pk);
         require(Ownable(factory).owner() == deployer, "the deployer must own the MarketFactory");
         require(Ownable(fund).owner() == deployer, "the deployer must own the InsuranceFund");

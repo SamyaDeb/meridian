@@ -124,7 +124,7 @@ function applyProps(s: State, p: EngineProps, lastReset: { current: number }) {
   if (p.showVolume) {
     s.volume ??= chart.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-    applyData(s.volume as ISeriesApi<SeriesType>, p.bars.map((b) => ({ time: ts(b.time), value: wadToNum(b.volumeBaseWad), color: alpha(b.close >= b.open ? t.long : t.short, b.gapFill ? 0 : 0.35) })), s.seen);
+    applyData(s.volume as ISeriesApi<SeriesType>, p.bars.map((b) => ({ time: ts(b.time), value: wadToNum(p.volumeIn === "quote" ? b.volumeQuoteWad : b.volumeBaseWad), color: alpha(b.close >= b.open ? t.long : t.short, b.gapFill ? 0 : 0.35) })), s.seen);
   } else if (s.volume) {
     chart.removeSeries(s.volume);
     s.volume = undefined;

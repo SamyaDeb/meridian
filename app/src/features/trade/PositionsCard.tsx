@@ -20,6 +20,7 @@ import { TriggersTable } from "@/features/triggers/TriggersTable";
 import { useTriggers } from "@/features/triggers/useTriggers";
 import { MAX_BATCH } from "@/lib/units";
 import { usePerpMarket } from "@/data/market";
+import { COLLATERAL } from "@/config/collateral";
 
 /** K7: the selected market's lot / tick and formatters (ETH-PERP: lot 0.001 ETH, tick 0.10). */
 function useUnits() {
@@ -158,7 +159,7 @@ export function PositionsCard() {
   ];
   const fundCols: Column<FundingSettlement>[] = [
     { key: "b", header: "Block", cell: (f) => <span className="num text-muted">#{f.block.toString()}</span> },
-    { key: "p", header: "Funding (you)", align: "right", cell: (f) => <NumberCell value={-f.payment} format={(v) => formatFixed(v, 18, 6)} signed flash={false} suffix="AUSD" /> },
+    { key: "p", header: "Funding (you)", align: "right", cell: (f) => <NumberCell value={-f.payment} format={(v) => formatFixed(v, 18, 6)} signed flash={false} suffix={COLLATERAL} /> },
   ];
   const liqCols: Column<HistLiquidation>[] = [
     { key: "t", header: "Time (UTC)", cell: (l) => <span className="num text-muted">{time(l.timestamp)}</span> },

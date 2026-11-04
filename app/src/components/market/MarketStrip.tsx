@@ -10,6 +10,7 @@ import { signGlyph } from "@/components/ds/logic";
 import { useNow } from "@/lib/useNow";
 import { usePerpMarket, usePerpMarkets } from "@/data/market";
 import { MarketSwitcher } from "./MarketSwitcher";
+import { COLLATERAL } from "@/config/collateral";
 
 /** Long label on wide strips, short one on narrow strips (container width), so the stats stay on one line. */
 const L = (long: string, short: string) => (
@@ -105,7 +106,7 @@ export function MarketStrip() {
           {s ? <span className={s.change > 0n ? "text-long" : s.change < 0n ? "text-short" : ""}>{pct(s.changeWad)}</span> : dash}
         </Stat>
         <Stat label={L("24h Volume", "Vol 24h")} hint={hint24}>
-          {s ? `${formatAusdWad(s.volumeQuoteWad)} AUSD` : dash}
+          {s ? `${formatAusdWad(s.volumeQuoteWad)} ${COLLATERAL}` : dash}
         </Stat>
         <Stat label={L("Open Interest", "OI")} hint={`Long / short open interest (${pm.base})`}>
           {m ? (

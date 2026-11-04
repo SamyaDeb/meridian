@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useChainId, usePublicClient } from "wagmi";
 import type { PublicClient } from "viem";
-import { contractAddress } from "@/config/deployments";
+import { contractAddress, collateralAddress } from "@/config/deployments";
 import { chainTriggerClient, mockTriggerClient, triggerMode, type TriggerClient } from "./client";
 
 const mock = mockTriggerClient(); // one per tab, so the mocked list survives re-renders
@@ -15,7 +15,7 @@ export function useTriggerClient(): TriggerClient | undefined {
   if (mode === "off") return undefined;
   if (mode === "mock") return mock;
   const m = contractAddress(chainId, "TriggerOrderManager");
-  const ausd = contractAddress(chainId, "AUSD");
+  const ausd = collateralAddress(chainId);
   return pub && m && ausd ? chainTriggerClient(pub as PublicClient, m, ausd) : undefined;
 }
 

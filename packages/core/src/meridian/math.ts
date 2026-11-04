@@ -2,7 +2,7 @@
 // Ported from app/src/lib/math.ts (main @ 0ba1664); units from app/src/lib/units.ts (protocol constants only).
 import { SECONDS_PER_YEAR, WAD, abs, divCeil, divFloor } from "../util/fixed";
 
-/** AUSD is 6 dp at the token boundary (CONTRIBUTING §2, ARCHITECTURE R9): wad = token · 1e12 exactly. */
+/** The collateral (USDC, R10b; AUSD before 4 Nov 2026) is 6 dp at the token boundary (CONTRIBUTING §2): wad = token · 1e12 exactly. */
 export const AUSD_TO_WAD = 10n ** 12n;
 
 /** MATH_SPEC §1.4: pending funding owed by the account, ceil(q·(F_preview − F_entry)/1e18). + = user pays. Rounds up (against the user). */

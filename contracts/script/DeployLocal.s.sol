@@ -55,7 +55,7 @@ contract DeployLocal is DeployBase {
     }
 
     function _deployPerp(address owner) internal {
-        d.ausd = address(new MockERC20("Test AUSD", "tAUSD", 6));
+        d.ausd = address(new MockERC20("Test USDC", "tUSDC", 6));
         d.wmon = address(new MockERC20("Wrapped MON (mock)", "WMON", 18));
         d.oracle = address(new MockOracleAdapter(_u(".local.initialIndexPriceWad")));
         InsuranceFund fund = new InsuranceFund(d.ausd, owner);
@@ -78,7 +78,7 @@ contract DeployLocal is DeployBase {
 
     function _write(uint256 startBlock) internal {
         string memory c = "contracts";
-        c.serialize("AUSD", d.ausd);
+        c.serialize("USDC", d.ausd);
         c.serialize("WMON", d.wmon);
         c.serialize("OracleAdapter", d.oracle);
         c.serialize("InsuranceFund", d.insuranceFund);
@@ -90,7 +90,7 @@ contract DeployLocal is DeployBase {
 
         string[] memory mocks = new string[](5);
         (mocks[0], mocks[1], mocks[2], mocks[3], mocks[4]) =
-        ("AUSD", "WMON", "OracleAdapter", "MeridianVault", "KuruHedger");
+        ("USDC", "WMON", "OracleAdapter", "MeridianVault", "KuruHedger");
 
         string memory root = "root";
         root.serialize("chainId", block.chainid);

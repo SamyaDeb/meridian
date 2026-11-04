@@ -2,7 +2,7 @@
 // the price tick is now a required argument (from OrderBook.tickSize(), never a constant).
 import { WAD } from "../util/fixed";
 
-const AUSD_DECIMALS = 6; // token boundary, CONTRIBUTING §2
+const AUSD_DECIMALS = 6; // collateral token boundary (USDC since 4 Nov 2026; AUSD before), CONTRIBUTING §2
 
 const group = (int: string): string => int.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 

@@ -52,7 +52,7 @@ contract CrashDemo is Script, StdCheats {
         fund = IInsuranceFund(dep.readAddress(".contracts.InsuranceFund"));
         vault = IMeridianVault(dep.readAddress(".contracts.MeridianVault"));
         swap = IFundingSwapMarket(dep.readAddress(".contracts.FundingSwapMarket"));
-        ausd = IERC20(dep.readAddress(".contracts.AUSD"));
+        ausd = IERC20(dep.readAddress(".contracts.USDC"));
         owner = dep.readAddress(".owner");
         keeper = vm.envOr("CRASH_KEEPER", address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8));
         mm = vm.envOr("CRASH_MM", address(0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC));

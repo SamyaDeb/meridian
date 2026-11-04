@@ -63,7 +63,7 @@ contract SmokeFork143 is Script {
             )
         );
         require(dep.readBoolOr(".fork", false), "SmokeFork143: the deployments record is not a labelled fork record");
-        ausd = IERC20(dep.readAddress(".contracts.AUSD"));
+        ausd = IERC20(dep.readAddress(".contracts.USDC"));
         ch = IClearingHouse(dep.readAddress(".contracts.ClearingHouse"));
         ob = IOrderBook(dep.readAddress(".contracts.OrderBook"));
         oracle = IOracleAdapter(dep.readAddress(".contracts.OracleAdapter"));

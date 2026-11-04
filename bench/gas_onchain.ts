@@ -34,10 +34,11 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const dep = JSON.parse(readFileSync(process.env.DEPLOYMENTS ?? `${HERE}../deployments/${CHAIN_ID}.json`, "utf8")) as {
   chainId: number;
   deployed?: boolean;
-  contracts: { ClearingHouse: Address; OrderBook: Address; AUSD: Address };
+  contracts: { ClearingHouse: Address; OrderBook: Address; USDC?: Address; AUSD?: Address };
 };
 if (dep.deployed === false || dep.chainId !== CHAIN_ID) throw new Error("deployments: not deployed or chain mismatch");
-const { ClearingHouse: CH, OrderBook: OB, AUSD } = dep.contracts;
+const { ClearingHouse: CH, OrderBook: OB } = dep.contracts;
+const AUSD = (dep.contracts.USDC ?? dep.contracts.AUSD)!; // collateral: USDC since 4 Nov 2026, AUSD on older records
 
 const obAbi = parseAbi([
   "function placeLimitOrder(bool isBid, uint32 tick, uint64 lots, uint8 flags) returns (uint64 orderId, uint64 filledLots)",

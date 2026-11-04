@@ -15,7 +15,7 @@ import type { VenueInput } from "./quote";
 export function walletWadFor(cfg: Pick<AppConfig, "meridian" | "perpl">, b: BalanceState | undefined, venue: "meridian" | "perpl"): bigint | undefined {
   if (!b) return undefined;
   const specs = balanceTokens(cfg);
-  const addr = venue === "meridian" ? (cfg.meridian.status === "deployed" ? cfg.meridian.deployment.contracts.AUSD : undefined) : cfg.perpl.status === "deployed" ? cfg.perpl.deployment.collateralToken : undefined;
+  const addr = venue === "meridian" ? (cfg.meridian.status === "deployed" ? cfg.meridian.deployment.contracts.collateral : undefined) : cfg.perpl.status === "deployed" ? cfg.perpl.deployment.collateralToken : undefined;
   if (!addr) return undefined;
   const i = specs.findIndex((t) => t.address.toLowerCase() === addr.toLowerCase());
   const t = i >= 0 ? b.tokens[i] : undefined;

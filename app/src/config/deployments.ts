@@ -9,6 +9,8 @@ import type { Address } from "@/data/types";
 import type { AddedMarketRecord } from "./markets";
 
 export type ContractKey =
+  /** the collateral (USDC since 4 Nov 2026; pre-USDC records carry AUSD): read it with collateralAddress(), never by key */
+  | "USDC"
   | "AUSD"
   | "WMON"
   | "ClearingHouse"
@@ -45,7 +47,7 @@ export interface Deployment {
   demoMarket?: TestMarket;
   /** K7: markets added to this deployment by AddMarket.s.sol (ETH-PERP on 10143), see config/markets.ts */
   markets?: AddedMarketRecord[];
-  /** contract keys deployed as our mocks (e.g. AUSD = MockERC20 with an open mint on testnet / anvil) */
+  /** contract keys deployed as our mocks (e.g. USDC = the tUSDC MockERC20 with an open mint on testnet / anvil) */
   mockContracts?: string[];
   /** our perp MM, demo MM and house taker flow (deployments `_operators`): disclosed, never counted as users */
   mmAccounts?: Address[];
@@ -156,6 +158,17 @@ export function deploymentState(chainId: number, deployments: Readonly<Record<nu
 
 export function contractAddress(chainId: number, key: ContractKey): Address | undefined {
   return DEPLOYMENTS[chainId]?.contracts[key];
+}
+
+/** Pure: which collateral a record carries. `contracts.USDC` wins; a pre-USDC record (`contracts.AUSD`) stays AUSD, never relabelled. */
+export function collateralOf(d: { contracts?: Partial<Record<"USDC" | "AUSD", string>>; mockContracts?: readonly string[] } | undefined): { symbol: "USDC" | "AUSD"; address: Address | undefined; mock: boolean } {
+  const symbol = d?.contracts?.USDC !== undefined || d?.contracts?.AUSD === undefined ? "USDC" : "AUSD";
+  return { symbol, address: d?.contracts?.[symbol] as Address | undefined, mock: d?.mockContracts?.includes(symbol) ?? false };
+}
+
+/** The collateral token of `chainId` (USDC, or AUSD on a record deployed before the switch). */
+export function collateralAddress(chainId: number): Address | undefined {
+  return collateralOf(DEPLOYMENTS[chainId]).address;
 }
 
 export function deploymentFor(chainId: number): Deployment | undefined {

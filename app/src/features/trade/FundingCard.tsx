@@ -6,6 +6,7 @@ import { Card, Chip, Tooltip } from "@/components/ds";
 import { Sparkline } from "@/components/ui";
 import { formatAprWad, formatAusdWad, formatFixed, formatSignedAprWad } from "@/lib/format";
 import { SECONDS_PER_DAY, fundingOverWad } from "@/lib/fundingCard";
+import { COLLATERAL } from "@/config/collateral";
 
 /**
  * Meridian funding card (FRONTEND_TRADE_PLAN §6.6): the whole rate, not one number. Live per-block rate and APR,
@@ -50,7 +51,7 @@ export function FundingCard() {
         ) : (
           <Tooltip content="At the current rate and index; funding settles every block and the rate moves.">
             <span>
-              At your size you {perDay > 0n ? "pay" : "earn"} <Private kind="pnl"><span className={`num ${perDay > 0n ? "text-short" : "text-long"}`}>{formatAusdWad(perDay < 0n ? -perDay : perDay)} AUSD</span></Private> per day
+              At your size you {perDay > 0n ? "pay" : "earn"} <Private kind="pnl"><span className={`num ${perDay > 0n ? "text-short" : "text-long"}`}>{formatAusdWad(perDay < 0n ? -perDay : perDay)} {COLLATERAL}</span></Private> per day
             </span>
           </Tooltip>
         )}

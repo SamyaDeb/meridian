@@ -45,7 +45,7 @@ export const PERPL_RES_OF: Record<Timeframe, PerplResolution> = {
   "1W": 86_400,
 };
 
-export type PerplMarket = { id: number; name: string; priceDecimals: number; sizeDecimals: number };
+export type PerplMarket = { id: number; name: string; priceDecimals: number; sizeDecimals: number; /** collateral token decimals (candle volume `v`); absent ⇒ no volume drawn */ quoteDecimals?: number };
 
 const isInt = (x: unknown): x is number => typeof x === "number" && Number.isSafeInteger(x);
 const decimalsOk = (d: unknown): d is number => isInt(d) && d >= 0 && d <= 18;
@@ -68,14 +68,28 @@ export function resolvePerplMarket(context: unknown, name = PERPL_MARKET): Perpl
   const pd = m.config?.price_decimals;
   const sd = m.config?.size_decimals;
   if (!isInt(m.id) || !decimalsOk(pd) || !decimalsOk(sd)) return undefined;
-  return { id: m.id, name: String(m.name), priceDecimals: pd, sizeDecimals: sd };
+  const qd = collateralDecimals(context);
+  return { id: m.id, name: String(m.name), priceDecimals: pd, sizeDecimals: sd, ...(qd !== undefined ? { quoteDecimals: qd } : {}) };
+}
+
+/**
+ * Pure: decimals of the collateral token candle volume is quoted in (`Candle.v`, "Volume (collateral token)",
+ * rest-endpoints.md): the single instance's `collateral_token_id` looked up in `tokens`. Anything ambiguous ⇒ undefined.
+ */
+export function collateralDecimals(context: unknown): number | undefined {
+  const c = context as { instances?: unknown; tokens?: unknown } | null;
+  if (!Array.isArray(c?.instances) || c.instances.length !== 1 || !Array.isArray(c.tokens)) return undefined;
+  const id = (c.instances[0] as { collateral_token_id?: unknown } | null)?.collateral_token_id;
+  const hits = (c.tokens as { id?: unknown; decimals?: unknown }[]).filter((t) => t?.id === id);
+  return hits.length === 1 && decimalsOk(hits[0]!.decimals) ? hits[0]!.decimals : undefined;
 }
 
 /** Scaled integer at `decimals` → WAD, exact (Perpl prices and sizes are integers scaled by the market's decimals). */
 export const scaledToWad = (x: number, decimals: number): bigint => BigInt(x) * 10n ** BigInt(18 - decimals);
 
 // ── Payloads our routes send to the browser (only these fields, never the upstream body as such) ──────────────────
-export type PerplCandleRow = { t: number; o: number; h: number; l: number; c: number };
+/** `v`: volume in collateral-token base units (decimal string), `n`: trade count. */
+export type PerplCandleRow = { t: number; o: number; h: number; l: number; c: number; v: string; n: number };
 export type PerplCandlesPayload = { market: PerplMarket; r: PerplResolution; d: PerplCandleRow[] };
 export type PerplLevelRow = { p: number; s: number; o: number };
 export type PerplBookPayload = { market: PerplMarket; block: number; timeMs: number; bid: PerplLevelRow[]; ask: PerplLevelRow[] };
@@ -88,7 +102,8 @@ export function trimCandles(json: unknown): PerplCandleRow[] {
   for (const x of d as Record<string, unknown>[]) {
     const { t, o, h, l, c } = x ?? {};
     if (![t, o, h, l, c].every(isInt)) continue;
-    const r = { t, o, h, l, c } as PerplCandleRow;
+    const v = typeof x.v === "string" && /^\d{1,40}$/.test(x.v) ? x.v : "0";
+    const r = { t, o, h, l, c, v, n: isInt(x.n) && x.n >= 0 ? x.n : 0 } as PerplCandleRow;
     if (r.t <= 0 || Math.min(r.o, r.h, r.l, r.c) <= 0 || r.h < r.l) continue;
     out.push(r);
   }
@@ -107,19 +122,33 @@ export function trimBook(json: unknown): { block: number; timeMs: number; bid: P
   return { block: b.sn, timeMs: isInt(b.at?.t) ? b.at.t : 0, bid: side(b.bid), ask: side(b.ask) };
 }
 
+/** Pure: rows of a full window, then the live tail on top (same resolution): a tail row replaces the row at its time. */
+export function mergeTail(rows: PerplCandleRow[], tail: PerplCandleRow[] = []): PerplCandleRow[] {
+  const byT = new Map<number, PerplCandleRow>();
+  for (const r of rows) byT.set(r.t, r);
+  for (const r of tail) byT.set(r.t, r);
+  return [...byT.values()].sort((a, b) => a.t - b.t);
+}
+
 /**
- * Pure: our candles payload → Bar[] in `tf` buckets, ascending (upstream `t` is ms). Duplicate times keep the last row,
- * empty buckets between real ones are carried forward and flagged `gapFill`. Volume is always 0: another venue's volume
- * is not Meridian's and is never drawn.
+ * Pure: our candles payload (plus an optional live tail of the same resolution) → Bar[] in `tf` buckets, ascending
+ * (upstream `t` is ms). Duplicate times keep the last row; empty buckets between real ones are carried forward and
+ * flagged `gapFill`. Volume is Perpl's own, in its collateral token (`volumeQuoteWad`); without known decimals it is 0.
  */
-export function perplToBars(payload: PerplCandlesPayload, tf: Timeframe): Bar[] {
-  const pd = payload.market.priceDecimals;
-  const byTime = new Map<number, Bar>();
-  for (const r of [...payload.d].sort((a, b) => a.t - b.t)) {
-    const time = Math.floor(r.t / 1_000);
-    byTime.set(time, { time, open: scaledToWad(r.o, pd), high: scaledToWad(r.h, pd), low: scaledToWad(r.l, pd), close: scaledToWad(r.c, pd), volumeBaseWad: 0n, volumeQuoteWad: 0n, trades: 0 });
-  }
-  return aggregate([...byTime.values()], TIMEFRAME_SEC[tf], true, ALIGN_OFFSET_SEC[tf] ?? 0);
+export function perplToBars(payload: PerplCandlesPayload, tf: Timeframe, tail?: PerplCandlesPayload): Bar[] {
+  const { priceDecimals: pd, quoteDecimals: qd } = payload.market;
+  const rows = mergeTail(payload.d, tail && tail.r === payload.r ? tail.d : []);
+  const bars = rows.map((r): Bar => ({
+    time: Math.floor(r.t / 1_000),
+    open: scaledToWad(r.o, pd),
+    high: scaledToWad(r.h, pd),
+    low: scaledToWad(r.l, pd),
+    close: scaledToWad(r.c, pd),
+    volumeBaseWad: 0n,
+    volumeQuoteWad: qd === undefined ? 0n : BigInt(r.v) * 10n ** BigInt(18 - qd),
+    trades: r.n,
+  }));
+  return aggregate(bars, TIMEFRAME_SEC[tf], true, ALIGN_OFFSET_SEC[tf] ?? 0);
 }
 
 /** Pure: our book payload → best-first DepthLevel sides in WAD (bids descending, asks ascending; upstream order is not trusted). */
@@ -140,5 +169,9 @@ export function parsePerplRes(search: URLSearchParams): PerplResolution | null {
 
 /** Fixed base + market + bounded window (`PERPL_MAX_CANDLES` buckets back from `nowMs`): the routes are not a general proxy. */
 export const perplContextUrl = () => `${PERPL_API}/v1/pub/context`;
-export const perplCandlesUrl = (marketId: number, res: PerplResolution, nowMs: number) => `${PERPL_API}/v1/market-data/${marketId}/candles/${res}/${nowMs - res * 1_000 * PERPL_MAX_CANDLES}-${nowMs}`;
+/** Live tail: this many newest buckets, re-read every `CANDLES_TAIL_TTL_MS` so the forming candle moves. */
+export const PERPL_TAIL_CANDLES = 3;
+export const perplCandlesUrl = (marketId: number, res: PerplResolution, nowMs: number, count: number = PERPL_MAX_CANDLES) => `${PERPL_API}/v1/market-data/${marketId}/candles/${res}/${nowMs - res * 1_000 * count}-${nowMs}`;
+/** Pure: the candles route's `tail=1` flag. */
+export const parsePerplTail = (search: URLSearchParams): boolean => search.get("tail") === "1";
 export const perplBookUrl = (marketId: number) => `${PERPL_API}/v1/market-data/${marketId}/book?levels=${PERPL_BOOK_LEVELS}`;

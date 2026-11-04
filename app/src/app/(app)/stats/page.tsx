@@ -6,6 +6,7 @@ import { Card, Notice, PageHeader, Skeleton, StatCard } from "@/components/ds";
 import { formatAprWad, formatAusdToken, formatAusdWad, formatBaseWad } from "@/lib/format";
 import { mmShareBps } from "@/data/indexer/stats";
 import { MarketsTable } from "@/features/market/MarketsTable";
+import { COLLATERAL } from "@/config/collateral";
 
 const pct = (bps: number) => `${(bps / 100).toFixed(1)}%`;
 const apr = (v: bigint | undefined) => (v === undefined ? "—" : formatAprWad(v));
@@ -31,9 +32,9 @@ function IndexerMetrics() {
     <>
       <div className={GRID}>
         <Kpi label="Wallets" value={s.externalUsers.toLocaleString()} sub="traded or deposited · not ours" />
-        <Kpi label="TVL" value={formatAusdToken(s.tvlToken)} sub="AUSD" />
-        <Kpi label="Perp volume" value={formatAusdWad(s.perpVolumeQuoteWad)} sub={`AUSD · our MM in ${pct(mm)}`} />
-        <Kpi label="Fees onchain" value={formatAusdWad(s.feesWad)} sub="AUSD" />
+        <Kpi label="TVL" value={formatAusdToken(s.tvlToken)} sub={COLLATERAL} />
+        <Kpi label="Perp volume" value={formatAusdWad(s.perpVolumeQuoteWad)} sub={`${COLLATERAL} · our MM in ${pct(mm)}`} />
+        <Kpi label="Fees onchain" value={formatAusdWad(s.feesWad)} sub={COLLATERAL} />
         <Kpi label="Swap notional" value={formatBaseWad(s.swapVolumeWad, 0)} sub="MON" />
         <Kpi label="Trades · liquidations" value={`${s.trades.toLocaleString()} · ${s.liquidations}`} />
         {s.funding && (
@@ -75,7 +76,7 @@ function UserMetrics() {
         <Kpi label="External users" value={ge(m.externalUsers, m.externalUsersCapped)} sub={`${m.externalTraders} traded the perp · ours excluded`} />
         <Kpi label="Perp trades" value={m.trades.toLocaleString()} sub={`our MM in ${pct(m.mmShareBps)} of volume`} />
         <Kpi label="Funding swaps opened" value={m.swapsOpenedExternal.toLocaleString()} sub={`by external users · ${m.swapsOpenedAll} incl. ours`} />
-        <Kpi label="Vault depositors" value={m.vaultDepositorsExternal.toLocaleString()} sub={`${formatAusdToken(m.vaultDepositedTokenExternal)} AUSD deposited`} />
+        <Kpi label="Vault depositors" value={m.vaultDepositorsExternal.toLocaleString()} sub={`${formatAusdToken(m.vaultDepositedTokenExternal)} ${COLLATERAL} deposited`} />
         <Kpi label="Withdrawal queue" value={`${r.requested} queued`} sub={`${r.claimable} to claim · ${r.claimed} claimed · ${r.cancelled} cancelled`} />
         <Kpi label="Liquidations" value={ge(m.liquidationsProduct, m.liquidationsCapped)} sub={`product market · ${m.liquidationsTestMarket} on the labelled demo market`} />
       </div>
@@ -93,9 +94,9 @@ function MockMetrics() {
   return (
     <div className={GRID}>
       <Kpi label="Users" value={s ? s.users : "—"} />
-      <Kpi label="TVL" value={s ? `${formatAusdToken(s.tvlToken)}` : "—"} sub="AUSD" />
-      <Kpi label="Perp volume" value={s ? formatAusdWad(s.perpVolumeQuoteWad) : "—"} sub="AUSD" />
-      <Kpi label="Fees" value={s ? formatAusdWad(s.feesWad) : "—"} sub="AUSD" />
+      <Kpi label="TVL" value={s ? `${formatAusdToken(s.tvlToken)}` : "—"} sub={COLLATERAL} />
+      <Kpi label="Perp volume" value={s ? formatAusdWad(s.perpVolumeQuoteWad) : "—"} sub={COLLATERAL} />
+      <Kpi label="Fees" value={s ? formatAusdWad(s.feesWad) : "—"} sub={COLLATERAL} />
       <Kpi label="Trades" value={s ? s.trades.toLocaleString() : "—"} />
       <Kpi label="Liquidations" value={s ? s.liquidations : "—"} />
       <Kpi label="Funding updates" value={s ? s.fundingTicks.toLocaleString() : "—"} sub="one per block" />

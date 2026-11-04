@@ -68,6 +68,7 @@ contract Config143Test is Test {
         assertEq(cfg.readUint(".tokens.AUSD_decimals"), 6, "AUSD 6 dp (R9)");
         assertEq(r.optAddress(".tokens.WMON"), 0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A, "WMON (R10)");
         assertEq(r.optAddress(".tokens.USDC"), 0x754704Bc059F8C67012fEd69BC8A327a5aafb603, "USDC (R10b)");
+        assertEq(cfg.readUint(".tokens.USDC_decimals"), 6, "USDC 6 dp (R10b): the collateral token boundary (x1e12 = WAD)");
         assertEq(cfg.readUint(".tokens.USDC_decimals"), 6, "USDC 6 dp (R10b)");
     }
 

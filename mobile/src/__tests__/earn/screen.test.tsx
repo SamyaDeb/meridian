@@ -93,7 +93,7 @@ async function setup(o: { meridianApr?: number; perplApr?: number; meridianFails
   accounts.store.update({ meridian: { collateralWad: 0n, sizeWad: 0n, entryWad: 0n, upnlWad: 0n, pendingFundingWad: 0n, equityWad: 0n, freeWad: 0n, liqWad: 0n, maintenanceWad: 0n }, perpl: { accountId: 7n, freeWad: 0n, balanceWad: 0n, position: undefined, otherMarkets: false, equityWad: 0n, held: false }, perplMargins: { initHdths: 1000n, maintHdths: 500n } });
   const feed = new WalletFeedStore();
   const cfg = f.live.config;
-  const tokens = cfg.meridian.status === "deployed" && cfg.perpl.status === "deployed" ? [cfg.meridian.deployment.contracts.AUSD, cfg.perpl.deployment.collateralToken] : [];
+  const tokens = cfg.meridian.status === "deployed" && cfg.perpl.status === "deployed" ? [cfg.meridian.deployment.contracts.collateral, cfg.perpl.deployment.collateralToken] : [];
   feed.push({ mon: WAD, tokens: tokens.map((_, i) => ({ label: `t${i}`, amount: 1_000_000_000n, decimals: 6 })), block: 1n, error: undefined });
 
   const sent: LegSpec[] = [];

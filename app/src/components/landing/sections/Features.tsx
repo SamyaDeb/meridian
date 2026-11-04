@@ -1,5 +1,6 @@
 import TypeLine from "@/components/landing/TypeLine";
 import { dashRows } from "@/components/landing/data";
+import { COLLATERAL } from "@/config/collateral";
 
 export default function Features() {
   return (
@@ -8,7 +9,7 @@ export default function Features() {
         <TypeLine text="The Funding-Rate Layer" />
         <TypeLine text="Built for Monad" />
       </h2>
-      <p data-tp="1" style={{ margin: "40px 0 0", maxWidth: "540px", fontSize: "clamp(16px,1.3vw,19px)", lineHeight: "1.5", color: "#3a3a3a", letterSpacing: "-0.01em", textWrap: "pretty" }}>A per-block funding perp, a public funding-rate oracle, a basis vault and fixed-rate funding swaps. All in AUSD.</p>
+      <p data-tp="1" style={{ margin: "40px 0 0", maxWidth: "540px", fontSize: "clamp(16px,1.3vw,19px)", lineHeight: "1.5", color: "#3a3a3a", letterSpacing: "-0.01em", textWrap: "pretty" }}>A per-block funding perp, a public funding-rate oracle, a basis vault and fixed-rate funding swaps. All in {COLLATERAL}.</p>
       <div style={{ width: "100%", maxWidth: "1310px", marginTop: "70px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,480px),1fr))", gap: "30px", textAlign: "left", perspective: "1400px" }}>
         <div data-scroll="left" style={{ background: "#eceaf4", borderRadius: "44px", padding: "56px 48px 0", height: "552px", display: "flex", flexDirection: "column", overflow: "hidden", willChange: "transform,opacity" }}>
           <div style={{ fontSize: "36px", fontWeight: "600", letterSpacing: "-0.04em" }}>Per-Block Funding Perp</div>

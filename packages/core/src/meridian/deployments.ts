@@ -4,8 +4,12 @@
 // mainnet day), reads as "not deployed" and is refused by the throwing variant.
 import { getAddress, isAddress, type Address } from "viem";
 
+/** Collateral symbols a record can carry: `contracts.USDC` (DeployMeridian since 4 Nov 2026) or `contracts.AUSD` (before). */
+export type CollateralSymbol = "USDC" | "AUSD";
+
 export type MeridianContracts = {
-  AUSD: Address;
+  /** the collateral token, 6 dp: `contracts.USDC` (tUSDC mock on testnet), else a pre-USDC record's `contracts.AUSD` */
+  collateral: Address;
   ClearingHouse: Address;
   OrderBook: Address;
   FundingSwapMarket?: Address;
@@ -20,8 +24,12 @@ export type MeridianContracts = {
 export type MeridianDeployment = {
   chainId: number;
   contracts: MeridianContracts;
-  /** contracts that are mocks on this chain (e.g. testnet AUSD): the app labels them */
+  /** contracts that are mocks on this chain (e.g. testnet tUSDC): the app labels them */
   mockContracts: string[];
+  /** which token the record's collateral is: drives every on-screen symbol, so an older AUSD record is never shown as USDC */
+  collateralSymbol: CollateralSymbol;
+  /** the collateral is a testnet mock (open mint; the app labels it "Test …") */
+  collateralIsMock: boolean;
   startBlock: bigint | undefined;
   symbol: string | undefined;
   /** CR-017: every funding-swap market of the chain, the Meridian-funding one (contracts.*) first */
@@ -54,7 +62,7 @@ function addr(o: Obj, k: string, where: string): Address {
   return getAddress(v);
 }
 
-const REQUIRED = ["AUSD", "ClearingHouse", "OrderBook"] as const;
+const REQUIRED = ["ClearingHouse", "OrderBook"] as const;
 const OPTIONAL = ["FundingSwapMarket", "SwapOrderBook", "MeridianVault", "InsuranceFund", "OracleAdapter", "MarketFactory", "WMON"] as const;
 
 /** deployments/<chainId>.json → typed view, or why it isn't usable. `json` undefined = the file doesn't exist. */
@@ -66,14 +74,15 @@ export function tryReadMeridianDeployment(json: unknown, chainId: number): Deplo
   if (!isObj(json.contracts)) throw new Error(`deployments/${chainId}.json: contracts missing`);
   const c = json.contracts;
   const where = `deployments/${chainId}.json contracts`;
-  const contracts = Object.fromEntries(REQUIRED.map((k) => [k, addr(c, k, where)])) as MeridianContracts;
+  const collateralSymbol: CollateralSymbol = c.USDC !== undefined ? "USDC" : "AUSD";
+  const contracts = { collateral: addr(c, collateralSymbol, where), ...Object.fromEntries(REQUIRED.map((k) => [k, addr(c, k, where)])) } as MeridianContracts;
   for (const k of OPTIONAL) if (c[k] !== undefined) (contracts as Record<string, Address>)[k] = addr(c, k, where);
   const swapMarkets = readSwapMarkets(json, contracts, chainId);
   const mocks = Array.isArray(json.mockContracts) ? json.mockContracts.filter((x): x is string => typeof x === "string") : [];
   const sb = json.startBlock;
   return {
     status: "deployed",
-    deployment: { chainId, contracts, swapMarkets, mockContracts: mocks, startBlock: typeof sb === "number" && Number.isSafeInteger(sb) ? BigInt(sb) : undefined, symbol: typeof json.symbol === "string" ? json.symbol : undefined },
+    deployment: { chainId, contracts, swapMarkets, mockContracts: mocks, collateralSymbol, collateralIsMock: mocks.includes(collateralSymbol), startBlock: typeof sb === "number" && Number.isSafeInteger(sb) ? BigInt(sb) : undefined, symbol: typeof json.symbol === "string" ? json.symbol : undefined },
   };
 }
 

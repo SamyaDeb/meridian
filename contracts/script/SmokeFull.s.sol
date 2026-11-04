@@ -59,7 +59,7 @@ contract SmokeFull is Script {
         );
         string memory name = vm.envOr("DEPLOYMENTS_OUT", string("anvil-10143.json"));
         string memory dep = vm.readFile(string.concat(vm.projectRoot(), "/../deployments/", name));
-        ausd = MockERC20(dep.readAddress(".contracts.AUSD"));
+        ausd = MockERC20(dep.readAddress(".contracts.USDC"));
         oracle = TestnetKeeperOracle(dep.readAddress(".contracts.OracleAdapter"));
         ch = IClearingHouse(dep.readAddress(".contracts.ClearingHouse"));
         ob = IOrderBook(dep.readAddress(".contracts.OrderBook"));

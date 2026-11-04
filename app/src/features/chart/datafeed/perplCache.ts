@@ -5,6 +5,8 @@
 // UPSTREAM_PER_MIN, a 429 pauses every upstream call for COOLDOWN_MS, and a 429, the budget or an outage serves the
 // last good copy while it is still a fair reference (stale limits below), else an error.
 import {
+  PERPL_MAX_CANDLES,
+  PERPL_TAIL_CANDLES,
   perplBookUrl,
   perplCandlesUrl,
   perplContextUrl,
@@ -19,11 +21,13 @@ import {
 
 export const CONTEXT_TTL_MS = 10 * 60_000;
 export const CANDLES_TTL_MS = 30_000;
+/** The live tail (newest PERPL_TAIL_CANDLES buckets): one small upstream call per resolution in view every 2 s. */
+export const CANDLES_TAIL_TTL_MS = 2_000;
 export const BOOK_TTL_MS = 4_000;
 export const CANDLES_STALE_MAX_MS = 15 * 60_000;
 export const BOOK_STALE_MAX_MS = 30_000; // an older book is not a fair picture of the venue: report unavailable instead
-/** Upstream calls per rolling minute for the whole server (book every 4 s = 15, plus candles and context). */
-export const UPSTREAM_PER_MIN = 40;
+/** Upstream calls per rolling minute for the whole server (book every 4 s = 15, a live candle tail every 2 s = 30 per resolution in view, plus full windows and context). */
+export const UPSTREAM_PER_MIN = 90;
 export const COOLDOWN_MS = 30_000;
 
 export type CacheResult<T> = { status: 200; body: T; stale: boolean } | { status: 502 | 503; error: string };
@@ -98,11 +102,12 @@ export function createPerplCache(fetchFn: typeof fetch = fetch, now: () => numbe
     });
 
   return {
-    candles(res: PerplResolution): Promise<CacheResult<PerplCandlesPayload>> {
-      return cached(`candles/${res}`, CANDLES_TTL_MS, CANDLES_STALE_MAX_MS, async () => {
+    candles(res: PerplResolution, tail = false): Promise<CacheResult<PerplCandlesPayload>> {
+      const ttl = tail ? CANDLES_TAIL_TTL_MS : CANDLES_TTL_MS;
+      return cached(`candles/${res}${tail ? "/tail" : ""}`, ttl, tail ? 30_000 : CANDLES_STALE_MAX_MS, async () => {
         const m = await market();
         if (m.status !== 200) throw new Upstream(m.error, m.status);
-        return { market: m.body, r: res, d: trimCandles(await getJson(perplCandlesUrl(m.body.id, res, now()))) };
+        return { market: m.body, r: res, d: trimCandles(await getJson(perplCandlesUrl(m.body.id, res, now(), tail ? PERPL_TAIL_CANDLES : PERPL_MAX_CANDLES))) };
       });
     },
     book(): Promise<CacheResult<PerplBookPayload>> {

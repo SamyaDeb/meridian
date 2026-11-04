@@ -53,7 +53,7 @@ abstract contract AddMarketBase is Test {
         vm.stopPrank();
 
         string memory c = string.concat("contracts-", recordName);
-        c.serialize("AUSD", address(ausd));
+        c.serialize("USDC", address(ausd));
         c.serialize("InsuranceFund", address(fund));
         c.serialize("ClearingHouse", address(monCh));
         c.serialize("OrderBook", address(monOb));

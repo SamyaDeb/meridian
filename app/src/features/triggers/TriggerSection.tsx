@@ -9,6 +9,7 @@ import { PERP_LOT_SIZE_WAD as LOT, PERP_TICK_SIZE_WAD as TICK } from "@/lib/unit
 import { MAX_TRIGGERS_PER_ACCOUNT, type TriggerKind } from "./abi";
 import { closingIsBid, expiryBlockFor, pctFromTrigger, pnlAtTrigger, triggerFromPct, wouldFire, worstTick } from "./math";
 import { useTriggers } from "./useTriggers";
+import { COLLATERAL } from "@/config/collateral";
 
 const EXPIRIES = [
   { id: "1d", label: "1 day", sec: 86_400n },
@@ -72,7 +73,7 @@ export function TriggerSection({ account, market }: { account: AccountSummary | 
         <input aria-label="Trigger price" inputMode="decimal" value={val} onChange={(e) => setVal(e.target.value)} className="num h-9 min-w-0 flex-1 rounded-control border border-line bg-card-2 px-3 text-sm pointer-coarse:h-11" />
         <select aria-label="Trigger unit" value={unit} onChange={(e) => (setUnit(e.target.value as "%" | "AUSD"), setVal(e.target.value === "AUSD" && trigger ? formatPriceWad(trigger).replace(/,/g, "") : "5"))} className="h-9 rounded-control border border-line bg-card-2 px-2 text-xs pointer-coarse:h-11">
           <option value="%">% from entry</option>
-          <option value="AUSD">AUSD</option>
+          <option value="AUSD">{COLLATERAL}</option>
         </select>
       </div>
       <div className="grid grid-cols-3 gap-1" role="group" aria-label="Share of position">
@@ -96,8 +97,8 @@ export function TriggerSection({ account, market }: { account: AccountSummary | 
         <div className="flex justify-between"><dt className="text-muted">Trigger (index price)</dt><dd>{trigger ? `${formatPriceWad(trigger)} · ${formatFixed(pctFromTrigger(ref, trigger) * 10n ** 16n, 18, 2)}%` : "—"}</dd></div>
         <div className="flex justify-between"><dt className="text-muted">Worst fill price</dt><dd>{limitTick !== undefined ? formatPriceWad(BigInt(limitTick) * TICK) : "—"}</dd></div>
         <div className="flex justify-between"><dt className="text-muted">Size</dt><dd>{formatBaseWad(lots * LOT, 0)} MON ({lots.toString()} lots)</dd></div>
-        <div className="flex justify-between"><dt className="text-muted">PnL at trigger (est.)</dt><dd>{trigger ? formatAusdWad(pnlAtTrigger(account.size, account.entryPrice, trigger, lots * LOT)) : "—"} AUSD</dd></div>
-        <div className="flex justify-between"><dt className="text-muted">Execution tip (prepaid, refunded on cancel / expiry)</dt><dd>{tip !== undefined ? `${formatAusdToken(tip)} AUSD` : "—"}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted">PnL at trigger (est.)</dt><dd>{trigger ? formatAusdWad(pnlAtTrigger(account.size, account.entryPrice, trigger, lots * LOT)) : "—"} {COLLATERAL}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted">Execution tip (prepaid, refunded on cancel / expiry)</dt><dd>{tip !== undefined ? `${formatAusdToken(tip)} ${COLLATERAL}` : "—"}</dd></div>
       </dl>
       <Notice tone="warn">
         <strong>A stop is not liquidation protection.</strong> It fires only when someone executes it after the index crosses the trigger, and only fills inside the worst price.
