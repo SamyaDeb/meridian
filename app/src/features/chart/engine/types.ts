@@ -34,6 +34,8 @@ export type EngineProps = {
   bars: readonly Bar[];
   chartType: ChartType;
   showVolume: boolean;
+  /** which volume the histogram draws: base units (Meridian book, default) or quote (Perpl candles, collateral token) */
+  volumeIn?: "base" | "quote";
   priceLines: readonly PriceLineSpec[];
   overlays: readonly LineOverlay[];
   panes: readonly PaneSpec[];

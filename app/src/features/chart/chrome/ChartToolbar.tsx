@@ -76,6 +76,8 @@ function RadioMenu<T extends string>({
 export type ChartToolbarProps = {
   /** the MON/USD DEX reference exists only for MON-PERP (K7); default = the build flag */
   referenceEnabled?: boolean;
+  /** false hides the price-source menu (the trade chart draws Perpl's candles only) */
+  showSource?: boolean;
   view: ChartView;
   onChange: (patch: Partial<ChartView>) => void;
   fullscreen: boolean;
@@ -85,7 +87,7 @@ export type ChartToolbarProps = {
   redo: { can: boolean; run: () => void };
 };
 
-export function ChartToolbar({ view, onChange, fullscreen, onFullscreen, onScreenshot, undo, redo, referenceEnabled }: ChartToolbarProps) {
+export function ChartToolbar({ view, onChange, fullscreen, onFullscreen, onScreenshot, undo, redo, referenceEnabled, showSource = true }: ChartToolbarProps) {
   const type = TYPE_META.find((t) => t.id === view.chartType) ?? TYPE_META[0]!;
   const toggleIndicator = (id: IndicatorId) => onChange({ indicators: view.indicators.includes(id) ? view.indicators.filter((x) => x !== id) : [...view.indicators, id] });
   const count = view.indicators.length;
@@ -140,6 +142,8 @@ export function ChartToolbar({ view, onChange, fullscreen, onFullscreen, onScree
           onPick={(chartType) => onChange({ chartType })}
         />
         <Divider />
+        {showSource && (
+          <>
         <RadioMenu<PriceSource>
           label="Price source"
           face={<span className="max-w-[9rem] truncate whitespace-nowrap font-medium text-text">{SOURCE_LABEL[view.source].short}</span>}
@@ -153,7 +157,9 @@ export function ChartToolbar({ view, onChange, fullscreen, onFullscreen, onScree
           )}
           onPick={(source) => onChange({ source })}
         />
-        <Divider />
+            <Divider />
+          </>
+        )}
         <Popover
           label="Indicators"
           align="start"

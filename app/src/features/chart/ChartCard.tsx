@@ -30,7 +30,9 @@ import { buildIndicators } from "./indicators/build";
 const LIMIT: Record<Timeframe, number> = { "1m": 500, "3m": 1_000, "5m": 1_500, "15m": 2_000, "30m": 2_000, "1h": 500, "2h": 1_000, "4h": 1_500, "6h": 2_000, "12h": 2_000, "1D": 2_000, "1W": 2_000 };
 const MARK_ROWS = 2_000; // FundingTick is one row per block: the most recent 2,000 blocks (~10 min at 300 ms)
 const INDEX_ROWS = 2_000; // OraclePrice is one row per oracle update
-const PLACEHOLDER_MARKET = "MON-PERP"; // view key until the market's address has loaded (adoptView carries choices over)
+const PLACEHOLDER_MARKET = "MON-PERP";
+/** The one attribution kept on the trade chart when it draws Perpl's candles (footer, small). */
+export const PERPL_CREDIT = "Price data: Perpl"; // view key until the market's address has loaded (adoptView carries choices over)
 const SOURCE_NAME: Record<PriceSource, string> = { last: "Last", mark: "Mark", index: "Index", reference: "Reference", perpl: "Reference" };
 /** Venue named in the legend for each source (outside venues by name, never "Meridian"). */
 const VENUE: Record<PriceSource, string> = { last: "Meridian", mark: "Meridian", index: "Meridian", reference: "Uniswap v4 · GeckoTerminal", perpl: PERPL_VENUE };
@@ -66,8 +68,10 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
   useEffect(() => adoptView(PLACEHOLDER_MARKET, market), [market]);
   // the DEX reference is MON/USD: offered on MON-PERP only (K7)
   const refOk = REFERENCE_ENABLED && pm.primary;
+  // Perpl's MON perp candles replace the trade chart's series on MON-PERP whenever the Perpl flag is on (no source menu)
+  const perplMain = PERPL_ENABLED && pm.primary;
   const storedView = useChartView(market);
-  const view = !refOk && storedView.source === "reference" ? { ...storedView, source: "last" as const } : storedView;
+  const view = perplMain ? { ...storedView, source: "perpl" as const } : !refOk && storedView.source === "reference" ? { ...storedView, source: "last" as const } : storedView;
   const tf = view.timeframe;
   const sec = TIMEFRAME_SEC[tf];
   const offset = ALIGN_OFFSET_SEC[tf] ?? 0;
@@ -103,18 +107,18 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
     retry: 1,
   });
   // labelled outside venue (flag only): Perpl's MON perp candles (Monad mainnet) through our server route, cached there
-  const perpl = useQuery({
-    queryKey: ["perplCandles", tf],
-    queryFn: async ({ signal }) => {
-      const r = await fetch(`/api/perpl/candles?res=${PERPL_RES_OF[tf]}`, { signal });
-      const body: unknown = await r.json().catch(() => null);
-      if (!r.ok) throw new Error((body as { error?: string } | null)?.error ?? `HTTP ${r.status}`);
-      return perplToBars(body as PerplCandlesPayload, tf);
-    },
-    enabled: view.source === "perpl" && PERPL_ENABLED,
-    refetchInterval: 30_000,
-    retry: 1,
-  });
+  const perplRes = PERPL_RES_OF[tf];
+  const perplFetch = async (tail: boolean, signal: AbortSignal) => {
+    const r = await fetch(`/api/perpl/candles?res=${perplRes}${tail ? "&tail=1" : ""}`, { signal });
+    const body: unknown = await r.json().catch(() => null);
+    if (!r.ok) throw new Error((body as { error?: string } | null)?.error ?? `HTTP ${r.status}`);
+    return body as PerplCandlesPayload;
+  };
+  const perplOn = view.source === "perpl" && PERPL_ENABLED;
+  const perplFull = useQuery({ queryKey: ["perplCandles", perplRes], queryFn: ({ signal }) => perplFetch(false, signal), enabled: perplOn, refetchInterval: 30_000, retry: 1 });
+  // live: the newest buckets every 2 s (server-cached 2 s for every viewer), drawn over the full window
+  const perplTail = useQuery({ queryKey: ["perplCandlesTail", perplRes], queryFn: ({ signal }) => perplFetch(true, signal), enabled: perplOn && perplFull.data !== undefined, refetchInterval: 2_000, retry: 0 });
+  const perpl = { ...perplFull, data: perplFull.data ? perplToBars(perplFull.data, tf, perplTail.data) : undefined };
   const { data: trades } = useTrades(40);
   const { data: ticks } = useFundingTicks(200); // same query as the funding ticker (one RPC scan, shared cache)
   const now = useNow(1_000);
@@ -212,7 +216,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
   const chg = legend && legend.open ? ((legend.close - legend.open) / legend.open) * 100 : 0;
   const volBar = legend ? bars.find((b) => b.time === legend.time) : undefined;
   const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(2)}K` : n.toFixed(0));
-  const legendVol = volBar ? compact(wadToNum(volBar.volumeBaseWad)) : undefined;
+  const legendVol = volBar ? (source === "perpl" ? (perplFull.data?.market.quoteDecimals !== undefined ? `$${compact(wadToNum(volBar.volumeQuoteWad))}` : undefined) : compact(wadToNum(volBar.volumeBaseWad))) : undefined;
 
   // range bar: after the timeframe switch lands and the engine has made its own fit, frame the chosen window
   useEffect(() => {
@@ -249,8 +253,12 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
       return reference.isPending ? { title: "Loading", body: "" } : { title: "No reference data", body: "GeckoTerminal returned no MON/USDC candles for this pool." };
     }
     if (view.source === "perpl") {
-      if (perpl.isError) return { title: "Perpl unavailable", body: `${perpl.error.message}. Our mark and index lines still show.` };
-      return perpl.isPending ? { title: "Loading", body: "" } : { title: "No Perpl data", body: "Perpl returned no MON candles for this window." };
+      if (perplMain) {
+        if (perplFull.isError) return { title: "Chart data unavailable", body: `${perplFull.error.message}. Retrying; the mark and index lines still show.` };
+        return perplFull.isPending ? { title: "Loading", body: "" } : { title: "No candles yet", body: "No trades in this window." };
+      }
+      if (perplFull.isError) return { title: "Perpl unavailable", body: `${perplFull.error.message}. Our mark and index lines still show.` };
+      return perplFull.isPending ? { title: "Loading", body: "" } : { title: "No Perpl data", body: "Perpl returned no MON candles for this window." };
     }
     if (sessionMode) return { title: "Recording", body: "Prices read from the chain every block are drawn from the moment this page opened." };
     if (view.source === "index" && oracle === undefined) return { title: "Oracle address unknown", body: "The index series is keyed by the market's oracle, which this data source doesn't report." };
@@ -280,6 +288,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
         undo={{ can: draw.canUndo, run: draw.undo }}
         redo={{ can: draw.canRedo, run: draw.redo }}
         referenceEnabled={refOk}
+        showSource={!perplMain}
       />
       <div className="flex min-h-0 flex-1">
         <ToolRail api={draw} onZoomIn={() => coords?.zoom(0.6)} />
@@ -287,7 +296,8 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
           <LightweightEngine
             bars={bars}
             chartType={view.chartType}
-            showVolume={view.volume && source === "last"}
+            showVolume={view.volume && (source === "last" || (source === "perpl" && perplFull.data?.market.quoteDecimals !== undefined))}
+            volumeIn={source === "perpl" ? "quote" : "base"}
             priceLines={lines}
             overlays={[...ind.overlays, ...overlays]}
             panes={[...fundingPanes, ...ind.panes, ...panes]}
@@ -298,7 +308,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
             onCrosshair={setHover}
           />
           <DrawingLayer coords={coords} bars={bars} api={draw} />
-          <SeriesNotes source={source} fellBack={fellBack} />
+          <SeriesNotes source={perplMain ? "last" : source} fellBack={fellBack} />
           {/* legend: logo · name · timeframe · venue, OHLC and change; Vol below; collapsible */}
           {legend && (
             <div className="pointer-events-none absolute left-2 top-1.5 z-10 space-y-0.5 text-[12.5px]" data-testid="ohlc-legend">
@@ -308,11 +318,15 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
                 <span className="text-muted">·</span>
                 <span className="num text-text">{tf}</span>
                 <span className="text-muted">·</span>
-                <span className="text-text">{VENUE[source]}</span>
-                <span className="rounded-[4px] bg-brand-tint px-1 text-[10px] font-semibold text-brand-soft">
-                  {SOURCE_NAME[source]}
-                  {sessionMode && !isOutside(source) ? " · session" : ""}
-                </span>
+                {!perplMain && (
+                  <>
+                    <span className="text-text">{VENUE[source]}</span>
+                    <span className="rounded-[4px] bg-brand-tint px-1 text-[10px] font-semibold text-brand-soft">
+                      {SOURCE_NAME[source]}
+                      {sessionMode && !isOutside(source) ? " · session" : ""}
+                    </span>
+                  </>
+                )}
                 {legendOpen && (
                   <span className="num flex flex-wrap items-center gap-x-1">
                     <span className="text-muted">O</span>
@@ -331,7 +345,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
                   </span>
                 )}
               </div>
-              {legendOpen && view.volume && source === "last" && legendVol !== undefined && (
+              {legendOpen && view.volume && (source === "last" || source === "perpl") && legendVol !== undefined && (
                 <div className="num flex items-center gap-1.5">
                   <span className="text-text">Vol</span>
                   <span className={chg >= 0 ? "text-long" : "text-short"}>{legendVol}</span>
@@ -374,7 +388,7 @@ export function ChartCard({ priceLines = [], overlays = [], panes = [], onPriceC
       <ChartFooter
         range={range}
         onRange={pickRange}
-        note={historyNote({ source: view.source, session: sessionMode, firstSec: firstReal?.time, markRows: view.source === "mark" ? marks.data?.length : undefined })}
+        note={perplMain ? PERPL_CREDIT : historyNote({ source: view.source, session: sessionMode, firstSec: firstReal?.time, markRows: view.source === "mark" ? marks.data?.length : undefined })}
         chips={
           <>
             {view.fundingPane && ticks && ticks.length === 0 && <Chip>funding: no update in the log window</Chip>}

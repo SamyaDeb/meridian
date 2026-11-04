@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { BOOK_STALE_MAX_MS, BOOK_TTL_MS, CANDLES_TTL_MS, CONTEXT_TTL_MS, COOLDOWN_MS, UPSTREAM_PER_MIN, createPerplCache } from "./perplCache";
+import { BOOK_STALE_MAX_MS, BOOK_TTL_MS, CANDLES_TAIL_TTL_MS, CANDLES_TTL_MS, CONTEXT_TTL_MS, COOLDOWN_MS, UPSTREAM_PER_MIN, createPerplCache } from "./perplCache";
 
 const CONTEXT = { chain: { chain_id: 143 }, markets: [{ id: 10, symbol: "", name: "MON", config: { price_decimals: 6, size_decimals: 0 } }], tokens: [{ secret: true }] };
 const candles = (o: number) => ({ mt: 12, r: 60, at: { b: 1, t: 1 }, d: [{ t: 60_000, o, h: o, l: o, c: o, v: "1", n: 1 }] });
@@ -25,11 +25,30 @@ describe("Perpl cache (unpublished REST limits shared by every viewer)", () => {
   it("resolves the market once and returns only our trimmed fields", async () => {
     const { cache, calls } = setup({ context: () => res(200, CONTEXT), candles: () => res(200, candles(27_000)), book: () => res(200, book(7)) });
     const c = await cache.candles(60);
-    expect(c).toEqual({ status: 200, stale: false, body: { market: { id: 10, name: "MON", priceDecimals: 6, sizeDecimals: 0 }, r: 60, d: [{ t: 60_000, o: 27_000, h: 27_000, l: 27_000, c: 27_000 }] } });
+    expect(c).toEqual({ status: 200, stale: false, body: { market: { id: 10, name: "MON", priceDecimals: 6, sizeDecimals: 0 }, r: 60, d: [{ t: 60_000, o: 27_000, h: 27_000, l: 27_000, c: 27_000, v: "1", n: 1 }] } });
     const b = await cache.book();
     expect(b).toMatchObject({ status: 200, body: { block: 7, timeMs: 5, bid: [{ p: 27_000, s: 10, o: 1 }] } });
     expect(JSON.stringify(b)).not.toContain("mt");
     expect(calls).toEqual(["context", "candles", "book"]);
+  });
+  it("the live tail is its own key on a 2 s TTL and asks Perpl for only the newest buckets", async () => {
+    const urls: string[] = [];
+    let t = 1_000_000_000;
+    const fetchFn = vi.fn(async (url: string) => {
+      urls.push(url);
+      return url.includes("/pub/context") ? res(200, CONTEXT) : res(200, candles(5));
+    });
+    const cache = createPerplCache(fetchFn as unknown as typeof fetch, () => t);
+    await cache.candles(60);
+    await cache.candles(60, true);
+    await cache.candles(60, true);
+    t += CANDLES_TAIL_TTL_MS;
+    await cache.candles(60, true);
+    const c = urls.filter((u) => u.includes("/candles/"));
+    expect(c).toHaveLength(3);
+    const span = (u: string) => { const [a, b] = u.split("/").pop()!.split("-").map(Number); return b! - a!; };
+    expect(span(c[0]!)).toBe(60_000 * 1_000);
+    expect(span(c[1]!)).toBe(60_000 * 3);
   });
   it("one upstream call per key per TTL; concurrent misses share a fetch", async () => {
     const { cache, calls, advance } = setup({ context: () => res(200, CONTEXT), candles: () => res(200, candles(1)), book: () => res(200, book(1)) });
