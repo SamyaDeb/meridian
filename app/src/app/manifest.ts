@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { COLLATERAL } from "@/config/collateral";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Meridian: per-block funding on Monad",
     short_name: "Meridian",
-    description: "Per-block funding perp, funding-rate oracle, basis vault and fixed-rate funding swaps. All in AUSD.",
+    description: `Per-block funding perp, funding-rate oracle, basis vault and fixed-rate funding swaps. All in ${COLLATERAL}.`,
     id: "/",
     start_url: "/trade",
     scope: "/",

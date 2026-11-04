@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { hashTypedData, recoverTypedDataAddress, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { PERMIT_TTL_SECONDS, PermitError, assertPermitUsable, buildPermitTypedData, permitDeadline, splitSignature } from "./permit";
+import { PERMIT_TTL_SECONDS, PermitError, assertPermitUsable, buildPermitTypedData, permitDeadline, permitDomainFrom, splitSignature } from "./permit";
 
 const acct = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"); // anvil #1, test-only
 const token = "0x00000000000000000000000000000000000000a1" as Address;
 const spender = "0x00000000000000000000000000000000000000b2" as Address;
-const base = { token, owner: acct.address, spender, value: 5_000_000n, nonce: 7n, chainId: 10143, deadline: 2_000_000_000n };
+const base = { token, owner: acct.address, spender, value: 5_000_000n, nonce: 7n, chainId: 10143, deadline: 2_000_000_000n, domain: { name: "Test USDC", version: "1" } };
 
 describe("permit typed data", () => {
-  it("uses the AUSD domain, the token as verifyingContract and the exact message fields", () => {
+  it("uses the token's own domain, the token as verifyingContract and the exact message fields", () => {
     const t = buildPermitTypedData(base);
-    expect(t.domain).toEqual({ name: "Agora Dollar", version: "1", chainId: 10143, verifyingContract: token });
+    expect(t.domain).toEqual({ name: "Test USDC", version: "1", chainId: 10143, verifyingContract: token });
     expect(t.primaryType).toBe("Permit");
     expect(t.message).toEqual({ owner: acct.address, spender, value: 5_000_000n, nonce: 7n, deadline: 2_000_000_000n });
   });
@@ -21,6 +21,21 @@ describe("permit typed data", () => {
     expect(await recoverTypedDataAddress({ ...t, signature: sig })).toBe(acct.address);
     expect(hashTypedData(buildPermitTypedData({ ...base, nonce: 8n }))).not.toBe(hashTypedData(t));
     expect(hashTypedData(buildPermitTypedData({ ...base, chainId: 143 }))).not.toBe(hashTypedData(t));
+  });
+  it("a different domain name or version gives a different digest", () => {
+    const t = hashTypedData(buildPermitTypedData(base));
+    expect(hashTypedData(buildPermitTypedData({ ...base, domain: { name: "USD Coin", version: "1" } }))).not.toBe(t);
+    expect(hashTypedData(buildPermitTypedData({ ...base, domain: { name: "Test USDC", version: "2" } }))).not.toBe(t);
+  });
+  it("permitDomainFrom: trusts eip712Domain() only for this chain and this token, with name and version", () => {
+    const ok = ["0x0f", "USD Coin", "2", 10143n, token, "0x" + "0".repeat(64), []] as const;
+    expect(permitDomainFrom(ok, token, 10143)).toEqual({ name: "USD Coin", version: "2" });
+    expect(permitDomainFrom(ok, token.toUpperCase().replace("0X", "0x") as Address, 10143)).toEqual({ name: "USD Coin", version: "2" });
+    expect(permitDomainFrom(ok, token, 143)).toBeUndefined(); // other chain
+    expect(permitDomainFrom(ok, spender, 10143)).toBeUndefined(); // other contract
+    expect(permitDomainFrom(["0x0c", "USD Coin", "2", 10143n, token], token, 10143)).toBeUndefined(); // name/version not declared
+    expect(permitDomainFrom(["0x03", "USD Coin", "", 0n, spender], token, 10143)).toBeUndefined(); // empty version
+    expect(permitDomainFrom(["0x03", "USD Coin", "2", 0n, spender], token, 10143)).toEqual({ name: "USD Coin", version: "2" }); // chain / contract not part of the domain
   });
   it("deadline = now + 30 min (whole seconds)", () => {
     expect(PERMIT_TTL_SECONDS).toBe(1800n);

@@ -18,7 +18,7 @@ import {
 import { clearingHouseAbi, erc20Abi, mockTokenAbi, swapAbi, vaultAbi } from "./abi";
 import { gasLimitFromEstimate, touchAllowance } from "./gas";
 import { LOCAL_CHAIN_ID } from "./wagmi";
-import { assertPermitUsable, buildPermitTypedData, permitDeadline, splitSignature } from "./permit";
+import { assertPermitUsable, buildPermitTypedData, permitDeadline, permitDomainFrom, splitSignature, type PermitDomain } from "./permit";
 import { SponsorError, isSponsorRefusal } from "./sponsor";
 
 /** A fully built call handed to the sponsored transport (Privy `sendTransaction(…, { sponsor: true })`). */
@@ -87,18 +87,19 @@ export async function sendTx<const abi extends Abi, fn extends ContractFunctionN
 }
 
 /** Does the token implement EIP-2612 (nonces)? AUSD does; the local tAUSD mock doesn't. */
-export async function supportsPermit(pub: PublicClient, token: Address, owner: Address): Promise<boolean> {
+/** The token's EIP-2612 domain when it has `nonces` and a trustworthy EIP-5267 `eip712Domain()`; else undefined (approve). */
+export async function permitDomain(pub: PublicClient, token: Address, owner: Address, chainId: number): Promise<PermitDomain | undefined> {
   try {
     await pub.readContract({ address: token, abi: erc20Abi, functionName: "nonces", args: [owner] });
-    return true;
+    return permitDomainFrom(await pub.readContract({ address: token, abi: erc20Abi, functionName: "eip712Domain" }), token, chainId);
   } catch {
-    return false;
+    return undefined;
   }
 }
 
 /**
- * Deposit `amountToken` (6 dp) into the ClearingHouse. With EIP-2612 (domain "Agora Dollar", version "1",
- * chainId, verifyingContract = AUSD) the approval is a signature + permit; otherwise approve + deposit.
+ * Deposit `amountToken` (6 dp) into the ClearingHouse. With EIP-2612 (domain read from the token's
+ * eip712Domain(), chainId, verifyingContract = the token) the approval is a signature + permit; otherwise approve + deposit.
  */
 export async function deposit(pub: PublicClient, wallet: WalletClient, token: Address, ch: Address, amountToken: bigint) {
   await approveOrPermit(pub, wallet, token, ch, amountToken);
@@ -147,20 +148,21 @@ export async function swapWithdraw(pub: PublicClient, wallet: WalletClient, swap
   return sendTx(pub, wallet, { address: swap, abi: swapAbi, functionName: "withdraw", args: [amountToken] });
 }
 
-/** Allowance for `spender`: EIP-2612 permit when the token supports it (AUSD), else approve (tAUSD mock). */
+/** Allowance for `spender`: EIP-2612 permit when the token exposes its domain (EIP-5267), else approve (tUSDC mock). */
 export async function approveOrPermit(pub: PublicClient, wallet: WalletClient, token: Address, ch: Address, amountToken: bigint) {
   const owner = wallet.account?.address;
   if (!owner) throw new Error("wallet not connected");
   const allowance = await pub.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [owner, ch] });
   if (allowance < amountToken) {
-    if (await supportsPermit(pub, token, owner)) {
+    const chainId = await pub.getChainId();
+    const domain = await permitDomain(pub, token, owner, chainId);
+    if (domain) {
       const nonce = await pub.readContract({ address: token, abi: erc20Abi, functionName: "nonces", args: [owner] });
       const deadline = permitDeadline(Date.now());
-      const chainId = await pub.getChainId();
       assertPermitUsable({ walletChainId: wallet.chain?.id, nodeChainId: chainId, deadline, nowMs: Date.now() });
       const sig = await wallet.signTypedData({
         account: wallet.account!,
-        ...buildPermitTypedData({ token, owner, spender: ch, value: amountToken, nonce, deadline, chainId }),
+        ...buildPermitTypedData({ token, owner, spender: ch, value: amountToken, nonce, deadline, chainId, domain }),
       });
       const { v, r, s } = splitSignature(sig);
       await sendTx(pub, wallet, { address: token, abi: erc20Abi, functionName: "permit", args: [owner, ch, amountToken, deadline, v, r, s] });

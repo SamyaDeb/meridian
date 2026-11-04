@@ -63,9 +63,10 @@ export const erc20PermitAbi = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
   "function nonces(address owner) view returns (uint256)",
   "function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)",
+  "function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)",
 ]);
 
-// MockERC20 (testnet / anvil AUSD only, deployments/<id>.json mockContracts): open mint for the K1 faucet.
+// MockERC20 (testnet / anvil collateral only, deployments/<id>.json mockContracts): open mint for the K1 faucet.
 export const mockTokenAbi = parseAbi(["function mint(address to, uint256 amount)"]);
 
 // MeridianVault (ERC-4626 + IMeridianVault, interfaces-v1.5).

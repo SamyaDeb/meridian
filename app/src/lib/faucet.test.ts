@@ -14,6 +14,11 @@ describe("faucet", () => {
   it("never on mainnet, even if a record claimed a mock AUSD", () => {
     expect(faucetAvailable(143, { mockContracts: ["AUSD"] })).toBe(false);
   });
+  it("follows the record's collateral: a USDC record with tUSDC mocked shows it; a real USDC record doesn't", () => {
+    const usdc = "0x00000000000000000000000000000000000000c1";
+    expect(faucetAvailable(10143, { contracts: { USDC: usdc }, mockContracts: ["USDC"] })).toBe(true);
+    expect(faucetAvailable(10143, { contracts: { USDC: usdc }, mockContracts: ["AUSD"] })).toBe(false);
+  });
   it("hidden when AUSD isn't a mock or there is no record", () => {
     expect(faucetAvailable(10143, { mockContracts: ["KuruHedger"] })).toBe(false);
     expect(faucetAvailable(10143, {})).toBe(false);

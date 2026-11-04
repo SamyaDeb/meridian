@@ -7,7 +7,7 @@ import { useAccountAddress, useMarket, useSwap } from "@/data/hooks";
 import { Row, toneOf } from "@/components/ui";
 import { Button, Card, Chip, Dialog, EmptyState, Notice, PageHeader, PillTabs, Skeleton, StatCard, Tooltip } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
-import { contractAddress, swapMarketFor } from "@/config/deployments";
+import { contractAddress, swapMarketFor, collateralAddress } from "@/config/deployments";
 import { orderBookAbi } from "@/lib/abi";
 import { type FixSource, closeOrder, fixSourceCopy, marketLimitTick, parseFixSource, swapAprToTick, swapTickToAprWad } from "@/lib/earnfix";
 import { formatAprWad, formatAusdWad, formatBaseWad, formatDuration, formatFixed, formatSignedAusdWad, parseFixed } from "@/lib/format";
@@ -17,6 +17,7 @@ const fmtAccrual = (wad: bigint): string => `${wad < 0n ? "−" : wad > 0n ? "+"
 import { swapPositionValueWad } from "@/lib/math";
 import { sendTx, swapDeposit, swapWithdraw } from "@/lib/tx";
 import { READ_CHAIN_ID } from "@/lib/wagmi";
+import { COLLATERAL } from "@/config/collateral";
 
 const SWAP_TICK = 10n ** 14n; // 1 bp APR (WS-05 deploy wiring)
 const SWAP_LOT_MON = 1_000n; // 1 lot = 1,000 MON notional
@@ -65,7 +66,7 @@ function Fix() {
   const tx = useTx();
   const swapMarket = source === "perpl" ? swapMarketFor(chainId, "perpl")?.swapMarket : contractAddress(chainId, "FundingSwapMarket");
   const swapBook = source === "perpl" ? perplRef?.swapOrderBook : contractAddress(READ_CHAIN_ID, "SwapOrderBook");
-  const ausd = contractAddress(chainId, "AUSD");
+  const ausd = collateralAddress(chainId);
   const { data: book } = useSwapBook(swapBook);
   const [lots, setLots] = useState("2");
   const [limitApr, setLimitApr] = useState("");
@@ -105,7 +106,7 @@ function Fix() {
       return sendTx(p, w, { address: swapBook, abi: orderBookAbi, functionName: "placeMarketOrder", args: [c.isBid, c.lots, lim, 0n, true] });
     });
   const moveCollateral = (dir: "deposit" | "withdraw") =>
-    tx.run(`${dir} ${collat} AUSD (swap margin)`, (p, w) => {
+    tx.run(`${dir} ${collat} ${COLLATERAL} (swap margin)`, (p, w) => {
       const a = parseFixed(collat, 6);
       if (!swapMarket || !ausd) throw new Error("no swap market on this chain");
       if (a === undefined || a === 0n) throw new Error("enter an amount");
@@ -184,7 +185,7 @@ function Fix() {
           sub={<span className="text-muted">{source === "perpl" ? "from Perpl's onchain funding" : "from the funding-rate oracle"}</span>}
         />
         <StatCard label="Matures In" value={!swap ? "--" : matured ? "Matured" : formatDuration(tau)} sub={<span className="text-muted">{matured ? "close and withdraw only" : "one maturity, 30 days"}</span>} />
-        <StatCard label="Your Swap Margin" value={pos ? `$${formatAusdWad(pos.collateralWad)}` : "$0.00"} sub={<span className="text-muted">AUSD, separate from perps</span>} />
+        <StatCard label="Your Swap Margin" value={pos ? `$${formatAusdWad(pos.collateralWad)}` : "$0.00"} sub={<span className="text-muted">{COLLATERAL}, separate from perps</span>} />
       </div>
 
       {tx.status && (
@@ -236,7 +237,7 @@ function Fix() {
             ) : pos.lockedSpread ? (
               // q = 0, K ≠ 0: a locked spread, not zero (MATH_SPEC §6.2)
               <p className="num text-lg text-long">
-                Locked {formatSignedAusdWad(value)} AUSD until {maturity}
+                Locked {formatSignedAusdWad(value)} {COLLATERAL} until {maturity}
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -307,9 +308,9 @@ function Fix() {
       </div>
 
       <Dialog open={margin !== null} onClose={() => setMargin(null)} title={margin === "withdraw" ? "Withdraw swap margin" : "Deposit swap margin"}>
-        <Row label="Current margin" value={pos ? `${formatAusdWad(pos.collateralWad)} AUSD` : "—"} />
+        <Row label="Current margin" value={pos ? `${formatAusdWad(pos.collateralWad)} ${COLLATERAL}` : "—"} />
         <label htmlFor="swap-collat" className="mt-2 block text-xs text-muted">
-          Amount (AUSD)
+          Amount ({COLLATERAL})
         </label>
         <input id="swap-collat" data-autofocus aria-label="Swap collateral amount" inputMode="decimal" value={collat} onChange={(e) => setCollat(e.target.value)} className={`${input} mt-1`} />
         <Button variant="brand" size="lg" block className="mt-4" disabled={!isConnected || !swapMarket || tx.busy} loading={tx.busy} onClick={() => moveCollateral(margin ?? "deposit")}>

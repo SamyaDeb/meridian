@@ -12,6 +12,7 @@ import { Toaster } from "@/components/Toaster";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AppBackground } from "@/components/AppBackground";
 import { StatusBar } from "@/components/StatusBar";
+import { COLLATERAL } from "@/config/collateral";
 
 // Inter Tight = landing-page parity (UI); Geist Mono = tabular numbers.
 const interTight = Inter_Tight({ variable: "--font-inter-tight", subsets: ["latin", "latin-ext"], weight: ["400", "500", "600", "700"], display: "swap" });
@@ -23,7 +24,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL;
 export const metadata: Metadata = {
   ...(SITE_URL ? { metadataBase: new URL(SITE_URL) } : {}),
   title: "Meridian: per-block funding on Monad",
-  description: "Trade MON-PERP with funding every block, earn the basis, or fix your funding rate. All in AUSD.",
+  description: `Trade MON-PERP with funding every block, earn the basis, or fix your funding rate. All in ${COLLATERAL}.`,
   applicationName: "Meridian",
   appleWebApp: { capable: true, title: "Meridian", statusBarStyle: "black-translucent" },
   icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },

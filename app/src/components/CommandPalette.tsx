@@ -8,6 +8,7 @@ import { setDraft } from "@/features/trade/draft";
 import { resetLayout } from "@/lib/layout";
 import { NAV_ITEMS } from "./nav/items";
 import { usePerpMarkets } from "@/data/market";
+import { COLLATERAL } from "@/config/collateral";
 
 type Cmd = Command & { run: () => void };
 
@@ -47,8 +48,8 @@ export function CommandPalette() {
     { id: "long", title: `Long ${pm.symbol}`, group: "Trade", keywords: "buy b", run: toTrade({ side: "long" }, true) },
     { id: "short", title: `Short ${pm.symbol}`, group: "Trade", keywords: "sell s", run: toTrade({ side: "short" }, true) },
     { id: "limit", title: "Limit order", group: "Trade", run: toTrade({ kind: "limit" }) },
-    { id: "deposit", title: "Deposit AUSD", group: "Account", keywords: "fund add collateral", run: toTrade({ funds: "deposit" }) },
-    { id: "withdraw", title: "Withdraw AUSD", group: "Account", keywords: "remove collateral", run: toTrade({ funds: "withdraw" }) },
+    { id: "deposit", title: `Deposit ${COLLATERAL}`, group: "Account", keywords: "fund add collateral", run: toTrade({ funds: "deposit" }) },
+    { id: "withdraw", title: `Withdraw ${COLLATERAL}`, group: "Account", keywords: "remove collateral", run: toTrade({ funds: "withdraw" }) },
     toggle("hidePnl", "hide PnL"),
     toggle("hideLiq", "hide liquidation price"),
     toggle("hideBalances", "hide balances"),

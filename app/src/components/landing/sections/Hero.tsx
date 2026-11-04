@@ -1,6 +1,7 @@
 import IntroWord from "@/components/landing/IntroWord";
 import Image from "next/image";
 import Link from "next/link";
+import { COLLATERAL } from "@/config/collateral";
 
 export default function Hero() {
   return (
@@ -49,7 +50,7 @@ export default function Hero() {
             <IntroWord text="Block." />
           </span>
         </h1>
-        <p data-fade="1" style={{ margin: "34px 0 0", fontSize: "clamp(16px,1.3vw,19px)", color: "#e8e8e8", letterSpacing: "-0.01em" }}>Trade MON-PERP with funding every block, earn the basis, or fix your funding rate. All in AUSD, on Monad.</p>
+        <p data-fade="1" style={{ margin: "34px 0 0", fontSize: "clamp(16px,1.3vw,19px)", color: "#e8e8e8", letterSpacing: "-0.01em" }}>Trade MON-PERP with funding every block, earn the basis, or fix your funding rate. All in {COLLATERAL}, on Monad.</p>
         <div data-fade="1" style={{ display: "flex", gap: "20px", marginTop: "48px", flexWrap: "wrap", justifyContent: "center" }}>
           <Link href="/trade" style={{ background: "#a08ffb", color: "#0e100f", borderRadius: "999px", width: "186px", height: "68px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", fontWeight: "600" }} className="hover-primary">Launch App</Link>
           <a href="https://github.com/SamyaDeb/meridian" target="_blank" rel="noreferrer" style={{ background: "#180b2b", color: "#fff", border: "1px solid #261146", borderRadius: "999px", width: "182px", height: "68px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", fontWeight: "600" }} className="hover-dark">View on GitHub</a>
@@ -89,7 +90,7 @@ export default function Hero() {
                 <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#bcb3f0", border: "2px solid #2b2b2b", marginLeft: "-6px" }}></div>
               </div>
               <span style={{ color: "#836ef9", fontSize: "16px" }}>♥</span>
-              <span style={{ fontSize: "19px", fontWeight: "600", letterSpacing: "-0.02em" }}>AUSD</span>
+              <span style={{ fontSize: "19px", fontWeight: "600", letterSpacing: "-0.02em" }}>{COLLATERAL}</span>
             </div>
           </div>
           <div data-side="r" data-card="1" style={{ position: "absolute", right: "7.2%", top: "205px", width: "50px", height: "50px", borderRadius: "50%", background: "linear-gradient(135deg,#836ef9,#b9b0ea)", display: "flex", alignItems: "center", justifyContent: "center", animation: "floatY 5.5s ease-in-out infinite 0.2s" }}>

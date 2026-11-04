@@ -6,7 +6,7 @@ import { useAccount } from "wagmi";
 import type { PublicClient } from "viem";
 import { Button, Dialog } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
-import { contractAddress, deploymentFor } from "@/config/deployments";
+import { contractAddress, deploymentFor, collateralAddress } from "@/config/deployments";
 import { usePerpMarket } from "@/data/market";
 import { erc20Abi } from "@/lib/abi";
 import { FAUCET_AMOUNT, faucetAvailable, msUntilNextClaim, readLastClaim, writeLastClaim } from "@/lib/faucet";
@@ -15,13 +15,14 @@ import { ONBOARD_DEPOSIT, ONBOARD_STEPS, failedStep, initialOnboardState, runOnb
 import { approveToken, depositCollateral, mintTestAusd } from "@/lib/tx";
 import { formatAusdToken } from "@/lib/format";
 import { READ_CHAIN_ID, readChain } from "@/lib/wagmi";
+import { COLLATERAL } from "@/config/collateral";
 
 const LABEL: Record<OnboardStep, string> = {
-  mint: `Get ${formatAusdToken(FAUCET_AMOUNT).replace(/\.00$/, "")} test AUSD (no value)`,
-  approve: "Allow the exchange to use your AUSD",
-  deposit: `Deposit ${formatAusdToken(ONBOARD_DEPOSIT).replace(/\.00$/, "")} AUSD as collateral`,
+  mint: `Get ${formatAusdToken(FAUCET_AMOUNT).replace(/\.00$/, "")} test ${COLLATERAL} (no value)`,
+  approve: `Allow the exchange to use your ${COLLATERAL}`,
+  deposit: `Deposit ${formatAusdToken(ONBOARD_DEPOSIT).replace(/\.00$/, "")} ${COLLATERAL} as collateral`,
 };
-export const ONBOARD_CTA = `Get ${formatAusdToken(FAUCET_AMOUNT).replace(/\.00$/, "")} test AUSD & deposit ${formatAusdToken(ONBOARD_DEPOSIT).replace(/\.00$/, "")}`;
+export const ONBOARD_CTA = `Get ${formatAusdToken(FAUCET_AMOUNT).replace(/\.00$/, "")} test ${COLLATERAL} & deposit ${formatAusdToken(ONBOARD_DEPOSIT).replace(/\.00$/, "")}`;
 
 /** Testnet faucet + deposit is offered on this build's chain (AUSD is our MockERC20 there). */
 export const onboardingOffered = (): boolean => faucetAvailable(READ_CHAIN_ID, deploymentFor(READ_CHAIN_ID));
@@ -29,7 +30,7 @@ export const onboardingOffered = (): boolean => faucetAvailable(READ_CHAIN_ID, d
 export function useOnboarding({ onDone }: { onDone?: () => void } = {}) {
   const tx = useTx();
   const { address } = useAccount();
-  const ausd = contractAddress(READ_CHAIN_ID, "AUSD");
+  const ausd = collateralAddress(READ_CHAIN_ID);
   // K7: the deposit step funds the selected market's ClearingHouse (isolated margin per market)
   const pm = usePerpMarket();
   const ch = contractAddress(READ_CHAIN_ID, "ClearingHouse") ? pm.clearingHouse : undefined;
@@ -109,7 +110,7 @@ export function OnboardSheet({ o }: { o: ReturnType<typeof useOnboarding> }) {
       }
     >
       <p className="text-xs text-muted">
-        {o.sponsored ? "Gas is on us: you don't need MON." : "Each step is a transaction from your wallet."} Test AUSD has no value.
+        {o.sponsored ? "Gas is on us: you don't need MON." : "Each step is a transaction from your wallet."} Test {COLLATERAL} has no value.
       </p>
       <ol className="mt-3 space-y-2" data-testid="onboard-steps">
         {ONBOARD_STEPS.map((k, i) => {

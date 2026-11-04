@@ -1,9 +1,22 @@
 // EIP-2612 permit: pure builders + validation, so the one-signature deposit (Privy embedded wallet or injected) is testable.
 import type { Address, Hex } from "viem";
 
-/** AUSD's permit domain (verified onchain, see docs/ARCHITECTURE.md §Research). */
-export const PERMIT_DOMAIN_NAME = "Agora Dollar";
-export const PERMIT_DOMAIN_VERSION = "1";
+/** EIP-712 domain of the collateral token (name + version), read from the token itself: never hard-coded (4 Nov 2026). */
+export type PermitDomain = { name: string; version: string };
+
+/**
+ * Pure: an EIP-5267 `eip712Domain()` result → the permit domain, or undefined when it can't be trusted for a permit:
+ * name or version not declared in `fields` (bits 0x01, 0x02), a chain id other than the node's, or a verifying
+ * contract other than the token. Undefined ⇒ the caller uses approve (one more tx, never a wrong signature).
+ */
+export function permitDomainFrom(raw: readonly [fields: Hex, name: string, version: string, chainId: bigint, verifyingContract: Address, ...rest: unknown[]], token: Address, chainId: number): PermitDomain | undefined {
+  const [fields, name, version, cid, vc] = raw;
+  const f = Number.parseInt(fields.slice(2) || "0", 16);
+  if ((f & 0x03) !== 0x03 || name === "" || version === "") return undefined;
+  if (f & 0x04 && cid !== BigInt(chainId)) return undefined;
+  if (f & 0x08 && vc.toLowerCase() !== token.toLowerCase()) return undefined;
+  return { name, version };
+}
 /** Permit validity window; short on purpose (a leaked signature is worth little). */
 export const PERMIT_TTL_SECONDS = 1800n;
 
@@ -29,11 +42,11 @@ export class PermitError extends Error {
 
 export const permitDeadline = (nowMs: number): bigint => BigInt(Math.floor(nowMs / 1000)) + PERMIT_TTL_SECONDS;
 
-export type PermitParams = { token: Address; owner: Address; spender: Address; value: bigint; nonce: bigint; deadline: bigint; chainId: number };
+export type PermitParams = { token: Address; owner: Address; spender: Address; value: bigint; nonce: bigint; deadline: bigint; chainId: number; domain: PermitDomain };
 
 export function buildPermitTypedData(p: PermitParams) {
   return {
-    domain: { name: PERMIT_DOMAIN_NAME, version: PERMIT_DOMAIN_VERSION, chainId: p.chainId, verifyingContract: p.token },
+    domain: { name: p.domain.name, version: p.domain.version, chainId: p.chainId, verifyingContract: p.token },
     types: PERMIT_TYPES,
     primaryType: "Permit" as const,
     message: { owner: p.owner, spender: p.spender, value: p.value, nonce: p.nonce, deadline: p.deadline },

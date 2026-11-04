@@ -10,6 +10,7 @@ import { setDraft } from "./draft";
 import { depthPaths } from "@/lib/depth";
 import { PERPL_ENABLED } from "@/features/chart/datafeed/perpl";
 import { PerplBook } from "./PerplBook";
+import { COLLATERAL } from "@/config/collateral";
 
 const LEVELS = 12; // per side on screen (§6.2)
 // fetched so coarser groupings still fill rows; getDepth reverts BatchTooLarge above MeridianConstants.MAX_BATCH (32)
@@ -33,7 +34,7 @@ function Level({ r, side, unit }: { r: LadderRow; side: "bid" | "ask"; unit: Uni
         type="button"
         onClick={() => setDraft({ kind: "limit", limitPx: fp(r.priceWad).replace(/,/g, "") })}
         title={`Sweep to here: ${fb(r.cumSizeWad)} ${pm.base} at avg ${fp(r.avgPriceWad)}. Click to use this price.`}
-        aria-label={`${side === "bid" ? "Bid" : "Ask"} ${fp(r.priceWad)}, ${sizeText(r, unit, pm.sizeDp)} ${unit === "BASE" ? pm.base : unit}. Use as limit price.`}
+        aria-label={`${side === "bid" ? "Bid" : "Ask"} ${fp(r.priceWad)}, ${sizeText(r, unit, pm.sizeDp)} ${unit === "BASE" ? pm.base : COLLATERAL}. Use as limit price.`}
         className="num relative grid h-[25px] w-full grid-cols-3 items-center px-3 text-xs hover:bg-card-2 pointer-coarse:h-11"
       >
         <span className={`absolute inset-y-0 left-0 ${side === "bid" ? "bg-long/15" : "bg-short/15"}`} style={{ width: `${r.depthBps / 100}%` }} aria-hidden />
@@ -71,7 +72,7 @@ function Book() {
         </select>
         <select aria-label="Size unit" value={unit} onChange={(e) => setUnit(e.target.value as Unit)} className={ctl}>
           <option value="BASE">{pm.base}</option>
-          <option value="AUSD">AUSD</option>
+          <option value="AUSD">{COLLATERAL}</option>
         </select>
         <select aria-label="Book view" value={view} onChange={(e) => setView(e.target.value as View)} className={ctl}>
           <option value="both">Both</option>
@@ -81,7 +82,7 @@ function Book() {
       </div>
       <div className="grid grid-cols-3 px-3 pb-1 text-xs text-muted">
         <span>Price</span>
-        <span className="text-right">Size ({unit === "BASE" ? pm.base : unit})</span>
+        <span className="text-right">Size ({unit === "BASE" ? pm.base : COLLATERAL})</span>
         <span className="text-right">Total</span>
       </div>
       {isError ? (

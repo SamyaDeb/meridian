@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import { Card } from "./ui";
 import { onboardingOffered } from "./Onboard";
 import { privyEnabled } from "@/lib/privy";
+import { COLLATERAL } from "@/config/collateral";
 
 // Onboarding card (C7): shown until the viewer connects or dismisses it. Full guide: docs/outputs/ONBOARDING.md.
 const KEY = "meridian.getStarted.dismissed";
@@ -35,8 +36,8 @@ const subscribe = (l: () => void) => {
 };
 
 const STEPS = [
-  { title: "Trade", href: "/trade", text: "Deposit AUSD, go long or short MON-PERP. Funding settles every block." },
-  { title: "Earn", href: "/earn", text: "Deposit AUSD into the basis vault; it earns funding while staying delta-neutral." },
+  { title: "Trade", href: "/trade", text: `Deposit ${COLLATERAL}, go long or short MON-PERP. Funding settles every block.` },
+  { title: "Earn", href: "/earn", text: `Deposit ${COLLATERAL} into the basis vault; it earns funding while staying delta-neutral.` },
   { title: "Fix", href: "/fix", text: "Lock a 30-day funding rate: pay or receive a fixed APR against the per-block rate." },
 ] as const;
 
@@ -63,11 +64,11 @@ export function GetStarted() {
           ) : (
             <>Connect a wallet.</>
           )}{" "}
-          Then one tap gets you <span className="text-text">free test AUSD</span> and deposits it.
+          Then one tap gets you <span className="text-text">free test {COLLATERAL}</span> and deposits it.
         </p>
       ) : (
         <p className="text-sm text-muted">
-          You need <span className="text-text">MON</span> for gas and <span className="text-text">AUSD</span> on Monad. Start small.
+          You need <span className="text-text">MON</span> for gas and <span className="text-text">{COLLATERAL}</span> on Monad. Start small.
         </p>
       )}
       <ol className="mt-3 space-y-2">

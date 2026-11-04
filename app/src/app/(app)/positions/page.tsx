@@ -12,6 +12,7 @@ import { PositionsCard } from "@/features/trade/PositionsCard";
 import { FundsDialog } from "@/features/trade/FundsDialog";
 import { freeCollateralWad, marginRatioWad } from "@/lib/account";
 import { formatAprWad, formatAusdWad, formatBaseWad, formatFixed, formatSignedAusdWad } from "@/lib/format";
+import { COLLATERAL } from "@/config/collateral";
 
 /** A label with an explanation (Hyperliquid's dotted-underline terms). */
 const Term = ({ children, tip }: { children: ReactNode; tip: ReactNode }) => (
@@ -95,7 +96,7 @@ export default function PortfolioPage() {
         <Card className="p-0!">
           <div className="flex h-12 items-center justify-between border-b border-border px-4 text-sm">
             <span>Perps · Cross margin</span>
-            <span className="text-muted">AUSD</span>
+            <span className="text-muted">{COLLATERAL}</span>
           </div>
           <div className="px-4 pb-3 pt-2">
             <Row label="Equity" value={money(a?.equity)} />
@@ -127,7 +128,7 @@ export default function PortfolioPage() {
             {chart === "funding" ? (
               cumulative.length > 1 ? (
                 <div className="flex h-full flex-col">
-                  <div className="mb-2 text-xs text-muted">Cumulative funding over the last {items.length} settlements (AUSD, + = received)</div>
+                  <div className="mb-2 text-xs text-muted">Cumulative funding over the last {items.length} settlements ({COLLATERAL}, + = received)</div>
                   <Sparkline className="min-h-0 w-full flex-1" stroke="var(--brand-soft)" values={cumulative} />
                 </div>
               ) : (

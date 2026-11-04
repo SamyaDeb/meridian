@@ -36,9 +36,22 @@ describe("Meridian deployment readers (deployments/<chainId>.json)", () => {
     expect(d.contracts.ClearingHouse).toBe("0x1F90B5Eb6D59adAe2be147b3903c7aCb4c16a6eA");
     expect(d.contracts.OrderBook).toBe("0xCFB0169FF1957C347285Bb10Ab83E33F3C2bb207");
     expect(d.contracts.SwapOrderBook).toBe("0xb7D732a5ac88c159B3CA553c672182D2Be51E6Db");
-    expect(d.mockContracts).toContain("AUSD");
+    expect(d.mockContracts).toContain(d.collateralSymbol);
+    expect(d.collateralIsMock).toBe(true);
     expect(d.startBlock).toBe(68_739_694n);
     expect(d.symbol).toBe("MON-PERP");
+  });
+  it("collateral: contracts.USDC wins; a pre-USDC record (contracts.AUSD) keeps reading as AUSD, never relabelled", () => {
+    const base = repoJson<Record<string, unknown>>("deployments/10143.json");
+    const old = readMeridianDeployment(base, 10143); // the live testnet record until the USDC redeploy
+    expect(old.collateralSymbol).toBe(old.contracts.collateral === (base.contracts as Record<string, string>).USDC ? "USDC" : "AUSD");
+    const { AUSD: _drop, ...rest } = base.contracts as Record<string, string>;
+    const usdc = "0x00000000000000000000000000000000000000c1";
+    const fresh = readMeridianDeployment({ ...base, contracts: { ...rest, USDC: usdc }, mockContracts: ["USDC", "KuruHedger"] }, 10143);
+    expect(fresh).toMatchObject({ collateralSymbol: "USDC", collateralIsMock: true });
+    expect(fresh.contracts.collateral.toLowerCase()).toBe(usdc);
+    expect(readMeridianDeployment({ ...base, contracts: { ...rest, USDC: usdc }, mockContracts: [] }, 10143).collateralIsMock).toBe(false);
+    expect(() => readMeridianDeployment({ ...base, contracts: rest }, 10143)).toThrow(/AUSD: expected an address/);
   });
   it("31337 (no `deployed` field) reads; a missing 143.json is 'not deployed', and the throwing reader refuses it", () => {
     expect(tryReadMeridianDeployment(repoJson("deployments/31337.json"), 31337).status).toBe("deployed");

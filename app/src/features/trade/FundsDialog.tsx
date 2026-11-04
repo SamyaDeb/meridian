@@ -4,13 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useAccount, useChainId, usePublicClient } from "wagmi";
 import { Button, Dialog, Notice } from "@/components/ds";
 import { useTx } from "@/components/Wallet";
-import { contractAddress } from "@/config/deployments";
+import { contractAddress, collateralAddress } from "@/config/deployments";
 import { usePerpMarket } from "@/data/market";
 import { clearingHouseAbi, erc20Abi } from "@/lib/abi";
 import { deposit, sendTx } from "@/lib/tx";
 import { formatAusdToken, parseFixed } from "@/lib/format";
 import { wadToToken } from "@/lib/math";
 import { AUSD_DECIMALS } from "@/lib/units";
+import { COLLATERAL } from "@/config/collateral";
 
 /**
  * Deposit / withdraw AUSD (6 dp at the boundary, CONTRIBUTING.md §2). Withdraw max = free collateral converted WAD → token
@@ -25,7 +26,7 @@ export function FundsDialog({ mode, open, onClose, freeCollateralWad }: { mode: 
   // K7: margin is isolated per market: funds go to the selected market's ClearingHouse
   const pm = usePerpMarket();
   const ch = contractAddress(chainId, "ClearingHouse") ? pm.clearingHouse : undefined;
-  const ausd = contractAddress(chainId, "AUSD");
+  const ausd = collateralAddress(chainId);
   const { data: walletBal } = useQuery({
     queryKey: ["ausdBalance", chainId, address, ausd],
     queryFn: () => pub!.readContract({ address: ausd!, abi: erc20Abi, functionName: "balanceOf", args: [address!] }),
@@ -37,8 +38,8 @@ export function FundsDialog({ mode, open, onClose, freeCollateralWad }: { mode: 
   const tooMuch = token !== undefined && maxToken !== undefined && token > maxToken;
   const invalid = token === undefined || token === 0n || tooMuch;
   const submit = () =>
-    tx.run(`${mode} ${amount} AUSD (${pm.symbol})`, (p, w) => {
-      if (!ch || !ausd) throw new Error("no AUSD/ClearingHouse for this chain");
+    tx.run(`${mode} ${amount} ${COLLATERAL} (${pm.symbol})`, (p, w) => {
+      if (!ch || !ausd) throw new Error(`no ${COLLATERAL}/ClearingHouse for this chain`);
       if (token === undefined) throw new Error("invalid amount");
       return mode === "deposit" ? deposit(p, w, ausd, ch, token) : sendTx(p, w, { address: ch, abi: clearingHouseAbi, functionName: "withdraw", args: [token] });
     });
@@ -46,15 +47,15 @@ export function FundsDialog({ mode, open, onClose, freeCollateralWad }: { mode: 
     <Dialog
       open={open}
       onClose={onClose}
-      title={mode === "deposit" ? "Deposit AUSD" : "Withdraw AUSD"}
+      title={mode === "deposit" ? `Deposit ${COLLATERAL}` : `Withdraw ${COLLATERAL}`}
       footer={
         <Button variant="brand" block size="lg" disabled={invalid || tx.busy || !address} loading={tx.busy} onClick={submit}>
-          {mode === "deposit" ? "Deposit AUSD" : "Withdraw AUSD"}
+          {mode === "deposit" ? `Deposit ${COLLATERAL}` : `Withdraw ${COLLATERAL}`}
         </Button>
       }
     >
       <label className="block text-xs text-muted" htmlFor={`funds-${mode}`}>
-        Amount (AUSD)
+        Amount ({COLLATERAL})
         <span className="num float-right">
           {mode === "deposit" ? "Wallet" : "Free"} {maxToken !== undefined ? formatAusdToken(maxToken) : "—"}
         </span>
@@ -75,7 +76,7 @@ export function FundsDialog({ mode, open, onClose, freeCollateralWad }: { mode: 
         </Button>
       </div>
       {tooMuch && <p className="mt-2 text-xs text-short">More than {mode === "deposit" ? "your wallet holds" : "your free collateral"}.</p>}
-      {mode === "deposit" && <p className="mt-2 text-[11px] text-muted">One signature (permit) where AUSD supports it, otherwise approve + deposit.</p>}
+      {mode === "deposit" && <p className="mt-2 text-[11px] text-muted">One signature (permit) where {COLLATERAL} supports it, otherwise approve + deposit.</p>}
       {mode === "withdraw" && <p className="mt-2 text-[11px] text-muted">Free collateral = equity − margin used by your position and open orders.</p>}
       {tx.status && (
         <Notice tone={tx.status.includes("failed") ? "danger" : "info"} className="mt-3">

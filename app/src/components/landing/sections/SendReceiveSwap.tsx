@@ -1,5 +1,6 @@
 import TypeLine from "@/components/landing/TypeLine";
 import { tiles } from "@/components/landing/data";
+import { COLLATERAL } from "@/config/collateral";
 
 export default function SendReceiveSwap() {
   return (
@@ -43,10 +44,10 @@ export default function SendReceiveSwap() {
                   <div><div style={{ fontSize: "12px", color: "#666" }}>You Receive (floating)</div><div style={{ fontSize: "21px", fontWeight: "700", marginTop: "8px" }}>Funding</div></div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "15px", fontWeight: "600" }}><div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px" }}>◆</div>MON-PERP</div>
                 </div>
-                <div style={{ textAlign: "center", fontSize: "12px", color: "#555", marginTop: "26px" }}>● 30-day maturity · settled in AUSD</div>
+                <div style={{ textAlign: "center", fontSize: "12px", color: "#555", marginTop: "26px" }}>● 30-day maturity · settled in {COLLATERAL}</div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: "12px", margin: "18px 20px 0", fontFamily: "Helvetica,sans-serif" }}>
-                <div style={{ borderRadius: "14px", background: "#e4e1f4", padding: "14px", display: "flex", gap: "10px", alignItems: "center" }}><div style={{ width: "26px", height: "26px", borderRadius: "50%", background: "#836ef9" }}></div><div><div style={{ fontSize: "11px", color: "#666" }}>Notional</div><div style={{ fontSize: "14px", fontWeight: "600" }}>1,000 AUSD</div></div></div>
+                <div style={{ borderRadius: "14px", background: "#e4e1f4", padding: "14px", display: "flex", gap: "10px", alignItems: "center" }}><div style={{ width: "26px", height: "26px", borderRadius: "50%", background: "#836ef9" }}></div><div><div style={{ fontSize: "11px", color: "#666" }}>Notional</div><div style={{ fontSize: "14px", fontWeight: "600" }}>1,000 {COLLATERAL}</div></div></div>
                 <div style={{ borderRadius: "14px", background: "#faeedd", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "19px", fontWeight: "700" }}>30 d</div>
               </div>
             </div>
